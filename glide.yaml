@@ -2,8 +2,6 @@ package: github.com/Laisky/go-utils
 import:
 - package: github.com/Laisky/go-chaining
   version: ~0.1.0
-- package: github.com/astaxie/beego
-  version: ~1.9.2
 - package: github.com/cihub/seelog
   version: ~2.6.0
 - package: github.com/dgrijalva/jwt-go
@@ -12,5 +10,3 @@ import:
   version: ~0.8.0
 - package: github.com/spf13/viper
   version: ~1.0.2
-testImport:
-- package: github.com/Laisky/go-utils

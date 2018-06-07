@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	httpCliend = &http.Client{ // default http client
+	httpClient = &http.Client{ // default http client
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
 		},
@@ -31,7 +31,7 @@ type RequestData struct {
 
 // RequestJSON request JSON and return JSON by default client
 func RequestJSON(method, url string, request *RequestData, resp interface{}) (err error) {
-	return RequestJSONWithClient(httpCliend, method, url, request, resp)
+	return RequestJSONWithClient(httpClient, method, url, request, resp)
 }
 
 // RequestJSONWithClient request JSON and return JSON with specific client

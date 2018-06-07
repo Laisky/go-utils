@@ -1,17 +1,6 @@
-hash: 4780f6db1bf462ccc2e468a848b2fae6148c98ee575bc8b011736a3fe8cbffed
-updated: 2018-06-07T09:54:14.873442612+08:00
+hash: 153b1d8fcc181821df74ed50f47b270a5c2b4a33e2385ecbd7d2a3354ed00005
+updated: 2018-06-07T14:30:29.686937963+08:00
 imports:
-- name: github.com/astaxie/beego
-  version: bf5c5626ab429e66d88602e1ab1ab5fbf4629a01
-  subpackages:
-  - config
-  - context
-  - context/param
-  - grace
-  - logs
-  - session
-  - toolbox
-  - utils
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
 - name: github.com/dgrijalva/jwt-go

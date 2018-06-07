@@ -1,7 +1,7 @@
 # Go-Utils
 
 
-Install
+Install:
 
 ```sh
 go get github.com/Laisky/go-utils
