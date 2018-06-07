@@ -1,15 +1,38 @@
 package utils
 
+// JWT payload should looks like:
+//
+// ```js
+// {
+// 	"k1": "v1",
+// 	"k2": "v2",
+// 	"k3": "v3",
+// 	"username": "laisky"
+// }
+// ```
+//
+// and the payload would be looks like:
+//
+// ```js
+// {
+// 	"expires_at": "2286-11-20T17:46:40Z",
+// 	"k1": "v1",
+// 	"k2": "v2",
+// 	"k3": "v3",
+// 	"username": "laisky"
+//   }
+// ```
+
 import (
 	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
 
-	log "github.com/cihub/seelog"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
+// JWT struct to generate and validate jwt tokens
 type JWT struct {
 	secret      []byte
 	layout      string
@@ -43,6 +66,7 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 	return tokenStr, nil
 }
 
+// CheckExpiresValid return the bool whether the `expires_at` is not expired
 func (j *JWT) CheckExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
 	expiresAt, ok := expiresAtI.(string)
 	if !ok {
@@ -57,9 +81,9 @@ func (j *JWT) CheckExpiresValid(now time.Time, expiresAtI interface{}) (ok bool,
 	return now.Before(tokenT), nil
 }
 
-// Validate 校验 token 是否合法
+// Validate validate the token and return the payload
 func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err error) {
-	log.Debugf("Validate for token %v", tokenStr)
+	Logger.Debugf("Validate for token %v", tokenStr)
 	payload = map[string]interface{}{}
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
@@ -80,13 +104,13 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 			return payload, fmt.Errorf("token do not contains `%v`", j.TKUsername)
 		}
 
-		if expiresAt, ok := payload["expires_at"]; !ok {
+		if expiresAt, ok := payload[j.TKExpiresAt]; !ok {
 			return payload, fmt.Errorf("token do not contains `%v`", j.TKExpiresAt)
 		} else {
 			if ok, err = j.CheckExpiresValid(UTCNow(), expiresAt); err != nil {
 				return payload, errors.Wrap(err, "parse token `expires_at` error")
 			} else if !ok {
-				return payload, fmt.Errorf("token expired at %v", payload["expires_at"])
+				return payload, fmt.Errorf("token expired at %v", payload[j.TKExpiresAt])
 			}
 		}
 

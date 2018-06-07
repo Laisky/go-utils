@@ -1,32 +1,30 @@
 package utils
 
+// import (
+// 	"github.com/Laisky/go-utils"
+// )
+
+// utils.Settings.Setup("/etc/go-ramjet/settings")  // load /etc/go-ramjet/settings.yml
+// utils.Settings.Get("key")
+
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/spf13/viper"
 )
 
-// St type of project settings
-type St struct {
+// SettingsType type of project settings
+type SettingsType struct {
 	sync.Mutex
 }
 
 // Settings is the settings for this project
-var Settings = &St{}
-
-// Reload get setting by key
-func (s *St) Reload() {
-	s.Lock()
-	defer s.Unlock()
-
-	LoadSettings()
-}
+var Settings = &SettingsType{}
 
 // Get get setting by key
-func (s *St) Get(key string) interface{} {
+func (s *SettingsType) Get(key string) interface{} {
 	s.Lock()
 	defer s.Unlock()
 
@@ -34,7 +32,7 @@ func (s *St) Get(key string) interface{} {
 }
 
 // GetString get setting by key
-func (s *St) GetString(key string) string {
+func (s *SettingsType) GetString(key string) string {
 	s.Lock()
 	defer s.Unlock()
 
@@ -42,7 +40,7 @@ func (s *St) GetString(key string) string {
 }
 
 // GetBool get setting by key
-func (s *St) GetBool(key string) bool {
+func (s *SettingsType) GetBool(key string) bool {
 	s.Lock()
 	defer s.Unlock()
 
@@ -50,7 +48,7 @@ func (s *St) GetBool(key string) bool {
 }
 
 // GetInt get setting by key
-func (s *St) GetInt(key string) int {
+func (s *SettingsType) GetInt(key string) int {
 	s.Lock()
 	defer s.Unlock()
 
@@ -58,7 +56,7 @@ func (s *St) GetInt(key string) int {
 }
 
 // GetInt64 get setting by key
-func (s *St) GetInt64(key string) int64 {
+func (s *SettingsType) GetInt64(key string) int64 {
 	s.Lock()
 	defer s.Unlock()
 
@@ -66,7 +64,7 @@ func (s *St) GetInt64(key string) int64 {
 }
 
 // GetDuration get setting by key
-func (s *St) GetDuration(key string) time.Duration {
+func (s *SettingsType) GetDuration(key string) time.Duration {
 	s.Lock()
 	defer s.Unlock()
 
@@ -74,30 +72,31 @@ func (s *St) GetDuration(key string) time.Duration {
 }
 
 // Set set setting by key
-func (s *St) Set(key string, val interface{}) {
+func (s *SettingsType) Set(key string, val interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
 	viper.Set(key, val)
 }
 
-// SetupSettings load config file settings.yml
-func SetupSettings() {
+// Setup load config file settings.yml
+func (s *SettingsType) Setup(configPath string) {
 	viper.SetConfigType("yaml")
 	viper.SetConfigName("settings") // name of config file (without extension)
-	viper.AddConfigPath("/etc/go-ramjet/settings/")
-	viper.AddConfigPath(os.Getenv("GOPATH") + "/src/github.com/Laisky/settings/")
+	viper.AddConfigPath(configPath)
 	viper.AddConfigPath(".")
 
-	LoadSettings()
+	s.LoadSettings()
 	// WatchSettingsFileChange()
 }
 
 // LoadSettings load settings file
-func LoadSettings() {
+func (s *SettingsType) LoadSettings() {
+	s.Lock()
+	defer s.Unlock()
+
 	err := viper.ReadInConfig() // Find and read the config file
-	// log.Info("load settings")
-	if err != nil { // Handle errors reading the config file
+	if err != nil {             // Handle errors reading the config file
 		panic(fmt.Errorf("Fatal error config file: %s", err))
 	}
 }

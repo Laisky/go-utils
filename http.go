@@ -11,7 +11,6 @@ import (
 
 	"github.com/Laisky/go-chaining"
 
-	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
 )
 
@@ -37,13 +36,13 @@ func RequestJSON(method, url string, request *RequestData, resp interface{}) (er
 
 // RequestJSONWithClient request JSON and return JSON with specific client
 func RequestJSONWithClient(httpClient *http.Client, method, url string, request *RequestData, resp interface{}) (err error) {
-	log.Debugf("RequestJSON for method %v, url %v, data %+v", method, url, request)
+	Logger.Debugf("RequestJSON for method %v, url %v, data %+v", method, url, request)
 
 	var (
 		jsonBytes []byte
 	)
 	jsonBytes, err = json.Marshal(request.Data)
-	log.Debugf("request json %v", string(jsonBytes[:]))
+	Logger.Debugf("request json %v", string(jsonBytes[:]))
 	if err != nil {
 		return errors.Wrap(err, "marshal request data error")
 	}
@@ -74,7 +73,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 		errMsg := fmt.Sprintf("try to unmarshal response data error: %v\n%v", err, string(respBytes[:]))
 		return errors.Wrap(err, errMsg)
 	}
-	log.Debugf("RequestJSON return: %+v", string(respBytes[:]))
+	Logger.Debugf("RequestJSON return: %+v", string(respBytes[:]))
 
 	return nil
 }
