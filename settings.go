@@ -45,6 +45,14 @@ func (s *SettingsType) GetString(key string) string {
 	return viper.GetString(key)
 }
 
+// GetStringSlice get setting by key
+func (s *SettingsType) GetStringSlice(key string) []string {
+	s.Lock()
+	defer s.Unlock()
+
+	return viper.GetStringSlice(key)
+}
+
 // GetBool get setting by key
 func (s *SettingsType) GetBool(key string) bool {
 	s.Lock()

@@ -40,8 +40,8 @@ type JWT struct {
 	TKUsername  string
 }
 
-// New initialize JWT
-func (j *JWT) New(secret string) {
+// Setup initialize JWT
+func (j *JWT) Setup(secret string) {
 	// const key names
 	j.TKExpiresAt = "expires_at"
 	j.TKUsername = "username"

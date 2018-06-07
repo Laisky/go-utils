@@ -48,7 +48,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	}
 
 	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(HTTPJSONHeader, HTTPJSONHeaderVal)
 	for k, v := range request.Headers {
 		req.Header.Set(k, v)
 	}

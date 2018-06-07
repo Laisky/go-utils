@@ -2,5 +2,6 @@ package utils
 
 // HTTP defines
 const (
-	HTTPJSONHeader = "application/json"
+	HTTPJSONHeader    = "Content-Type"
+	HTTPJSONHeaderVal = "application/json"
 )

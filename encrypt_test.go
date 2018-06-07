@@ -9,7 +9,7 @@ import (
 
 func TestGenerateToken(t *testing.T) {
 	j := utils.JWT{}
-	j.New("4738947328rh3ru23f32hf238f238fh28f")
+	j.Setup("4738947328rh3ru23f32hf238f238fh28f")
 	expect := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHBpcmVzX2F0IjoiMTk3MC0wMS0wMVQwMDowMTo0MFoiLCJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1c2VybmFtZSI6ImxhaXNreSJ9.5qJK50PRxRpQji5lZmwWdMebMmRugnlw1QxW6kHEPyU"
 
 	got, err := j.Generate(100, map[string]interface{}{
@@ -28,7 +28,7 @@ func TestGenerateToken(t *testing.T) {
 
 func TestValidToken(t *testing.T) {
 	j := utils.JWT{}
-	j.New("4738947328rh3ru23f32hf238f238fh28f")
+	j.Setup("4738947328rh3ru23f32hf238f238fh28f")
 	expect := map[string]interface{}{
 		"k1":         "v1",
 		"k2":         "v2",
