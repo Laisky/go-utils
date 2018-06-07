@@ -3,7 +3,7 @@ package utils
 // import (
 // 	"github.com/Laisky/go-utils"
 // )
-
+//
 // utils.Settings.Setup("/etc/go-ramjet/settings")  // load /etc/go-ramjet/settings.yml
 // utils.Settings.Get("key")
 
@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -22,6 +23,11 @@ type SettingsType struct {
 
 // Settings is the settings for this project
 var Settings = &SettingsType{}
+
+// BindPFlags bind pflags to settings
+func (s *SettingsType) BindPFlags(p *pflag.FlagSet) {
+	viper.BindPFlags(p)
+}
 
 // Get get setting by key
 func (s *SettingsType) Get(key string) interface{} {
