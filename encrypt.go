@@ -72,7 +72,6 @@ func (j *JWT) CheckExpiresValid(now time.Time, expiresAtI interface{}) (ok bool,
 	if !ok {
 		return false, fmt.Errorf("`%v` is not string", j.TKExpiresAt)
 	}
-	fmt.Println(expiresAt, j.layout)
 	tokenT, err := time.Parse(j.layout, expiresAt)
 	if err != nil {
 		return false, errors.Wrap(err, "try to parse token expires_at error")
