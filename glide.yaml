@@ -10,3 +10,4 @@ import:
   version: ~0.8.0
 - package: github.com/spf13/viper
   version: ~1.0.2
+- package: gopkg.in/gomail.v2
