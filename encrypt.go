@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/pkg/errors"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -82,7 +84,7 @@ func (j *JWT) CheckExpiresValid(now time.Time, expiresAtI interface{}) (ok bool,
 
 // Validate validate the token and return the payload
 func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err error) {
-	Logger.Debugf("Validate for token %v", tokenStr)
+	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
 	payload = map[string]interface{}{}
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:

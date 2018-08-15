@@ -1,55 +1,42 @@
 package utils
 
 import (
-	"bytes"
-	"html/template"
+	"encoding/json"
+	"fmt"
 
-	log "github.com/cihub/seelog"
-	"github.com/pkg/errors"
+	zap "go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	Logger log.LoggerInterface
+	Logger *zap.Logger
 )
 
-// SetupLogger 初始化日志
-func SetupLogger(defaultLevel string) {
-	var (
-		err  error
-		args = struct {
-			LogLevel string
-		}{
-			LogLevel: defaultLevel,
-		}
-	)
-	logConfig := `
-		<seelog type="asynctimer" asyncinterval="1000000" minlevel="{{.LogLevel}}" maxlevel="error">
-			<exceptions>
-				<exception funcpattern="*main.test*Something*" minlevel="{{.LogLevel}}"/>
-				<exception filepattern="*main.go" minlevel="{{.LogLevel}}"/>
-			</exceptions>
-			<outputs formatid="main">
-				<console/>
-			</outputs>
-			<formats>
-				<format id="main" format="[%UTCDate(2006-01-02T15:04:05.000000Z) - %LEVEL - %RelFile:%Line] %Msg%n"/>
-			</formats>
-		</seelog>
-	`
-	tmpl, err := template.New("seelogConfig").Parse(logConfig)
+// SetupLogger contstruct logger
+func SetupLogger(level string) {
+	rawJSON := []byte(fmt.Sprintf(`{
+		"level": "%v",
+		"encoding": "json",
+		"outputPaths": ["stdout", "/tmp/logs"],
+		"errorOutputPaths": ["stderr"]
+	  }`, level))
+
+	var cfg zap.Config
+	err := json.Unmarshal(rawJSON, &cfg)
 	if err != nil {
-		panic(errors.Wrap(err, "parse log config error"))
+		panic(err)
 	}
-	var configBytes bytes.Buffer
-	if err := tmpl.Execute(&configBytes, args); err != nil {
-		panic(errors.Wrap(err, "execute log template error"))
-	}
-	Logger, err = log.LoggerFromConfigAsBytes(configBytes.Bytes())
+
+	cfg.EncoderConfig = zap.NewProductionEncoderConfig()
+	cfg.EncoderConfig.MessageKey = "message"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	Logger, err = cfg.Build()
 	if err != nil {
-		panic(errors.Wrap(err, "setup logger by template error"))
+		panic(err)
 	}
-	Logger.Info("SetupLogger ok")
-	log.ReplaceLogger(Logger)
+
+	defer Logger.Sync()
+	Logger.Info("Logger construction succeeded", zap.String("level", level))
 }
 
 func init() {

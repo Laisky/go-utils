@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/pkg/errors"
+	zap "go.uber.org/zap"
 	gomail "gopkg.in/gomail.v2"
 )
 
@@ -12,7 +13,7 @@ type Mail struct {
 }
 
 func NewMail(host string, port int) *Mail {
-	Logger.Debugf("new mail for host %v, port %v", host, port)
+	Logger.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
 	return &Mail{
 		host: host,
 		port: port,
@@ -20,7 +21,7 @@ func NewMail(host string, port int) *Mail {
 }
 
 func (m *Mail) Login(username, password string) {
-	Logger.Debugf("login for %v", username)
+	Logger.Debug("login", zap.String("username", username))
 	m.username = username
 	m.password = password
 }
@@ -30,7 +31,7 @@ func (m *Mail) BuildMessage(msg string) string {
 }
 
 func (m *Mail) Send(fr, to, frName, toName, subject, content string) (err error) {
-	Logger.Infof("send email to %v", toName)
+	Logger.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()
 	s.SetAddressHeader("From", fr, frName)
 	s.SetAddressHeader("To", to, toName)
