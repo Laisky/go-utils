@@ -8,18 +8,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type Heap struct {
-	pq *PriorityQ
-}
-
-func (h *Heap) NewHeap(isHighPriority bool, topN int) *Heap {
-	return &Heap{
-		pq: NewPriorityQ(isHighPriority, topN),
-	}
-}
-
-// ----------------------------
-
 type Item struct {
 	Priority int
 	Key      interface{}
