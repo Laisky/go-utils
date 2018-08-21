@@ -9,40 +9,40 @@ import (
 )
 
 type Item struct {
-	Priority int
-	Key      interface{}
+	p int
+	k interface{}
 }
 
 func (it *Item) GetKey() interface{} {
-	return it.Key
+	return it.k
 }
 
 func (it *Item) GetPriority() int {
-	return it.Priority
+	return it.p
 }
 
 var (
 	itemsWaitToSort = structures.HeapItemQ{
-		&Item{Priority: 1},
-		&Item{Priority: 3},
-		&Item{Priority: 55},
-		&Item{Priority: 2},
-		&Item{Priority: 4441},
-		&Item{Priority: 15555},
-		&Item{Priority: 122},
+		&Item{p: 1},
+		&Item{p: 3},
+		&Item{p: 55},
+		&Item{p: 2},
+		&Item{p: 4441},
+		&Item{p: 15555},
+		&Item{p: 122},
 	}
 )
 
 func ExampleGetLargestNItems() {
 	var (
 		itemsWaitToSort = structures.HeapItemQ{
-			&Item{Priority: 1},
-			&Item{Priority: 3},
-			&Item{Priority: 55},
-			&Item{Priority: 2},
-			&Item{Priority: 4441},
-			&Item{Priority: 15555},
-			&Item{Priority: 122},
+			&Item{p: 1},
+			&Item{p: 3},
+			&Item{p: 55},
+			&Item{p: 2},
+			&Item{p: 4441},
+			&Item{p: 15555},
+			&Item{p: 122},
 		}
 		itemChan = make(chan structures.HeapItemItf)
 	)
@@ -71,13 +71,13 @@ func ExampleGetLargestNItems() {
 func ExampleGetSmallestNItems() {
 	var (
 		itemsWaitToSort = structures.HeapItemQ{
-			&Item{Priority: 1},
-			&Item{Priority: 3},
-			&Item{Priority: 55},
-			&Item{Priority: 2},
-			&Item{Priority: 4441},
-			&Item{Priority: 15555},
-			&Item{Priority: 122},
+			&Item{p: 1},
+			&Item{p: 3},
+			&Item{p: 55},
+			&Item{p: 2},
+			&Item{p: 4441},
+			&Item{p: 15555},
+			&Item{p: 122},
 		}
 		itemChan = make(chan structures.HeapItemItf)
 	)
