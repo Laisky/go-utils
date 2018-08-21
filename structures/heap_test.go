@@ -8,30 +8,43 @@ import (
 	"github.com/Laisky/go-utils/structures"
 )
 
+type Item struct {
+	Priority int
+	Key      interface{}
+}
+
+func (it *Item) GetKey() interface{} {
+	return it.Key
+}
+
+func (it *Item) GetPriority() int {
+	return it.Priority
+}
+
 var (
-	itemsWaitToSort = []*structures.Item{
-		&structures.Item{Priority: 1},
-		&structures.Item{Priority: 3},
-		&structures.Item{Priority: 55},
-		&structures.Item{Priority: 2},
-		&structures.Item{Priority: 4441},
-		&structures.Item{Priority: 15555},
-		&structures.Item{Priority: 122},
+	itemsWaitToSort = structures.HeapItemQ{
+		&Item{Priority: 1},
+		&Item{Priority: 3},
+		&Item{Priority: 55},
+		&Item{Priority: 2},
+		&Item{Priority: 4441},
+		&Item{Priority: 15555},
+		&Item{Priority: 122},
 	}
 )
 
 func ExampleGetLargestNItems() {
 	var (
-		itemsWaitToSort = []*structures.Item{
-			&structures.Item{Priority: 1},
-			&structures.Item{Priority: 3},
-			&structures.Item{Priority: 55},
-			&structures.Item{Priority: 2},
-			&structures.Item{Priority: 4441},
-			&structures.Item{Priority: 15555},
-			&structures.Item{Priority: 122},
+		itemsWaitToSort = structures.HeapItemQ{
+			&Item{Priority: 1},
+			&Item{Priority: 3},
+			&Item{Priority: 55},
+			&Item{Priority: 2},
+			&Item{Priority: 4441},
+			&Item{Priority: 15555},
+			&Item{Priority: 122},
 		}
-		itemChan = make(chan structures.ItemItf)
+		itemChan = make(chan structures.HeapItemItf)
 	)
 
 	go func() {
@@ -57,16 +70,16 @@ func ExampleGetLargestNItems() {
 
 func ExampleGetSmallestNItems() {
 	var (
-		itemsWaitToSort = []*structures.Item{
-			&structures.Item{Priority: 1},
-			&structures.Item{Priority: 3},
-			&structures.Item{Priority: 55},
-			&structures.Item{Priority: 2},
-			&structures.Item{Priority: 4441},
-			&structures.Item{Priority: 15555},
-			&structures.Item{Priority: 122},
+		itemsWaitToSort = structures.HeapItemQ{
+			&Item{Priority: 1},
+			&Item{Priority: 3},
+			&Item{Priority: 55},
+			&Item{Priority: 2},
+			&Item{Priority: 4441},
+			&Item{Priority: 15555},
+			&Item{Priority: 122},
 		}
-		itemChan = make(chan structures.ItemItf)
+		itemChan = make(chan structures.HeapItemItf)
 	)
 
 	go func() {
@@ -92,7 +105,7 @@ func ExampleGetSmallestNItems() {
 
 func TestGetTopKItems(t *testing.T) {
 	// defer utils.Logger.Sync()
-	generate := func(itemChan chan structures.ItemItf) {
+	generate := func(itemChan chan structures.HeapItemItf) {
 		for _, item := range itemsWaitToSort {
 			itemChan <- item
 		}
@@ -101,13 +114,13 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	var (
-		items    []structures.ItemItf
+		items    structures.HeapItemQ
 		err      error
-		itemChan chan structures.ItemItf
+		itemChan chan structures.HeapItemItf
 	)
 
 	// test highest
-	itemChan = make(chan structures.ItemItf)
+	itemChan = make(chan structures.HeapItemItf)
 	go generate(itemChan)
 	items, err = structures.GetTopKItems(itemChan, 3, true)
 	if err != nil {
@@ -125,7 +138,7 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	// test lowest
-	itemChan = make(chan structures.ItemItf)
+	itemChan = make(chan structures.HeapItemItf)
 	go generate(itemChan)
 	items, err = structures.GetTopKItems(itemChan, 3, false)
 	if err != nil {
