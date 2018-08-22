@@ -33,3 +33,37 @@ func (c *Counter) Count() int64 {
 func (c *Counter) CountN(n int64) int64 {
 	return atomic.AddInt64(&c.n, n)
 }
+
+// ---------------------------------------------------
+
+type Uint32Counter struct {
+	n uint32
+}
+
+func NewUint32Counter() *Uint32Counter {
+	return &Uint32Counter{
+		n: 0,
+	}
+}
+
+func NewUint32CounterFromN(n uint32) *Uint32Counter {
+	return &Uint32Counter{
+		n: n,
+	}
+}
+
+func (c *Uint32Counter) Get() uint32 {
+	return c.n
+}
+
+func (c *Uint32Counter) Set(n uint32) {
+	atomic.StoreUint32(&c.n, n)
+}
+
+func (c *Uint32Counter) Count() uint32 {
+	return atomic.AddUint32(&c.n, 1)
+}
+
+func (c *Uint32Counter) CountN(n uint32) uint32 {
+	return atomic.AddUint32(&c.n, n)
+}
