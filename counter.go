@@ -7,7 +7,15 @@ type Counter struct {
 }
 
 func NewCounter() *Counter {
-	return &Counter{}
+	return &Counter{
+		n: 0,
+	}
+}
+
+func NewCounterFromN(n int64) *Counter {
+	return &Counter{
+		n: n,
+	}
 }
 
 func (c *Counter) Get() int64 {
