@@ -30,8 +30,8 @@ type SettingsType struct {
 var Settings = &SettingsType{}
 
 // BindPFlags bind pflags to settings
-func (s *SettingsType) BindPFlags(p *pflag.FlagSet) {
-	viper.BindPFlags(p)
+func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
+	return viper.BindPFlags(p)
 }
 
 // Get get setting by key

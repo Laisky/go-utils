@@ -29,10 +29,10 @@ Bind Pflags:
 
 ```go
 func main() {
-	pflag.Bool("debug", false, "run in debug mode")
-	pflag.Bool("dry", false, "run in dry mode")
-	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
-	pflag.StringSliceP("task", "t", []string{}, "which tasks want to runnning, like\n ./main -t t1,t2,heartbeat")
+    pflag.Bool("debug", false, "run in debug mode")
+    pflag.Bool("dry", false, "run in dry mode")
+    pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
+    pflag.StringSliceP("task", "t", []string{}, "which tasks want to runnning, like\n ./main -t t1,t2,heartbeat")
     pflag.Parse()
 
     // bind pflags to settings
