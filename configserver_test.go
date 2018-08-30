@@ -1,10 +1,9 @@
-package spring_test
+package utils_test
 
 import (
 	"testing"
 
 	utils "github.com/Laisky/go-utils"
-	"github.com/Laisky/go-utils/spring"
 )
 
 func ExampleConfigSrv() {
@@ -15,7 +14,7 @@ func ExampleConfigSrv() {
 		label   = "master"
 	)
 
-	c := spring.NewConfigSrv(url, profile, label, app)
+	c := utils.NewConfigSrv(url, profile, label, app)
 	c.Get("management.context-path")
 	c.GetString("management.context-path")
 	c.GetBool("endpoints.health.sensitive")
@@ -30,7 +29,7 @@ func TestConfigSrv(t *testing.T) {
 		label   = "master"
 	)
 
-	c := spring.NewConfigSrv(url, profile, label, app)
+	c := utils.NewConfigSrv(url, profile, label, app)
 	if err := c.Fetch(); err != nil {
 		t.Fatalf("init ConfigSrv got error: %+v", err)
 	}

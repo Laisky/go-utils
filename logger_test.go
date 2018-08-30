@@ -10,6 +10,6 @@ import (
 func TestSetupLogger(t *testing.T) {
 	utils.SetupLogger("debug")
 	utils.Logger.Info("test", zap.String("arg", "yo"))
-
-	t.Error("done")
+	utils.Logger.Debug("test", zap.String("arg", "yo"))
+	utils.Logger.Sync()
 }

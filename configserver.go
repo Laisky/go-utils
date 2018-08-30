@@ -1,24 +1,12 @@
-package spring
+package utils
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
-	utils "github.com/Laisky/go-utils"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-)
-
-var (
-	httpClient = &http.Client{ // default http client
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 20,
-		},
-		Timeout: time.Duration(30) * time.Second,
-	}
 )
 
 type ConfigSource struct {
@@ -53,7 +41,7 @@ func NewConfigSrv(url, profile, label, app string) *ConfigSrv {
 
 func (c *ConfigSrv) Fetch() error {
 	url := strings.Join([]string{c.Url, c.App, c.Profile, c.Label}, "/")
-	err := utils.RequestJSONWithClient(httpClient, "get", url, &utils.RequestData{}, c.Cfg)
+	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.Cfg)
 	if err != nil {
 		return errors.Wrap(err, "try to get config got error")
 	}
@@ -88,7 +76,7 @@ func (c *ConfigSrv) GetString(name string) (string, bool) {
 func (c *ConfigSrv) GetInt(name string) (int, bool) {
 	if val, ok := c.Get(name); ok {
 		if i, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 64); err != nil {
-			utils.Logger.Error("try to parse int got error", zap.String("val", fmt.Sprintf("%v", val)))
+			Logger.Error("try to parse int got error", zap.String("val", fmt.Sprintf("%v", val)))
 			return 0, false
 		} else {
 			return int(i), true
@@ -101,12 +89,26 @@ func (c *ConfigSrv) GetInt(name string) (int, bool) {
 func (c *ConfigSrv) GetBool(name string) (bool, bool) {
 	if val, ok := c.Get(name); ok {
 		if ret, err := strconv.ParseBool(fmt.Sprintf("%v", val)); err != nil {
-			utils.Logger.Error("try to parse bool got error", zap.String("val", fmt.Sprintf("%v", val)))
+			Logger.Error("try to parse bool got error", zap.String("val", fmt.Sprintf("%v", val)))
 			return false, false
 		} else {
 			return ret, true
 		}
 	} else {
 		return false, false
+	}
+}
+
+func (c *ConfigSrv) Map(set func(string, interface{})) {
+	var (
+		key string
+		val interface{}
+		src *ConfigSource
+	)
+	for i := 0; i < len(c.Cfg.Sources); i++ {
+		src = c.Cfg.Sources[i]
+		for key, val = range src.Source {
+			set(key, val)
+		}
 	}
 }

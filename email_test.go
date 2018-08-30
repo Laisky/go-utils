@@ -7,6 +7,9 @@ import (
 )
 
 func TestSend(t *testing.T) {
+	utils.Settings.Set("debug", true)
+	utils.Settings.Setup("/Users/laisky/repo/pateo/configs/go-ramjet")
+
 	sender := utils.NewMail(utils.Settings.GetString("email.host"), utils.Settings.GetInt("email.port"))
 	sender.Login(utils.Settings.GetString("email.username"), utils.Settings.GetString("email.password"))
 	err := sender.Send(
@@ -20,11 +23,4 @@ func TestSend(t *testing.T) {
 	if err != nil {
 		t.Errorf("got error %+v", err)
 	}
-}
-
-func init() {
-	utils.SetupLogger("debug")
-	utils.Settings.Set("debug", true)
-
-	utils.Settings.Setup("/Users/laisky/repo/pateo/configs/go-ramjet")
 }

@@ -8,12 +8,17 @@ package utils
 // utils.Settings.Get("key")
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	zap "go.uber.org/zap"
 )
 
 // SettingsType type of project settings
@@ -93,15 +98,37 @@ func (s *SettingsType) Set(key string, val interface{}) {
 	viper.Set(key, val)
 }
 
-// Setup load config file settings.yml
-func (s *SettingsType) Setup(configPath string) {
-	viper.SetConfigType("yaml")
-	viper.SetConfigName("settings") // name of config file (without extension)
-	viper.AddConfigPath(configPath)
-	viper.AddConfigPath(".")
+const CFG_FNAME = "settings.yml"
 
-	s.LoadSettings()
-	// WatchSettingsFileChange()
+// Setup load config file settings.yml
+func (s *SettingsType) Setup(configPath string) error {
+	fpath := filepath.Join(configPath, CFG_FNAME)
+	Logger.Info("Setup settings", zap.String("path", fpath))
+	viper.SetConfigType("yaml")
+	fp, err := os.Open(fpath)
+	if err != nil {
+		return errors.Wrap(err, "try to open config file got error")
+	}
+	defer fp.Close()
+	if err = viper.ReadConfig(bufio.NewReader(fp)); err != nil {
+		return errors.Wrap(err, "try to load config file got error")
+	}
+
+	// `--remote-config=true` enable remote config
+	if s.GetBool("remote-config") {
+		Logger.Info("load settings from remote",
+			zap.String("url", s.GetString("config.url")),
+			zap.String("profile", s.GetString("config.profile")),
+			zap.String("label", s.GetString("config.label")),
+			zap.String("app", s.GetString("config.app")))
+		cfg := NewConfigSrv(s.GetString("config.url"),
+			s.GetString("config.profile"),
+			s.GetString("config.label"),
+			s.GetString("config.app"))
+		cfg.Map(viper.Set)
+	}
+
+	return nil
 }
 
 // LoadSettings load settings file
