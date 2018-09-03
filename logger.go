@@ -17,7 +17,7 @@ func SetupLogger(level string) {
 	rawJSON := []byte(fmt.Sprintf(`{
 		"level": "%v",
 		"encoding": "json",
-		"outputPaths": ["stdout", "/tmp/logs"],
+		"outputPaths": ["stdout"],
 		"errorOutputPaths": ["stderr"]
 	  }`, level))
 
