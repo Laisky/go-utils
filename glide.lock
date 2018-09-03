@@ -1,5 +1,5 @@
-hash: b03a5530ebbdd605ad8d55ef885be8e6c53422817e1ee5ef63a6007d3245afb1
-updated: 2018-08-15T11:12:50.123470304+08:00
+hash: e1ce6f5fcc0c4501b1f79e9f3ecf6b630d45293959eebe1300699ab543d59dcf
+updated: 2018-08-24T10:14:41.236949624+08:00
 imports:
 - name: github.com/dgrijalva/jwt-go
   version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
@@ -27,6 +27,8 @@ imports:
   version: c01d1270ff3e442a8a57cddc1c92dc1138598194
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/RoaringBitmap/roaring
+  version: 3d677d3262197ee558b85029301eb69b8239f91a
 - name: github.com/spf13/afero
   version: 787d034dfe70e44075ccc060d346146ef53270ad
   subpackages:
@@ -39,6 +41,10 @@ imports:
   version: 9a97c102cda95a86cec2345a6f09f55a939babf5
 - name: github.com/spf13/viper
   version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
+- name: github.com/ugorji/go
+  version: 00b869d2f4a5e27445c2d916fa106fc72c106d4c
+  subpackages:
+  - codec
 - name: go.uber.org/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
