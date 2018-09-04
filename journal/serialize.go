@@ -21,8 +21,6 @@ var (
 	bitOrder = binary.BigEndian
 )
 
-const ChunkSize = 4194304 // 4 MB
-
 type DataEncoder struct {
 	encoder   *codec.Encoder
 	writeChan chan interface{}
@@ -53,7 +51,7 @@ func NewCodec() *codec.MsgpackHandle {
 }
 
 func NewDataEncoder(fp *os.File) *DataEncoder {
-	writer := bufio.NewWriterSize(fp, ChunkSize)
+	writer := bufio.NewWriterSize(fp, BufSize)
 	return &DataEncoder{
 		writer:  writer,
 		encoder: codec.NewEncoder(writer, NewCodec()),
@@ -70,7 +68,7 @@ func NewIdsEncoder(fp *os.File) *IdsEncoder {
 func NewIdsDecoder(fp *os.File) *IdsDecoder {
 	return &IdsDecoder{
 		baseId: -1,
-		reader: bufio.NewReaderSize(fp, ChunkSize),
+		reader: bufio.NewReaderSize(fp, BufSize),
 	}
 }
 

@@ -95,8 +95,7 @@ func TestIdsSerializer(t *testing.T) {
 	decoder := journal.NewIdsDecoder(fp)
 
 	for id := int64(0); id < 1000; id++ {
-		err = encoder.Write(id)
-		if err != nil {
+		if err = encoder.Write(id); err != nil {
 			t.Fatalf("%+v", err)
 		}
 
@@ -106,6 +105,10 @@ func TestIdsSerializer(t *testing.T) {
 				t.Fatalf("%+v", err)
 			}
 		}
+	}
+
+	if err = encoder.Flush(); err != nil {
+		t.Fatalf("%+v", err)
 	}
 
 	fp.Seek(0, 0)

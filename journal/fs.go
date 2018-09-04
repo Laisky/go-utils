@@ -26,7 +26,7 @@ func PrepareDir(path string) error {
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		utils.Logger.Info("create new directory", zap.String("path", path))
-		err = os.MkdirAll(path, 0774)
+		err = os.MkdirAll(path, DirMode)
 		if err != nil {
 			return errors.Wrap(err, "try to create buf directory got error")
 		}
