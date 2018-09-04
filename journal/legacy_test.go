@@ -48,9 +48,16 @@ func TestLegacy(t *testing.T) {
 	dataEncoder := journal.NewDataEncoder(dataFp1)
 	dataEncoder.Write(&map[string]interface{}{"data": "data 1", "id": int64(1)})
 	dataEncoder.Write(&map[string]interface{}{"data": "data 2", "id": int64(2)})
+	if err = dataEncoder.Flush(); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
 	dataEncoder = journal.NewDataEncoder(dataFp2)
 	dataEncoder.Write(&map[string]interface{}{"data": "data 21", "id": int64(21)})
 	dataEncoder.Write(&map[string]interface{}{"data": "data 22", "id": int64(22)})
+	if err = dataEncoder.Flush(); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
 
 	// put ids
 	// except 2
@@ -61,8 +68,15 @@ func TestLegacy(t *testing.T) {
 	if err = idsEncoder.Write(21); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
+	if err = idsEncoder.Flush(); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
 	idsEncoder = journal.NewIdsEncoder(idsFp2)
 	if err = idsEncoder.Write(22); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	if err = idsEncoder.Flush(); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 

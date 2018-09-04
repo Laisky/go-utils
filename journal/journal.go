@@ -57,12 +57,16 @@ func (j *Journal) initBufDir() {
 }
 
 func (j *Journal) Flush() (err error) {
-	if err = j.idsEnc.Flush(); err != nil {
-		err = errors.Wrap(err, "try to flush ids got error")
+	if j.idsEnc != nil {
+		if err = j.idsEnc.Flush(); err != nil {
+			err = errors.Wrap(err, "try to flush ids got error")
+		}
 	}
 
-	if dataErr := j.dataEnc.Flush(); dataErr != nil {
-		err = errors.Wrap(err, "try to flush data got error")
+	if j.dataEnc != nil {
+		if dataErr := j.dataEnc.Flush(); dataErr != nil {
+			err = errors.Wrap(err, "try to flush data got error")
+		}
 	}
 
 	return err
@@ -75,6 +79,10 @@ func (j *Journal) runFlush() {
 	)
 	for {
 		time.Sleep(step)
+		if atomic.LoadUint32(&j.isRot) == 1 {
+			continue
+		}
+
 		if err = j.idsEnc.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids got error", zap.Error(err))
 		}
@@ -127,6 +135,9 @@ func (j *Journal) Rotate() (err error) {
 		return fmt.Errorf("latest rotating not finished")
 	}
 	defer atomic.StoreUint32(&j.isRot, 0)
+	if err = j.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush journal got error")
+	}
 
 	// scan and creat files
 	if j.fsStat, err = PrepareNewBufFile(j.cfg.BufDirPath); err != nil {
@@ -138,7 +149,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.dataFp != nil {
 		j.dataFp.Close()
 	}
-	if j.dataFp, err = os.OpenFile(j.fsStat.NewDataFName, os.O_RDWR|os.O_CREATE, 0755); err != nil {
+	if j.dataFp, err = os.OpenFile(j.fsStat.NewDataFName, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
 		return errors.Wrap(err, "try to open data journal file got error")
 	}
 	utils.Logger.Info("create new data journal file", zap.String("file", j.fsStat.NewDataFName))
@@ -148,7 +159,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	if j.idsFp, err = os.OpenFile(j.fsStat.NewIdsDataFname, os.O_RDWR|os.O_CREATE, 0755); err != nil {
+	if j.idsFp, err = os.OpenFile(j.fsStat.NewIdsDataFname, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
 		return errors.Wrap(err, "try to open ids journal file got error")
 	}
 	utils.Logger.Info("create new ids journal file", zap.String("file", j.fsStat.NewIdsDataFname))
