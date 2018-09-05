@@ -79,7 +79,7 @@ func (j *Journal) runFlush() {
 	)
 	for {
 		time.Sleep(step)
-		if atomic.LoadUint32(&j.isRot) == 1 {
+		if ok := atomic.CompareAndSwapUint32(&j.isRot, 0, 1); !ok {
 			continue
 		}
 
@@ -89,6 +89,8 @@ func (j *Journal) runFlush() {
 		if err = j.dataEnc.Flush(); err != nil {
 			utils.Logger.Error("try to flush data got error", zap.Error(err))
 		}
+
+		atomic.StoreUint32(&j.isRot, 0)
 	}
 }
 
@@ -110,9 +112,10 @@ func (j *Journal) checkRotate() error {
 }
 
 func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
-	if atomic.LoadUint32(&j.isRot) == 1 {
+	if ok := atomic.CompareAndSwapUint32(&j.isRot, 0, 1); !ok {
 		return DuringRotateErr
 	}
+	defer atomic.StoreUint32(&j.isRot, 0)
 
 	if err = j.checkRotate(); err != nil {
 		return err
@@ -122,17 +125,22 @@ func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
 }
 
 func (j *Journal) WriteId(id int64) error {
-	if atomic.LoadUint32(&j.isRot) == 1 {
+	if ok := atomic.CompareAndSwapUint32(&j.isRot, 0, 1); !ok {
 		return DuringRotateErr
 	}
+	defer atomic.StoreUint32(&j.isRot, 0)
 
 	return j.idsEnc.Write(id)
 }
 
 func (j *Journal) Rotate() (err error) {
 	// this function should not concurrent
-	if ok := atomic.CompareAndSwapUint32(&j.isRot, 0, 1); !ok {
-		return fmt.Errorf("latest rotating not finished")
+	for {
+		if ok := atomic.CompareAndSwapUint32(&j.isRot, 0, 1); !ok {
+			time.Sleep(1 * time.Millisecond)
+			continue
+		}
+		break
 	}
 	defer atomic.StoreUint32(&j.isRot, 0)
 	if err = j.Flush(); err != nil {
