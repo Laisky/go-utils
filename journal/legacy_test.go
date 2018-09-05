@@ -3,6 +3,7 @@ package journal_test
 import (
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"testing"
 
@@ -116,5 +117,32 @@ func TestLegacy(t *testing.T) {
 			t.Fatal("should equal to 2")
 		}
 	}
+}
 
+func TestEmptyLegacy(t *testing.T) {
+	dir, err := ioutil.TempDir("", "journal-test")
+	if err != nil {
+		log.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	legacy := journal.NewLegacyLoader(
+		[]string{},
+		[]string{},
+	)
+	ids, err := legacy.LoadAllids()
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	t.Logf("load ids: %+v", ids)
+
+	data := map[string]interface{}{}
+	for {
+		if err = legacy.Load(&data); err == io.EOF {
+			return
+		} else if err != nil {
+			t.Fatalf("got error: %+v", err)
+		}
+	}
 }

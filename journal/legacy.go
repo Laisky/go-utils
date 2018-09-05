@@ -33,6 +33,10 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 
 func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
 	if l.ctx.ids == nil { // first run
+		if len(l.dataFNames) == 0 { // no legacy files
+			return io.EOF
+		}
+
 		l.ctx.ids, err = l.LoadAllids()
 		if err != nil {
 			return errors.Wrap(err, "try to load all ids got error")
