@@ -32,6 +32,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 }
 
 func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
+	utils.Logger.Debug("LegacyLoader.Load...")
 	if l.ctx.ids == nil { // first run
 		if len(l.dataFNames) == 0 { // no legacy files
 			return io.EOF
@@ -61,7 +62,7 @@ READ_NEW_LINE:
 	if err == io.EOF {
 		if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
 			utils.Logger.Debug("all data files finished")
-			return err
+			return io.EOF
 		}
 
 		l.ctx.dataFp.Close()
@@ -79,7 +80,7 @@ READ_NEW_LINE:
 		goto READ_NEW_LINE
 	}
 
-	return
+	return nil
 }
 
 func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
