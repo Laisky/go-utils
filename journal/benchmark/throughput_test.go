@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"testing"
-	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
@@ -35,12 +34,7 @@ func BenchmarkData(b *testing.B) {
 	b.Logf("write data: %+v", data)
 	b.Run("write", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-		WRITE_DATA:
-			if err = j.WriteData(&data); err == journal.DuringRotateErr {
-				b.Log("write data waiting to rotate...")
-				time.Sleep(1 * time.Millisecond)
-				goto WRITE_DATA
-			} else if err != nil {
+			if err = j.WriteData(&data); err != nil {
 				b.Fatalf("got error: %+v", err)
 			}
 		}
