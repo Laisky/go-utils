@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
@@ -60,29 +59,18 @@ func TestJournal(t *testing.T) {
 	threshold := int64(5000)
 
 	for id, val := range fakedata(10000) {
-
-	WRITE_DATA:
-		if err = j.WriteData(&data); err == journal.DuringRotateErr {
-			t.Log("write data waiting to rotate...")
-			time.Sleep(1 * time.Millisecond)
-			goto WRITE_DATA
-		} else if err != nil {
+		if err = j.WriteData(&data); err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
 
 		data["id"] = id
 		data["val"] = val
 
-	WRITE_ID:
 		if id < threshold {
 			continue
 		}
 
-		if err = j.WriteId(id); err == journal.DuringRotateErr {
-			t.Log("write ids waiting to rotate...")
-			time.Sleep(1 * time.Millisecond)
-			goto WRITE_ID
-		} else if err != nil {
+		if err = j.WriteId(id); err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
 	}
@@ -130,19 +118,11 @@ func BenchmarkJournal(b *testing.B) {
 
 	b.Run("store", func(b *testing.B) {
 
-	WRITE_DATA:
-		if err = j.WriteData(&data); err == journal.DuringRotateErr {
-			time.Sleep(1 * time.Millisecond)
-			goto WRITE_DATA
-		} else if err != nil {
+		if err = j.WriteData(&data); err != nil {
 			b.Fatalf("got error: %+v", err)
 		}
 
-	WRITE_ID:
-		if err = j.WriteId(id); err == journal.DuringRotateErr {
-			time.Sleep(1 * time.Millisecond)
-			goto WRITE_ID
-		} else if err != nil {
+		if err = j.WriteId(id); err != nil {
 			b.Fatalf("got error: %+v", err)
 		}
 	})
