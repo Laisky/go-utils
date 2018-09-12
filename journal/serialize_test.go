@@ -1,14 +1,18 @@
 package journal_test
 
 import (
+	"bufio"
 	"io"
 	"io/ioutil"
 	"math"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
+	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
+	"github.com/ugorji/go/codec"
 )
 
 func TestSerializer(t *testing.T) {
@@ -126,4 +130,52 @@ func TestIdsSerializer(t *testing.T) {
 			t.Fatalf("%v should not in ids", id)
 		}
 	}
+}
+
+func NewCodec() *codec.MsgpackHandle {
+	_codec := &codec.MsgpackHandle{}
+	_codec.MapType = reflect.TypeOf(map[string]interface{}(nil))
+	_codec.DecodeOptions.MapValueReset = true
+	return _codec
+}
+
+func TestCodec(t *testing.T) {
+	fp, err := ioutil.TempFile("", "journal-test")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	defer fp.Close()
+	defer os.Remove(fp.Name())
+	t.Logf("create file name: %v", fp.Name())
+
+	encoder := codec.NewEncoder(bufio.NewWriter(fp), NewCodec())
+
+	var (
+		data = map[string]interface{}{}
+		msg  string
+	)
+	for i := 0; i < 100; i++ {
+		msg = "12345" + utils.RandomStringWithLength(200-i) + "67890"
+		data["id"] = i
+		data["message"] = map[string]interface{}{"log": msg}
+		if err = encoder.Encode(&data); err != nil {
+			t.Fatalf("got error: %+v", err)
+		}
+	}
+
+	fp.Seek(0, 0)
+	data["message"] = map[string]interface{}{}
+	decoder := codec.NewDecoder(bufio.NewReader(fp), NewCodec())
+	for {
+		if err = decoder.Decode(&data); err == io.EOF {
+			t.Log("all done")
+			break
+		} else if err != nil {
+			t.Fatalf("got error: %+v", err)
+		}
+
+		t.Log(string(data["message"].(map[string]interface{})["log"].([]byte)))
+	}
+
+	t.Error()
 }
