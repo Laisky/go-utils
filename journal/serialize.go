@@ -45,8 +45,9 @@ type IdsDecoder struct {
 
 func NewCodec() *codec.MsgpackHandle {
 	_codec := &codec.MsgpackHandle{}
-	_codec.MapType = reflect.TypeOf(map[string]interface{}(nil))
 	_codec.RawToString = false
+	_codec.MapType = reflect.TypeOf(map[string]interface{}(nil))
+	_codec.DecodeOptions.MapValueReset = true
 	return _codec
 }
 
