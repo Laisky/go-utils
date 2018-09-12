@@ -128,5 +128,6 @@ func (l *LegacyLoader) Clean() (err error) {
 		}
 	}
 
+	utils.Logger.Info("clean all legacy")
 	return nil
 }

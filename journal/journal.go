@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	utils "github.com/Laisky/go-utils"
@@ -24,20 +25,22 @@ type JournalConfig struct {
 }
 
 type Journal struct {
-	cfg           *JournalConfig
-	fsStat        *BufFileStat
-	legacy        *LegacyLoader
-	dataFp, idsFp *os.File
-	dataEnc       *DataEncoder
-	idsEnc        *IdsEncoder
-	l             *sync.RWMutex
-	i             uint64
+	cfg             *JournalConfig
+	fsStat          *BufFileStat
+	legacy          *LegacyLoader
+	dataFp, idsFp   *os.File
+	dataEnc         *DataEncoder
+	idsEnc          *IdsEncoder
+	l               *sync.RWMutex
+	isRotateRunning uint32
+	i               uint64
 }
 
 func NewJournal(cfg *JournalConfig) *Journal {
 	j := &Journal{
-		cfg: cfg,
-		l:   &sync.RWMutex{},
+		cfg:             cfg,
+		l:               &sync.RWMutex{},
+		isRotateRunning: 0,
 	}
 	j.initBufDir()
 	go j.runFlush()
@@ -58,12 +61,14 @@ func (j *Journal) initBufDir() {
 
 func (j *Journal) Flush() (err error) {
 	if j.idsEnc != nil {
+		utils.Logger.Debug("flush ids")
 		if err = j.idsEnc.Flush(); err != nil {
 			err = errors.Wrap(err, "try to flush ids got error")
 		}
 	}
 
 	if j.dataEnc != nil {
+		utils.Logger.Debug("flush data")
 		if dataErr := j.dataEnc.Flush(); dataErr != nil {
 			err = errors.Wrap(err, "try to flush data got error")
 		}
@@ -81,11 +86,8 @@ func (j *Journal) runFlush() {
 		time.Sleep(step)
 		j.l.Lock()
 
-		if err = j.idsEnc.Flush(); err != nil {
-			utils.Logger.Error("try to flush ids got error", zap.Error(err))
-		}
-		if err = j.dataEnc.Flush(); err != nil {
-			utils.Logger.Error("try to flush data got error", zap.Error(err))
+		if err = j.Flush(); err != nil {
+			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
 		}
 
 		j.l.Unlock()
@@ -99,8 +101,10 @@ func (j *Journal) checkRotate() error {
 			return errors.Wrap(err, "try to load file stat got error")
 		} else {
 			if fi.Size() > j.cfg.BufSizeBytes {
-				go j.Rotate()
-				j.i = 0
+				if atomic.LoadUint32(&j.isRotateRunning) == 0 { // rotate is not running now
+					go j.Rotate()
+					j.i = 0
+				}
 			}
 		}
 	}
@@ -129,8 +133,17 @@ func (j *Journal) WriteId(id int64) error {
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
+	if ok := atomic.CompareAndSwapUint32(&j.isRotateRunning, 0, 1); !ok {
+		utils.Logger.Error("isRotateRunning shoule be 0")
+		return
+	}
 	j.l.Lock()
-	defer j.l.Unlock()
+	defer func() {
+		j.l.Unlock()
+		if ok := atomic.CompareAndSwapUint32(&j.isRotateRunning, 1, 0); !ok {
+			utils.Logger.Error("isRotateRunning should be 1")
+		}
+	}()
 
 	if err = j.Flush(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
@@ -165,12 +178,19 @@ func (j *Journal) Rotate() (err error) {
 	return nil
 }
 
+func (j *Journal) LockLegacy() {
+	j.l.RLock()
+}
+
+// LoadLegacyBuf load legacy data one by one
+// should call LockLegacy first
 func (j *Journal) LoadLegacyBuf(data *map[string]interface{}) (err error) {
 	j.l.RLock()
 	defer j.l.RUnlock()
 
 	if err = j.legacy.Load(data); err == io.EOF {
 		j.legacy.Clean()
+		j.l.RUnlock()
 		return err
 	} else if err != nil {
 		return errors.Wrap(err, "load legacy journal got error")
