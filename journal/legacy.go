@@ -3,6 +3,7 @@ package journal
 import (
 	"io"
 	"os"
+	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/RoaringBitmap/roaring"
@@ -90,6 +91,7 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 		newIds *roaring.Bitmap
 	)
 	ids = roaring.New()
+	startTs := time.Now()
 	for _, fname := range l.idsFNames {
 		utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
@@ -107,6 +109,7 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 		ids.Or(newIds)
 	}
 
+	utils.Logger.Info("load all ids done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
 	return ids, nil
 }
 
