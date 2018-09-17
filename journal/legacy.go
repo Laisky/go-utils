@@ -59,14 +59,15 @@ READ_NEW_FILE:
 	}
 
 READ_NEW_LINE:
-	err = l.ctx.decoder.Read(data)
-	if err == io.EOF {
+	if err = l.ctx.decoder.Read(data); err == io.EOF {
 		if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
 			utils.Logger.Debug("all data files finished")
 			return io.EOF
 		}
 
-		l.ctx.dataFp.Close()
+		if err = l.ctx.dataFp.Close(); err != nil {
+			utils.Logger.Error("try to close file got error", zap.String("file", l.dataFNames[l.ctx.dataFileIdx]), zap.Error(err))
+		}
 		l.ctx.dataFp = nil
 		l.ctx.dataFileIdx++
 		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
@@ -116,18 +117,26 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 func (l *LegacyLoader) Clean() (err error) {
 	l.ctx.dataFp.Close()
 
-	for _, f := range l.dataFNames {
-		if err = os.Remove(f); err != nil {
-			return errors.Wrapf(err, "try to delete `%v` got error", f)
+	if l.dataFNames != nil {
+		for _, f := range l.dataFNames {
+			utils.Logger.Info("remove data file", zap.String("f", f))
+			if err = os.Remove(f); err != nil {
+				utils.Logger.Error("try to delete file got error", zap.String("f", f), zap.Error(err))
+			}
 		}
+		l.dataFNames = nil
 	}
 
-	for _, f := range l.idsFNames {
-		if err = os.Remove(f); err != nil {
-			return errors.Wrapf(err, "try to delete `%v` got error", f)
+	if l.idsFNames != nil {
+		for _, f := range l.idsFNames {
+			utils.Logger.Info("remove id file", zap.String("f", f))
+			if err = os.Remove(f); err != nil {
+				utils.Logger.Error("try to delete file got error", zap.String("f", f), zap.Error(err))
+			}
 		}
+		l.idsFNames = nil
 	}
 
 	utils.Logger.Info("clean all legacy")
-	return nil
+	return err
 }
