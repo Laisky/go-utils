@@ -2,9 +2,9 @@ package journal
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -54,27 +54,42 @@ func PrepareNewBufFile(dirPath string) (ret *BufFileStat, err error) {
 	}
 
 	// scan directories
-	var latestDataFName, latestIDFName, fname string
-	err = filepath.Walk(dirPath, func(fpath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	var (
+		latestDataFName, latestIDFName, fname, absFname string
+		fs                                              []os.FileInfo
+	)
+	fs, err = ioutil.ReadDir(dirPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "try to list dir got error")
+	}
+
+	for _, f := range fs {
+		fname = f.Name()
+		absFname = path.Join(dirPath, fname)
+
+		// macos fs bug, could get removed files
+		if _, err := os.Stat(absFname); os.IsNotExist(err) {
+			utils.Logger.Warn("file not exists", zap.String("fname", absFname))
+			return nil, nil
 		}
-		fname = info.Name()
 
 		if DataFileNameReg.MatchString(fname) {
-			ret.OldDataFnames = append(ret.OldDataFnames, path.Join(dirPath, fname))
+			utils.Logger.Debug("add data file into queue", zap.String("fname", fname))
+			ret.OldDataFnames = append(ret.OldDataFnames, absFname)
 			if fname > latestDataFName {
 				latestDataFName = fname
 			}
 		} else if IdFileNameReg.MatchString(fname) {
-			ret.OldIdsDataFname = append(ret.OldIdsDataFname, path.Join(dirPath, fname))
+			utils.Logger.Debug("add ids file into queue", zap.String("fname", fname))
+			ret.OldIdsDataFname = append(ret.OldIdsDataFname, absFname)
 			if fname > latestIDFName {
 				latestIDFName = fname
 			}
 		}
+	}
 
-		return nil
-	})
+	utils.Logger.Info("got data files", zap.Strings("fs", ret.OldDataFnames))
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "walk dirpath `%v` got error", dirPath)
 	}
