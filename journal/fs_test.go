@@ -22,23 +22,23 @@ func TestGenerateNewBufFName(t *testing.T) {
 		newFName string
 		cases    = []*FNameCase{
 			&FNameCase{
-				OldFName:    "200601020001.buf",
-				ExpectFName: "200601020002.buf",
+				OldFName:    "20060102_00000001.buf",
+				ExpectFName: "20060102_00000002.buf",
 				NowTS:       "20060102-0700",
 			},
 			&FNameCase{
-				OldFName:    "200601020001.ids",
-				ExpectFName: "200601020002.ids",
+				OldFName:    "20060102_00000001.ids",
+				ExpectFName: "20060102_00000002.ids",
 				NowTS:       "20060102-0700",
 			},
 			&FNameCase{
-				OldFName:    "200601020002.buf",
-				ExpectFName: "200601040001.buf",
+				OldFName:    "20060102_00000002.buf",
+				ExpectFName: "20060104_00000001.buf",
 				NowTS:       "20060104-0700",
 			},
 			&FNameCase{
-				OldFName:    "200601020002.buf",
-				ExpectFName: "200601030001.buf",
+				OldFName:    "20060102_00000002.buf",
+				ExpectFName: "20060103_00000001.buf",
 				NowTS:       "20060103-0600",
 			},
 		}

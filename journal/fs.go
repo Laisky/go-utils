@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	DataFileNameReg = regexp.MustCompile(`\d{8}\d{4}\.buf`)
-	IdFileNameReg   = regexp.MustCompile(`\d{8}\d{4}\.ids`)
+	DataFileNameReg = regexp.MustCompile(`\d{8}_\d{8}\.buf`)
+	IdFileNameReg   = regexp.MustCompile(`\d{8}_\d{8}\.ids`)
 	layout          = "20060102"
 	layoutWithTZ    = "20060102-0700"
 )
@@ -26,10 +26,10 @@ func PrepareDir(path string) error {
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		utils.Logger.Info("create new directory", zap.String("path", path))
-		err = os.MkdirAll(path, DirMode)
-		if err != nil {
+		if err = os.MkdirAll(path, DirMode); err != nil {
 			return errors.Wrap(err, "try to create buf directory got error")
 		}
+		return nil
 	} else if err != nil {
 		return errors.Wrap(err, "try to check buf directory got error")
 	}
@@ -97,7 +97,7 @@ func PrepareNewBufFile(dirPath string) (ret *BufFileStat, err error) {
 	// generate new buf file name
 	now := utils.UTCNow()
 	if latestDataFName == "" {
-		latestDataFName = now.Format(layout) + "0001.buf"
+		latestDataFName = now.Format(layout) + "_00000001.buf"
 	} else {
 		latestDataFName, err = GenerateNewBufFName(now, latestDataFName)
 		if err != nil {
@@ -106,7 +106,7 @@ func PrepareNewBufFile(dirPath string) (ret *BufFileStat, err error) {
 	}
 
 	if latestIDFName == "" {
-		latestIDFName = now.Format(layout) + "0001.ids"
+		latestIDFName = now.Format(layout) + "_00000001.ids"
 	} else {
 		latestIDFName, err = GenerateNewBufFName(now, latestIDFName)
 		if err != nil {
@@ -129,7 +129,7 @@ func GenerateNewBufFName(now time.Time, oldFName string) (string, error) {
 		return oldFName, fmt.Errorf("oldFname `%v` not correct", oldFName)
 	}
 	fts := finfo[0][:8]
-	fidx := finfo[0][8:]
+	fidx := finfo[0][9:]
 	fext := finfo[1]
 
 	ft, err := time.Parse(layoutWithTZ, fts+"+0000")
@@ -138,12 +138,12 @@ func GenerateNewBufFName(now time.Time, oldFName string) (string, error) {
 	}
 
 	if now.Sub(ft) > 24*time.Hour {
-		return now.Format(layout) + "0001." + fext, nil
+		return now.Format(layout) + "_00000001." + fext, nil
 	}
 
 	idx, err := strconv.ParseInt(fidx, 10, 64)
 	if err != nil {
 		return oldFName, errors.Wrapf(err, "parse buf file's idx `%v` got error", fidx)
 	}
-	return fmt.Sprintf("%v%04d.%v", fts, idx+1, fext), nil
+	return fmt.Sprintf("%v_%08d.%v", fts, idx+1, fext), nil
 }
