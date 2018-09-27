@@ -134,6 +134,7 @@ func TestIdsSerializer(t *testing.T) {
 
 func NewCodec() *codec.MsgpackHandle {
 	_codec := &codec.MsgpackHandle{}
+	_codec.RawToString = false
 	_codec.MapType = reflect.TypeOf(map[string]interface{}(nil))
 	_codec.DecodeOptions.MapValueReset = true
 	return _codec
@@ -176,6 +177,4 @@ func TestCodec(t *testing.T) {
 
 		t.Log(string(data["message"].(map[string]interface{})["log"].([]byte)))
 	}
-
-	t.Error()
 }
