@@ -85,6 +85,35 @@ READ_NEW_LINE:
 	return nil
 }
 
+func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
+	utils.Logger.Debug("LoadMaxId...")
+	var (
+		fp *os.File
+		id int64
+	)
+	startTs := time.Now()
+	for _, fname := range l.idsFNames {
+		utils.Logger.Debug("load ids from file", zap.String("fname", fname))
+		fp, err = os.Open(fname)
+		defer fp.Close()
+		if err != nil {
+			return 0, errors.Wrapf(err, "try to open file `%v` got error", fname)
+		}
+
+		idsDecoder := NewIdsDecoder(fp)
+		id, err = idsDecoder.LoadMaxId()
+		if err != nil {
+			return 0, errors.Wrapf(err, "try to read file `%v` got error", fname)
+		}
+		if id < maxId {
+			maxId = id
+		}
+	}
+
+	utils.Logger.Info("load max id done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
+	return id, nil
+}
+
 func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 	utils.Logger.Debug("LoadAllids...")
 	var (

@@ -108,6 +108,10 @@ func (j *Journal) checkRotate() error {
 	return nil
 }
 
+func (j *Journal) LoadMaxId() (int64, error) {
+	return j.legacy.LoadMaxId()
+}
+
 func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
 	j.l.RLock() // will blocked by flush & rotate
 	defer j.l.RUnlock()

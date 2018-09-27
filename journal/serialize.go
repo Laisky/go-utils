@@ -130,6 +130,31 @@ func (enc *IdsEncoder) Flush() error {
 	return enc.writer.Flush()
 }
 
+func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
+	var id int64
+	for {
+		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {
+			break
+		} else if err != nil {
+			return 0, errors.Wrap(err, "try to read ids got error")
+		}
+
+		if dec.baseId == -1 {
+			utils.Logger.Debug("set baseid", zap.Int64("id", id))
+			dec.baseId = id
+		} else {
+			id += dec.baseId
+		}
+
+		utils.Logger.Debug("load new id", zap.Int64("id", id))
+		if id > maxId {
+			maxId = id
+		}
+	}
+
+	return maxId, nil
+}
+
 func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 	bitmap := roaring.New()
 	var id int64
