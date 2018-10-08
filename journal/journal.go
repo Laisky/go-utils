@@ -133,11 +133,6 @@ func (j *Journal) WriteId(id int64) error {
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
-	if !j.LockLegacy() {
-		return
-	}
-	defer j.UnLockLegacy()
-
 	j.l.Lock()
 	defer j.l.Unlock()
 
@@ -145,13 +140,16 @@ func (j *Journal) Rotate() (err error) {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
-	// scan and creat files
+	// scan and create files
 	if j.fsStat, err = PrepareNewBufFile(j.cfg.BufDirPath); err != nil {
 		return errors.Wrap(err, "call PrepareNewBufFile got error")
 	}
+	if j.LockLegacy() {
+		j.RefreshLegacyLoader()
+		j.UnLockLegacy()
+	}
 
 	// create & open data file
-	j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 	if j.dataFp != nil {
 		j.dataFp.Close()
 	}
@@ -172,6 +170,10 @@ func (j *Journal) Rotate() (err error) {
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil
+}
+
+func (j *Journal) RefreshLegacyLoader() {
+	j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 }
 
 func (j *Journal) LockLegacy() bool {
