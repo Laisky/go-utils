@@ -81,6 +81,30 @@ func TestRotateCounter(t *testing.T) {
 	}
 }
 
+func TestRotateCounterFromN(t *testing.T) {
+	counter, err := utils.NewRotateCounterFromN(2, 10)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	var r int64
+	if r = counter.Count(); r != 2 {
+		t.Errorf("want %v, got %v", 2, r)
+	}
+	if r = counter.Count(); r != 3 {
+		t.Errorf("want %v, got %v", 3, r)
+	}
+	if r = counter.Count(); r != 4 {
+		t.Errorf("want %v, got %v", 4, r)
+	}
+	if r = counter.CountN(3); r != 7 {
+		t.Errorf("want %v, got %v", 7, r)
+	}
+	if r = counter.CountN(10); r != 7 {
+		t.Errorf("want %v, got %v", 7, r)
+	}
+}
+
 func BenchmarkRotateCounter(b *testing.B) {
 	counter, err := utils.NewRotateCounter(1000000)
 	if err != nil {
