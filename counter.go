@@ -39,6 +39,8 @@ func (c *Counter) CountN(n int64) int64 {
 
 // -------------------------------------------------
 
+var rotateCounterChanLength = 1000
+
 type RotateCounter struct {
 	n, rotatePoint int64
 	c              chan int64
@@ -46,11 +48,30 @@ type RotateCounter struct {
 
 func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("n should bigger than 0, but got %v", rotatePoint)
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
 	c := &RotateCounter{
 		rotatePoint: rotatePoint,
-		c:           make(chan int64, 100),
+		c:           make(chan int64, rotateCounterChanLength),
+	}
+	go c.runGenerator()
+	return c, nil
+}
+
+func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
+	if rotatePoint <= 0 {
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	}
+	if n < 0 {
+		return nil, fmt.Errorf("n should bigger than 0, but got %v", n)
+	}
+	if n >= rotatePoint {
+		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
+	}
+	c := &RotateCounter{
+		n:           n,
+		rotatePoint: rotatePoint,
+		c:           make(chan int64, rotateCounterChanLength),
 	}
 	go c.runGenerator()
 	return c, nil
