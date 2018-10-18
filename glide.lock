@@ -1,8 +1,22 @@
-hash: e1ce6f5fcc0c4501b1f79e9f3ecf6b630d45293959eebe1300699ab543d59dcf
-updated: 2018-10-15T16:09:36.415099506+08:00
+hash: 663e531b5e806b041d20da81d4d4423fe71f502322cb7755726c76500eec9386
+updated: 2018-10-18T09:47:33.078283933+08:00
 imports:
+- name: github.com/bsm/sarama-cluster
+  version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
+- name: github.com/davecgh/go-spew
+  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
+  subpackages:
+  - spew
 - name: github.com/dgrijalva/jwt-go
   version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
+- name: github.com/eapache/go-resiliency
+  version: ea41b0fad31007accc7f806884dcdf3da98b79ce
+  subpackages:
+  - breaker
+- name: github.com/eapache/go-xerial-snappy
+  version: bb955e01b9346ac19dc29eb16586c90ded99a98c
+- name: github.com/eapache/queue
+  version: 093482f3f8ce946c05bcba64badd2c82369e084d
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/glycerine/go-unsnap-stream
@@ -33,10 +47,18 @@ imports:
   version: c01d1270ff3e442a8a57cddc1c92dc1138598194
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/pierrec/lz4
+  version: 6b9367c9ff401dbc54fabce3fb8d972e799b702d
+  subpackages:
+  - internal/xxh32
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/rcrowley/go-metrics
+  version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/RoaringBitmap/roaring
   version: 3d677d3262197ee558b85029301eb69b8239f91a
+- name: github.com/Shopify/sarama
+  version: ec843464b50d4c8b56403ec9d589cf41ea30e722
 - name: github.com/spf13/afero
   version: 787d034dfe70e44075ccc060d346146ef53270ad
   subpackages:
