@@ -81,12 +81,12 @@ func (k *KafkaCli) ListenNotifications() {
 	}
 }
 
-func (k *KafkaCli) Messages(msgPool *sync.Pool) <-chan *KafkaMsg {
+func (k *KafkaCli) Messages() <-chan *KafkaMsg {
 	msgChan := make(chan *KafkaMsg, 100)
 	var kmsg *KafkaMsg
 	go func() {
 		for msg := range k.cli.Messages() {
-			kmsg = msgPool.Get().(*KafkaMsg)
+			kmsg = k.KMsgPool.Get().(*KafkaMsg)
 			kmsg.Topic = msg.Topic
 			kmsg.Message = msg.Value
 			kmsg.Offset = msg.Offset
@@ -100,6 +100,7 @@ func (k *KafkaCli) Messages(msgPool *sync.Pool) <-chan *KafkaMsg {
 }
 
 func (k *KafkaCli) runCommitor() {
+	cmsg := &sarama.ConsumerMessage{}
 	for kmsg := range k.afterChan {
 		if utils.Settings.GetBool("dry") {
 			utils.Logger.Info("commit message",
@@ -108,11 +109,11 @@ func (k *KafkaCli) runCommitor() {
 			continue
 		}
 
-		k.cli.MarkOffset(&sarama.ConsumerMessage{
-			Topic:     kmsg.Topic,
-			Partition: kmsg.Partition,
-			Offset:    kmsg.Offset,
-		}, "")
+		cmsg.Topic = kmsg.Topic
+		cmsg.Partition = kmsg.Partition
+		cmsg.Offset = kmsg.Offset
+		k.KMsgPool.Put(kmsg)
+		k.cli.MarkOffset(cmsg, "")
 	}
 }
 
