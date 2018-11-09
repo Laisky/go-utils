@@ -35,9 +35,21 @@ func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]str
 	}
 
 	for i, name := range r.SubexpNames() {
-		if i != 0 {
+		if i != 0 && name != "" {
 			subMatchMap[name] = match[i]
 		}
 	}
 	return nil
+}
+
+func FlattenMap(data map[string]interface{}) {
+	for k, vi := range data {
+		if v2i, ok := vi.(map[string]interface{}); ok {
+			FlattenMap(v2i)
+			for k3, v3i := range v2i {
+				data[k+"."+k3] = v3i
+			}
+			delete(data, k)
+		}
+	}
 }
