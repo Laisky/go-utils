@@ -51,20 +51,20 @@ func TestJournal(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cfg := &journal.JournalConfig{
-		BufDirPath:   dir,
-		BufSizeBytes: 100,
+		BufDirPath:             dir,
+		BufSizeBytes:           100,
+		RotateCheckIntervalNum: 50,
 	}
 	j := journal.NewJournal(cfg)
 	data := map[string]interface{}{}
-	threshold := int64(5000)
+	threshold := int64(50)
 
-	for id, val := range fakedata(10000) {
+	for id, val := range fakedata(1000) {
+		data["id"] = id
+		data["val"] = val
 		if err = j.WriteData(&data); err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
-
-		data["id"] = id
-		data["val"] = val
 
 		if id < threshold {
 			continue
@@ -79,6 +79,9 @@ func TestJournal(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 
+	if !j.LockLegacy() {
+		t.Fatal("can not lock legacy")
+	}
 	i := 0
 	for {
 		if err = j.LoadLegacyBuf(&data); err == io.EOF {
@@ -87,8 +90,9 @@ func TestJournal(t *testing.T) {
 			t.Fatalf("got error: %+v", err)
 		}
 
+		t.Logf("got: %v", journal.GetId(data))
 		if journal.GetId(data) >= threshold {
-			t.Fatalf("should not got: %+v", data)
+			t.Errorf("should not got id: %+v", journal.GetId(data))
 		}
 
 		i++

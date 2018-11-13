@@ -20,28 +20,35 @@ type Data interface {
 }
 
 type JournalConfig struct {
-	BufDirPath   string
-	BufSizeBytes int64
+	BufDirPath             string
+	BufSizeBytes           int64
+	RotateCheckIntervalNum int
 }
 
 type Journal struct {
-	cfg             *JournalConfig
+	*JournalConfig
+	dataFp, idsFp   *os.File
 	fsStat          *BufFileStat
 	legacy          *LegacyLoader
-	dataFp, idsFp   *os.File
 	dataEnc         *DataEncoder
 	idsEnc          *IdsEncoder
-	l               *sync.RWMutex
-	isLegacyRunning uint32
-	i               uint64
+	l               *sync.RWMutex // journal rwlock
+	isLegacyRunning uint32        // true if is loading legacy now
+	rotateCheckCnt  int
 }
 
 func NewJournal(cfg *JournalConfig) *Journal {
 	j := &Journal{
-		cfg:             cfg,
+		fsStat:          &BufFileStat{},
+		JournalConfig:   cfg,
 		isLegacyRunning: 0,
 		l:               &sync.RWMutex{},
 	}
+
+	if j.RotateCheckIntervalNum <= 0 {
+		j.RotateCheckIntervalNum = 1000
+	}
+
 	j.initBufDir()
 	go j.runFlush()
 	return j
@@ -49,7 +56,7 @@ func NewJournal(cfg *JournalConfig) *Journal {
 
 // initBufDir initialize buf directory and create buf files
 func (j *Journal) initBufDir() {
-	err := PrepareDir(j.cfg.BufDirPath)
+	err := PrepareDir(j.BufDirPath)
 	if err != nil {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
@@ -93,15 +100,17 @@ func (j *Journal) runFlush() {
 }
 
 func (j *Journal) checkRotate() error {
-	j.i++
-	if j.i > 1000 {
-		if fi, err := j.dataFp.Stat(); err != nil {
-			return errors.Wrap(err, "try to load file stat got error")
-		} else {
-			if fi.Size() > j.cfg.BufSizeBytes {
-				go j.Rotate()
-				j.i = 0
-			}
+	j.rotateCheckCnt++
+	if j.rotateCheckCnt < j.RotateCheckIntervalNum { // check rotate every 1000 msgs
+		return nil
+	}
+
+	if fi, err := j.dataFp.Stat(); err != nil {
+		return errors.Wrap(err, "try to load file stat got error")
+	} else {
+		if fi.Size() > j.BufSizeBytes {
+			go j.Rotate()
+			j.rotateCheckCnt = 0
 		}
 	}
 
@@ -120,6 +129,7 @@ func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
 		return err
 	}
 
+	utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
 	return j.dataEnc.Write(data)
 }
 
@@ -141,7 +151,7 @@ func (j *Journal) Rotate() (err error) {
 	}
 
 	// scan and create files
-	if j.fsStat, err = PrepareNewBufFile(j.cfg.BufDirPath); err != nil {
+	if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat); err != nil {
 		return errors.Wrap(err, "call PrepareNewBufFile got error")
 	}
 	if j.LockLegacy() {
@@ -153,20 +163,14 @@ func (j *Journal) Rotate() (err error) {
 	if j.dataFp != nil {
 		j.dataFp.Close()
 	}
-	if j.dataFp, err = os.OpenFile(j.fsStat.NewDataFName, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
-		return errors.Wrap(err, "try to open data journal file got error")
-	}
-	utils.Logger.Info("create new data journal file", zap.String("file", j.fsStat.NewDataFName))
+	j.dataFp = j.fsStat.NewDataFp
 	j.dataEnc = NewDataEncoder(j.dataFp)
 
 	// create & open ids file
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	if j.idsFp, err = os.OpenFile(j.fsStat.NewIdsDataFname, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
-		return errors.Wrap(err, "try to open ids journal file got error")
-	}
-	utils.Logger.Info("create new ids journal file", zap.String("file", j.fsStat.NewIdsDataFname))
+	j.idsFp = j.fsStat.NewIdsDataFp
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil
@@ -192,7 +196,7 @@ func (j *Journal) UnLockLegacy() bool {
 }
 
 // LoadLegacyBuf load legacy data one by one
-// should call LockLegacy first
+// ⚠️Warn: should call LockLegacy first
 func (j *Journal) LoadLegacyBuf(data *map[string]interface{}) (err error) {
 	j.l.RLock()
 	defer j.l.RUnlock()

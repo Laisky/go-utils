@@ -82,6 +82,7 @@ READ_NEW_LINE:
 		goto READ_NEW_LINE
 	}
 
+	utils.Logger.Debug("load unconsumed data", zap.Int64("id", id))
 	return nil
 }
 
