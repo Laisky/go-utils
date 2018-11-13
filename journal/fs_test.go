@@ -67,36 +67,27 @@ func TestPrepareNewBufFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	bufStat, err := journal.PrepareNewBufFile(dir)
+	bufStat, err := journal.PrepareNewBufFile(dir, &journal.BufFileStat{})
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
-	newDataFp, err := os.Create(bufStat.NewDataFName)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	defer newDataFp.Close()
+	defer bufStat.NewDataFp.Close()
+	defer bufStat.NewIdsDataFp.Close()
 
-	newIdsFp, err := os.Create(bufStat.NewIdsDataFname)
+	_, err = bufStat.NewDataFp.WriteString("test data")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	defer newIdsFp.Close()
-
-	_, err = newDataFp.WriteString("test data")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	_, err = newIdsFp.WriteString("test ids")
+	_, err = bufStat.NewIdsDataFp.WriteString("test ids")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
-	err = newDataFp.Sync()
+	err = bufStat.NewDataFp.Sync()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	err = newIdsFp.Sync()
+	err = bufStat.NewIdsDataFp.Sync()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

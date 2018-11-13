@@ -56,31 +56,37 @@ func BenchmarkSerializer(b *testing.B) {
 	defer fp.Close()
 	defer os.Remove(fp.Name())
 	b.Logf("create file name: %v", fp.Name())
-	m := map[string]interface{}{"tag": "tag", "message": "jr32oirj23r2ifj32ofjo2jfo2fjof2"}
+	m := map[string]interface{}{"tag": "tag", "message": "jr32oirj23r2ifj32ofjfwefefwfwfwefwefwef 234rt34t 34t 34t43t 34t o2jfo2fjof2"}
 	encoder := journal.NewDataEncoder(fp)
 
 	b.Run("encoder", func(b *testing.B) {
-		for i := 0; i < 100000; i++ {
+		for i := 0; i < b.N; i++ {
 			if err = encoder.Write(&m); err != nil {
 				b.Fatalf("%+v", err)
 			}
 		}
+		encoder.Flush()
 		fp.Sync()
 	})
 
-	fp.Seek(0, 0)
+	fpath := fp.Name()
+	fp.Close()
+	if fp, err = os.Open(fpath); err != nil {
+		b.Fatal("can not open file")
+	}
 	decoder := journal.NewDataDecoder(fp)
 	b.Run("decoder", func(b *testing.B) {
-		v := map[string]interface{}{}
-		for {
+		for i := 0; i < b.N; i++ {
+			v := map[string]interface{}{}
 			if err = decoder.Read(&v); err == io.EOF {
 				return
 			} else if err != nil {
 				b.Fatalf("%+v", err)
 			}
 
-			if string(v["tag"].([]byte)) != "tag" {
-				b.Error("tag incorrect")
+			if string(v["tag"].([]byte)) != m["tag"].(string) ||
+				string(v["message"].([]byte)) != m["message"].(string) {
+				b.Fatal("load incorrect")
 			}
 		}
 	})
