@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 
 	utils "github.com/Laisky/go-utils"
@@ -21,8 +22,8 @@ func BenchmarkData(b *testing.B) {
 	}
 	b.Logf("create directory: %v", dir)
 	// var err error
-	// dir := "/Users/laisky/Downloads/test"
-	// defer os.RemoveAll(dir)
+	// dir := "/data/go/src/github.com/Laisky/go-utils/journal/benchmark/test"
+	defer os.RemoveAll(dir)
 
 	cfg := &journal.JournalConfig{
 		BufDirPath:   dir,
