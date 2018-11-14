@@ -47,12 +47,9 @@ type BufFileStat struct {
 	OldDataFnames, OldIdsDataFname                     []string
 }
 
-func PrepareNewBufFile(dirPath string, oldFileStat *BufFileStat) (ret *BufFileStat, err error) {
+func PrepareNewBufFile(dirPath string, oldFileStat *BufFileStat, isScan bool) (ret *BufFileStat, err error) {
 	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
-	ret = &BufFileStat{
-		OldDataFnames:   []string{},
-		OldIdsDataFname: []string{},
-	}
+	ret = &BufFileStat{}
 
 	// scan directories
 	var (
@@ -60,40 +57,43 @@ func PrepareNewBufFile(dirPath string, oldFileStat *BufFileStat) (ret *BufFileSt
 		fname, absFname                                              string
 		fs                                                           []os.FileInfo
 	)
-	fs, err = ioutil.ReadDir(dirPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "try to list dir got error")
-	}
 
 	// scan existing buf files
-	for _, f := range fs {
-		fname = f.Name()
-		absFname = path.Join(dirPath, fname)
-
-		// macos fs bug, could get removed files
-		if _, err := os.Stat(absFname); os.IsNotExist(err) {
-			utils.Logger.Warn("file not exists", zap.String("fname", absFname))
-			return nil, nil
+	if isScan {
+		ret.OldDataFnames = []string{}
+		ret.OldIdsDataFname = []string{}
+		if fs, err = ioutil.ReadDir(dirPath); err != nil {
+			return nil, errors.Wrap(err, "try to list dir got error")
 		}
+		for _, f := range fs {
+			fname = f.Name()
+			absFname = path.Join(dirPath, fname)
 
-		if DataFileNameReg.MatchString(fname) &&
-			(oldFileStat.NextDataFp == nil || absFname < oldFileStat.NextDataFp.Name()) {
-			utils.Logger.Debug("add data file into queue", zap.String("fname", absFname))
-			ret.OldDataFnames = append(ret.OldDataFnames, absFname)
-			if fname > latestDataFName {
-				latestDataFName = fname
+			// macos fs bug, could get removed files
+			if _, err := os.Stat(absFname); os.IsNotExist(err) {
+				utils.Logger.Warn("file not exists", zap.String("fname", absFname))
+				return nil, nil
 			}
-		} else if IdFileNameReg.MatchString(fname) &&
-			(oldFileStat.NextIdsDataFp == nil || absFname < oldFileStat.NextIdsDataFp.Name()) {
-			utils.Logger.Debug("add ids file into queue", zap.String("fname", absFname))
-			ret.OldIdsDataFname = append(ret.OldIdsDataFname, absFname)
-			if fname > latestIDsFName {
-				latestIDsFName = fname
+
+			if DataFileNameReg.MatchString(fname) &&
+				(oldFileStat.NextDataFp == nil || absFname < oldFileStat.NextDataFp.Name()) {
+				utils.Logger.Debug("add data file into queue", zap.String("fname", absFname))
+				ret.OldDataFnames = append(ret.OldDataFnames, absFname)
+				if fname > latestDataFName {
+					latestDataFName = fname
+				}
+			} else if IdFileNameReg.MatchString(fname) &&
+				(oldFileStat.NextIdsDataFp == nil || absFname < oldFileStat.NextIdsDataFp.Name()) {
+				utils.Logger.Debug("add ids file into queue", zap.String("fname", absFname))
+				ret.OldIdsDataFname = append(ret.OldIdsDataFname, absFname)
+				if fname > latestIDsFName {
+					latestIDsFName = fname
+				}
 			}
 		}
+		utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
+		utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
 	}
-	utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
-	utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
 
 	// generate new buf data file name
 	// `latestxxxFName` means new buf file name now

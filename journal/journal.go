@@ -100,11 +100,6 @@ func (j *Journal) runFlush() {
 }
 
 func (j *Journal) checkRotate() error {
-	j.rotateCheckCnt++
-	if j.rotateCheckCnt < j.RotateCheckIntervalNum { // check rotate every 1000 msgs
-		return nil
-	}
-
 	if fi, err := j.dataFp.Stat(); err != nil {
 		return errors.Wrap(err, "try to load file stat got error")
 	} else {
@@ -125,8 +120,11 @@ func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
 	j.l.RLock() // will blocked by flush & rotate
 	defer j.l.RUnlock()
 
-	if err = j.checkRotate(); err != nil {
-		return err
+	j.rotateCheckCnt++
+	if j.rotateCheckCnt > j.RotateCheckIntervalNum {
+		if err = j.checkRotate(); err != nil {
+			return errors.Wrap(err, "check rotate got error")
+		}
 	}
 
 	utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
@@ -151,12 +149,17 @@ func (j *Journal) Rotate() (err error) {
 	}
 
 	// scan and create files
-	if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat); err != nil {
-		return errors.Wrap(err, "call PrepareNewBufFile got error")
-	}
 	if j.LockLegacy() {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
+			return errors.Wrap(err, "call PrepareNewBufFile got error")
+		}
 		j.RefreshLegacyLoader()
 		j.UnLockLegacy()
+	} else {
+		// no need to scan old buf files
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false); err != nil {
+			return errors.Wrap(err, "call PrepareNewBufFile got error")
+		}
 	}
 
 	// create & open data file
