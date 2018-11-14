@@ -9,9 +9,9 @@ import (
 )
 
 type msgRecord struct {
-	Num         int
-	LastCommitT time.Time
-	LastMsg     *KafkaMsg
+	num         int
+	lastCommitT time.Time
+	lastMsg     *KafkaMsg
 	isCommited  bool
 }
 
@@ -61,29 +61,28 @@ func (f *CommitFilter) runFilterBeforeChan() {
 		// record not exists, create new record
 		if record, ok = kmsgSlots[kmsg.Partition]; !ok {
 			kmsgSlots[kmsg.Partition] = &msgRecord{
-				LastCommitT: time.Now(),
-				LastMsg:     kmsg,
-				Num:         1,
+				lastCommitT: time.Now(),
+				lastMsg:     kmsg,
+				num:         1,
 				isCommited:  false,
 			}
 			continue
 		}
 
 		// record already exists
-		if kmsg.Offset <= record.LastMsg.Offset {
+		if kmsg.Offset <= record.lastMsg.Offset {
 			// current kmsg's offset is smaller than exists record
 			// discard current kmsg
 			f.KMsgPool.Put(kmsg)
-			kmsg = record.LastMsg
 		} else {
 			// current kmsg's offset is bigger than exists
 			// discard old record
-			f.KMsgPool.Put(kmsgSlots[kmsg.Partition].LastMsg)
-			kmsgSlots[kmsg.Partition].LastMsg = kmsg
+			f.KMsgPool.Put(kmsgSlots[kmsg.Partition].lastMsg)
+			kmsgSlots[kmsg.Partition].lastMsg = kmsg
 			kmsgSlots[kmsg.Partition].isCommited = false
 		}
 
-		kmsgSlots[kmsg.Partition].Num++
+		kmsgSlots[kmsg.Partition].num++
 
 		now = time.Now()
 		if now.Sub(lastScanT) > scanInterval {
@@ -99,15 +98,15 @@ func (f *CommitFilter) filterSlots2AfterChan(now time.Time, kmsgSlots map[int32]
 	utils.Logger.Debug("run filterSlots2AfterChan", zap.Time("now", now))
 	for _, record := range kmsgSlots {
 		if record.isCommited &&
-			(record.Num > f.IntervalNum || now.Sub(record.LastCommitT) > f.IntervalDuration) {
+			(record.num > f.IntervalNum || now.Sub(record.lastCommitT) > f.IntervalDuration) {
 			if utils.Settings.GetBool("dry") {
 				continue
 			}
 
 			select {
-			case f.afterChan <- record.LastMsg:
-				record.LastCommitT = now
-				record.Num = 0
+			case f.afterChan <- record.lastMsg:
+				record.lastCommitT = now
+				record.num = 0
 				record.isCommited = true
 			default:
 			}

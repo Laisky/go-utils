@@ -1,3 +1,5 @@
+// Package journal_test
+// `go test -bench=. -benchtime=30s | grep -E "/op|Benchmark"`
 package journal_test
 
 import (
@@ -14,6 +16,10 @@ func BenchmarkWrite(b *testing.B) {
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
+	// fp, err := os.OpenFile("/data/go/src/github.com/Laisky/go-utils/journal/benchmark/test/test.data", os.O_RDWR|os.O_CREATE, 0664)
+	// if err != nil {
+	// 	b.Fatalf("got error: %+v", err)
+	// }
 	defer fp.Close()
 	defer os.Remove(fp.Name())
 	b.Logf("create file name: %v", fp.Name())

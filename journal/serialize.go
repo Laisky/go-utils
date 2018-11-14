@@ -108,7 +108,7 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	var offset int64
 	if enc.baseId == -1 {
 		enc.baseId = id
-		offset = id
+		offset = id // set first id as baseid
 		utils.Logger.Debug("set write base id", zap.Int64("baseid", id))
 	} else {
 		offset = id - enc.baseId // offset
@@ -166,9 +166,11 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 		}
 
 		if dec.baseId == -1 {
+			// first id in head of file is baseid
 			utils.Logger.Debug("set baseid", zap.Int64("id", id))
 			dec.baseId = id
 		} else {
+			// another ids in rest file are offsets
 			id += dec.baseId
 		}
 
