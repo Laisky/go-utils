@@ -4,7 +4,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"testing"
 
 	utils "github.com/Laisky/go-utils"
@@ -21,7 +20,9 @@ func BenchmarkData(b *testing.B) {
 		log.Fatal(err)
 	}
 	b.Logf("create directory: %v", dir)
-	defer os.RemoveAll(dir)
+	// var err error
+	// dir := "/Users/laisky/Downloads/test"
+	// defer os.RemoveAll(dir)
 
 	cfg := &journal.JournalConfig{
 		BufDirPath:   dir,
@@ -48,10 +49,15 @@ func BenchmarkData(b *testing.B) {
 	}
 	b.Run("read", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
+			data["id"] = 0
 			if err = j.LoadLegacyBuf(&data); err == io.EOF {
 				return
 			} else if err != nil {
 				b.Fatalf("got error: %+v", err)
+			}
+
+			if data["id"] != int64(1000) {
+				b.Fatal("read data error")
 			}
 		}
 	})
