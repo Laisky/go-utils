@@ -48,7 +48,10 @@ type BufFileStat struct {
 
 func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error) {
 	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
-	ret = &BufFileStat{}
+	ret = &BufFileStat{
+		OldDataFnames:   []string{},
+		OldIdsDataFname: []string{},
+	}
 
 	// scan directories
 	var (
@@ -59,8 +62,6 @@ func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error
 
 	// scan existing buf files
 	if isScan {
-		ret.OldDataFnames = []string{}
-		ret.OldIdsDataFname = []string{}
 		if fs, err = ioutil.ReadDir(dirPath); err != nil {
 			return nil, errors.Wrap(err, "try to list dir got error")
 		}
