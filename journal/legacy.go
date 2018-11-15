@@ -14,6 +14,7 @@ import (
 type LegacyLoader struct {
 	dataFNames, idsFNames []string
 	ctx                   *legacyCtx
+	removeFileChan        chan string
 }
 
 type legacyCtx struct {
@@ -25,10 +26,25 @@ type legacyCtx struct {
 
 func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 	utils.Logger.Info("NewLegacyLoader...", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
-	return &LegacyLoader{
-		dataFNames: dataFNames,
-		idsFNames:  idsFNames,
-		ctx:        &legacyCtx{},
+	l := &LegacyLoader{
+		dataFNames:     dataFNames,
+		idsFNames:      idsFNames,
+		ctx:            &legacyCtx{},
+		removeFileChan: make(chan string, 10),
+	}
+	go l.startFileCleaner()
+	return l
+}
+
+func (l *LegacyLoader) startFileCleaner() {
+	var err error
+	for fpath := range l.removeFileChan {
+		if err = os.Remove(fpath); err != nil {
+			utils.Logger.Error("try to delete file got error",
+				zap.String("file", fpath),
+				zap.Error(err))
+		}
+		utils.Logger.Info("remove buf file", zap.String("file", fpath))
 	}
 }
 
@@ -149,20 +165,14 @@ func (l *LegacyLoader) Clean() (err error) {
 
 	if l.dataFNames != nil {
 		for _, f := range l.dataFNames {
-			utils.Logger.Info("remove data file", zap.String("f", f))
-			if err = os.Remove(f); err != nil {
-				utils.Logger.Error("try to delete file got error", zap.String("f", f), zap.Error(err))
-			}
+			l.removeFileChan <- f
 		}
 		l.dataFNames = nil
 	}
 
 	if l.idsFNames != nil {
 		for _, f := range l.idsFNames {
-			utils.Logger.Info("remove id file", zap.String("f", f))
-			if err = os.Remove(f); err != nil {
-				utils.Logger.Error("try to delete file got error", zap.String("f", f), zap.Error(err))
-			}
+			l.removeFileChan <- f
 		}
 		l.idsFNames = nil
 	}
