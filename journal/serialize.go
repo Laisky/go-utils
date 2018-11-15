@@ -74,7 +74,7 @@ func NewIdsDecoder(fp *os.File) *IdsDecoder {
 }
 
 func NewDataDecoder(fp *os.File) *DataDecoder {
-	reader := bufio.NewReader(fp)
+	reader := bufio.NewReaderSize(fp, BufSize)
 	return &DataDecoder{
 		reader:  reader,
 		decoder: codec.NewDecoder(reader, NewCodec()),
