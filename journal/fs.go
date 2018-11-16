@@ -62,7 +62,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 	)
 
 	// scan existing buf files
-	if isScan {
+	if isScan || oldFsStat == nil { // update legacyLoader or first run
 		if fs, err = ioutil.ReadDir(dirPath); err != nil {
 			return nil, errors.Wrap(err, "try to list dir got error")
 		}
@@ -92,7 +92,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 		}
 		utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
 		utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
-	} else if oldFsStat != nil {
+	} else {
 		_, latestDataFName = filepath.Split(oldFsStat.NewDataFp.Name())
 		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsDataFp.Name())
 	}
