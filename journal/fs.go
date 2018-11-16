@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,11 +43,11 @@ func PrepareDir(path string) error {
 }
 
 type BufFileStat struct {
-	NewDataFp, NewIdsDataFp, NextDataFp, NextIdsDataFp *os.File
-	OldDataFnames, OldIdsDataFname                     []string
+	NewDataFp, NewIdsDataFp        *os.File
+	OldDataFnames, OldIdsDataFname []string
 }
 
-func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error) {
+func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret *BufFileStat, err error) {
 	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
 	ret = &BufFileStat{
 		OldDataFnames:   []string{},
@@ -61,7 +62,7 @@ func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error
 	)
 
 	// scan existing buf files
-	if isScan {
+	if isScan || oldFsStat == nil { // update legacyLoader or first run
 		if fs, err = ioutil.ReadDir(dirPath); err != nil {
 			return nil, errors.Wrap(err, "try to list dir got error")
 		}
@@ -91,6 +92,9 @@ func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error
 		}
 		utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
 		utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
+	} else {
+		_, latestDataFName = filepath.Split(oldFsStat.NewDataFp.Name())
+		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsDataFp.Name())
 	}
 
 	// generate new buf data file name
