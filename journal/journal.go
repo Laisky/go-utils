@@ -39,7 +39,6 @@ type Journal struct {
 
 func NewJournal(cfg *JournalConfig) *Journal {
 	j := &Journal{
-		fsStat:          &BufFileStat{},
 		JournalConfig:   cfg,
 		isLegacyRunning: 0,
 		l:               &sync.RWMutex{},
@@ -150,14 +149,14 @@ func (j *Journal) Rotate() (err error) {
 
 	// scan and create files
 	if j.LockLegacy() {
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, true); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
 		j.RefreshLegacyLoader()
 		j.UnLockLegacy()
 	} else {
 		// no need to scan old buf files
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, false); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false); err != nil {
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
 	}

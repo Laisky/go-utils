@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,11 +43,11 @@ func PrepareDir(path string) error {
 }
 
 type BufFileStat struct {
-	NewDataFp, NewIdsDataFp, NextDataFp, NextIdsDataFp *os.File
-	OldDataFnames, OldIdsDataFname                     []string
+	NewDataFp, NewIdsDataFp        *os.File
+	OldDataFnames, OldIdsDataFname []string
 }
 
-func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error) {
+func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret *BufFileStat, err error) {
 	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
 	ret = &BufFileStat{
 		OldDataFnames:   []string{},
@@ -91,6 +92,9 @@ func PrepareNewBufFile(dirPath string, isScan bool) (ret *BufFileStat, err error
 		}
 		utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
 		utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
+	} else if oldFsStat != nil {
+		_, latestDataFName = filepath.Split(oldFsStat.NewDataFp.Name())
+		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsDataFp.Name())
 	}
 
 	// generate new buf data file name

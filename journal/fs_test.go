@@ -67,7 +67,7 @@ func TestPrepareNewBufFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	bufStat, err := journal.PrepareNewBufFile(dir, true)
+	bufStat, err := journal.PrepareNewBufFile(dir, nil, true)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
