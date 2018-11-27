@@ -22,7 +22,7 @@ func NewCounterFromN(n int64) *Counter {
 }
 
 func (c *Counter) Get() int64 {
-	return c.n
+	return atomic.LoadInt64(&c.n)
 }
 
 func (c *Counter) Set(n int64) {
@@ -117,7 +117,7 @@ func NewUint32CounterFromN(n uint32) *Uint32Counter {
 }
 
 func (c *Uint32Counter) Get() uint32 {
-	return c.n
+	return atomic.LoadUint32(&c.n)
 }
 
 func (c *Uint32Counter) Set(n uint32) {
