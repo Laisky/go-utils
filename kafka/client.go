@@ -77,6 +77,8 @@ func (k *KafkaCli) Close() {
 
 func (k *KafkaCli) ListenNotifications() {
 	for ntf := range k.cli.Notifications() {
+		// bugs: sarama-cluster's bug, will race for notification
+		time.Sleep(10 * time.Millisecond)
 		utils.Logger.Info(fmt.Sprintf("KafkaCli Notify: %v", ntf))
 	}
 }

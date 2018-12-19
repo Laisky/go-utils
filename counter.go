@@ -2,16 +2,22 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Counter struct {
-	n int64
+	*sync.Mutex
+	n, lastN int64
+	lastT    time.Time
 }
 
 func NewCounter() *Counter {
 	return &Counter{
-		n: 0,
+		n:     0,
+		lastT: time.Now(),
+		lastN: 0,
 	}
 }
 
@@ -23,6 +29,16 @@ func NewCounterFromN(n int64) *Counter {
 
 func (c *Counter) Get() int64 {
 	return atomic.LoadInt64(&c.n)
+}
+
+func (c *Counter) GetSpeed() (r float64) {
+	c.Lock()
+	defer c.Unlock()
+
+	r = Round(float64(c.Get()-c.lastN)/time.Now().Sub(c.lastT).Seconds(), .5, 2)
+	c.lastT = time.Now()
+	c.lastN = c.Get()
+	return r
 }
 
 func (c *Counter) Set(n int64) {
