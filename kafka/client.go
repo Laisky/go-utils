@@ -102,6 +102,9 @@ func (k *KafkaCli) Messages() <-chan *KafkaMsg {
 }
 
 func (k *KafkaCli) runCommitor() {
+	utils.Logger.Info("start runCommitor")
+	defer utils.Logger.Panic("kafka commitor exit")
+
 	cmsg := &sarama.ConsumerMessage{}
 	for kmsg := range k.afterChan {
 		if utils.Settings.GetBool("dry") {
@@ -111,6 +114,9 @@ func (k *KafkaCli) runCommitor() {
 			continue
 		}
 
+		utils.Logger.Debug("commit message",
+			zap.Int32("partition", kmsg.Partition),
+			zap.Int64("offset", kmsg.Offset))
 		cmsg.Topic = kmsg.Topic
 		cmsg.Partition = kmsg.Partition
 		cmsg.Offset = kmsg.Offset

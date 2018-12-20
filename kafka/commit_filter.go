@@ -27,6 +27,9 @@ type CommitFilter struct {
 }
 
 func NewCommitFilter(cfg *CommitFilterCfg) *CommitFilter {
+	utils.Logger.Info("NewCommitFilter",
+		zap.Duration("interval_duration", cfg.IntervalDuration),
+		zap.Int("interval_num", cfg.IntervalNum))
 	f := &CommitFilter{
 		CommitFilterCfg: cfg,
 		beforeChan:      make(chan *KafkaMsg, 1000),
@@ -47,13 +50,15 @@ func (f *CommitFilter) GetAfterChan() chan *KafkaMsg {
 // runFilterBeforeChan maintain a kmsgSlots that cache the latest kmsg record.
 // invoke filterSlots2AfterChan in fixed frequency.
 func (f *CommitFilter) runFilterBeforeChan() {
+	utils.Logger.Debug("start runFilterBeforeChan")
+	defer utils.Logger.Panic("runFilterBeforeChan quit")
 	var (
 		kmsgSlots    = map[int32]*msgRecord{}
 		kmsg         *KafkaMsg
 		record       *msgRecord
 		ok           bool
 		now          time.Time
-		scanInterval = time.Second * 3
+		scanInterval = time.Second * 1
 		lastScanT    = time.Now()
 	)
 
@@ -97,9 +102,12 @@ func (f *CommitFilter) runFilterBeforeChan() {
 func (f *CommitFilter) filterSlots2AfterChan(now time.Time, kmsgSlots map[int32]*msgRecord) {
 	utils.Logger.Debug("run filterSlots2AfterChan", zap.Time("now", now))
 	for _, record := range kmsgSlots {
-		if record.isCommited &&
+		if !record.isCommited &&
 			(record.num > f.IntervalNum || now.Sub(record.lastCommitT) > f.IntervalDuration) {
 			if utils.Settings.GetBool("dry") {
+				utils.Logger.Info("put msg into afterChan",
+					zap.Time("last_commit_time", record.lastCommitT),
+					zap.Int("num", record.num))
 				continue
 			}
 
