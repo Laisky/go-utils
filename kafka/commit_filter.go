@@ -11,6 +11,7 @@ import (
 type msgRecord struct {
 	num         int
 	lastCommitT time.Time
+	lastOffset  int64
 	lastMsg     *KafkaMsg
 	isCommited  bool
 }
@@ -68,6 +69,7 @@ func (f *CommitFilter) runFilterBeforeChan() {
 			kmsgSlots[kmsg.Partition] = &msgRecord{
 				lastCommitT: time.Now(),
 				lastMsg:     kmsg,
+				lastOffset:  kmsg.Offset,
 				num:         1,
 				isCommited:  false,
 			}
@@ -75,19 +77,25 @@ func (f *CommitFilter) runFilterBeforeChan() {
 		}
 
 		// record already exists
-		if kmsg.Offset <= record.lastMsg.Offset {
+		if kmsg.Offset <= record.lastOffset {
 			// current kmsg's offset is smaller than exists record
 			// discard current kmsg
 			f.KMsgPool.Put(kmsg)
 		} else {
 			// current kmsg's offset is bigger than exists
 			// discard old record
-			f.KMsgPool.Put(kmsgSlots[kmsg.Partition].lastMsg)
-			kmsgSlots[kmsg.Partition].lastMsg = kmsg
-			kmsgSlots[kmsg.Partition].isCommited = false
+			if !record.isCommited {
+				// only recycle uncommited msg at here,
+				// let commitor to recycle commited msg
+				f.KMsgPool.Put(kmsgSlots[kmsg.Partition].lastMsg)
+			}
+
+			record.lastMsg = kmsg
+			record.lastOffset = kmsg.Offset
+			record.isCommited = false
 		}
 
-		kmsgSlots[kmsg.Partition].num++
+		record.num++
 
 		now = time.Now()
 		if now.Sub(lastScanT) > scanInterval {
