@@ -14,7 +14,6 @@ import (
 type LegacyLoader struct {
 	dataFNames, idsFNames []string
 	ctx                   *legacyCtx
-	removeFileChan        chan string
 }
 
 type legacyCtx struct {
@@ -25,27 +24,30 @@ type legacyCtx struct {
 }
 
 func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
-	utils.Logger.Info("NewLegacyLoader...", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
+	utils.Logger.Info("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
-		dataFNames:     dataFNames,
-		idsFNames:      idsFNames,
-		ctx:            &legacyCtx{},
-		removeFileChan: make(chan string, 10),
+		dataFNames: dataFNames,
+		idsFNames:  idsFNames,
+		ctx:        &legacyCtx{},
 	}
-	go l.startFileCleaner()
 	return l
 }
 
-func (l *LegacyLoader) startFileCleaner() {
-	var err error
-	for fpath := range l.removeFileChan {
-		if err = os.Remove(fpath); err != nil {
-			utils.Logger.Error("try to delete file got error",
-				zap.String("file", fpath),
-				zap.Error(err))
-		}
-		utils.Logger.Info("remove buf file", zap.String("file", fpath))
+func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
+	utils.Logger.Info("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
+	l.dataFNames = dataFNames
+	l.idsFNames = idsFNames
+	l.ctx = &legacyCtx{}
+}
+
+// removeFile delete file, should run sync to avoid dirty files
+func (l *LegacyLoader) removeFile(fpath string) {
+	if err := os.Remove(fpath); err != nil {
+		utils.Logger.Error("try to delete file got error",
+			zap.String("file", fpath),
+			zap.Error(err))
 	}
+	utils.Logger.Info("remove buf file", zap.String("file", fpath))
 }
 
 func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
@@ -112,10 +114,10 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 	for _, fname := range l.idsFNames {
 		utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
-		defer fp.Close()
 		if err != nil {
-			return 0, errors.Wrapf(err, "try to open file `%v` got error", fname)
+			return 0, errors.Wrapf(err, "try to open file `%v` to load maxid got error", fname)
 		}
+		defer fp.Close()
 
 		idsDecoder := NewIdsDecoder(fp)
 		id, err = idsDecoder.LoadMaxId()
@@ -144,7 +146,7 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 		fp, err = os.Open(fname)
 		defer fp.Close()
 		if err != nil {
-			return nil, errors.Wrapf(err, "try to open file `%v` got error", fname)
+			return nil, errors.Wrapf(err, "try to open file `%v` to load all ids got error", fname)
 		}
 
 		idsDecoder := NewIdsDecoder(fp)
@@ -165,14 +167,14 @@ func (l *LegacyLoader) Clean() (err error) {
 
 	if l.dataFNames != nil {
 		for _, f := range l.dataFNames {
-			l.removeFileChan <- f
+			l.removeFile(f)
 		}
 		l.dataFNames = nil
 	}
 
 	if l.idsFNames != nil {
 		for _, f := range l.idsFNames {
-			l.removeFileChan <- f
+			l.removeFile(f)
 		}
 		l.idsFNames = nil
 	}
