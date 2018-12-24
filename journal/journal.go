@@ -150,6 +150,7 @@ func (j *Journal) Rotate() (err error) {
 	// scan and create files
 	if j.LockLegacy() {
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
+			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
 		j.RefreshLegacyLoader()
@@ -178,8 +179,13 @@ func (j *Journal) Rotate() (err error) {
 	return nil
 }
 
+// RefreshLegacyLoader create or reset legacy loader
 func (j *Journal) RefreshLegacyLoader() {
-	j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+	if j.legacy == nil {
+		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+	} else {
+		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+	}
 }
 
 func (j *Journal) LockLegacy() bool {
@@ -198,7 +204,7 @@ func (j *Journal) UnLockLegacy() bool {
 }
 
 // LoadLegacyBuf load legacy data one by one
-// ⚠️Warn: should call LockLegacy first
+// ⚠️Warn: should call `j.LockLegacy()` before invoke this method
 func (j *Journal) LoadLegacyBuf(data *map[string]interface{}) (err error) {
 	j.l.RLock()
 	defer j.l.RUnlock()
