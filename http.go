@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/Laisky/go-chaining"
-	"go.uber.org/zap"
-
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var (
@@ -111,5 +110,5 @@ func checkRespBody(c *chaining.Chain) (interface{}, error) {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
 	}
 
-	return resp, errors.Wrapf(upErr, "got http body <%v>", string(respB[:]))
+	return resp, errors.Wrapf(upErr, "got http body: %v", string(respB[:]))
 }
