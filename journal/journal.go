@@ -23,6 +23,7 @@ type JournalConfig struct {
 	BufDirPath             string
 	BufSizeBytes           int64
 	RotateCheckIntervalNum int
+	RotateDuration         time.Duration
 }
 
 type Journal struct {
@@ -35,6 +36,7 @@ type Journal struct {
 	l               *sync.RWMutex // journal rwlock
 	isLegacyRunning uint32        // true if is loading legacy now
 	rotateCheckCnt  int
+	latestRotateT   time.Time
 }
 
 func NewJournal(cfg *JournalConfig) *Journal {
@@ -46,6 +48,10 @@ func NewJournal(cfg *JournalConfig) *Journal {
 
 	if j.RotateCheckIntervalNum <= 0 {
 		j.RotateCheckIntervalNum = 1000
+	}
+
+	if j.RotateDuration < 1*time.Minute {
+		j.RotateDuration = 1 * time.Minute
 	}
 
 	j.initBufDir()
@@ -102,7 +108,7 @@ func (j *Journal) checkRotate() error {
 	if fi, err := j.dataFp.Stat(); err != nil {
 		return errors.Wrap(err, "try to load file stat got error")
 	} else {
-		if fi.Size() > j.BufSizeBytes {
+		if fi.Size() > j.BufSizeBytes || time.Now().Sub(j.latestRotateT) > j.RotateDuration {
 			go j.Rotate()
 			j.rotateCheckCnt = 0
 		}
@@ -147,6 +153,7 @@ func (j *Journal) Rotate() (err error) {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
+	j.latestRotateT = time.Now()
 	// scan and create files
 	if j.LockLegacy() {
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
