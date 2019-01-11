@@ -46,12 +46,12 @@ func TestRegexNamedSubMatch(t *testing.T) {
 
 func TestFlattenMap(t *testing.T) {
 	data := map[string]interface{}{}
-	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4}`)
+	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
 	if err := json.Unmarshal(j, &data); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	utils.FlattenMap(data)
+	utils.FlattenMap(data, ".")
 	if data["a"].(string) != "1" {
 		t.Fatalf("expect %v, got %v", "1", data["a"])
 	}
@@ -63,5 +63,8 @@ func TestFlattenMap(t *testing.T) {
 	}
 	if int(data["f"].(float64)) != 4 {
 		t.Fatalf("expect %v, got %v", 4, data["f"])
+	}
+	if _, ok := data["g"]; ok {
+		t.Fatalf("g should not exists")
 	}
 }
