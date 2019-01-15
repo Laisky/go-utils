@@ -6,9 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/viper"
-
 	"github.com/Laisky/go-utils"
+	"github.com/spf13/viper"
 )
 
 func TestSettings(t *testing.T) {
@@ -58,6 +57,45 @@ key3: val3`)
 		got = utils.Settings.GetString(k)
 		if got != expect {
 			t.Errorf("load %v, expect %v, got %v", k, expect, got)
+		}
+	}
+}
+
+// dependends on remote config-server
+func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
+	utils.SetupLogger("debug")
+	cfg := &utils.ConfigServerCfg{
+		Url:     "http://config-server.paas.ptcloud.t.home",
+		Profile: "prd",
+		Label:   "zipkin",
+		App:     "zipkin-svc-1",
+	}
+	if err := utils.Settings.SetupFromConfigServerWithRawYaml(cfg, "cfg"); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	for k, vi := range map[string]interface{}{
+		"consts.ports.18083":                   "rsyslog recv",
+		"settings.acceptor.sync_out_chan_size": 10000,
+		"consts.envs.all-env":                  []string{"sit", "perf", "uat", "prod"},
+	} {
+		switch vi.(type) {
+		case string:
+			if utils.Settings.GetString(k) != vi.(string) {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			}
+		case int:
+			if utils.Settings.GetInt(k) != vi.(int) {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			}
+		case []string:
+			vs := utils.Settings.GetStringSlice(k)
+			if len(vs) != 4 ||
+				vs[0] != vi.([]string)[0] ||
+				vs[1] != vi.([]string)[1] ||
+				vs[2] != vi.([]string)[2] ||
+				vs[3] != vi.([]string)[3] {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			}
 		}
 	}
 }
