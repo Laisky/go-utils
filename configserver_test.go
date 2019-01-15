@@ -51,9 +51,9 @@ func TestConfigSrv(t *testing.T) {
 
 	// check int
 	if val, ok := c.GetInt("hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds"); !ok {
-		t.Fatal("need to check whether contains `hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds`")
-	} else if val != 10000 {
-		t.Fatal("`hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds` should equal to `10000`")
+		t.Fatalf("need to check whether contains `hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds, but got %v", val)
+	} else if val != 130000 {
+		t.Fatalf("`hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds` should equal to `130000`, but got %v", val)
 	}
 
 	// check string

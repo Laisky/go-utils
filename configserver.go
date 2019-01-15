@@ -108,6 +108,7 @@ func (c *ConfigSrv) Map(set func(string, interface{})) {
 	for i := 0; i < len(c.Cfg.Sources); i++ {
 		src = c.Cfg.Sources[i]
 		for key, val = range src.Source {
+			Logger.Debug("set settings", zap.String("key", key), zap.String("val", fmt.Sprint(val)))
 			set(key, val)
 		}
 	}
