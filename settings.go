@@ -9,6 +9,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,13 +22,22 @@ import (
 	zap "go.uber.org/zap"
 )
 
+type SettingsConst struct {
+	YAML_TYPE string
+}
+
 // SettingsType type of project settings
 type SettingsType struct {
+	*SettingsConst
 	sync.Mutex
 }
 
 // Settings is the settings for this project
-var Settings = &SettingsType{}
+var Settings = &SettingsType{
+	SettingsConst: &SettingsConst{
+		YAML_TYPE: "yaml",
+	},
+}
 
 // BindPFlags bind pflags to settings
 func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
@@ -102,10 +112,21 @@ const CFG_FNAME = "settings.yml"
 
 // Setup load config file settings.yml
 func (s *SettingsType) Setup(configPath string) error {
-	fpath := filepath.Join(configPath, CFG_FNAME)
-	Logger.Info("Setup settings", zap.String("path", fpath))
-	viper.SetConfigType("yaml")
-	fp, err := os.Open(fpath)
+	return s.SetupFromDir(configPath)
+}
+
+// SetupFromDir load settings from dir, default fname is `settings.yml`
+func (s *SettingsType) SetupFromDir(dirPath string) error {
+	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
+	fpath := filepath.Join(dirPath, CFG_FNAME)
+	return s.SetupFromFile(fpath)
+}
+
+// SetupFromFile load settings from file
+func (s *SettingsType) SetupFromFile(filePath string) error {
+	Logger.Info("Setup settings", zap.String("filePath", filePath))
+	viper.SetConfigType(Settings.YAML_TYPE)
+	fp, err := os.Open(filePath)
 	if err != nil {
 		return errors.Wrap(err, "try to open config file got error")
 	}
@@ -114,18 +135,64 @@ func (s *SettingsType) Setup(configPath string) error {
 		return errors.Wrap(err, "try to load config file got error")
 	}
 
-	// `--remote-config=true` enable remote config
-	if s.GetBool("remote-config") {
-		Logger.Info("load settings from remote",
-			zap.String("url", s.GetString("config.url")),
-			zap.String("profile", s.GetString("config.profile")),
-			zap.String("label", s.GetString("config.label")),
-			zap.String("app", s.GetString("config.app")))
-		cfg := NewConfigSrv(s.GetString("config.url"),
-			s.GetString("config.profile"),
-			s.GetString("config.label"),
-			s.GetString("config.app"))
-		cfg.Map(viper.Set)
+	return nil
+}
+
+type ConfigServerCfg struct {
+	Url     string // config-server url
+	Profile string // env
+	Label   string // branch
+	App     string // app name
+}
+
+// SetupFromConfigServer load configs from config-server,
+// endpoint `{url}/{app}/{profile}/{label}`
+func (s *SettingsType) SetupFromConfigServer(cfg *ConfigServerCfg) (err error) {
+	Logger.Info("load settings from remote",
+		zap.String("url", cfg.Url),
+		zap.String("profile", cfg.Profile),
+		zap.String("label", cfg.Label),
+		zap.String("app", cfg.App))
+
+	srv := NewConfigSrv(cfg.Url,
+		cfg.Profile,
+		cfg.Label,
+		cfg.App)
+	if err = srv.Fetch(); err != nil {
+		return errors.Wrap(err, "try to fetch remote config got error")
+	}
+	srv.Map(viper.Set)
+
+	return nil
+}
+
+// SetupFromConfigServerWithRawYaml load configs from config-server
+//
+// endpoint `{url}/{app}/{profile}/{label}`
+//
+// load raw yaml content and parse.
+func (s *SettingsType) SetupFromConfigServerWithRawYaml(cfg *ConfigServerCfg, key string) (err error) {
+	Logger.Info("load settings from remote",
+		zap.String("url", cfg.Url),
+		zap.String("profile", cfg.Profile),
+		zap.String("label", cfg.Label),
+		zap.String("app", cfg.App))
+
+	srv := NewConfigSrv(cfg.Url,
+		cfg.Profile,
+		cfg.Label,
+		cfg.App)
+	if err = srv.Fetch(); err != nil {
+		return errors.Wrap(err, "try to fetch remote config got error")
+	}
+	raw, ok := srv.GetString(key)
+	if !ok {
+		return fmt.Errorf("can not load raw cfg with key `%v`", key)
+	}
+	Logger.Debug("load raw cfg", zap.String("raw", raw))
+	viper.SetConfigType(Settings.YAML_TYPE)
+	if err = viper.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
+		return errors.Wrap(err, "try to load config file got error")
 	}
 
 	return nil

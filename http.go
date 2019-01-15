@@ -56,14 +56,17 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	r, err := httpClient.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "try to request url error")
-	} else if (r.StatusCode < 200) && (r.StatusCode >= 300) {
-		defer r.Body.Close()
+	}
+	defer r.Body.Close()
+
+	if FloorDivision(r.StatusCode, 100) != 2 {
 		respBytes, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")
 		}
 		return errors.New(string(respBytes[:]))
 	}
+
 	respBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return errors.Wrap(err, "try to read response data error")
