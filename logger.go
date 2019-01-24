@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	zap "go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -39,6 +40,7 @@ func SetupLogger(level string) {
 		ErrorOutputPaths: []string{"stderr"},
 	}
 	cfg.EncoderConfig.MessageKey = "message"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	var err error
 	Logger, err = cfg.Build()
