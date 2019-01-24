@@ -122,7 +122,7 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	// 	return errors.Wrap(err, "try to flush ids got error")
 	// }
 
-	utils.Logger.Debug("write id", zap.Int64("offset", offset), zap.Int64("id", id))
+	// utils.Logger.Debug("write id", zap.Int64("offset", offset), zap.Int64("id", id))
 	return nil
 }
 
@@ -146,7 +146,7 @@ func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
 			id += dec.baseId
 		}
 
-		utils.Logger.Debug("load new id", zap.Int64("id", id))
+		// utils.Logger.Debug("load new id", zap.Int64("id", id))
 		if id > maxId {
 			maxId = id
 		}
@@ -174,7 +174,7 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 			id += dec.baseId
 		}
 
-		utils.Logger.Debug("load new id", zap.Int64("id", id))
+		// utils.Logger.Debug("load new id", zap.Int64("id", id))
 		bitmap.AddInt(int(id))
 	}
 

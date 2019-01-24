@@ -51,7 +51,7 @@ func (l *LegacyLoader) removeFile(fpath string) {
 }
 
 func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
-	utils.Logger.Debug("LegacyLoader.Load...")
+	// utils.Logger.Debug("LegacyLoader.Load...")
 	if l.ctx.ids == nil { // first run
 		if len(l.dataFNames) == 0 { // no legacy files
 			return io.EOF
@@ -79,7 +79,7 @@ READ_NEW_FILE:
 READ_NEW_LINE:
 	if err = l.ctx.decoder.Read(data); err == io.EOF {
 		if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
-			utils.Logger.Debug("all data files finished")
+			// utils.Logger.Debug("all data files finished")
 			return io.EOF
 		}
 
@@ -88,7 +88,7 @@ READ_NEW_LINE:
 		}
 		l.ctx.dataFp = nil
 		l.ctx.dataFileIdx++
-		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
+		// utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		goto READ_NEW_FILE
 	} else if err != nil {
 		return errors.Wrap(err, "try to load data file got error")
@@ -96,23 +96,23 @@ READ_NEW_LINE:
 
 	id = GetId(*data)
 	if l.ctx.ids.ContainsInt(int(id)) { // duplicated
-		utils.Logger.Debug("data already consumed", zap.Int64("id", id))
+		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
 	}
 
-	utils.Logger.Debug("load unconsumed data", zap.Int64("id", id))
+	// utils.Logger.Debug("load unconsumed data", zap.Int64("id", id))
 	return nil
 }
 
 func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
-	utils.Logger.Debug("LoadMaxId...")
+	// utils.Logger.Debug("LoadMaxId...")
 	var (
 		fp *os.File
 		id int64
 	)
 	startTs := time.Now()
 	for _, fname := range l.idsFNames {
-		utils.Logger.Debug("load ids from file", zap.String("fname", fname))
+		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
 		if err != nil {
 			return 0, errors.Wrapf(err, "try to open file `%v` to load maxid got error", fname)
@@ -134,7 +134,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 }
 
 func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
-	utils.Logger.Debug("LoadAllids...")
+	// utils.Logger.Debug("LoadAllids...")
 	var (
 		fp     *os.File
 		newIds *roaring.Bitmap
@@ -142,7 +142,7 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, err error) {
 	ids = roaring.New()
 	startTs := time.Now()
 	for _, fname := range l.idsFNames {
-		utils.Logger.Debug("load ids from file", zap.String("fname", fname))
+		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
 		defer fp.Close()
 		if err != nil {

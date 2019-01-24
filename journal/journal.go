@@ -73,14 +73,14 @@ func (j *Journal) initBufDir() {
 
 func (j *Journal) Flush() (err error) {
 	if j.idsEnc != nil {
-		utils.Logger.Debug("flush ids")
+		// utils.Logger.Debug("flush ids")
 		if err = j.idsEnc.Flush(); err != nil {
 			err = errors.Wrap(err, "try to flush ids got error")
 		}
 	}
 
 	if j.dataEnc != nil {
-		utils.Logger.Debug("flush data")
+		// utils.Logger.Debug("flush data")
 		if dataErr := j.dataEnc.Flush(); dataErr != nil {
 			err = errors.Wrap(err, "try to flush data got error")
 		}
@@ -132,7 +132,7 @@ func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
 		}
 	}
 
-	utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
+	// utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
 	return j.dataEnc.Write(data)
 }
 
