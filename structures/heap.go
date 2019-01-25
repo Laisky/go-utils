@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	utils "github.com/Laisky/go-utils"
-	"go.uber.org/zap"
+	"github.com/Laisky/zap"
 )
 
 type Item struct {

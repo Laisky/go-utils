@@ -3,8 +3,8 @@ package utils
 import (
 	"fmt"
 
-	zap "go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	zap "github.com/Laisky/zap"
+	"github.com/Laisky/zap/zapcore"
 )
 
 var (

@@ -11,7 +11,7 @@ import (
 
 	"github.com/Laisky/go-chaining"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
+	"github.com/Laisky/zap"
 )
 
 var (

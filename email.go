@@ -2,7 +2,7 @@ package utils
 
 import (
 	"github.com/pkg/errors"
-	zap "go.uber.org/zap"
+	zap "github.com/Laisky/zap"
 	gomail "gopkg.in/gomail.v2"
 )
 

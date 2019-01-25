@@ -6,9 +6,9 @@ import (
 	"time"
 
 	utils "github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 	"github.com/RoaringBitmap/roaring"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 type LegacyLoader struct {

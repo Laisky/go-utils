@@ -10,10 +10,6 @@ import:
   version: ~1.0.2
 - package: github.com/spf13/viper
   version: ~1.1.0
-- package: go.uber.org/zap
-  version: ~1.9.1
-  subpackages:
-  - zapcore
 - package: gopkg.in/gomail.v2
   version: ~2.0.0
 - package: github.com/RoaringBitmap/roaring
@@ -22,3 +18,5 @@ import:
   version: ~2.1.13
 - package: github.com/Shopify/sarama
   version: ~1.19.0
+- package: github.com/Laisky/zap
+  version: ~1.9.2

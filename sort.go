@@ -3,7 +3,7 @@ package utils
 import (
 	"sort"
 
-	zap "go.uber.org/zap"
+	zap "github.com/Laisky/zap"
 )
 
 func SortBiggest(items PairList) PairList {

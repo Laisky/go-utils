@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/Laisky/zap"
 
 	"github.com/pkg/errors"
 

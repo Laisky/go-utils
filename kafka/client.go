@@ -9,7 +9,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
+	"github.com/Laisky/zap"
 )
 
 type KafkaMsg struct {

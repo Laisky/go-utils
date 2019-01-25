@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
+	zap "github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	zap "go.uber.org/zap"
 )
 
 type SettingsConst struct {

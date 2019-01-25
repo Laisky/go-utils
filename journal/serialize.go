@@ -13,7 +13,7 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/pkg/errors"
 	"github.com/ugorji/go/codec"
-	"go.uber.org/zap"
+	"github.com/Laisky/zap"
 )
 
 var (

@@ -1,5 +1,5 @@
-hash: 663e531b5e806b041d20da81d4d4423fe71f502322cb7755726c76500eec9386
-updated: 2018-10-18T09:47:33.078283933+08:00
+hash: cb1e273258f0e26c4bcf184d10d30bc44c162a8b9f1352b104a851e92d6abedd
+updated: 2019-01-25T14:40:32.521572+08:00
 imports:
 - name: github.com/bsm/sarama-cluster
   version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
@@ -37,6 +37,14 @@ imports:
   - json/token
 - name: github.com/Laisky/go-chaining
   version: 43dcdc5a21be9b79f2b7ee0d8ba67ed8a7158cda
+- name: github.com/Laisky/zap
+  version: 5c0138de209f397ae93319e22ec1923008cc5767
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: github.com/magiconair/properties
   version: c2353362d570a7bfa228149c62842019201cfb71
 - name: github.com/mitchellh/mapstructure
@@ -52,7 +60,7 @@ imports:
   subpackages:
   - internal/xxh32
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+  version: ba968bfe8b2f7e042a574c888954fccecfa385b4
 - name: github.com/rcrowley/go-metrics
   version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/RoaringBitmap/roaring
@@ -85,14 +93,6 @@ imports:
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
-- name: go.uber.org/zap
-  version: ff33455a0e382e8a81d14dd7c922020b6b5e7982
-  subpackages:
-  - buffer
-  - internal/bufferpool
-  - internal/color
-  - internal/exit
-  - zapcore
 - name: golang.org/x/sys
   version: bff228c7b664c5fce602223a05fb708fd8654986
   subpackages:
