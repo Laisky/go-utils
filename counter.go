@@ -2,9 +2,12 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Laisky/zap"
 )
 
 type Counter struct {
@@ -111,6 +114,81 @@ func (c *RotateCounter) CountN(n int64) (r int64) {
 	for i := int64(0); i < n-1; i++ {
 		<-c.c
 	}
+	return <-c.c
+}
+
+// --------------------------------------------
+
+var incrementCounterChanLength = 10000
+
+type IncrementRotateCounter struct {
+	n, rotatePoint    int64
+	innerStep, innerN int64
+	c                 chan int64
+}
+
+func NewIncrementRotateCounter(rotatePoint int64) (*IncrementRotateCounter, error) {
+	if rotatePoint <= 0 {
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	}
+
+	c := &IncrementRotateCounter{
+		rotatePoint: rotatePoint,
+		c:           make(chan int64, incrementCounterChanLength),
+		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
+	}
+	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
+	go c.runGenerator()
+	return c, nil
+}
+
+func NewIncrementCounterFromN(n, rotatePoint int64) (*IncrementRotateCounter, error) {
+	if rotatePoint <= 0 {
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	}
+	if n < 0 {
+		return nil, fmt.Errorf("n should bigger than 0, but got %v", n)
+	}
+	if n >= rotatePoint {
+		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
+	}
+
+	c := &IncrementRotateCounter{
+		n:           n,
+		rotatePoint: rotatePoint,
+		c:           make(chan int64, incrementCounterChanLength),
+		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
+	}
+	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
+	go c.runGenerator()
+	return c, nil
+}
+
+func (c *IncrementRotateCounter) runGenerator() {
+	c.n += c.innerStep
+	for {
+		c.c <- c.n
+		c.n += c.innerStep
+		if c.n >= c.rotatePoint {
+			c.n = 0
+		}
+	}
+}
+
+func (c *IncrementRotateCounter) Count() int64 {
+	if atomic.CompareAndSwapInt64(&c.innerN, c.innerStep-1, 0) {
+		Logger.Debug("carry")
+		return <-c.c
+	}
+
+	return atomic.AddInt64(&c.n, 1)
+}
+
+func (c *IncrementRotateCounter) CountN(n int64) (r int64) {
+	for i := 0; i < FloorDivision(int(n), int(c.innerStep)); i++ {
+		<-c.c
+	}
+
 	return <-c.c
 }
 
