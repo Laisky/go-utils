@@ -73,7 +73,7 @@ func TestClock(t *testing.T) {
 func BenchmarkClock(b *testing.B) {
 	b.Run("normal time", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			time.Now()
+			time.Now().UTC()
 		}
 	})
 

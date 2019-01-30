@@ -71,3 +71,19 @@ func TestSetupLogger(t *testing.T) {
 // 		}
 // 	})
 // }
+
+func BenchmarkLogger(b *testing.B) {
+	utils.SetupLogger("info")
+	b.Run("low level log", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.Logger.Debug("yooo")
+		}
+	})
+
+	utils.SetupLogger("")
+	// b.Run("log", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		utils.Logger.Info("yooo")
+	// 	}
+	// })
+}

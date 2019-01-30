@@ -2,9 +2,12 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Laisky/zap"
 )
 
 type Counter struct {
@@ -15,6 +18,7 @@ type Counter struct {
 
 func NewCounter() *Counter {
 	return &Counter{
+		Mutex: &sync.Mutex{},
 		n:     0,
 		lastT: time.Now(),
 		lastN: 0,
@@ -112,6 +116,87 @@ func (c *RotateCounter) CountN(n int64) (r int64) {
 		<-c.c
 	}
 	return <-c.c
+}
+
+// --------------------------------------------
+
+var monotonicCounterChanLength = 10000
+
+// MonotonicRotateCounter monotonic increse counter uncontinuity,
+// has much better performance than RotateCounter.
+type MonotonicRotateCounter struct {
+	n, rotatePoint    int64
+	innerStep, innerN int64
+	c                 chan int64
+}
+
+func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, error) {
+	if rotatePoint <= 0 {
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	}
+
+	c := &MonotonicRotateCounter{
+		rotatePoint: rotatePoint,
+		c:           make(chan int64, monotonicCounterChanLength),
+		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
+	}
+	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
+	go c.runGenerator()
+	return c, nil
+}
+
+func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, error) {
+	if rotatePoint <= 0 {
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	}
+	if n < 0 {
+		return nil, fmt.Errorf("n should bigger than 0, but got %v", n)
+	}
+	if n >= rotatePoint {
+		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
+	}
+
+	c := &MonotonicRotateCounter{
+		n:           n,
+		rotatePoint: rotatePoint,
+		c:           make(chan int64, monotonicCounterChanLength),
+		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
+	}
+	c.rotatePoint -= c.innerN // `Count` at most add  `c.innerN`
+	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
+	go c.runGenerator()
+	return c, nil
+}
+
+func (c *MonotonicRotateCounter) runGenerator() {
+	c.n += c.innerStep
+	for {
+		c.c <- c.n
+		c.n += c.innerStep
+		if c.n >= c.rotatePoint {
+			c.n = 0
+		}
+	}
+}
+
+func (c *MonotonicRotateCounter) Count() (n int64) {
+	if atomic.LoadInt64(&c.innerN)%c.innerStep == c.innerStep-1 {
+		n = <-c.c
+		atomic.StoreInt64(&c.innerN, n)
+		return n
+	}
+
+	return atomic.AddInt64(&c.innerN, 1)
+}
+
+func (c *MonotonicRotateCounter) CountN(n int64) (r int64) {
+	for i := 0; i < FloorDivision(int(n), int(c.innerStep)); i++ {
+		<-c.c
+	}
+
+	r = <-c.c
+	atomic.StoreInt64(&c.innerN, r)
+	return r
 }
 
 // ---------------------------------------------------
