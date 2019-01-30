@@ -186,6 +186,53 @@ func TestRotateCounterFromN(t *testing.T) {
 	}
 }
 
+func BenchmarkCounter(b *testing.B) {
+	counter := utils.NewCounter()
+
+	b.Run("count 1", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.Count()
+			}
+		})
+	})
+	b.Run("get speed", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.GetSpeed()
+			}
+		})
+	})
+	b.Run("count 1 parallel 4", func(b *testing.B) {
+		for i := 0; i < 4; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					counter.Count()
+				}
+			})
+		}
+	})
+	b.Run("count 5", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			counter.CountN(5)
+		}
+	})
+	b.Run("count 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			counter.CountN(500)
+		}
+	})
+	b.Run("count 500 parallel 4", func(b *testing.B) {
+		for i := 0; i < 4; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					counter.CountN(500)
+				}
+			})
+		}
+	})
+}
+
 func BenchmarkRotateCounter(b *testing.B) {
 	counter, err := utils.NewRotateCounter(1000000000)
 	if err != nil {

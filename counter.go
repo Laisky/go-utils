@@ -18,6 +18,7 @@ type Counter struct {
 
 func NewCounter() *Counter {
 	return &Counter{
+		Mutex: &sync.Mutex{},
 		n:     0,
 		lastT: time.Now(),
 		lastN: 0,
