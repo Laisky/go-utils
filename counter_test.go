@@ -83,9 +83,10 @@ func TestRotateCounter(t *testing.T) {
 		t.Errorf("want %v, got %v", 3, r)
 	}
 }
+
 func TestIncrementRotateCounter(t *testing.T) {
 	utils.SetupLogger("debug")
-	counter, err := utils.NewIncrementRotateCounter(100)
+	counter, err := utils.NewMonotonicRotateCounter(100)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -127,22 +128,22 @@ func TestIncrementRotateCounter(t *testing.T) {
 	start = got
 
 	// test duplicate
-	if counter, err = utils.NewIncrementRotateCounter(10000000); err != nil {
+	if counter, err = utils.NewMonotonicRotateCounter(10000000); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	ns := map[int64]struct{}{}
+	ns := sync.Map{}
 	wg := sync.WaitGroup{}
+	val := struct{}{}
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 100000; i++ {
+		for i := 0; i < 1000000; i++ {
 			n := counter.Count()
-			if _, ok := ns[n]; ok {
+			if _, ok := ns.LoadOrStore(n, val); ok {
 				t.Fatalf("should not contains: %v", n)
 			}
-			ns[n] = struct{}{}
 		}
 	}()
 
@@ -151,14 +152,13 @@ func TestIncrementRotateCounter(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			n := counter.CountN(500)
 
-			if _, ok := ns[n]; ok {
+			if _, ok := ns.LoadOrStore(n, val); ok {
 				t.Fatalf("should not contains: %v", n)
 			}
-			ns[n] = struct{}{}
 		}
 	}()
 
-	wg.Done()
+	wg.Wait()
 
 }
 
@@ -198,6 +198,15 @@ func BenchmarkRotateCounter(b *testing.B) {
 			}
 		})
 	})
+	b.Run("count 1 parallel 4", func(b *testing.B) {
+		for i := 0; i < 4; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					counter.Count()
+				}
+			})
+		}
+	})
 	b.Run("count 5", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			counter.CountN(5)
@@ -220,7 +229,7 @@ func BenchmarkRotateCounter(b *testing.B) {
 }
 
 func BenchmarkIncrementalRotateCounter(b *testing.B) {
-	counter, err := utils.NewIncrementRotateCounter(1000000000)
+	counter, err := utils.NewMonotonicRotateCounter(1000000000)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
@@ -230,6 +239,15 @@ func BenchmarkIncrementalRotateCounter(b *testing.B) {
 				counter.Count()
 			}
 		})
+	})
+	b.Run("count 1 parallel 4", func(b *testing.B) {
+		for i := 0; i < 4; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					counter.Count()
+				}
+			})
+		}
 	})
 	b.Run("count 5", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

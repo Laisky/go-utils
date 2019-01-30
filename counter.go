@@ -119,22 +119,24 @@ func (c *RotateCounter) CountN(n int64) (r int64) {
 
 // --------------------------------------------
 
-var incrementCounterChanLength = 10000
+var monotonicCounterChanLength = 10000
 
-type IncrementRotateCounter struct {
+// MonotonicRotateCounter monotonic increse counter uncontinuity,
+// has much better performance than RotateCounter.
+type MonotonicRotateCounter struct {
 	n, rotatePoint    int64
 	innerStep, innerN int64
 	c                 chan int64
 }
 
-func NewIncrementRotateCounter(rotatePoint int64) (*IncrementRotateCounter, error) {
+func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
 
-	c := &IncrementRotateCounter{
+	c := &MonotonicRotateCounter{
 		rotatePoint: rotatePoint,
-		c:           make(chan int64, incrementCounterChanLength),
+		c:           make(chan int64, monotonicCounterChanLength),
 		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
 	}
 	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
@@ -142,7 +144,7 @@ func NewIncrementRotateCounter(rotatePoint int64) (*IncrementRotateCounter, erro
 	return c, nil
 }
 
-func NewIncrementCounterFromN(n, rotatePoint int64) (*IncrementRotateCounter, error) {
+func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
@@ -153,18 +155,19 @@ func NewIncrementCounterFromN(n, rotatePoint int64) (*IncrementRotateCounter, er
 		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
 	}
 
-	c := &IncrementRotateCounter{
+	c := &MonotonicRotateCounter{
 		n:           n,
 		rotatePoint: rotatePoint,
-		c:           make(chan int64, incrementCounterChanLength),
+		c:           make(chan int64, monotonicCounterChanLength),
 		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
 	}
+	c.rotatePoint -= c.innerN // `Count` at most add  `c.innerN`
 	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
 	go c.runGenerator()
 	return c, nil
 }
 
-func (c *IncrementRotateCounter) runGenerator() {
+func (c *MonotonicRotateCounter) runGenerator() {
 	c.n += c.innerStep
 	for {
 		c.c <- c.n
@@ -175,21 +178,24 @@ func (c *IncrementRotateCounter) runGenerator() {
 	}
 }
 
-func (c *IncrementRotateCounter) Count() int64 {
-	if atomic.CompareAndSwapInt64(&c.innerN, c.innerStep-1, 0) {
-		Logger.Debug("carry")
-		return <-c.c
+func (c *MonotonicRotateCounter) Count() (n int64) {
+	if atomic.LoadInt64(&c.innerN)%c.innerStep == c.innerStep-1 {
+		n = <-c.c
+		atomic.StoreInt64(&c.innerN, n)
+		return n
 	}
 
-	return atomic.AddInt64(&c.n, 1)
+	return atomic.AddInt64(&c.innerN, 1)
 }
 
-func (c *IncrementRotateCounter) CountN(n int64) (r int64) {
+func (c *MonotonicRotateCounter) CountN(n int64) (r int64) {
 	for i := 0; i < FloorDivision(int(n), int(c.innerStep)); i++ {
 		<-c.c
 	}
 
-	return <-c.c
+	r = <-c.c
+	atomic.StoreInt64(&c.innerN, r)
+	return r
 }
 
 // ---------------------------------------------------
