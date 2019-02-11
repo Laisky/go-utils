@@ -1,5 +1,5 @@
-hash: cb1e273258f0e26c4bcf184d10d30bc44c162a8b9f1352b104a851e92d6abedd
-updated: 2019-01-25T14:40:32.521572+08:00
+hash: 1e30c0ce1bf0834cf9aaaba9fe6944b8bd1b62af9137eccea472e5c1f60261af
+updated: 2019-02-12T17:06:17.75253+08:00
 imports:
 - name: github.com/bsm/sarama-cluster
   version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
@@ -80,7 +80,7 @@ imports:
 - name: github.com/spf13/viper
   version: f69c91abd383f6e61b17df94c1020943eefe0349
 - name: github.com/tinylib/msgp
-  version: c8cf64dff2009d53fa8f8a16df54d1cdfc64c4a7
+  version: af6442a0fcf6e2a1b824f70dd0c734f01e817751
   subpackages:
   - msgp
 - name: github.com/ugorji/go
