@@ -1,5 +1,5 @@
-hash: cb1e273258f0e26c4bcf184d10d30bc44c162a8b9f1352b104a851e92d6abedd
-updated: 2019-01-25T14:40:32.521572+08:00
+hash: 4cea2befc046977f9e14153468fedb6b37a10f64da3974adca28cca47a7ee689
+updated: 2019-02-12T14:49:16.337467+08:00
 imports:
 - name: github.com/bsm/sarama-cluster
   version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
@@ -35,6 +35,8 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/json-iterator/go
+  version: 1624edc4454b8682399def8740d46db5e4362ba4
 - name: github.com/Laisky/go-chaining
   version: 43dcdc5a21be9b79f2b7ee0d8ba67ed8a7158cda
 - name: github.com/Laisky/zap
@@ -80,7 +82,7 @@ imports:
 - name: github.com/spf13/viper
   version: f69c91abd383f6e61b17df94c1020943eefe0349
 - name: github.com/tinylib/msgp
-  version: c8cf64dff2009d53fa8f8a16df54d1cdfc64c4a7
+  version: af6442a0fcf6e2a1b824f70dd0c734f01e817751
   subpackages:
   - msgp
 - name: github.com/ugorji/go
