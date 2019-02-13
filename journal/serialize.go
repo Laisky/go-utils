@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	utils "github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 	"github.com/RoaringBitmap/roaring"
 	"github.com/pkg/errors"
 	"github.com/ugorji/go/codec"
-	"github.com/Laisky/zap"
 )
 
 var (
@@ -181,6 +181,11 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 	return bitmap, nil
 }
 
-func GetId(data map[string]interface{}) int64 {
-	return data["id"].(int64)
+func GetId(data map[string]interface{}) (int64, error) {
+	switch id := data["id"].(type) {
+	case int64:
+		return id, nil
+	default:
+		return 0, fmt.Errorf("unknown id type")
+	}
 }

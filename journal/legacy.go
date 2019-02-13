@@ -94,7 +94,11 @@ READ_NEW_LINE:
 		return errors.Wrap(err, "try to load data file got error")
 	}
 
-	id = GetId(*data)
+	if id, err = GetId(*data); err != nil {
+		utils.Logger.Error("try to get msg id got error", zap.Error(err))
+		goto READ_NEW_LINE
+	}
+
 	if l.ctx.ids.ContainsInt(int(id)) { // duplicated
 		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
