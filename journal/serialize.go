@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sync"
 
 	utils "github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 	"github.com/RoaringBitmap/roaring"
 	"github.com/pkg/errors"
-	"github.com/ugorji/go/codec"
-	"github.com/Laisky/zap"
+	"github.com/tinylib/msgp/msgp"
 )
 
 var (
@@ -22,15 +21,13 @@ var (
 )
 
 type DataEncoder struct {
-	encoder   *codec.Encoder
 	writeChan chan interface{}
-	writer    *bufio.Writer
+	writer    *msgp.Writer
 }
 
 type DataDecoder struct {
-	decoder  *codec.Decoder
 	readChan chan interface{}
-	reader   *bufio.Reader
+	reader   *msgp.Reader
 }
 
 type IdsEncoder struct {
@@ -43,19 +40,9 @@ type IdsDecoder struct {
 	reader *bufio.Reader
 }
 
-func NewCodec() *codec.MsgpackHandle {
-	_codec := &codec.MsgpackHandle{}
-	_codec.RawToString = false
-	_codec.MapType = reflect.TypeOf(map[string]interface{}(nil))
-	_codec.DecodeOptions.MapValueReset = true
-	return _codec
-}
-
 func NewDataEncoder(fp *os.File) *DataEncoder {
-	writer := bufio.NewWriterSize(fp, BufSize)
 	return &DataEncoder{
-		writer:  writer,
-		encoder: codec.NewEncoder(writer, NewCodec()),
+		writer: msgp.NewWriterSize(fp, BufSize),
 	}
 }
 
@@ -74,15 +61,14 @@ func NewIdsDecoder(fp *os.File) *IdsDecoder {
 }
 
 func NewDataDecoder(fp *os.File) *DataDecoder {
-	reader := bufio.NewReaderSize(fp, BufSize)
+	reader := msgp.NewReaderSize(fp, BufSize)
 	return &DataDecoder{
-		reader:  reader,
-		decoder: codec.NewDecoder(reader, NewCodec()),
+		reader: reader,
 	}
 }
 
-func (enc *DataEncoder) Write(msg *map[string]interface{}) (err error) {
-	if err = enc.encoder.Encode(msg); err != nil {
+func (enc *DataEncoder) Write(msg *Data) (err error) {
+	if err = msg.EncodeMsg(enc.writer); err != nil {
 		return errors.Wrap(err, "try to Encode journal data got error")
 	}
 
@@ -96,8 +82,14 @@ func (enc *DataEncoder) Flush() error {
 	return enc.writer.Flush()
 }
 
-func (dec *DataDecoder) Read(v *map[string]interface{}) error {
-	return dec.decoder.Decode(v)
+func (dec *DataDecoder) Read(data *Data) (err error) {
+	if err = data.DecodeMsg(dec.reader); err == msgp.WrapError(io.EOF) {
+		return io.EOF
+	} else if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (enc *IdsEncoder) Write(id int64) (err error) {
@@ -179,8 +171,4 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 	}
 
 	return bitmap, nil
-}
-
-func GetId(data map[string]interface{}) int64 {
-	return data["id"].(int64)
 }

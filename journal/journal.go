@@ -13,12 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Data interface {
-	GetId() int64
-	SetId(int64)
-	SetData(map[string]interface{})
-}
-
 type JournalConfig struct {
 	BufDirPath             string
 	BufSizeBytes           int64
@@ -121,7 +115,7 @@ func (j *Journal) LoadMaxId() (int64, error) {
 	return j.legacy.LoadMaxId()
 }
 
-func (j *Journal) WriteData(data *map[string]interface{}) (err error) {
+func (j *Journal) WriteData(data *Data) (err error) {
 	j.l.RLock() // will blocked by flush & rotate
 	defer j.l.RUnlock()
 
@@ -188,6 +182,7 @@ func (j *Journal) Rotate() (err error) {
 
 // RefreshLegacyLoader create or reset legacy loader
 func (j *Journal) RefreshLegacyLoader() {
+	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
 		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 	} else {
@@ -212,12 +207,12 @@ func (j *Journal) UnLockLegacy() bool {
 
 // LoadLegacyBuf load legacy data one by one
 // ⚠️Warn: should call `j.LockLegacy()` before invoke this method
-func (j *Journal) LoadLegacyBuf(data *map[string]interface{}) (err error) {
+func (j *Journal) LoadLegacyBuf(data *Data) (err error) {
 	j.l.RLock()
 	defer j.l.RUnlock()
 
 	if err = j.legacy.Load(data); err == io.EOF {
-		utils.Logger.Info("LoadLegacyBuf done")
+		utils.Logger.Debug("LoadLegacyBuf done")
 		if err = j.legacy.Clean(); err != nil {
 			utils.Logger.Error("clean buf files got error", zap.Error(err))
 		}
