@@ -47,15 +47,15 @@ func TestLegacy(t *testing.T) {
 
 	// put data
 	dataEncoder := journal.NewDataEncoder(dataFp1)
-	dataEncoder.Write(&map[string]interface{}{"data": "data 1", "id": int64(1)})
-	dataEncoder.Write(&map[string]interface{}{"data": "data 2", "id": int64(2)})
+	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 1"}, ID: 1})
+	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 2"}, ID: 2})
 	if err = dataEncoder.Flush(); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
 	dataEncoder = journal.NewDataEncoder(dataFp2)
-	dataEncoder.Write(&map[string]interface{}{"data": "data 21", "id": int64(21)})
-	dataEncoder.Write(&map[string]interface{}{"data": "data 22", "id": int64(22)})
+	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 21"}, ID: 21})
+	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 22"}, ID: 22})
 	if err = dataEncoder.Flush(); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -102,14 +102,14 @@ func TestLegacy(t *testing.T) {
 
 	dataIds := []int64{}
 	for {
-		data := map[string]interface{}{}
+		data := journal.Data{}
 		err = legacy.Load(&data)
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
-		dataIds = append(dataIds, journal.GetId(data))
+		dataIds = append(dataIds, data.ID)
 	}
 	t.Logf("got dataIds: %+v", dataIds)
 	for _, id := range dataIds {
@@ -137,7 +137,7 @@ func TestEmptyLegacy(t *testing.T) {
 	}
 	t.Logf("load ids: %+v", ids)
 
-	data := map[string]interface{}{}
+	data := journal.Data{}
 	for {
 		if err = legacy.Load(&data); err == io.EOF {
 			return

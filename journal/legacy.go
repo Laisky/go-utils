@@ -37,7 +37,6 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	utils.Logger.Info("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
-	l.ctx = &legacyCtx{}
 }
 
 // removeFile delete file, should run sync to avoid dirty files
@@ -50,7 +49,7 @@ func (l *LegacyLoader) removeFile(fpath string) {
 	utils.Logger.Info("remove buf file", zap.String("file", fpath))
 }
 
-func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
+func (l *LegacyLoader) Load(data *Data) (err error) {
 	utils.Logger.Debug("LegacyLoader.Load...")
 	if l.ctx.ids == nil { // first run
 		if len(l.dataFNames) == 0 { // no legacy files
@@ -58,6 +57,7 @@ func (l *LegacyLoader) Load(data *map[string]interface{}) (err error) {
 		}
 
 		l.ctx.ids, err = l.LoadAllids()
+		// use default empty ids if got error in LoadAllids
 		if err != nil {
 			utils.Logger.Error("try to load all ids got error", zap.Error(err))
 		}
@@ -98,7 +98,7 @@ READ_NEW_LINE:
 		goto READ_NEW_FILE
 	}
 
-	id = GetId(*data)
+	id = data.ID
 	if l.ctx.ids.ContainsInt(int(id)) { // duplicated
 		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
@@ -173,7 +173,7 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, allErr error) {
 	return ids, allErr
 }
 
-func (l *LegacyLoader) Clean() (err error) {
+func (l *LegacyLoader) Clean() error {
 	l.ctx.dataFp.Close()
 
 	if l.dataFNames != nil {
@@ -190,6 +190,7 @@ func (l *LegacyLoader) Clean() (err error) {
 		l.idsFNames = nil
 	}
 
+	l.ctx = &legacyCtx{}
 	utils.Logger.Info("clean all legacy")
-	return err
+	return nil
 }
