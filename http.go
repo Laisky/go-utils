@@ -72,6 +72,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	if err != nil {
 		return errors.Wrap(err, "try to read response data error")
 	}
+	Logger.Debug("got resp", zap.ByteString("resp", respBytes))
 	err = json.Unmarshal(respBytes, resp)
 	if err != nil {
 		errMsg := fmt.Sprintf("try to unmarshal response data error: %v\n%v", err, string(respBytes[:]))

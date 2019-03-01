@@ -25,6 +25,17 @@ func TestParseTs2String(t *testing.T) {
 	}
 }
 
+func ExampleClock() {
+	// get utc now
+	utils.Clock.GetUTCNow()
+
+	// get time string
+	utils.Clock.GetTimeInRFC3339Nano()
+
+	// change clock refresh step
+	utils.SetupClock(10 * time.Millisecond)
+}
+
 func TestClock(t *testing.T) {
 	utils.SetupClock(100 * time.Millisecond)
 	time.Sleep(10 * time.Millisecond) // first refresh
