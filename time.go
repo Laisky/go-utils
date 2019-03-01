@@ -24,8 +24,10 @@ func ParseTs2Time(ts int64) time.Time {
 // Clock
 // ---------------------------------------
 
+const defaultClockInterval = 100 * time.Millisecond
+
 // Clock high performance time utils
-var Clock *ClockType
+var Clock = NewClock(defaultClockInterval)
 
 func SetupClock(refreshInterval time.Duration) {
 	if Clock == nil {
