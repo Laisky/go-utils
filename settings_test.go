@@ -1,10 +1,12 @@
 package utils_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Laisky/go-utils"
 	zap "github.com/Laisky/zap"
@@ -109,10 +111,13 @@ a:
 	if err != nil {
 		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
 	}
-	addr := RunMockConfigSrv(jb)
+	port := 24953
+	addr := fmt.Sprintf("http://localhost:%v", port)
+	go RunMockConfigSrv(port, jb)
+	time.Sleep(100 * time.Millisecond)
 
 	cfg := &utils.ConfigServerCfg{
-		URL:     "http://" + addr,
+		URL:     addr,
 		Profile: "profile",
 		Label:   "label",
 		App:     "app",
