@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 )
 
 type ConfigSource struct {
@@ -22,25 +22,29 @@ type Config struct {
 	Sources  []*ConfigSource `json:"propertySources"`
 }
 
-// ConfigSrv can load configuration from Spring-Config-Server
+type ConfigServerCfg struct {
+	URL     string // config-server api
+	Profile string // env
+	Label   string // branch
+	App     string // app name
+}
+
+// ConfigSrv can load configuration from Spring-Cloud-Config-Server
 type ConfigSrv struct {
-	Url, Profile, Label, App string
-	Cfg                      *Config
+	*ConfigServerCfg
+	Cfg *Config
 }
 
 // NewConfigSrv create ConfigSrv
-func NewConfigSrv(url, profile, label, app string) *ConfigSrv {
+func NewConfigSrv(cfg *ConfigServerCfg) *ConfigSrv {
 	return &ConfigSrv{
-		Url:     url,     // config-server api
-		Profile: profile, // env
-		Label:   label,   // branch
-		App:     app,     // app name
-		Cfg:     &Config{},
+		ConfigServerCfg: cfg,
+		Cfg:             &Config{},
 	}
 }
 
 func (c *ConfigSrv) Fetch() error {
-	url := strings.Join([]string{c.Url, c.App, c.Profile, c.Label}, "/")
+	url := strings.Join([]string{c.URL, c.App, c.Profile, c.Label}, "/")
 	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.Cfg)
 	if err != nil {
 		return errors.Wrap(err, "try to get config got error")

@@ -1,7 +1,6 @@
 package utils_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"testing"
