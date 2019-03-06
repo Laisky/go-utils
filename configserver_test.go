@@ -51,7 +51,7 @@ var fakeConfigSrvData = map[string]interface{}{
 	},
 }
 
-func RunMockConfigSrv(fakadata []byte) (addr string) {
+func RunMockConfigSrv(port int, fakadata []byte) {
 	httpsrv := iris.New()
 
 	httpsrv.Get("/app/profile/label", func(ctx iris.Context) {
@@ -61,21 +61,11 @@ func RunMockConfigSrv(fakadata []byte) (addr string) {
 	})
 
 	// run mock config-server
-	port := 24981
-	addr = fmt.Sprintf("localhost:%v", port)
-	go func() {
-		for {
-			utils.Logger.Info("run config-server", zap.String("addr", addr))
-			if err := httpsrv.Run(iris.Addr(addr)); err != nil {
-				utils.Logger.Error("try to run server got error", zap.Error(err))
-				port++
-				addr = fmt.Sprintf("localhost:%v", port)
-			}
-		}
-	}()
-	time.Sleep(100 * time.Millisecond)
-
-	return
+	addr := fmt.Sprintf("localhost:%v", port)
+	utils.Logger.Info("run config-server", zap.String("addr", addr))
+	if err := httpsrv.Run(iris.Addr(addr)); err != nil {
+		utils.Logger.Panic("try to run server got error", zap.Error(err))
+	}
 }
 
 func TestConfigSrv(t *testing.T) {
@@ -84,8 +74,12 @@ func TestConfigSrv(t *testing.T) {
 		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
 	}
 
+	port := 24951
+	addr := fmt.Sprintf("http://localhost:%v", port)
+	go RunMockConfigSrv(port, jb)
+	time.Sleep(100 * time.Millisecond)
+
 	var (
-		addr    = "http://" + RunMockConfigSrv(jb)
 		profile = "profile"
 		label   = "label"
 		app     = "app"
