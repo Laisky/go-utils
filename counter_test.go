@@ -7,6 +7,24 @@ import (
 	utils "github.com/Laisky/go-utils"
 )
 
+func ExampleCounter() {
+	counter := utils.NewCounter()
+	counter.Count()
+	counter.CountN(10)
+	counter.Get() // get current count
+}
+
+func ExampleRotateCounter() {
+	counter, err := utils.NewRotateCounter(10)
+	if err != nil {
+		panic(err)
+	}
+
+	counter.Count()    // 1
+	counter.CountN(10) // 1
+
+}
+
 func TestCounter(t *testing.T) {
 	counter := utils.NewCounter()
 	wg := &sync.WaitGroup{}

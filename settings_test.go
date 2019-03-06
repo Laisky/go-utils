@@ -8,8 +8,26 @@ import (
 
 	"github.com/Laisky/go-utils"
 	zap "github.com/Laisky/zap"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+func ExampleSettings() {
+	// read settings from yml file
+	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
+	pflag.Parse()
+
+	// bind pflags to settings
+	utils.Settings.BindPFlags(pflag.CommandLine)
+
+	// use
+	utils.Settings.Get("xxx")
+	utils.Settings.GetString("xxx")
+	utils.Settings.GetStringSlice("xxx")
+	utils.Settings.GetBool("xxx")
+
+	utils.Settings.Set("name", "val")
+}
 
 func TestSettings(t *testing.T) {
 	var (

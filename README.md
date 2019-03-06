@@ -1,5 +1,7 @@
 # Go-Utils
 
+Many useful golang tools
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils)](https://goreportcard.com/report/github.com/Laisky/go-utils)
@@ -13,8 +15,6 @@ Install:
 go get github.com/Laisky/go-utils
 ```
 
----
-
 ## Usage
 
 ```go
@@ -23,33 +23,28 @@ import (
 )
 ```
 
-### Settings
 
-Read config file (yaml, named `settings.yml`):
+There are small tools including:
 
-```
-utils.Settings.Setup("/etc/xxx/")  // load `/etc/xxx/settings.yml`
-```
+- `Clock`: high performance lazy load clock
+- `Settings`: configuration manager that support yml and spring-cloud-config-server
+- `Counter`: counter and rotate counter
+- `Mail`: simply email sender
+- `JWT`: simply JWT encrypt/decrypt functions
+- `RequestJSON`: simply http client that send json request and unmarshal response by json
+- `Logger`: high performance structrued logger based by zap
+- `Math`: some simply math functions
+  - `Round`: get round of float
+- `Throttle`: throttling to limit throughput
+- time: some useful time functions
+  - `UTCNow()`
+  - `ParseTs2String`
+  - `ParseTs2Time`
+- utils: some tool functions
+  - `GetFuncName`
+  - `FallBack`
+  - `RegexNamedSubMatch`
+  - `FlattenMap`
 
-Bind Pflags:
 
-```go
-func main() {
-    pflag.Bool("debug", false, "run in debug mode")
-    pflag.Bool("dry", false, "run in dry mode")
-    pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
-    pflag.StringSliceP("task", "t", []string{}, "which tasks want to runnning, like\n ./main -t t1,t2,heartbeat")
-    pflag.Parse()
-
-    // bind pflags to settings
-    utils.Settings.BindPFlags(pflag.CommandLine)
-}
-```
-
-Usage:
-
-```go
-utils.Settings.Set(string, interface{})
-utils.Settings.Get(string) interface{}
-utils.Settings.GetString(string) string
-```
+see more examples in  tests or [document](https://godoc.org/github.com/Laisky/go-utils)
