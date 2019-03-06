@@ -11,10 +11,6 @@ import (
 	"github.com/Laisky/go-utils/journal"
 )
 
-func fakedata(m map[string]interface{}) {
-	m["data"] = utils.RandomStringWithLength(2048)
-}
-
 func BenchmarkData(b *testing.B) {
 	dir, err := ioutil.TempDir("", "journal-test")
 	if err != nil {
@@ -31,12 +27,14 @@ func BenchmarkData(b *testing.B) {
 	}
 	j := journal.NewJournal(cfg)
 
-	data := map[string]interface{}{"id": int64(1000)}
-	fakedata(data)
+	data := &journal.Data{
+		ID:   1000,
+		Data: map[string]interface{}{"data": utils.RandomStringWithLength(2048)},
+	}
 	b.Logf("write data: %+v", data)
 	b.Run("write", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err = j.WriteData(&data); err != nil {
+			if err = j.WriteData(data); err != nil {
 				b.Fatalf("got error: %+v", err)
 			}
 		}
@@ -50,14 +48,14 @@ func BenchmarkData(b *testing.B) {
 	}
 	b.Run("read", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			data["id"] = 0
-			if err = j.LoadLegacyBuf(&data); err == io.EOF {
+			data.ID = 0
+			if err = j.LoadLegacyBuf(data); err == io.EOF {
 				return
 			} else if err != nil {
 				b.Fatalf("got error: %+v", err)
 			}
 
-			if data["id"] != int64(1000) {
+			if data.ID != 1000 {
 				b.Fatal("read data error")
 			}
 		}
