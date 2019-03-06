@@ -1,0 +1,19 @@
+language: go
+
+sudo: false
+
+go:
+  - 1.10.x
+  - 1.11.x
+  - 1.12.x
+
+# go_import_path: github.com/Laisky/go-utils
+
+cache:
+  directories:
+    - vendor
+    - $GOPATH/src
+
+script:
+  - go test -cover ./...
+  - go test -bench -benchtime=10s ./...

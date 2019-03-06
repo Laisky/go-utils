@@ -37,46 +37,46 @@ func ExampleClock() {
 }
 
 func TestClock(t *testing.T) {
-	utils.SetupClock(100 * time.Millisecond)
+	c := utils.NewClock(100 * time.Millisecond)
 	time.Sleep(10 * time.Millisecond) // first refresh
 
 	// test ts
-	ts := utils.Clock.GetUTCNow()
-	if utils.Clock.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+	ts := c.GetUTCNow()
+	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
 		t.Fatalf("should got same ts")
 	}
-	if utils.Clock.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
-		t.Fatalf("should got same ts")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if utils.Clock.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
-		t.Fatalf("should got same ts")
-	}
-	if utils.Clock.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
 		t.Fatalf("should got same ts")
 	}
 	time.Sleep(50 * time.Millisecond)
-	if utils.Clock.GetUTCNow().Sub(ts) < 100*time.Millisecond {
+	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+		t.Fatalf("should got same ts")
+	}
+	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+		t.Fatalf("should got same ts")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetUTCNow().Sub(ts) < 100*time.Millisecond {
 		t.Fatalf("should not got same ts")
 	}
 
 	// test ts string
-	timeStr := utils.Clock.GetTimeInRFC3339Nano()
-	if utils.Clock.GetTimeInRFC3339Nano() != timeStr {
+	timeStr := c.GetTimeInRFC3339Nano()
+	if c.GetTimeInRFC3339Nano() != timeStr {
 		t.Fatalf("should got same time string")
 	}
-	if utils.Clock.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if utils.Clock.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	if utils.Clock.GetTimeInRFC3339Nano() != timeStr {
+	if c.GetTimeInRFC3339Nano() != timeStr {
 		t.Fatalf("should got same time string")
 	}
 	time.Sleep(50 * time.Millisecond)
-	if utils.Clock.GetTimeInRFC3339Nano() == timeStr {
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetTimeInRFC3339Nano() == timeStr {
 		t.Fatalf("should not got same time string")
 	}
 }

@@ -13,6 +13,8 @@ func TestSetupLogger(t *testing.T) {
 	utils.Logger.Info("test", zap.String("arg", "yo"))
 	utils.Logger.Debug("test", zap.String("arg", "yo"))
 	utils.Logger.Sync()
+
+	// t.Error()
 }
 
 // func setupLogger(level string) *zap2.Logger {
@@ -80,10 +82,19 @@ func BenchmarkLogger(b *testing.B) {
 		}
 	})
 
-	utils.SetupLogger("")
+	utils.SetupLogger("info")
 	// b.Run("log", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
 	// 		utils.Logger.Info("yooo")
 	// 	}
 	// })
+}
+
+func BenchmarkSampleLogger(b *testing.B) {
+	utils.SetupLogger("info")
+	b.Run("low level log", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.Logger.DebugSample(100, "yooo")
+		}
+	})
 }

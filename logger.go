@@ -2,14 +2,27 @@ package utils
 
 import (
 	"fmt"
+	"math/rand"
 
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
 )
 
 var (
-	Logger *zap.Logger
+	Logger *LoggerType
 )
+
+// sample rate = sample / SampleRateDenominator
+const SampleRateDenominator = 1000
+
+// LoggerType extend from zap.Logger
+type LoggerType struct {
+	*zap.Logger
+}
+
+func init() {
+	SetupLogger("info")
+}
 
 // SetupLogger contstruct logger
 func SetupLogger(level string) {
@@ -42,16 +55,42 @@ func SetupLogger(level string) {
 	cfg.EncoderConfig.MessageKey = "message"
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	var err error
-	Logger, err = cfg.Build()
+	zapLogger, err := cfg.Build()
 	if err != nil {
 		panic(err)
+	}
+
+	Logger = &LoggerType{
+		Logger: zapLogger,
 	}
 
 	defer Logger.Sync()
 	Logger.Info("Logger construction succeeded", zap.String("level", level))
 }
 
-func init() {
-	SetupLogger("info")
+// DebugSample emit debug log with propability sample/SampleRateDenominator.
+// sample could be [0, 1000], less than 0 means never, great than 1000 means certainly
+func (l *LoggerType) DebugSample(sample int, msg string, fields ...zap.Field) {
+	if rand.Intn(SampleRateDenominator) > sample {
+		return
+	}
+
+	l.Debug(msg, fields...)
+}
+
+// InfoSample emit info log with propability sample/SampleRateDenominator
+func (l *LoggerType) InfoSample(sample int, msg string, fields ...zap.Field) {
+	if rand.Intn(SampleRateDenominator) > sample {
+		return
+	}
+
+	l.Info(msg, fields...)
+}
+
+func (l *LoggerType) WarnSample(sample int, msg string, fields ...zap.Field) {
+	if rand.Intn(SampleRateDenominator) > sample {
+		return
+	}
+
+	l.Warn(msg, fields...)
 }

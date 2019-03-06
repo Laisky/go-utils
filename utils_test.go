@@ -1,13 +1,20 @@
 package utils_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/Laisky/go-utils"
 )
+
+func ExampleFallBack() {
+	targetFunc := func() interface{} {
+		panic("someting wrong")
+	}
+
+	utils.FallBack(targetFunc, 10) // got 10
+}
 
 func TestFallBack(t *testing.T) {
 	fail := func() interface{} {

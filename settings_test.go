@@ -7,8 +7,27 @@ import (
 	"testing"
 
 	"github.com/Laisky/go-utils"
+	zap "github.com/Laisky/zap"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+func ExampleSettings() {
+	// read settings from yml file
+	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
+	pflag.Parse()
+
+	// bind pflags to settings
+	utils.Settings.BindPFlags(pflag.CommandLine)
+
+	// use
+	utils.Settings.Get("xxx")
+	utils.Settings.GetString("xxx")
+	utils.Settings.GetStringSlice("xxx")
+	utils.Settings.GetBool("xxx")
+
+	utils.Settings.Set("name", "val")
+}
 
 func TestSettings(t *testing.T) {
 	var (
@@ -61,41 +80,74 @@ key3: val3`)
 	}
 }
 
-// dependends on remote config-server
+// dependends on remote config-s  erver
 func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
-	utils.SetupLogger("debug")
-	cfg := &utils.ConfigServerCfg{
-		Url:     "http://config-server.paas.ptcloud.t.home",
-		Profile: "prd",
-		Label:   "zipkin",
-		App:     "zipkin-svc-1",
+	fakedata := map[string]interface{}{
+		"name":     "app",
+		"profiles": []string{"profile"},
+		"label":    "label",
+		"version":  "12345",
+		"propertySources": []map[string]interface{}{
+			map[string]interface{}{
+				"name": "config name",
+				"source": map[string]string{
+					"profile": "profile",
+					"raw": `
+a:
+  b: 123
+  c: abc
+  d:
+    - 1
+    - 2
+  e: true`,
+				},
+			},
+		},
 	}
-	if err := utils.Settings.SetupFromConfigServerWithRawYaml(cfg, "cfg"); err != nil {
+
+	jb, err := json.Marshal(fakedata)
+	if err != nil {
+		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	}
+	addr := RunMockConfigSrv(jb)
+
+	cfg := &utils.ConfigServerCfg{
+		URL:     "http://" + addr,
+		Profile: "profile",
+		Label:   "label",
+		App:     "app",
+	}
+	if err := utils.Settings.SetupFromConfigServerWithRawYaml(cfg, "raw"); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 	for k, vi := range map[string]interface{}{
-		"consts.ports.18083":                   "rsyslog recv",
-		"settings.acceptor.sync_out_chan_size": 10000,
-		"consts.envs.all-env":                  []string{"sit", "perf", "uat", "prod"},
+		"a.b": 123,
+		"a.c": "abc",
+		"a.d": []string{"1", "2"},
+		"a.e": true,
 	} {
-		switch vi.(type) {
+		switch val := vi.(type) {
 		case string:
-			if utils.Settings.GetString(k) != vi.(string) {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			if utils.Settings.GetString(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
 			}
 		case int:
-			if utils.Settings.GetInt(k) != vi.(int) {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			if utils.Settings.GetInt(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
 			}
 		case []string:
 			vs := utils.Settings.GetStringSlice(k)
-			if len(vs) != 4 ||
-				vs[0] != vi.([]string)[0] ||
-				vs[1] != vi.([]string)[1] ||
-				vs[2] != vi.([]string)[2] ||
-				vs[3] != vi.([]string)[3] {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, vi, utils.Settings.Get(k))
+			if len(vs) != 2 ||
+				vs[0] != val[0] ||
+				vs[1] != val[1] {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
 			}
+		case bool:
+			if utils.Settings.GetBool(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
+			}
+		default:
+			t.Fatal("unknown type")
 		}
 	}
 }
