@@ -43,10 +43,10 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 		jsonBytes []byte
 	)
 	jsonBytes, err = json.Marshal(request.Data)
-	Logger.Debug("request json", zap.String("body", string(jsonBytes[:])))
 	if err != nil {
 		return errors.Wrap(err, "marshal request data error")
 	}
+	Logger.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
 	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
 	req.Header.Set(HTTPJSONHeader, HTTPJSONHeaderVal)

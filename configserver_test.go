@@ -1,35 +1,103 @@
 package utils_test
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	utils "github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/kataras/iris"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func ExampleConfigSrv() {
 	var (
-		url     = "http://config-server.paas.ptcloud.t.home"
-		app     = "dbdevice"
+		url     = "http://config-server.un.org"
+		app     = "appname"
 		profile = "sit"
 		label   = "master"
 	)
 
-	c := utils.NewConfigSrv(url, profile, label, app)
+	c := utils.NewConfigSrv(&utils.ConfigServerCfg{
+		URL:     url,
+		App:     app,
+		Profile: profile,
+		Label:   label,
+	})
 	c.Get("management.context-path")
 	c.GetString("management.context-path")
 	c.GetBool("endpoints.health.sensitive")
 	c.GetInt("spring.cloud.config.retry")
 }
 
+var fakeConfigSrvData = map[string]interface{}{
+	"name":     "app",
+	"profiles": []string{"profile"},
+	"label":    "label",
+	"version":  "12345",
+	"propertySources": []map[string]interface{}{
+		map[string]interface{}{
+			"name": "config name",
+			"source": map[string]string{
+				"profile": "profile",
+				"key1":    "abc",
+				"key2":    "123",
+				"key3":    "true",
+			},
+		},
+	},
+}
+
+func RunMockConfigSrv(fakadata []byte) (addr string) {
+	httpsrv := iris.New()
+
+	httpsrv.Get("/app/profile/label", func(ctx iris.Context) {
+		if _, err := ctx.Write(fakadata); err != nil {
+			utils.Logger.Panic("try to return fake data got error", zap.Error(err))
+		}
+	})
+
+	// run mock config-server
+	port := 24981
+	addr = fmt.Sprintf("localhost:%v", port)
+	go func() {
+		for {
+			utils.Logger.Info("run config-server", zap.String("addr", addr))
+			if err := httpsrv.Run(iris.Addr(addr)); err != nil {
+				utils.Logger.Error("try to run server got error", zap.Error(err))
+				port++
+				addr = fmt.Sprintf("localhost:%v", port)
+			}
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	return
+}
+
 func TestConfigSrv(t *testing.T) {
+	jb, err := json.Marshal(fakeConfigSrvData)
+	if err != nil {
+		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	}
+
 	var (
-		url     = "http://config-server.paas.ptcloud.t.home"
-		app     = "dbdevice"
-		profile = "sit"
-		label   = "master"
+		addr    = "http://" + RunMockConfigSrv(jb)
+		profile = "profile"
+		label   = "label"
+		app     = "app"
+		name    = "app"
 	)
 
-	c := utils.NewConfigSrv(url, profile, label, app)
+	c := utils.NewConfigSrv(&utils.ConfigServerCfg{
+		URL:     addr,
+		Profile: profile,
+		Label:   label,
+		App:     app,
+	})
 	if err := c.Fetch(); err != nil {
 		t.Fatalf("init ConfigSrv got error: %+v", err)
 	}
@@ -38,43 +106,37 @@ func TestConfigSrv(t *testing.T) {
 	t.Logf("got cfg profile: %v", c.Cfg.Profiles[0])
 	t.Logf("got cfg source name: %v", c.Cfg.Sources[0].Name)
 
-	if c.Cfg.Name != "dbdevice" {
+	if c.Cfg.Name != name {
 		t.Fatalf("cfg name error")
 	}
 
 	// check interface
-	if val, ok := c.Get("spring.data.rest.basePath"); !ok {
-		t.Fatal("need to check whether contains `spring.data.rest.basePath`")
-	} else if val.(string) != "/api" {
-		t.Fatal("`spring.data.rest.basePath` should equal to `/api`")
+	if val, ok := c.Get("key1"); !ok {
+		t.Fatal("need to check whether contains `k1`")
+	} else if val.(string) != "abc" {
+		t.Fatal("`k1` should equal to `abc`")
 	}
 
 	// check int
-	if val, ok := c.GetInt("hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds"); !ok {
-		t.Fatalf("need to check whether contains `hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds, but got %v", val)
-	} else if val != 130000 {
-		t.Fatalf("`hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds` should equal to `130000`, but got %v", val)
+	if val, ok := c.GetInt("key2"); !ok {
+		t.Fatalf("need to check whether contains `key2, but got %v", val)
+	} else if val != 123 {
+		t.Fatalf("`key2` should equal to `123`, but got %v", val)
 	}
 
 	// check string
-	if val, ok := c.GetString("management.context-path"); !ok {
-		t.Fatal("need to check whether contains `management.context-path`")
-	} else if val != "/admin" {
-		t.Fatal("`management.context-path` should equal to `/admin`")
+	if val, ok := c.GetString("key1"); !ok {
+		t.Fatal("need to check whether contains `key1`")
+	} else if val != "abc" {
+		t.Fatal("`key1` should equal to `abc`")
 	}
 
 	// check bool
-	if val, ok := c.GetBool("spring.cloud.config.failFast"); !ok { // "true"
-		t.Fatal("need to check whether contains `spring.cloud.config.failFast`")
+	if val, ok := c.GetBool("key3"); !ok { // "true"
+		t.Fatal("need to check whether contains `key3`")
 	} else if val != true {
-		t.Fatal("`spring.cloud.config.failFast` should equal to `true`")
+		t.Fatal("`key3` should equal to `true`")
 	}
-	if val, ok := c.GetBool("eureka.instance.preferIpAddress"); !ok { // true
-		t.Fatal("need to check whether contains `eureka.instance.preferIpAddress`")
-	} else if val != true {
-		t.Fatal("`eureka.instance.preferIpAddress` should equal to `true`")
-	}
-
 }
 
 func init() {
