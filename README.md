@@ -7,6 +7,7 @@ Many useful golang tools
 [![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils)](https://goreportcard.com/report/github.com/Laisky/go-utils)
 [![GoDoc](https://godoc.org/github.com/Laisky/go-utils?status.svg)](https://godoc.org/github.com/Laisky/go-utils)
 [![Build Status](https://travis-ci.org/Laisky/go-utils.svg?branch=master)](https://travis-ci.org/Laisky/go-utils)
+[![codecov](https://codecov.io/gh/Laisky/go-utils/branch/master/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
 
 Install:

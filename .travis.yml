@@ -7,13 +7,19 @@ go:
   - 1.11.x
   - 1.12.x
 
-# go_import_path: github.com/Laisky/go-utils
+git:
+  depth: 1
 
 cache:
   directories:
     - vendor
     - $GOPATH/src
 
+
 script:
-  - go test -cover ./...
-  - go test -bench -benchtime=10s ./...
+  - git checkout $TRAVIS_COMMIT .  # travis.ci will overwrite to master branch
+  - go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+  - go test -bench ./...
+
+after_script:
+  - bash <(curl -s https://codecov.io/bash)
