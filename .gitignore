@@ -111,3 +111,4 @@ vendor
 # pprof
 memory.pprof
 cpu.pprof
+coverage.txt
