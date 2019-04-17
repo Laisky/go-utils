@@ -25,6 +25,30 @@ func TestParseTs2String(t *testing.T) {
 	}
 }
 
+// func TestTimeParse(t *testing.T) {
+// 	s := "2018-11-12 03:41:39,735"
+// 	layout := "2006-01-02 15:04:05,000"
+// 	ts, err := time.Parse(layout, s)
+// 	if err != nil {
+// 		t.Fatalf("got error: %+v", err)
+// 	}
+// 	t.Logf("%+v", ts)
+// }
+
+// func TestTimeFormat(t *testing.T) {
+// 	ts := time.Now()
+// 	layout := "2006-01-02 15:04:05.000"
+// 	t.Errorf("%+v - %+v", ts, ts.Format(layout))
+// 	time.Sleep(20 * time.Millisecond)
+// 	t.Errorf("%+v - %+v", ts, ts.Format(layout))
+// 	time.Sleep(20 * time.Millisecond)
+// 	t.Errorf("%+v - %+v", ts, ts.Format(layout))
+// 	time.Sleep(20 * time.Millisecond)
+// 	t.Errorf("%+v - %+v", ts, ts.Format(layout))
+// 	time.Sleep(20 * time.Millisecond)
+// 	t.Errorf("%+v - %+v", ts, ts.Format("2006-01-02 15:04:05.999"))
+// }
+
 func ExampleClock() {
 	// get utc now
 	utils.Clock.GetUTCNow()
