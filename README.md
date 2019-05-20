@@ -27,25 +27,28 @@ import (
 
 There are small tools including:
 
-- `Clock`: high performance lazy load clock
-- `Settings`: configuration manager that support yml and spring-cloud-config-server
-- `Counter`: counter and rotate counter
-- `Mail`: simply email sender
-- `JWT`: simply JWT encrypt/decrypt functions
-- `RequestJSON`: simply http client that send json request and unmarshal response by json
-- `Logger`: high performance structrued logger based by zap
-- `Math`: some simply math functions
-  - `Round`: get round of float
-- `Throttle`: throttling to limit throughput
-- time: some useful time functions
-  - `UTCNow()`
-  - `ParseTs2String`
-  - `ParseTs2Time`
-- utils: some tool functions
-  - `GetFuncName`
-  - `FallBack`
-  - `RegexNamedSubMatch`
-  - `FlattenMap`
+* `Clock`: high performance lazy load clock
+* `Settings`: configuration manager that support yml and spring-cloud-config-server
+* `Counter`: counter and rotate counter
+* `Mail`: simply email sender
+* encrypt.go:
+  * `JWT`: simply JWT encrypt/decrypt functions
+  * `GeneratePasswordHash`: generate hashed password
+  * `ValidatePasswordHash`: validate hashed password
+* `RequestJSON`: simply http client that send json request and unmarshal response by json
+* `Logger`: high performance structrued logger based by zap
+* `Math`: some simply math functions
+  * `Round`: get round of float
+* `Throttle`: throttling to limit throughput
+* time: some useful time functions
+  * `UTCNow()`
+  * `ParseTs2String`
+  * `ParseTs2Time`
+* utils: some tool functions
+  * `GetFuncName`
+  * `FallBack`
+  * `RegexNamedSubMatch`
+  * `FlattenMap`
 
 
 see more examples in  tests or [document](https://godoc.org/github.com/Laisky/go-utils)

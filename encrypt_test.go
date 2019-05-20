@@ -1,11 +1,13 @@
 package utils_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 )
 
 func TestGenerateToken(t *testing.T) {
@@ -93,5 +95,20 @@ func TestPassword(t *testing.T) {
 	}
 	if utils.ValidatePasswordHash(hp, []byte("dj23fij2f32")) {
 		t.Fatal("should not be validate")
+	}
+}
+
+func ExamplePassword() {
+	// generate hashed password
+	password := []byte("1234567890")
+	hp, err := utils.GeneratePasswordHash(password)
+	if err != nil {
+		utils.Logger.Error("got error: %+v", zap.Error(err))
+	}
+	fmt.Printf("got new hashed pasword: %v\n", string(hp))
+
+	// validate passowrd
+	if !utils.ValidatePasswordHash(hp, password) {
+		utils.Logger.Error("password invalidate", zap.Error(err))
 	}
 }

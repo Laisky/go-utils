@@ -17,6 +17,6 @@ func FromStd(handler http.HandlerFunc) iris.Handler {
 	}
 }
 
-func getIrisCtxFromStdCtx(ctx context.Context) iris.Context {
+func GetIrisCtxFromStdCtx(ctx context.Context) iris.Context {
 	return ctx.Value(IrisCtxKey).(iris.Context)
 }
