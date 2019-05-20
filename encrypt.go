@@ -37,23 +37,24 @@ import (
 
 // JWT struct to generate and validate jwt tokens
 type JWT struct {
-	secret      []byte
-	layout      string
-	TKExpiresAt string
-	TKUserID    string
+	secret       []byte
+	layout       string
+	ExpiresAtKey string
+	UserIDKey    string
 }
 
 // Setup initialize JWT
 func (j *JWT) Setup(secret string) {
 	// const key names
-	j.TKExpiresAt = "expires_at"
-	j.TKUserID = "uid"
+	j.ExpiresAtKey = "expires_at"
+	j.UserIDKey = "uid"
 
 	j.secret = []byte(secret)
 	j.layout = time.RFC3339
 }
 
-// Generate generate JWT token
+// Deprecated: Generate generate JWT token.
+// old interface
 func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string, error) {
 	jwtPayload := jwt.MapClaims{}
 	for k, v := range payload {
@@ -69,11 +70,29 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 	return tokenStr, nil
 }
 
-// CheckExpiresValid return the bool whether the `expires_at` is not expired
-func (j *JWT) CheckExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
+// GenerateToken generate JWT token.
+// do not use `expires_at` & `uid` as keys.
+func (j *JWT) GenerateToken(userId string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
+	jwtPayload := jwt.MapClaims{}
+	for k, v := range payload {
+		jwtPayload[k] = v
+	}
+	jwtPayload[j.ExpiresAtKey] = expiresAt.Format(j.layout)
+	jwtPayload[j.UserIDKey] = userId
+
+	fmt.Println(">>", jwtPayload)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwtPayload)
+	if tokenStr, err = token.SignedString(j.secret); err != nil {
+		return "", errors.Wrap(err, "try to signed token got error")
+	}
+	return tokenStr, nil
+}
+
+// checkExpiresValid return the bool whether the `expires_at` is not expired
+func (j *JWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
 	expiresAt, ok := expiresAtI.(string)
 	if !ok {
-		return false, fmt.Errorf("`%v` is not string", j.TKExpiresAt)
+		return false, fmt.Errorf("`%v` is not string", j.ExpiresAtKey)
 	}
 	tokenT, err := time.Parse(j.layout, expiresAt)
 	if err != nil {
@@ -102,17 +121,17 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 		for k, v := range claims {
 			payload[k] = v
 		}
-		if _, ok := payload[j.TKUserID]; !ok {
-			return payload, fmt.Errorf("token do not contains `%v`", j.TKUserID)
+		if _, ok := payload[j.UserIDKey]; !ok {
+			return payload, fmt.Errorf("token do not contains `%v`", j.UserIDKey)
 		}
 
-		if expiresAt, ok := payload[j.TKExpiresAt]; !ok {
-			return payload, fmt.Errorf("token do not contains `%v`", j.TKExpiresAt)
+		if expiresAt, ok := payload[j.ExpiresAtKey]; !ok {
+			return payload, fmt.Errorf("token do not contains `%v`", j.ExpiresAtKey)
 		} else {
-			if ok, err = j.CheckExpiresValid(UTCNow(), expiresAt); err != nil {
+			if ok, err = j.checkExpiresValid(UTCNow(), expiresAt); err != nil {
 				return payload, errors.Wrap(err, "parse token `expires_at` error")
 			} else if !ok {
-				return payload, fmt.Errorf("token expired at %v", payload[j.TKExpiresAt])
+				return payload, fmt.Errorf("token expired at %v", payload[j.ExpiresAtKey])
 			}
 		}
 
