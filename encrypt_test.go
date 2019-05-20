@@ -74,3 +74,20 @@ func TestValidToken(t *testing.T) {
 		t.Errorf("expect expired error, bug got %+v", err)
 	}
 }
+
+func TestPassword(t *testing.T) {
+	password := []byte("1234567890")
+	hp, err := utils.GeneratePasswordHash(password)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	t.Logf("got hashed password: %v", string(hp))
+
+	if !utils.ValidatePasswordHash(hp, password) {
+		t.Fatal("should be validate")
+	}
+	if utils.ValidatePasswordHash(hp, []byte("dj23fij2f32")) {
+		t.Fatal("should not be validate")
+	}
+}

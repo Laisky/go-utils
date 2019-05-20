@@ -30,6 +30,7 @@ import (
 	"github.com/Laisky/zap"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 
 	jwt "github.com/dgrijalva/jwt-go"
 )
@@ -39,14 +40,14 @@ type JWT struct {
 	secret      []byte
 	layout      string
 	TKExpiresAt string
-	TKUsername  string
+	TKUserID    string
 }
 
 // Setup initialize JWT
 func (j *JWT) Setup(secret string) {
 	// const key names
 	j.TKExpiresAt = "expires_at"
-	j.TKUsername = "username"
+	j.TKUserID = "uid"
 
 	j.secret = []byte(secret)
 	j.layout = time.RFC3339
@@ -60,7 +61,7 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 	}
 	jwtPayload["expires_at"] = ParseTs2String(expiresAt, j.layout)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtPayload)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwtPayload)
 	tokenStr, err := token.SignedString(j.secret)
 	if err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
@@ -101,8 +102,8 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 		for k, v := range claims {
 			payload[k] = v
 		}
-		if _, ok := payload[j.TKUsername]; !ok {
-			return payload, fmt.Errorf("token do not contains `%v`", j.TKUsername)
+		if _, ok := payload[j.TKUserID]; !ok {
+			return payload, fmt.Errorf("token do not contains `%v`", j.TKUserID)
 		}
 
 		if expiresAt, ok := payload[j.TKExpiresAt]; !ok {
@@ -118,4 +119,12 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 		return payload, nil
 	}
 	return nil, errors.New("token not match MapClaims")
+}
+
+func GeneratePasswordHash(password []byte) ([]byte, error) {
+	return bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+}
+
+func ValidatePasswordHash(hashedPassword, password []byte) bool {
+	return bcrypt.CompareHashAndPassword(hashedPassword, password) == nil
 }
