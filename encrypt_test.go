@@ -79,6 +79,15 @@ func TestValidToken(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "token do not contains `uid`") {
 		t.Errorf("expect expired error, bug got %+v", err)
 	}
+
+	// check different method
+	token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHBpcmVzX2F0IjoiMjI4Ni0xMS0yMFQxNzo0Njo0MFoiLCJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.EOCdQbzlzxWTpPaI7IrfDA0S4XQzPNEgnczM5UJWTco"
+	if got, err = j.Validate(token); err == nil {
+		t.Error("token should be error since of method incorrect`")
+	} else if !strings.Contains(err.Error(), "JWT method not allowd") {
+		t.Errorf("expect method error, bug got %+v", err)
+	}
+
 }
 
 func TestPassword(t *testing.T) {

@@ -35,6 +35,8 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
+var SigningMethod = jwt.SigningMethodHS512
+
 // JWT struct to generate and validate jwt tokens
 type JWT struct {
 	secret       []byte
@@ -62,7 +64,7 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 	}
 	jwtPayload["expires_at"] = ParseTs2String(expiresAt, j.layout)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwtPayload)
+	token := jwt.NewWithClaims(SigningMethod, jwtPayload)
 	tokenStr, err := token.SignedString(j.secret)
 	if err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
@@ -80,8 +82,7 @@ func (j *JWT) GenerateToken(userId string, expiresAt time.Time, payload map[stri
 	jwtPayload[j.ExpiresAtKey] = expiresAt.Format(j.layout)
 	jwtPayload[j.UserIDKey] = userId
 
-	fmt.Println(">>", jwtPayload)
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwtPayload)
+	token := jwt.NewWithClaims(SigningMethod, jwtPayload)
 	if tokenStr, err = token.SignedString(j.secret); err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
 	}
@@ -108,7 +109,7 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 	payload = map[string]interface{}{}
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != SigningMethod {
 			return nil, errors.New("JWT method not allowd")
 		}
 		return j.secret, nil
