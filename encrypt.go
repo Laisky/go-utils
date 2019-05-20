@@ -140,10 +140,12 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 	return nil, errors.New("token not match MapClaims")
 }
 
+// GeneratePasswordHash generate hashed password by origin password
 func GeneratePasswordHash(password []byte) ([]byte, error) {
 	return bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 }
 
+// ValidatePasswordHash validate password is match with hashedPassword
 func ValidatePasswordHash(hashedPassword, password []byte) bool {
 	return bcrypt.CompareHashAndPassword(hashedPassword, password) == nil
 }
