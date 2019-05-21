@@ -107,7 +107,7 @@ func TestPassword(t *testing.T) {
 	}
 }
 
-func ExamplePassword() {
+func ExampleGeneratePasswordHash() {
 	// generate hashed password
 	password := []byte("1234567890")
 	hp, err := utils.GeneratePasswordHash(password)
@@ -120,4 +120,32 @@ func ExamplePassword() {
 	if !utils.ValidatePasswordHash(hp, password) {
 		utils.Logger.Error("password invalidate", zap.Error(err))
 	}
+}
+
+func BenchmarkGeneratePasswordHash(b *testing.B) {
+	pw := []byte("28jijf23f92of92o3jf23fjo2")
+	ph, err := utils.GeneratePasswordHash(pw)
+	if err != nil {
+		b.Fatalf("got error: %+v", err)
+	}
+	phw, err := utils.GeneratePasswordHash([]byte("j23foj9foj29fj23fj"))
+	if err != nil {
+		b.Fatalf("got error: %+v", err)
+	}
+
+	b.Run("generate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.GeneratePasswordHash(pw)
+		}
+	})
+	b.Run("validate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.ValidatePasswordHash(ph, pw)
+		}
+	})
+	b.Run("invalidate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.ValidatePasswordHash(phw, pw)
+		}
+	})
 }
