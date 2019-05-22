@@ -80,23 +80,28 @@ func TestLegacy(t *testing.T) {
 	if err = idsEncoder.Flush(); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
+	dataFp1.Close()
+	dataFp2.Close()
+	idsFp1.Close()
+	idsFp2.Close()
 
 	legacy := journal.NewLegacyLoader(
 		[]string{dataFp1.Name(), dataFp2.Name()},
 		[]string{idsFp1.Name(), idsFp2.Name()},
 	)
-	idmaps, err := legacy.LoadAllids()
+	idmaps := journal.NewInt64Set()
+	err = legacy.LoadAllids(idmaps)
 	t.Logf("got ids: %+v", idmaps)
 	if err = idsEncoder.Write(22); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
-	if idmaps.ContainsInt(0) {
+	if idmaps.CheckAndRemove(0) {
 		t.Fatal("should not contains 0")
 	}
-	if idmaps.ContainsInt(33) {
+	if idmaps.CheckAndRemove(33) {
 		t.Fatal("should not contains 33")
 	}
-	if idmaps.ContainsInt(2) {
+	if idmaps.CheckAndRemove(2) {
 		t.Fatal("should not contains 2")
 	}
 
@@ -109,6 +114,7 @@ func TestLegacy(t *testing.T) {
 		} else if err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
+		t.Logf("got data[%v]", data.ID)
 		dataIds = append(dataIds, data.ID)
 	}
 	t.Logf("got dataIds: %+v", dataIds)
@@ -131,7 +137,8 @@ func TestEmptyLegacy(t *testing.T) {
 		[]string{},
 		[]string{},
 	)
-	ids, err := legacy.LoadAllids()
+	ids := journal.NewInt64Set()
+	err = legacy.LoadAllids(ids)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}

@@ -22,7 +22,7 @@ type JournalConfig struct {
 
 type Journal struct {
 	*JournalConfig
-	dataFp, idsFp   *os.File
+	dataFp, idsFp   *os.File // current writting journal file
 	fsStat          *BufFileStat
 	legacy          *LegacyLoader
 	dataEnc         *DataEncoder
@@ -134,6 +134,7 @@ func (j *Journal) WriteId(id int64) error {
 	j.l.RLock() // will blocked by flush & rotate
 	defer j.l.RUnlock()
 
+	j.legacy.AddID(id)
 	return j.idsEnc.Write(id)
 }
 
