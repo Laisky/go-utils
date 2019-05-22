@@ -141,8 +141,10 @@ func (j *Journal) WriteId(id int64) error {
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
+	utils.Logger.Debug("try to rotate")
 	j.l.Lock()
 	defer j.l.Unlock()
+	utils.Logger.Debug("starting to rotate")
 
 	if err = j.Flush(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
@@ -175,7 +177,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	j.idsFp = j.fsStat.NewIdsDataFp
+	j.idsFp = j.fsStat.NewIdsFp
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil
