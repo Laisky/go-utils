@@ -72,13 +72,13 @@ func TestPrepareNewBufFile(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 	defer bufStat.NewDataFp.Close()
-	defer bufStat.NewIdsDataFp.Close()
+	defer bufStat.NewIDsFp.Close()
 
 	_, err = bufStat.NewDataFp.WriteString("test data")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	_, err = bufStat.NewIdsDataFp.WriteString("test ids")
+	_, err = bufStat.NewIDsFp.WriteString("test ids")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -87,7 +87,7 @@ func TestPrepareNewBufFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
-	err = bufStat.NewIdsDataFp.Sync()
+	err = bufStat.NewIDsFp.Sync()
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

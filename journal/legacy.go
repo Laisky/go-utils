@@ -29,11 +29,17 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 		dataFNames: dataFNames,
 		idsFNames:  idsFNames,
 		ctx: &legacyCtx{
-			ids:           NewInt64Set(),
 			isNeedReload:  true,
 			isReadyReload: len(dataFNames) != 0,
+			ids:           NewInt64Set(),
 		},
 	}
+
+	if err := l.LoadAllids(l.ctx.ids); err != nil {
+		// use origin ids if got error in LoadAllids
+		utils.Logger.Panic("try to load all ids got error", zap.Error(err))
+	}
+
 	return l
 }
 
@@ -66,12 +72,6 @@ func (l *LegacyLoader) Load(data *Data) (err error) {
 		}
 
 		utils.Logger.Debug("reload ids & data file idx")
-		err = l.LoadAllids(l.ctx.ids)
-		if err != nil {
-			// use origin ids if got error in LoadAllids
-			utils.Logger.Error("try to load all ids got error", zap.Error(err))
-		}
-
 		l.ctx.dataFileMaxIdx = len(l.dataFNames) - 1
 		l.ctx.dataFileIdx = 0
 		l.ctx.isNeedReload = false

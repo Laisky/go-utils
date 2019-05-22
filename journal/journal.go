@@ -177,7 +177,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	j.idsFp = j.fsStat.NewIdsFp
+	j.idsFp = j.fsStat.NewIDsFp
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil
