@@ -102,7 +102,7 @@ func (j *Journal) checkRotate() error {
 	if fi, err := j.dataFp.Stat(); err != nil {
 		return errors.Wrap(err, "try to load file stat got error")
 	} else {
-		if fi.Size() > j.BufSizeBytes || time.Now().Sub(j.latestRotateT) > j.RotateDuration {
+		if fi.Size() > j.BufSizeBytes || utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
 			go j.Rotate()
 			j.rotateCheckCnt = 0
 		}
@@ -141,14 +141,16 @@ func (j *Journal) WriteId(id int64) error {
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
+	utils.Logger.Debug("try to rotate")
 	j.l.Lock()
 	defer j.l.Unlock()
+	utils.Logger.Debug("starting to rotate")
 
 	if err = j.Flush(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
-	j.latestRotateT = time.Now()
+	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
@@ -175,7 +177,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	j.idsFp = j.fsStat.NewIdsDataFp
+	j.idsFp = j.fsStat.NewIdsFp
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil

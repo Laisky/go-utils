@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Laisky/go-utils"
+
 	irisMiddlewares "github.com/Laisky/go-utils/iris-middlewares"
 	"github.com/kataras/iris"
 )
@@ -14,7 +16,7 @@ func ExampleAuthType() {
 	auth := irisMiddlewares.NewAuth(cfg)
 
 	uid := "123"
-	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	expiresAt := utils.UTCNow().Add(7 * 24 * time.Hour)
 	payload := map[string]interface{}{"a": "b"}
 	auth.GenerateToken(uid, expiresAt, payload)
 

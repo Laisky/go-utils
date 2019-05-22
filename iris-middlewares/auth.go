@@ -60,7 +60,7 @@ func (a *Auth) SetLoginCookie(ctx context.Context, user UserItf) (err error) {
 	utils.Logger.Info("user login", zap.String("user", user.GetID()))
 	ctx2 := GetIrisCtxFromStdCtx(ctx)
 	var token string
-	if token, err = a.GenerateToken(user.GetID(), time.Now().Add(a.CookieExpires), user.GetPayload()); err != nil {
+	if token, err = a.GenerateToken(user.GetID(), utils.Clock.GetUTCNow().Add(a.CookieExpires), user.GetPayload()); err != nil {
 		return errors.Wrap(err, "try to generate token got error")
 	}
 

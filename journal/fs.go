@@ -50,14 +50,14 @@ func PrepareDir(path string) error {
 
 // BufFileStat current journal files' stats
 type BufFileStat struct {
-	NewDataFp, NewIdsDataFp        *os.File
+	NewDataFp, NewIdsFp            *os.File
 	OldDataFnames, OldIdsDataFname []string
 }
 
 // PrepareNewBufFile create new data & id files, and update BufFileStat
-func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret *BufFileStat, err error) {
-	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
-	ret = &BufFileStat{
+func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsStat *BufFileStat, err error) {
+	utils.Logger.Debug("prepare new buf file", zap.String("dirpath", dirPath))
+	fsStat = &BufFileStat{
 		OldDataFnames:   []string{},
 		OldIdsDataFname: []string{},
 	}
@@ -69,8 +69,9 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 		fs                              []os.FileInfo
 	)
 
-	// scan existing buf files
-	if isScan || oldFsStat == nil { // update legacyLoader or first run
+	// scan existing buf files.
+	// update legacyLoader or first run.
+	if isScan || oldFsStat == nil {
 		if fs, err = ioutil.ReadDir(dirPath); err != nil {
 			return nil, errors.Wrap(err, "try to list dir got error")
 		}
@@ -86,28 +87,29 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 
 			if DataFileNameReg.MatchString(fname) {
 				utils.Logger.Debug("add data file into queue", zap.String("fname", absFname))
-				ret.OldDataFnames = append(ret.OldDataFnames, absFname)
+				fsStat.OldDataFnames = append(fsStat.OldDataFnames, absFname)
 				if fname > latestDataFName {
 					latestDataFName = fname
 				}
 			} else if IDFileNameReg.MatchString(fname) {
 				utils.Logger.Debug("add ids file into queue", zap.String("fname", absFname))
-				ret.OldIdsDataFname = append(ret.OldIdsDataFname, absFname)
+				fsStat.OldIdsDataFname = append(fsStat.OldIdsDataFname, absFname)
 				if fname > latestIDsFName {
 					latestIDsFName = fname
 				}
 			}
 		}
-		utils.Logger.Debug("got data files", zap.Strings("fs", ret.OldDataFnames))
-		utils.Logger.Debug("got ids files", zap.Strings("fs", ret.OldIdsDataFname))
+		utils.Logger.Debug("got old journal files",
+			zap.Strings("fs", fsStat.OldDataFnames),
+			zap.Strings("fs", fsStat.OldIdsDataFname))
 	} else {
 		_, latestDataFName = filepath.Split(oldFsStat.NewDataFp.Name())
-		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsDataFp.Name())
+		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsFp.Name())
 	}
 
 	// generate new buf data file name
 	// `latestxxxFName` means new buf file name now
-	now := utils.UTCNow()
+	now := utils.Clock.GetUTCNow()
 	if latestDataFName == "" {
 		latestDataFName = now.Format(layout) + "_00000001.buf"
 	} else {
@@ -125,17 +127,17 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 		}
 	}
 
-	utils.Logger.Debug("PrepareNewBufFile",
+	utils.Logger.Debug("prepare new buf files",
 		zap.String("new ids fname", latestIDsFName),
 		zap.String("new data fname", latestDataFName))
-	if ret.NewDataFp, err = OpenBufFile(path.Join(dirPath, latestDataFName)); err != nil {
+	if fsStat.NewDataFp, err = OpenBufFile(path.Join(dirPath, latestDataFName)); err != nil {
 		return nil, err
 	}
-	if ret.NewIdsDataFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName)); err != nil {
+	if fsStat.NewIdsFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName)); err != nil {
 		return nil, err
 	}
 
-	return ret, nil
+	return fsStat, nil
 }
 
 // OpenBufFile create and open file

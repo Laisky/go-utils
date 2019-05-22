@@ -3,7 +3,6 @@ package journal
 import (
 	"io"
 	"os"
-	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -32,7 +31,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 		ctx: &legacyCtx{
 			ids:           NewInt64Set(),
 			isNeedReload:  true,
-			isReadyReload: true && len(dataFNames) != 0,
+			isReadyReload: len(dataFNames) != 0,
 		},
 	}
 	return l
@@ -42,11 +41,12 @@ func (l *LegacyLoader) AddID(id int64) {
 	l.ctx.ids.Add(id)
 }
 
+// Reset reset journal legacy link to existing files
 func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
-	utils.Logger.Info("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
+	utils.Logger.Debug("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
-	l.ctx.isReadyReload = true
+	l.ctx.isReadyReload = len(dataFNames) != 0
 }
 
 // removeFile delete file, should run sync to avoid dirty files
@@ -60,7 +60,7 @@ func (l *LegacyLoader) removeFile(fpath string) {
 }
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
-	if l.ctx.isNeedReload { // refresh ctx
+	if l.ctx.isNeedReload { // reload ctx
 		if !l.ctx.isReadyReload { // legacy files not prepared
 			return io.EOF
 		}
@@ -109,7 +109,7 @@ READ_NEW_LINE:
 		goto READ_NEW_FILE
 	}
 
-	if l.ctx.ids.CheckAndRemove(data.ID) { // duplicated
+	if l.ctx.ids.CheckAndRemove(data.ID) { // ignore committed data
 		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
 	}
@@ -124,7 +124,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		fp *os.File
 		id int64
 	)
-	startTs := time.Now()
+	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
@@ -143,7 +143,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 	}
 
-	utils.Logger.Info("load max id done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
+	utils.Logger.Info("load max id done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return id, nil
 }
 
@@ -154,7 +154,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 		fp  *os.File
 	)
 
-	startTs := time.Now()
+	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
@@ -175,7 +175,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 		}
 	}
 
-	utils.Logger.Info("load all ids done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
+	utils.Logger.Info("load all ids done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return allErr
 }
 
@@ -195,9 +195,9 @@ func (l *LegacyLoader) Clean() error {
 	}
 
 	l.ctx.dataFp.Close()
+	l.ctx.dataFp = nil // `Load` need this
 	l.ctx.isNeedReload = true
 	l.ctx.isReadyReload = false
-	l.ctx.dataFp = nil
 	utils.Logger.Info("clean all legacy")
 	return nil
 }
