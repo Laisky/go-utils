@@ -102,7 +102,7 @@ func (j *Journal) checkRotate() error {
 	if fi, err := j.dataFp.Stat(); err != nil {
 		return errors.Wrap(err, "try to load file stat got error")
 	} else {
-		if fi.Size() > j.BufSizeBytes || time.Now().Sub(j.latestRotateT) > j.RotateDuration {
+		if fi.Size() > j.BufSizeBytes || utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
 			go j.Rotate()
 			j.rotateCheckCnt = 0
 		}
@@ -148,7 +148,7 @@ func (j *Journal) Rotate() (err error) {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
-	j.latestRotateT = time.Now()
+	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {

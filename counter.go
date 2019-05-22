@@ -20,7 +20,7 @@ func NewCounter() *Counter {
 	return &Counter{
 		Mutex: &sync.Mutex{},
 		n:     0,
-		lastT: time.Now(),
+		lastT: UTCNow(),
 		lastN: 0,
 	}
 }
@@ -39,8 +39,8 @@ func (c *Counter) GetSpeed() (r float64) {
 	c.Lock()
 	defer c.Unlock()
 
-	r = Round(float64(c.Get()-c.lastN)/time.Now().Sub(c.lastT).Seconds(), .5, 2)
-	c.lastT = time.Now()
+	r = Round(float64(c.Get()-c.lastN)/UTCNow().Sub(c.lastT).Seconds(), .5, 2)
+	c.lastT = UTCNow()
 	c.lastN = c.Get()
 	return r
 }

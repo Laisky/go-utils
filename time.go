@@ -84,7 +84,7 @@ func (c *ClockType) runRefresh() {
 		if c.isStop {
 			return
 		}
-		c.now = time.Now().UTC()
+		c.now = UTCNow()
 		c.timeStrRFC3339Nano = c.now.Format(time.RFC3339Nano)
 		interval = c.interval
 		c.Unlock()

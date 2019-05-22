@@ -60,14 +60,14 @@ func (f *CommitFilter) runFilterBeforeChan() {
 		ok           bool
 		now          time.Time
 		scanInterval = time.Second * 1
-		lastScanT    = time.Now()
+		lastScanT    = utils.Clock.GetUTCNow()
 	)
 
 	for kmsg = range f.beforeChan {
 		// record not exists, create new record
 		if record, ok = kmsgSlots[kmsg.Partition]; !ok {
 			kmsgSlots[kmsg.Partition] = &msgRecord{
-				lastCommitT: time.Now(),
+				lastCommitT: utils.Clock.GetUTCNow(),
 				lastMsg:     kmsg,
 				lastOffset:  kmsg.Offset,
 				num:         1,
@@ -97,7 +97,7 @@ func (f *CommitFilter) runFilterBeforeChan() {
 
 		record.num++
 
-		now = time.Now()
+		now = utils.Clock.GetUTCNow()
 		if now.Sub(lastScanT) > scanInterval {
 			f.filterSlots2AfterChan(now, kmsgSlots)
 		}

@@ -3,7 +3,6 @@ package journal
 import (
 	"io"
 	"os"
-	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -124,7 +123,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		fp *os.File
 		id int64
 	)
-	startTs := time.Now()
+	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
@@ -143,7 +142,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 	}
 
-	utils.Logger.Info("load max id done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
+	utils.Logger.Info("load max id done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return id, nil
 }
 
@@ -154,7 +153,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 		fp  *os.File
 	)
 
-	startTs := time.Now()
+	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
 		fp, err = os.Open(fname)
@@ -175,7 +174,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 		}
 	}
 
-	utils.Logger.Info("load all ids done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
+	utils.Logger.Info("load all ids done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return allErr
 }
 
