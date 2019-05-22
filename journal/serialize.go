@@ -172,3 +172,28 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 
 	return bitmap, nil
 }
+
+func (dec *IdsDecoder) ReadAllToInt64Set(ids *Int64Set) (err error) {
+	var id int64
+	for {
+		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {
+			break
+		} else if err != nil {
+			return errors.Wrap(err, "try to read ids got error")
+		}
+
+		if dec.baseId == -1 {
+			// first id in head of file is baseid
+			utils.Logger.Debug("set baseid", zap.Int64("id", id))
+			dec.baseId = id
+		} else {
+			// another ids in rest file are offsets
+			id += dec.baseId
+		}
+
+		// utils.Logger.Debug("load new id", zap.Int64("id", id))
+		ids.Add(id)
+	}
+
+	return nil
+}

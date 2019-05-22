@@ -7,7 +7,6 @@ import (
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
-	"github.com/RoaringBitmap/roaring"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +16,9 @@ type LegacyLoader struct {
 }
 
 type legacyCtx struct {
-	ids                         *roaring.Bitmap
+	isNeedReload                bool // prepare datafp for `Load`
+	isReadyReload               bool // alreddy update `dataFNames`
+	ids                         *Int64Set
 	dataFileIdx, dataFileMaxIdx int
 	dataFp                      *os.File
 	decoder                     *DataDecoder
@@ -28,15 +29,24 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 	l := &LegacyLoader{
 		dataFNames: dataFNames,
 		idsFNames:  idsFNames,
-		ctx:        &legacyCtx{},
+		ctx: &legacyCtx{
+			ids:           NewInt64Set(),
+			isNeedReload:  true,
+			isReadyReload: true && len(dataFNames) != 0,
+		},
 	}
 	return l
+}
+
+func (l *LegacyLoader) AddID(id int64) {
+	l.ctx.ids.Add(id)
 }
 
 func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	utils.Logger.Info("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
+	l.ctx.isReadyReload = true
 }
 
 // removeFile delete file, should run sync to avoid dirty files
@@ -50,25 +60,26 @@ func (l *LegacyLoader) removeFile(fpath string) {
 }
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
-	utils.Logger.Debug("LegacyLoader.Load...")
-	if l.ctx.ids == nil { // first run
-		if len(l.dataFNames) == 0 { // no legacy files
+	if l.ctx.isNeedReload { // refresh ctx
+		if !l.ctx.isReadyReload { // legacy files not prepared
 			return io.EOF
 		}
 
-		l.ctx.ids, err = l.LoadAllids()
-		// use default empty ids if got error in LoadAllids
+		utils.Logger.Debug("reload ids & data file idx")
+		err = l.LoadAllids(l.ctx.ids)
 		if err != nil {
+			// use origin ids if got error in LoadAllids
 			utils.Logger.Error("try to load all ids got error", zap.Error(err))
 		}
 
 		l.ctx.dataFileMaxIdx = len(l.dataFNames) - 1
 		l.ctx.dataFileIdx = 0
+		l.ctx.isNeedReload = false
 	}
-	var id int64
 
 READ_NEW_FILE:
 	if l.ctx.dataFp == nil {
+		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		l.ctx.dataFp, err = os.Open(l.dataFNames[l.ctx.dataFileIdx])
 		if err != nil {
 			return errors.Wrap(err, "try to open data file got error")
@@ -98,8 +109,7 @@ READ_NEW_LINE:
 		goto READ_NEW_FILE
 	}
 
-	id = data.ID
-	if l.ctx.ids.ContainsInt(int(id)) { // duplicated
+	if l.ctx.ids.CheckAndRemove(data.ID) { // duplicated
 		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
 	}
@@ -137,14 +147,13 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 	return id, nil
 }
 
-func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, allErr error) {
+func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 	utils.Logger.Debug("LoadAllids...")
 	var (
-		err    error
-		fp     *os.File
-		newIds *roaring.Bitmap
+		err error
+		fp  *os.File
 	)
-	ids = roaring.New()
+
 	startTs := time.Now()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
@@ -158,24 +167,19 @@ func (l *LegacyLoader) LoadAllids() (ids *roaring.Bitmap, allErr error) {
 		}
 
 		idsDecoder := NewIdsDecoder(fp)
-		newIds, err = idsDecoder.ReadAllToBmap()
-		if err != nil {
+		if err = idsDecoder.ReadAllToInt64Set(ids); err != nil {
 			allErr = errors.Wrapf(err, "try to read ids file `%v` got error", fname)
 			utils.Logger.Error("try to read ids file got error",
 				zap.String("fname", fname),
 				zap.Error(err))
 		}
-
-		ids.Or(newIds)
 	}
 
 	utils.Logger.Info("load all ids done", zap.Float64("sec", time.Now().Sub(startTs).Seconds()))
-	return ids, allErr
+	return allErr
 }
 
 func (l *LegacyLoader) Clean() error {
-	l.ctx.dataFp.Close()
-
 	if l.dataFNames != nil {
 		for _, f := range l.dataFNames {
 			l.removeFile(f)
@@ -190,7 +194,10 @@ func (l *LegacyLoader) Clean() error {
 		l.idsFNames = nil
 	}
 
-	l.ctx = &legacyCtx{}
+	l.ctx.dataFp.Close()
+	l.ctx.isNeedReload = true
+	l.ctx.isReadyReload = false
+	l.ctx.dataFp = nil
 	utils.Logger.Info("clean all legacy")
 	return nil
 }

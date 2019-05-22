@@ -1,5 +1,8 @@
 package journal
 
+// fs.go
+// create directory and journal id & data files.
+
 import (
 	"fmt"
 	"io/ioutil"
@@ -17,12 +20,15 @@ import (
 )
 
 var (
+	// DataFileNameReg journal data file name pattern
 	DataFileNameReg = regexp.MustCompile(`\d{8}_\d{8}\.buf`)
-	IdFileNameReg   = regexp.MustCompile(`\d{8}_\d{8}\.ids`)
-	layout          = "20060102"
-	layoutWithTZ    = "20060102-0700"
+	// IDFileNameReg journal id file name pattern
+	IDFileNameReg = regexp.MustCompile(`\d{8}_\d{8}\.ids`)
+	layout        = "20060102"
+	layoutWithTZ  = "20060102-0700"
 )
 
+// PrepareDir `mkdir -p`
 func PrepareDir(path string) error {
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -42,11 +48,13 @@ func PrepareDir(path string) error {
 	return nil
 }
 
+// BufFileStat current journal files' stats
 type BufFileStat struct {
 	NewDataFp, NewIdsDataFp        *os.File
 	OldDataFnames, OldIdsDataFname []string
 }
 
+// PrepareNewBufFile create new data & id files, and update BufFileStat
 func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret *BufFileStat, err error) {
 	utils.Logger.Debug("PrepareNewBufFile", zap.String("dirPath", dirPath))
 	ret = &BufFileStat{
@@ -82,7 +90,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 				if fname > latestDataFName {
 					latestDataFName = fname
 				}
-			} else if IdFileNameReg.MatchString(fname) {
+			} else if IDFileNameReg.MatchString(fname) {
 				utils.Logger.Debug("add ids file into queue", zap.String("fname", absFname))
 				ret.OldIdsDataFname = append(ret.OldIdsDataFname, absFname)
 				if fname > latestIDsFName {
@@ -130,6 +138,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (ret
 	return ret, nil
 }
 
+// OpenBufFile create and open file
 func OpenBufFile(filepath string) (fp *os.File, err error) {
 	utils.Logger.Info("create new buf file", zap.String("fname", filepath))
 	if fp, err = os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
