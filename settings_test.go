@@ -156,3 +156,16 @@ a:
 		}
 	}
 }
+
+func BenchmarkSettings(b *testing.B) {
+	b.Run("set", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.Settings.Set(utils.RandomStringWithLength(20), utils.RandomStringWithLength(20))
+		}
+	})
+	b.Run("get", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			utils.Settings.Get(utils.RandomStringWithLength(20))
+		}
+	})
+}

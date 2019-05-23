@@ -28,8 +28,8 @@ type SettingsConst struct {
 
 // SettingsType type of project settings
 type SettingsType struct {
+	sync.RWMutex
 	*SettingsConst
-	sync.Mutex
 }
 
 // Settings is the settings for this project
@@ -46,56 +46,56 @@ func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
 
 // Get get setting by key
 func (s *SettingsType) Get(key string) interface{} {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.Get(key)
 }
 
 // GetString get setting by key
 func (s *SettingsType) GetString(key string) string {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetString(key)
 }
 
 // GetStringSlice get setting by key
 func (s *SettingsType) GetStringSlice(key string) []string {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetStringSlice(key)
 }
 
 // GetBool get setting by key
 func (s *SettingsType) GetBool(key string) bool {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetBool(key)
 }
 
 // GetInt get setting by key
 func (s *SettingsType) GetInt(key string) int {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetInt(key)
 }
 
 // GetInt64 get setting by key
 func (s *SettingsType) GetInt64(key string) int64 {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetInt64(key)
 }
 
 // GetDuration get setting by key
 func (s *SettingsType) GetDuration(key string) time.Duration {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetDuration(key)
 }
@@ -187,8 +187,8 @@ func (s *SettingsType) SetupFromConfigServerWithRawYaml(cfg *ConfigServerCfg, ke
 
 // LoadSettings load settings file
 func (s *SettingsType) LoadSettings() {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	err := viper.ReadInConfig() // Find and read the config file
 	if err != nil {             // Handle errors reading the config file
