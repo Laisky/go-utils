@@ -30,6 +30,7 @@ type Journal struct {
 	l               *sync.RWMutex // journal rwlock
 	isLegacyRunning uint32        // true if is loading legacy now
 	rotateCheckCnt  int
+	rotateLock      uint32
 	latestRotateT   time.Time
 }
 
@@ -38,6 +39,7 @@ func NewJournal(cfg *JournalConfig) *Journal {
 		JournalConfig:   cfg,
 		isLegacyRunning: 0,
 		l:               &sync.RWMutex{},
+		rotateLock:      0,
 	}
 
 	if j.RotateCheckIntervalNum <= 0 {
@@ -138,12 +140,23 @@ func (j *Journal) WriteId(id int64) error {
 	return j.idsEnc.Write(id)
 }
 
+func (j *Journal) setRotateWaiting() bool {
+	return atomic.CompareAndSwapUint32(&j.rotateLock, 0, 1)
+}
+
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
 	utils.Logger.Debug("try to rotate")
+
+	if !j.setRotateWaiting() { // another rotate is waiting
+		return
+	}
+	defer atomic.StoreUint32(&j.rotateLock, 0)
+
 	j.l.Lock()
 	defer j.l.Unlock()
+
 	utils.Logger.Debug("starting to rotate")
 
 	if err = j.Flush(); err != nil {
@@ -177,7 +190,7 @@ func (j *Journal) Rotate() (err error) {
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
-	j.idsFp = j.fsStat.NewIdsFp
+	j.idsFp = j.fsStat.NewIDsFp
 	j.idsEnc = NewIdsEncoder(j.idsFp)
 
 	return nil

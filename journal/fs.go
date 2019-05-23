@@ -50,7 +50,7 @@ func PrepareDir(path string) error {
 
 // BufFileStat current journal files' stats
 type BufFileStat struct {
-	NewDataFp, NewIdsFp            *os.File
+	NewDataFp, NewIDsFp            *os.File
 	OldDataFnames, OldIdsDataFname []string
 }
 
@@ -104,7 +104,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsS
 			zap.Strings("fs", fsStat.OldIdsDataFname))
 	} else {
 		_, latestDataFName = filepath.Split(oldFsStat.NewDataFp.Name())
-		_, latestIDsFName = filepath.Split(oldFsStat.NewIdsFp.Name())
+		_, latestIDsFName = filepath.Split(oldFsStat.NewIDsFp.Name())
 	}
 
 	// generate new buf data file name
@@ -133,7 +133,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsS
 	if fsStat.NewDataFp, err = OpenBufFile(path.Join(dirPath, latestDataFName)); err != nil {
 		return nil, err
 	}
-	if fsStat.NewIdsFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName)); err != nil {
+	if fsStat.NewIDsFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName)); err != nil {
 		return nil, err
 	}
 
