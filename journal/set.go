@@ -23,3 +23,12 @@ func (s *Int64Set) CheckAndRemove(i int64) (ok bool) {
 	s.d.Delete(i)
 	return ok
 }
+
+func (s *Int64Set) GetLen() int {
+	l := 0
+	s.d.Range(func(k, v interface{}) bool {
+		l++
+		return true
+	})
+	return l
+}

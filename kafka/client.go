@@ -6,10 +6,10 @@ import (
 	"time"
 
 	utils "github.com/Laisky/go-utils"
-	"github.com/Shopify/sarama"
-	"github.com/bsm/sarama-cluster"
-	"github.com/pkg/errors"
 	"github.com/Laisky/zap"
+	"github.com/Shopify/sarama"
+	cluster "github.com/bsm/sarama-cluster"
+	"github.com/pkg/errors"
 )
 
 type KafkaMsg struct {
@@ -79,7 +79,7 @@ func (k *KafkaCli) ListenNotifications() {
 	for ntf := range k.cli.Notifications() {
 		// bugs: sarama-cluster's bug, will race for notification
 		time.Sleep(10 * time.Millisecond)
-		utils.Logger.Info(fmt.Sprintf("KafkaCli Notify: %v", ntf))
+		utils.Logger.Debug(fmt.Sprintf("KafkaCli Notify: %v", ntf))
 	}
 }
 
@@ -102,7 +102,7 @@ func (k *KafkaCli) Messages() <-chan *KafkaMsg {
 }
 
 func (k *KafkaCli) runCommitor() {
-	utils.Logger.Info("start runCommitor")
+	utils.Logger.Debug("start runCommitor")
 	defer utils.Logger.Panic("kafka commitor exit")
 
 	cmsg := &sarama.ConsumerMessage{}

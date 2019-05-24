@@ -28,7 +28,7 @@ type CommitFilter struct {
 }
 
 func NewCommitFilter(cfg *CommitFilterCfg) *CommitFilter {
-	utils.Logger.Info("NewCommitFilter",
+	utils.Logger.Debug("NewCommitFilter",
 		zap.Duration("interval_duration", cfg.IntervalDuration),
 		zap.Int("interval_num", cfg.IntervalNum))
 	f := &CommitFilter{
@@ -113,7 +113,7 @@ func (f *CommitFilter) filterSlots2AfterChan(now time.Time, kmsgSlots map[int32]
 		if !record.isCommited &&
 			(record.num > f.IntervalNum || now.Sub(record.lastCommitT) > f.IntervalDuration) {
 			if utils.Settings.GetBool("dry") {
-				utils.Logger.Info("put msg into afterChan",
+				utils.Logger.Debug("put msg into afterChan",
 					zap.Time("last_commit_time", record.lastCommitT),
 					zap.Int("num", record.num))
 				continue
