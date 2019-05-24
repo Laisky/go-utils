@@ -221,6 +221,12 @@ func (j *Journal) UnLockLegacy() bool {
 	return atomic.CompareAndSwapUint32(&j.isLegacyRunning, 1, 0)
 }
 
+func (j *Journal) GetMetric() map[string]interface{} {
+	return map[string]interface{}{
+		"idsSetLen": j.legacy.ctx.ids.GetLen(),
+	}
+}
+
 // LoadLegacyBuf load legacy data one by one
 // ⚠️Warn: should call `j.LockLegacy()` before invoke this method
 func (j *Journal) LoadLegacyBuf(data *Data) (err error) {

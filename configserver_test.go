@@ -62,7 +62,7 @@ func RunMockConfigSrv(port int, fakadata []byte) {
 
 	// run mock config-server
 	addr := fmt.Sprintf("localhost:%v", port)
-	utils.Logger.Info("run config-server", zap.String("addr", addr))
+	utils.Logger.Debug("run config-server", zap.String("addr", addr))
 	if err := httpsrv.Run(iris.Addr(addr)); err != nil {
 		utils.Logger.Panic("try to run server got error", zap.Error(err))
 	}
