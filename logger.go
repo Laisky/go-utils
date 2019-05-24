@@ -65,7 +65,7 @@ func SetupLogger(level string) {
 	}
 
 	defer Logger.Sync()
-	Logger.Info("Logger construction succeeded", zap.String("level", level))
+	Logger.Debug("Logger construction succeeded", zap.String("level", level))
 }
 
 // DebugSample emit debug log with propability sample/SampleRateDenominator.

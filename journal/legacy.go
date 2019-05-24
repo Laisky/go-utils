@@ -24,7 +24,7 @@ type legacyCtx struct {
 }
 
 func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
-	utils.Logger.Info("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
+	utils.Logger.Debug("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
 		dataFNames: dataFNames,
 		idsFNames:  idsFNames,
@@ -33,11 +33,6 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 			isReadyReload: len(dataFNames) != 0,
 			ids:           NewInt64Set(),
 		},
-	}
-
-	if err := l.LoadAllids(l.ctx.ids); err != nil {
-		// use origin ids if got error in LoadAllids
-		utils.Logger.Panic("try to load all ids got error", zap.Error(err))
 	}
 
 	return l
@@ -52,6 +47,7 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	utils.Logger.Debug("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
+	l.ctx.ids = NewInt64Set()
 	l.ctx.isReadyReload = len(dataFNames) != 0
 }
 
@@ -72,6 +68,9 @@ func (l *LegacyLoader) Load(data *Data) (err error) {
 		}
 
 		utils.Logger.Debug("reload ids & data file idx")
+		if err = l.LoadAllids(l.ctx.ids); err != nil {
+			utils.Logger.Error("try to load all ids got error", zap.Error(err))
+		}
 		l.ctx.dataFileMaxIdx = len(l.dataFNames) - 1
 		l.ctx.dataFileIdx = 0
 		l.ctx.isNeedReload = false
@@ -143,7 +142,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 	}
 
-	utils.Logger.Info("load max id done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
+	utils.Logger.Debug("load max id done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return id, nil
 }
 
@@ -175,7 +174,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 		}
 	}
 
-	utils.Logger.Info("load all ids done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
+	utils.Logger.Debug("load all ids done", zap.Float64("sec", utils.Clock.GetUTCNow().Sub(startTs).Seconds()))
 	return allErr
 }
 
@@ -198,6 +197,6 @@ func (l *LegacyLoader) Clean() error {
 	l.ctx.dataFp = nil // `Load` need this
 	l.ctx.isNeedReload = true
 	l.ctx.isReadyReload = false
-	utils.Logger.Info("clean all legacy")
+	utils.Logger.Info("clean all legacy files")
 	return nil
 }

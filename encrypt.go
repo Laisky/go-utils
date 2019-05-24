@@ -35,24 +35,48 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
-var SigningMethod = jwt.SigningMethodHS512
+var (
+	JWTSigningMethod = jwt.SigningMethodHS512
+	JWTExpiresLayout = time.RFC3339
+)
 
 // JWT struct to generate and validate jwt tokens
 type JWT struct {
-	secret       []byte
-	layout       string
-	ExpiresAtKey string
-	UserIDKey    string
+	*JwtCfg
 }
 
-// Setup initialize JWT
+type JwtCfg struct {
+	Secret                  []byte
+	JWTSigningMethod        *jwt.SigningMethodHMAC
+	UserIDKey, ExpiresAtKey string
+}
+
+func NewJWTCfg(secret []byte) *JwtCfg {
+	return &JwtCfg{
+		Secret:           secret,
+		JWTSigningMethod: jwt.SigningMethodHS512,
+		UserIDKey:        "uid",
+		ExpiresAtKey:     "expires_at",
+	}
+}
+
+func NewJWT(cfg *JwtCfg) (*JWT, error) {
+	if len(cfg.Secret) == 0 {
+		return nil, errors.New("jwtCfg.Secret should not be empty")
+	}
+
+	return &JWT{
+		JwtCfg: cfg,
+	}, nil
+}
+
+// deprecated: Setup initialize JWT
 func (j *JWT) Setup(secret string) {
 	// const key names
 	j.ExpiresAtKey = "expires_at"
 	j.UserIDKey = "uid"
 
-	j.secret = []byte(secret)
-	j.layout = time.RFC3339
+	j.Secret = []byte(secret)
 }
 
 // Deprecated: Generate generate JWT token.
@@ -62,10 +86,10 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 	for k, v := range payload {
 		jwtPayload[k] = v
 	}
-	jwtPayload["expires_at"] = ParseTs2String(expiresAt, j.layout)
+	jwtPayload["expires_at"] = ParseTs2String(expiresAt, JWTExpiresLayout)
 
-	token := jwt.NewWithClaims(SigningMethod, jwtPayload)
-	tokenStr, err := token.SignedString(j.secret)
+	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
+	tokenStr, err := token.SignedString(j.Secret)
 	if err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
 	}
@@ -79,11 +103,11 @@ func (j *JWT) GenerateToken(userId string, expiresAt time.Time, payload map[stri
 	for k, v := range payload {
 		jwtPayload[k] = v
 	}
-	jwtPayload[j.ExpiresAtKey] = expiresAt.Format(j.layout)
+	jwtPayload[j.ExpiresAtKey] = expiresAt.Format(JWTExpiresLayout)
 	jwtPayload[j.UserIDKey] = userId
 
-	token := jwt.NewWithClaims(SigningMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(j.secret); err != nil {
+	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
+	if tokenStr, err = token.SignedString(j.Secret); err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
 	}
 	return tokenStr, nil
@@ -95,7 +119,7 @@ func (j *JWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool,
 	if !ok {
 		return false, fmt.Errorf("`%v` is not string", j.ExpiresAtKey)
 	}
-	tokenT, err := time.Parse(j.layout, expiresAt)
+	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
 	if err != nil {
 		return false, errors.Wrap(err, "try to parse token expires_at error")
 	}
@@ -109,10 +133,10 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 	payload = map[string]interface{}{}
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != SigningMethod {
+		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != JWTSigningMethod {
 			return nil, errors.New("JWT method not allowd")
 		}
-		return j.secret, nil
+		return j.Secret, nil
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "token validate error")
