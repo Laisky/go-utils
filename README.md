@@ -230,3 +230,65 @@ some useful math functions
        utils.Round(123.555555, .5, 3) // got 123.556
    }
    ```
+
+
+### Utils
+
+some useful funtions
+
+1. `GetFuncName(f interface{}) string`
+
+    ```go
+    func foo() {}
+
+    func ExampleGetFuncName() {
+        utils.GetFuncName(foo) // "github.com/Laisky/go-utils_test.foo"
+    }
+    ```
+
+2. `FallBack(orig func() interface{}, fallback interface{}) (ret interface{})`
+
+   return `fallback` if origin func got error.
+
+    ```go
+    func ExampleFallBack() {
+        targetFunc := func() interface{} {
+            panic("someting wrong")
+        }
+
+        utils.FallBack(targetFunc, 10) // got 10
+    }
+    ```
+
+3. `RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]string) error`
+
+    ```go
+    func ExampleRegexNamedSubMatch() {
+        reg := regexp.MustCompile(`(?P<key>\d+.*)`)
+        str := "12345abcde"
+        groups := map[string]string{}
+        if err := utils.RegexNamedSubMatch(reg, str, groups); err != nil {
+            utils.Logger.Error("try to group match got error", zap.Error(err))
+        }
+
+        fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
+    }
+    ```
+
+
+4. `FlattenMap(data map[string]interface{}, delimiter string)`
+
+    ```go
+    func ExampleFlattenMap() {
+        data := map[string]interface{}{
+            "a": "1",
+            "b": map[string]interface{}{
+                "c": 2,
+                "d": map[string]interface{}{
+                    "e": 3,
+                },
+            },
+        }
+        utils.FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
+    }
+    ```

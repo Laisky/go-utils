@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 )
 
 func ExampleFallBack() {
@@ -14,6 +15,18 @@ func ExampleFallBack() {
 	}
 
 	utils.FallBack(targetFunc, 10) // got 10
+}
+
+func foo() {}
+
+func ExampleGetFuncName() {
+	utils.GetFuncName(foo) // "github.com/Laisky/go-utils_test.foo"
+}
+
+func TestGetFuncName(t *testing.T) {
+	if name := utils.GetFuncName(foo); name != "github.com/Laisky/go-utils_test.foo" {
+		t.Fatalf("want `foo`, got `%v`", name)
+	}
 }
 
 func TestFallBack(t *testing.T) {
@@ -25,6 +38,17 @@ func TestFallBack(t *testing.T) {
 	if expect != got.(int) {
 		t.Errorf("expect %v got %v", expect, got)
 	}
+}
+
+func ExampleRegexNamedSubMatch() {
+	reg := regexp.MustCompile(`(?P<key>\d+.*)`)
+	str := "12345abcde"
+	groups := map[string]string{}
+	if err := utils.RegexNamedSubMatch(reg, str, groups); err != nil {
+		utils.Logger.Error("try to group match got error", zap.Error(err))
+	}
+
+	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
 }
 
 func TestRegexNamedSubMatch(t *testing.T) {
@@ -49,6 +73,19 @@ func TestRegexNamedSubMatch(t *testing.T) {
 	} else if v2 != "74" {
 		t.Fatalf("`line` shoule be `74`, but got: %v", v2)
 	}
+}
+
+func ExampleFlattenMap() {
+	data := map[string]interface{}{
+		"a": "1",
+		"b": map[string]interface{}{
+			"c": 2,
+			"d": map[string]interface{}{
+				"e": 3,
+			},
+		},
+	}
+	utils.FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
 }
 
 func TestFlattenMap(t *testing.T) {
