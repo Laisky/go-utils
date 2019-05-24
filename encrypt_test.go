@@ -11,8 +11,10 @@ import (
 )
 
 func TestGenerateToken(t *testing.T) {
-	j := utils.JWT{}
-	j.Setup("4738947328rh3ru23f32hf238f238fh28f")
+	j, err := utils.NewJWT(utils.NewJWTCfg([]byte("4738947328rh3ru23f32hf238f238fh28f")))
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
 	expect := "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHBpcmVzX2F0IjoiMjI4Ni0xMS0yMFQxNzo0Njo0MFoiLCJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.w5ZD0d0QTnsYjzynhFp5C5aEZ4FlsYJ3Kos7kP8UpGfGfcUWcjXULMbswnR7Zt37-E-B7ffv2uSssTVKzdFlIQ"
 	ts, err := time.Parse(time.RFC3339, "2286-11-20T17:46:40Z")
 	if err != nil {
@@ -33,8 +35,10 @@ func TestGenerateToken(t *testing.T) {
 }
 
 func TestValidToken(t *testing.T) {
-	j := utils.JWT{}
-	j.Setup("4738947328rh3ru23f32hf238f238fh28f")
+	j, err := utils.NewJWT(utils.NewJWTCfg([]byte("4738947328rh3ru23f32hf238f238fh28f")))
+	if err != nil {
+		t.Errorf("got error %+v", err)
+	}
 	expect := map[string]interface{}{
 		"k1":         "v1",
 		"k2":         "v2",
@@ -107,18 +111,44 @@ func TestPassword(t *testing.T) {
 	}
 }
 
+func ExampleJWT() {
+	jwt, err := utils.NewJWT(utils.NewJWTCfg([]byte("your secret key")))
+	if err != nil {
+		utils.Logger.Panic("try to init jwt got error", zap.Error(err))
+	}
+
+	// generate jwt token for user
+	// GenerateToken(userId string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error)
+	token, err := jwt.GenerateToken("laisky", time.Now().Add(7*24*time.Hour), map[string]interface{}{"display_name": "Laisky"})
+	if err != nil {
+		utils.Logger.Error("try to generate jwt token got error", zap.Error(err))
+		return
+	}
+	fmt.Println("got token:", token)
+
+	// validate token
+	payload, err := jwt.Validate(token)
+	if err != nil {
+		utils.Logger.Error("token invalidate")
+		return
+	}
+	fmt.Printf("got payload from token: %+v\n", payload)
+}
+
 func ExampleGeneratePasswordHash() {
 	// generate hashed password
-	password := []byte("1234567890")
-	hp, err := utils.GeneratePasswordHash(password)
+	rawPassword := []byte("1234567890")
+	hashedPassword, err := utils.GeneratePasswordHash(rawPassword)
 	if err != nil {
-		utils.Logger.Error("got error: %+v", zap.Error(err))
+		utils.Logger.Error("try to generate password got error", zap.Error(err))
+		return
 	}
-	fmt.Printf("got new hashed pasword: %v\n", string(hp))
+	fmt.Printf("got new hashed pasword: %v\n", string(hashedPassword))
 
 	// validate passowrd
-	if !utils.ValidatePasswordHash(hp, password) {
+	if !utils.ValidatePasswordHash(hashedPassword, rawPassword) {
 		utils.Logger.Error("password invalidate", zap.Error(err))
+		return
 	}
 }
 
