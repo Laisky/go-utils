@@ -9,10 +9,16 @@ import (
 )
 
 var (
+	// Logger logging tool.
+	// Info(msg string, fields ...Field)
+	// Debug(msg string, fields ...Field)
+	// Warn(msg string, fields ...Field)
+	// Error(msg string, fields ...Field)
+	// Panic(msg string, fields ...Field)
 	Logger *LoggerType
 )
 
-// sample rate = sample / SampleRateDenominator
+// SampleRateDenominator sample rate = sample / SampleRateDenominator
 const SampleRateDenominator = 1000
 
 // LoggerType extend from zap.Logger
@@ -87,6 +93,7 @@ func (l *LoggerType) InfoSample(sample int, msg string, fields ...zap.Field) {
 	l.Info(msg, fields...)
 }
 
+// WarnSample emit warn log with propability sample/SampleRateDenominator
 func (l *LoggerType) WarnSample(sample int, msg string, fields ...zap.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return

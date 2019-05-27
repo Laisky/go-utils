@@ -22,21 +22,15 @@ import (
 	"github.com/spf13/viper"
 )
 
-type SettingsConst struct {
-	YAML_TYPE string
-}
-
 // SettingsType type of project settings
 type SettingsType struct {
 	sync.RWMutex
-	*SettingsConst
+	YamlExt string
 }
 
 // Settings is the settings for this project
 var Settings = &SettingsType{
-	SettingsConst: &SettingsConst{
-		YAML_TYPE: "yaml",
-	},
+	YamlExt: "yaml",
 }
 
 // BindPFlags bind pflags to settings
@@ -108,7 +102,7 @@ func (s *SettingsType) Set(key string, val interface{}) {
 	viper.Set(key, val)
 }
 
-const CFG_FNAME = "settings.yml"
+const cfgFname = "settings.yml"
 
 // Setup load config file settings.yml
 func (s *SettingsType) Setup(configPath string) error {
@@ -118,14 +112,14 @@ func (s *SettingsType) Setup(configPath string) error {
 // SetupFromDir load settings from dir, default fname is `settings.yml`
 func (s *SettingsType) SetupFromDir(dirPath string) error {
 	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
-	fpath := filepath.Join(dirPath, CFG_FNAME)
+	fpath := filepath.Join(dirPath, cfgFname)
 	return s.SetupFromFile(fpath)
 }
 
 // SetupFromFile load settings from file
 func (s *SettingsType) SetupFromFile(filePath string) error {
 	Logger.Info("Setup settings", zap.String("filePath", filePath))
-	viper.SetConfigType(Settings.YAML_TYPE)
+	viper.SetConfigType(Settings.YamlExt)
 	fp, err := os.Open(filePath)
 	if err != nil {
 		return errors.Wrap(err, "try to open config file got error")
@@ -177,7 +171,7 @@ func (s *SettingsType) SetupFromConfigServerWithRawYaml(cfg *ConfigServerCfg, ke
 		return fmt.Errorf("can not load raw cfg with key `%v`", key)
 	}
 	Logger.Debug("load raw cfg", zap.String("raw", raw))
-	viper.SetConfigType(Settings.YAML_TYPE)
+	viper.SetConfigType(Settings.YamlExt)
 	if err = viper.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
 	}

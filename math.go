@@ -18,7 +18,7 @@ func Round(val float64, roundOn float64, places int) (newVal float64) {
 	return
 }
 
-// deprecated: FloorDivision 205//100 = 2
+// FloorDivision (deprecated) 205//100 = 2
 func FloorDivision(val int, divisor int) int {
 	return int(val / divisor)
 }

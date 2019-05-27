@@ -9,11 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ConfigSource config item in config-server
 type ConfigSource struct {
 	Name   string                 `json:"name"`
 	Source map[string]interface{} `json:"source"`
 }
 
+// Config whole configuation return by config-server
 type Config struct {
 	Name     string          `json:"name"`
 	Profiles []string        `json:"profiles"`
@@ -22,6 +24,7 @@ type Config struct {
 	Sources  []*ConfigSource `json:"propertySources"`
 }
 
+// ConfigServerCfg configs to connect to config-server
 type ConfigServerCfg struct {
 	URL     string // config-server api
 	Profile string // env
@@ -43,6 +46,7 @@ func NewConfigSrv(cfg *ConfigServerCfg) *ConfigSrv {
 	}
 }
 
+// Fetch load data from config-server
 func (c *ConfigSrv) Fetch() error {
 	url := strings.Join([]string{c.URL, c.App, c.Profile, c.Label}, "/")
 	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.Cfg)
@@ -53,6 +57,7 @@ func (c *ConfigSrv) Fetch() error {
 	return nil
 }
 
+// Get get `interface{}` from the localcache of config-server
 func (c *ConfigSrv) Get(name string) (interface{}, bool) {
 	var (
 		item string
@@ -69,14 +74,16 @@ func (c *ConfigSrv) Get(name string) (interface{}, bool) {
 	return nil, false
 }
 
+// GetString get `string` from the localcache of config-server
 func (c *ConfigSrv) GetString(name string) (string, bool) {
 	if val, ok := c.Get(name); ok {
 		return val.(string), true
-	} else {
-		return "", false
 	}
+
+	return "", false
 }
 
+// GetInt get `int` from the localcache of config-server
 func (c *ConfigSrv) GetInt(name string) (int, bool) {
 	if val, ok := c.Get(name); ok {
 		if i, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 64); err != nil {
@@ -90,6 +97,7 @@ func (c *ConfigSrv) GetInt(name string) (int, bool) {
 	}
 }
 
+// GetBool get `bool` from the localcache of config-server
 func (c *ConfigSrv) GetBool(name string) (bool, bool) {
 	if val, ok := c.Get(name); ok {
 		if ret, err := strconv.ParseBool(fmt.Sprintf("%v", val)); err != nil {
@@ -103,6 +111,7 @@ func (c *ConfigSrv) GetBool(name string) (bool, bool) {
 	}
 }
 
+// Map interate `set(k, v)`
 func (c *ConfigSrv) Map(set func(string, interface{})) {
 	var (
 		key string

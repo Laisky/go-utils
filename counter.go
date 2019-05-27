@@ -10,12 +10,14 @@ import (
 	"github.com/Laisky/zap"
 )
 
+// Counter int64 counter
 type Counter struct {
 	*sync.Mutex
 	n, lastN int64
 	lastT    time.Time
 }
 
+// NewCounter create Counter from 0
 func NewCounter() *Counter {
 	return &Counter{
 		Mutex: &sync.Mutex{},
@@ -25,16 +27,19 @@ func NewCounter() *Counter {
 	}
 }
 
+// NewCounterFromN create Counter from custom number
 func NewCounterFromN(n int64) *Counter {
 	return &Counter{
 		n: n,
 	}
 }
 
+// Get return current counter's number
 func (c *Counter) Get() int64 {
 	return atomic.LoadInt64(&c.n)
 }
 
+// GetSpeed return increasing speed from lastest invoke `GetSpeed`
 func (c *Counter) GetSpeed() (r float64) {
 	c.Lock()
 	defer c.Unlock()
@@ -45,14 +50,17 @@ func (c *Counter) GetSpeed() (r float64) {
 	return r
 }
 
+// Set overwrite the counter's number
 func (c *Counter) Set(n int64) {
 	atomic.StoreInt64(&c.n, n)
 }
 
+// Count increse and return the result
 func (c *Counter) Count() int64 {
 	return atomic.AddInt64(&c.n, 1)
 }
 
+// CountN increse N and return the result
 func (c *Counter) CountN(n int64) int64 {
 	return atomic.AddInt64(&c.n, n)
 }
@@ -61,11 +69,13 @@ func (c *Counter) CountN(n int64) int64 {
 
 var rotateCounterChanLength = 1000
 
+// RotateCounter rotate counter
 type RotateCounter struct {
 	n, rotatePoint int64
 	c              chan int64
 }
 
+// NewRotateCounter create new RotateCounter with threshold from 0
 func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
@@ -78,6 +88,7 @@ func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
 	return c, nil
 }
 
+// NewRotateCounterFromN create new RotateCounter with threshold from N
 func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
@@ -107,10 +118,12 @@ func (c *RotateCounter) runGenerator() {
 	}
 }
 
+// Count increse and return the result
 func (c *RotateCounter) Count() int64 {
 	return <-c.c
 }
 
+// CountN increse N and return the result
 func (c *RotateCounter) CountN(n int64) (r int64) {
 	for i := int64(0); i < n-1; i++ {
 		<-c.c
@@ -130,6 +143,7 @@ type MonotonicRotateCounter struct {
 	c                 chan int64
 }
 
+// NewMonotonicRotateCounter return new MonotonicRotateCounter with threshold from 0
 func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
@@ -145,6 +159,7 @@ func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, erro
 	return c, nil
 }
 
+// NewMonotonicCounterFromN return new MonotonicRotateCounter with threshold from n
 func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
@@ -179,6 +194,7 @@ func (c *MonotonicRotateCounter) runGenerator() {
 	}
 }
 
+// Count increse and return the result
 func (c *MonotonicRotateCounter) Count() (n int64) {
 	if atomic.LoadInt64(&c.innerN)%c.innerStep == c.innerStep-1 {
 		n = <-c.c
@@ -189,6 +205,7 @@ func (c *MonotonicRotateCounter) Count() (n int64) {
 	return atomic.AddInt64(&c.innerN, 1)
 }
 
+// CountN increse N and return the result
 func (c *MonotonicRotateCounter) CountN(n int64) (r int64) {
 	for i := 0; i < FloorDivision(int(n), int(c.innerStep)); i++ {
 		<-c.c
@@ -201,34 +218,41 @@ func (c *MonotonicRotateCounter) CountN(n int64) (r int64) {
 
 // ---------------------------------------------------
 
+// Uint32Counter uint32 counter
 type Uint32Counter struct {
 	n uint32
 }
 
+// NewUint32Counter return new Uint32Counter from 0
 func NewUint32Counter() *Uint32Counter {
 	return &Uint32Counter{
 		n: 0,
 	}
 }
 
+// NewUint32CounterFromN return new Uint32Counter from n
 func NewUint32CounterFromN(n uint32) *Uint32Counter {
 	return &Uint32Counter{
 		n: n,
 	}
 }
 
+// Get return current counter's number
 func (c *Uint32Counter) Get() uint32 {
 	return atomic.LoadUint32(&c.n)
 }
 
+// Set overwrite the counter's number
 func (c *Uint32Counter) Set(n uint32) {
 	atomic.StoreUint32(&c.n, n)
 }
 
+// Count increse and return the result
 func (c *Uint32Counter) Count() uint32 {
 	return atomic.AddUint32(&c.n, 1)
 }
 
+// CountN increse N and return the result
 func (c *Uint32Counter) CountN(n uint32) uint32 {
 	return atomic.AddUint32(&c.n, n)
 }
