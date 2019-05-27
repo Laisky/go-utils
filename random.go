@@ -11,6 +11,7 @@ func init() {
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+// RandomStringWithLength generate random string with specific length
 func RandomStringWithLength(n int) string {
 	b := make([]rune, n)
 	for i := range b {

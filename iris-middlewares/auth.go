@@ -13,10 +13,14 @@ import (
 )
 
 const (
-	AuthTokenName    = "token"
-	AuthUserIdCtxKey = "auth_uid"
+	// AuthTokenName jwt token cookie name
+	AuthTokenName = "token"
+	// AuthUserIDCtxKey key of user ID in jwt token
+	AuthUserIDCtxKey = "auth_uid"
 )
 
+// Auth JWT cookie based token generator and validator.
+// Cookie looks like <AuthTokenName>:`{<AuthUserIDCtxKey>: "xxxx"}`
 type Auth struct {
 	utils.JWT
 	*authCfgType
@@ -27,10 +31,12 @@ type authCfgType struct {
 	CookieExpires time.Duration
 }
 
+// AuthCfg configuration
 var AuthCfg = &authCfgType{
 	CookieExpires: 7 * 24 * time.Hour,
 }
 
+// NewAuth create new Auth with authCfgType
 func NewAuth(cfg *authCfgType) *Auth {
 	a := &Auth{
 		authCfgType: cfg,
@@ -39,6 +45,7 @@ func NewAuth(cfg *authCfgType) *Auth {
 	return a
 }
 
+// ValidateAndGetUID get token from request.ctx then validate and return userid
 func (a *Auth) ValidateAndGetUID(ctx context.Context) (uid bson.ObjectId, err error) {
 	token := GetIrisCtxFromStdCtx(ctx).GetCookie(AuthTokenName)
 	payload, err := a.Validate(token)
@@ -50,6 +57,7 @@ func (a *Auth) ValidateAndGetUID(ctx context.Context) (uid bson.ObjectId, err er
 	return uid, nil
 }
 
+// UserItf User model interface
 type UserItf interface {
 	GetPayload() map[string]interface{}
 	GetID() string

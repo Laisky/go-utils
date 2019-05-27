@@ -4,10 +4,12 @@ import (
 	"time"
 )
 
+// ThrottleCfg Throttle's configuration
 type ThrottleCfg struct {
 	Max, NPerSec int
 }
 
+// Throttle current limitor
 type Throttle struct {
 	*ThrottleCfg
 	token      struct{}
@@ -15,6 +17,7 @@ type Throttle struct {
 	isStop     bool
 }
 
+// NewThrottle create new Throttle
 func NewThrottle(cfg *ThrottleCfg) *Throttle {
 	t := &Throttle{
 		ThrottleCfg: cfg,
@@ -25,6 +28,7 @@ func NewThrottle(cfg *ThrottleCfg) *Throttle {
 	return t
 }
 
+// Allow check whether is allowed
 func (t *Throttle) Allow() bool {
 	select {
 	case <-t.tokensChan:
@@ -34,6 +38,7 @@ func (t *Throttle) Allow() bool {
 	}
 }
 
+// Run start throttle
 func (t *Throttle) Run() {
 	t.isStop = false
 	go func() {
@@ -53,6 +58,7 @@ func (t *Throttle) Run() {
 	}()
 }
 
+// Stop stop throttle
 func (t *Throttle) Stop() {
 	t.isStop = true
 }

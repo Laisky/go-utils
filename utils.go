@@ -27,6 +27,7 @@ func FallBack(orig func() interface{}, fallback interface{}) (ret interface{}) {
 	return
 }
 
+// RegexNamedSubMatch extract key:val map from string by group match
 func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]string) error {
 	match := r.FindStringSubmatch(str)
 	names := r.SubexpNames()
@@ -42,6 +43,7 @@ func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]str
 	return nil
 }
 
+// FlattenMap make embedded map into flatten map
 func FlattenMap(data map[string]interface{}, delimiter string) {
 	for k, vi := range data {
 		if v2i, ok := vi.(map[string]interface{}); ok {

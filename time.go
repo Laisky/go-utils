@@ -29,6 +29,7 @@ const defaultClockInterval = 100 * time.Millisecond
 // Clock high performance time utils
 var Clock = NewClock(defaultClockInterval)
 
+// SetupClock setup internal Clock with step
 func SetupClock(refreshInterval time.Duration) {
 	if Clock == nil {
 		Clock = NewClock(refreshInterval)
@@ -37,6 +38,7 @@ func SetupClock(refreshInterval time.Duration) {
 	}
 }
 
+// ClockType high performance clock with lazy refreshing
 type ClockType struct {
 	*sync.RWMutex
 	interval           time.Duration
@@ -45,6 +47,7 @@ type ClockType struct {
 	isStop             bool
 }
 
+// NewClock create new Clock
 func NewClock(refreshInterval time.Duration) *ClockType {
 	c := &ClockType{
 		RWMutex:  &sync.RWMutex{},
@@ -55,6 +58,7 @@ func NewClock(refreshInterval time.Duration) *ClockType {
 	return c
 }
 
+// Stop stop Clock update
 func (c *ClockType) Stop() {
 	c.Lock()
 	defer c.Unlock()
@@ -62,6 +66,7 @@ func (c *ClockType) Stop() {
 	c.isStop = true
 }
 
+// Run start Clock
 func (c *ClockType) Run() {
 	c.Lock()
 	defer c.Unlock()
@@ -70,6 +75,7 @@ func (c *ClockType) Run() {
 	go c.runRefresh()
 }
 
+// SetupInterval setup update interval
 func (c *ClockType) SetupInterval(interval time.Duration) {
 	c.Lock()
 	defer c.Unlock()
@@ -93,12 +99,14 @@ func (c *ClockType) runRefresh() {
 	}
 }
 
+// GetUTCNow return Clock current time.Time
 func (c *ClockType) GetUTCNow() time.Time {
 	c.RLock()
 	defer c.RUnlock()
 	return c.now
 }
 
+// GetTimeInRFC3339Nano return Clock current time in string
 func (c *ClockType) GetTimeInRFC3339Nano() string {
 	c.RLock()
 	defer c.RUnlock()

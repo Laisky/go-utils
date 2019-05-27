@@ -36,7 +36,9 @@ import (
 )
 
 var (
+	// JWTSigningMethod default method to signing
 	JWTSigningMethod = jwt.SigningMethodHS512
+	// JWTExpiresLayout default expires date stores in payload
 	JWTExpiresLayout = time.RFC3339
 )
 
@@ -45,12 +47,14 @@ type JWT struct {
 	*JwtCfg
 }
 
+// JwtCfg configuration of JWT
 type JwtCfg struct {
 	Secret                  []byte
 	JWTSigningMethod        *jwt.SigningMethodHMAC
 	UserIDKey, ExpiresAtKey string
 }
 
+// NewJWTCfg create new JwtCfg  with secret
 func NewJWTCfg(secret []byte) *JwtCfg {
 	return &JwtCfg{
 		Secret:           secret,
@@ -60,6 +64,7 @@ func NewJWTCfg(secret []byte) *JwtCfg {
 	}
 }
 
+// NewJWT create new JWT with JwtCfg
 func NewJWT(cfg *JwtCfg) (*JWT, error) {
 	if len(cfg.Secret) == 0 {
 		return nil, errors.New("jwtCfg.Secret should not be empty")
@@ -70,7 +75,7 @@ func NewJWT(cfg *JwtCfg) (*JWT, error) {
 	}, nil
 }
 
-// deprecated: Setup initialize JWT
+// Setup (deprecated) initialize JWT
 func (j *JWT) Setup(secret string) {
 	// const key names
 	j.ExpiresAtKey = "expires_at"
@@ -79,7 +84,7 @@ func (j *JWT) Setup(secret string) {
 	j.Secret = []byte(secret)
 }
 
-// Deprecated: Generate generate JWT token.
+// Generate (Deprecated) generate JWT token.
 // old interface
 func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string, error) {
 	jwtPayload := jwt.MapClaims{}
@@ -98,13 +103,13 @@ func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string,
 
 // GenerateToken generate JWT token.
 // do not use `expires_at` & `uid` as keys.
-func (j *JWT) GenerateToken(userId string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
+func (j *JWT) GenerateToken(userID string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
 	jwtPayload := jwt.MapClaims{}
 	for k, v := range payload {
 		jwtPayload[k] = v
 	}
 	jwtPayload[j.ExpiresAtKey] = expiresAt.Format(JWTExpiresLayout)
-	jwtPayload[j.UserIDKey] = userId
+	jwtPayload[j.UserIDKey] = userID
 
 	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
 	if tokenStr, err = token.SignedString(j.Secret); err != nil {

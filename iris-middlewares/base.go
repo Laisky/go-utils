@@ -7,7 +7,10 @@ import (
 	"github.com/kataras/iris"
 )
 
-const IrisCtxKey = "irisctx"
+type key string
+
+// IrisCtxKey key of iris ctx that saved in request.context
+const IrisCtxKey key = "irisctx"
 
 // FromStd convert std handler to iris.Handler, with iris context embedded
 func FromStd(handler http.HandlerFunc) iris.Handler {
@@ -17,6 +20,7 @@ func FromStd(handler http.HandlerFunc) iris.Handler {
 	}
 }
 
+// GetIrisCtxFromStdCtx get iris context from standard request.context by IrisCtxKey
 func GetIrisCtxFromStdCtx(ctx context.Context) iris.Context {
 	return ctx.Value(IrisCtxKey).(iris.Context)
 }

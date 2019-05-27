@@ -10,7 +10,7 @@ import (
 	"github.com/kataras/iris"
 )
 
-func ExampleAuthType() {
+func ExampleAuth() {
 	cfg := irisMiddlewares.AuthCfg
 	cfg.Secret = "f32lifj2f32fj"
 	auth := irisMiddlewares.NewAuth(cfg)
