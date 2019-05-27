@@ -8,15 +8,18 @@ import (
 	"github.com/Laisky/go-utils/structures"
 )
 
+// Item item that need to sort
 type Item struct {
 	p int
 	k interface{}
 }
 
+// GetKey get key of item
 func (it *Item) GetKey() interface{} {
 	return it.k
 }
 
+// GetPriority get priority of item
 func (it *Item) GetPriority() int {
 	return it.p
 }

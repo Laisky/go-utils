@@ -13,7 +13,7 @@ type msgRecord struct {
 	lastCommitT time.Time
 	lastOffset  int64
 	lastMsg     *KafkaMsg
-	isCommited  bool
+	isCommitted bool
 }
 
 type CommitFilterCfg struct {
@@ -71,7 +71,7 @@ func (f *CommitFilter) runFilterBeforeChan() {
 				lastMsg:     kmsg,
 				lastOffset:  kmsg.Offset,
 				num:         1,
-				isCommited:  false,
+				isCommitted: false,
 			}
 			continue
 		}
@@ -84,15 +84,15 @@ func (f *CommitFilter) runFilterBeforeChan() {
 		} else {
 			// current kmsg's offset is bigger than exists
 			// discard old record
-			if !record.isCommited {
-				// only recycle uncommited msg at here,
-				// let commitor to recycle commited msg
+			if !record.isCommitted {
+				// only recycle uncommitted msg at here,
+				// let commitor to recycle committed msg
 				f.KMsgPool.Put(kmsgSlots[kmsg.Partition].lastMsg)
 			}
 
 			record.lastMsg = kmsg
 			record.lastOffset = kmsg.Offset
-			record.isCommited = false
+			record.isCommitted = false
 		}
 
 		record.num++
@@ -110,7 +110,7 @@ func (f *CommitFilter) runFilterBeforeChan() {
 func (f *CommitFilter) filterSlots2AfterChan(now time.Time, kmsgSlots map[int32]*msgRecord) {
 	utils.Logger.Debug("run filterSlots2AfterChan", zap.Time("now", now))
 	for _, record := range kmsgSlots {
-		if !record.isCommited &&
+		if !record.isCommitted &&
 			(record.num > f.IntervalNum || now.Sub(record.lastCommitT) > f.IntervalDuration) {
 			if utils.Settings.GetBool("dry") {
 				utils.Logger.Debug("put msg into afterChan",
@@ -123,7 +123,7 @@ func (f *CommitFilter) filterSlots2AfterChan(now time.Time, kmsgSlots map[int32]
 			case f.afterChan <- record.lastMsg:
 				record.lastCommitT = now
 				record.num = 0
-				record.isCommited = true
+				record.isCommitted = true
 			default:
 			}
 		}

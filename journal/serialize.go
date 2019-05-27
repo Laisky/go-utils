@@ -20,46 +20,54 @@ var (
 	bitOrder = binary.BigEndian
 )
 
+// DataEncoder data serializer
 type DataEncoder struct {
 	writeChan chan interface{}
 	writer    *msgp.Writer
 }
 
+// DataDecoder data deserializer
 type DataDecoder struct {
 	readChan chan interface{}
 	reader   *msgp.Reader
 }
 
+// IdsEncoder ids serializer
 type IdsEncoder struct {
-	baseId int64
+	baseID int64
 	writer *bufio.Writer
 }
 
+// IdsDecoder ids deserializer
 type IdsDecoder struct {
-	baseId int64
+	baseID int64
 	reader *bufio.Reader
 }
 
+// NewDataEncoder create new DataEncoder
 func NewDataEncoder(fp *os.File) *DataEncoder {
 	return &DataEncoder{
 		writer: msgp.NewWriterSize(fp, BufSize),
 	}
 }
 
+// NewIdsEncoder create new IdsEncoder
 func NewIdsEncoder(fp *os.File) *IdsEncoder {
 	return &IdsEncoder{
-		baseId: -1,
+		baseID: -1,
 		writer: bufio.NewWriter(fp),
 	}
 }
 
+// NewIdsDecoder create new IdsDecoder
 func NewIdsDecoder(fp *os.File) *IdsDecoder {
 	return &IdsDecoder{
-		baseId: -1,
+		baseID: -1,
 		reader: bufio.NewReaderSize(fp, BufSize),
 	}
 }
 
+// NewDataDecoder create new DataDecoder
 func NewDataDecoder(fp *os.File) *DataDecoder {
 	reader := msgp.NewReaderSize(fp, BufSize)
 	return &DataDecoder{
@@ -67,6 +75,7 @@ func NewDataDecoder(fp *os.File) *DataDecoder {
 	}
 }
 
+// Write serialize data info fp
 func (enc *DataEncoder) Write(msg *Data) (err error) {
 	if err = msg.EncodeMsg(enc.writer); err != nil {
 		return errors.Wrap(err, "try to Encode journal data got error")
@@ -78,10 +87,12 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 	return nil
 }
 
+// Flush flush buf to fp
 func (enc *DataEncoder) Flush() error {
 	return enc.writer.Flush()
 }
 
+// Read deserialize data from fp
 func (dec *DataDecoder) Read(data *Data) (err error) {
 	if err = data.DecodeMsg(dec.reader); err == msgp.WrapError(io.EOF) {
 		return io.EOF
@@ -92,18 +103,19 @@ func (dec *DataDecoder) Read(data *Data) (err error) {
 	return nil
 }
 
+// Write serialize id info fp
 func (enc *IdsEncoder) Write(id int64) (err error) {
 	if id < 0 {
 		return fmt.Errorf("id should bigger than 0, but got `%v`", id)
 	}
 
 	var offset int64
-	if enc.baseId == -1 {
-		enc.baseId = id
-		offset = id // set first id as baseid
-		utils.Logger.Debug("set write base id", zap.Int64("baseid", id))
+	if enc.baseID == -1 {
+		enc.baseID = id
+		offset = id // set first id as baseID
+		utils.Logger.Debug("set write base id", zap.Int64("baseID", id))
 	} else {
-		offset = id - enc.baseId // offset
+		offset = id - enc.baseID // offset
 	}
 
 	if err = binary.Write(enc.writer, bitOrder, offset); err != nil {
@@ -118,10 +130,12 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	return nil
 }
 
+// Flush flush buf to fp
 func (enc *IdsEncoder) Flush() error {
 	return enc.writer.Flush()
 }
 
+// LoadMaxId load the maxium id in all files
 func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
 	var id int64
 	for {
@@ -131,11 +145,11 @@ func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
 			return 0, errors.Wrap(err, "try to read ids got error")
 		}
 
-		if dec.baseId == -1 {
-			utils.Logger.Debug("set baseid", zap.Int64("id", id))
-			dec.baseId = id
+		if dec.baseID == -1 {
+			utils.Logger.Debug("set baseID", zap.Int64("id", id))
+			dec.baseID = id
 		} else {
-			id += dec.baseId
+			id += dec.baseID
 		}
 
 		// utils.Logger.Debug("load new id", zap.Int64("id", id))
@@ -147,6 +161,7 @@ func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
 	return maxId, nil
 }
 
+// ReadAllToBmap read all ids in all files into bmap
 func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 	bitmap := roaring.New()
 	var id int64
@@ -157,13 +172,13 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 			return nil, errors.Wrap(err, "try to read ids got error")
 		}
 
-		if dec.baseId == -1 {
-			// first id in head of file is baseid
-			utils.Logger.Debug("set baseid", zap.Int64("id", id))
-			dec.baseId = id
+		if dec.baseID == -1 {
+			// first id in head of file is baseID
+			utils.Logger.Debug("set baseID", zap.Int64("id", id))
+			dec.baseID = id
 		} else {
 			// another ids in rest file are offsets
-			id += dec.baseId
+			id += dec.baseID
 		}
 
 		// utils.Logger.Debug("load new id", zap.Int64("id", id))
@@ -173,6 +188,7 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 	return bitmap, nil
 }
 
+// ReadAllToBmap read all ids in all files into set
 func (dec *IdsDecoder) ReadAllToInt64Set(ids *Int64Set) (err error) {
 	var id int64
 	for {
@@ -182,13 +198,13 @@ func (dec *IdsDecoder) ReadAllToInt64Set(ids *Int64Set) (err error) {
 			return errors.Wrap(err, "try to read ids got error")
 		}
 
-		if dec.baseId == -1 {
-			// first id in head of file is baseid
-			utils.Logger.Debug("set baseid", zap.Int64("id", id))
-			dec.baseId = id
+		if dec.baseID == -1 {
+			// first id in head of file is baseID
+			utils.Logger.Debug("set baseID", zap.Int64("id", id))
+			dec.baseID = id
 		} else {
 			// another ids in rest file are offsets
-			id += dec.baseId
+			id += dec.baseID
 		}
 
 		// utils.Logger.Debug("load new id", zap.Int64("id", id))
