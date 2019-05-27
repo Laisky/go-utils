@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// JournalConfig configuration of Journal
 type JournalConfig struct {
 	BufDirPath             string
 	BufSizeBytes           int64
@@ -20,6 +21,7 @@ type JournalConfig struct {
 	RotateDuration         time.Duration
 }
 
+// Journal redo log consist by msgs and committed ids
 type Journal struct {
 	*JournalConfig
 	dataFp, idsFp   *os.File // current writting journal file
@@ -34,6 +36,7 @@ type Journal struct {
 	latestRotateT   time.Time
 }
 
+// NewJournal create new Journal
 func NewJournal(cfg *JournalConfig) *Journal {
 	j := &Journal{
 		JournalConfig:   cfg,

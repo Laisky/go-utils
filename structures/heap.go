@@ -8,25 +8,30 @@ import (
 	"github.com/Laisky/zap"
 )
 
+// Item item that need to sort
 type Item struct {
 	Priority int
 	Key      interface{}
 }
 
+// GetKey get key of item
 func (it *Item) GetKey() interface{} {
 	return it.Key
 }
 
+// GetPriority get priority of item
 func (it *Item) GetPriority() int {
 	return it.Priority
 }
 
+// PriorityQ priority queue based heap
 type PriorityQ struct {
 	isHighPriority bool
 	topN           int
 	q              []HeapItemItf
 }
 
+// NewPriorityQ create new heapq
 func NewPriorityQ(isHighPriority bool, topN int) *PriorityQ {
 	utils.Logger.Debug("create PriorityQ", zap.Int("topN", topN))
 	return &PriorityQ{
@@ -36,11 +41,13 @@ func NewPriorityQ(isHighPriority bool, topN int) *PriorityQ {
 	}
 }
 
+// Len get length of items in heapq
 func (p *PriorityQ) Len() int {
 	utils.Logger.Debug("len", zap.Int("len", len(p.q)))
 	return len(p.q)
 }
 
+// Less compare two items in heapq
 func (p *PriorityQ) Less(i, j int) bool {
 	utils.Logger.Debug("less two items", zap.Int("i", i), zap.Int("j", j))
 	if p.isHighPriority {
@@ -50,17 +57,20 @@ func (p *PriorityQ) Less(i, j int) bool {
 	return p.q[i].GetPriority() > p.q[j].GetPriority()
 }
 
+// Swap swat two items in heapq
 func (p *PriorityQ) Swap(i, j int) {
 	utils.Logger.Debug("swap two items", zap.Int("i", i), zap.Int("j", j))
 	p.q[i], p.q[j] = p.q[j], p.q[i]
 }
 
+// Push push new item into heapq
 func (p *PriorityQ) Push(x interface{}) {
 	utils.Logger.Debug("push item", zap.Int("priority", x.(HeapItemItf).GetPriority()))
 	item := x.(HeapItemItf)
 	p.q = append(p.q, item)
 }
 
+// Pop pop highest priority item
 func (p *PriorityQ) Pop() (popped interface{}) {
 	utils.Logger.Debug("pop item")
 	n := p.Len()

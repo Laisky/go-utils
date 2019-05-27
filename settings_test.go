@@ -82,7 +82,7 @@ key3: val3`)
 	}
 }
 
-// dependends on remote config-s  erver
+// depended on remote config-s  erver
 func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
 	fakedata := map[string]interface{}{
 		"name":     "app",
