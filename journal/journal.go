@@ -169,6 +169,7 @@ func (j *Journal) Rotate() (err error) {
 	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
+		// first run
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")

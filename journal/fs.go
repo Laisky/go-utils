@@ -56,7 +56,10 @@ type BufFileStat struct {
 
 // PrepareNewBufFile create new data & id files, and update BufFileStat
 func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsStat *BufFileStat, err error) {
-	utils.Logger.Debug("prepare new buf file", zap.String("dirpath", dirPath))
+	utils.Logger.Debug("prepare new buf file",
+		zap.String("dirpath", dirPath),
+		zap.Bool("is_scan", isScan),
+	)
 	fsStat = &BufFileStat{
 		OldDataFnames:   []string{},
 		OldIdsDataFname: []string{},

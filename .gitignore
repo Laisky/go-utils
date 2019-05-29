@@ -112,3 +112,6 @@ vendor
 memory.pprof
 cpu.pprof
 coverage.txt
+
+# fuzz
+journal-fuzz.zip
