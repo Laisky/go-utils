@@ -65,3 +65,34 @@ func BenchmarkMap(b *testing.B) {
 	// 	}
 	// })
 }
+
+func BenchmarkSet(b *testing.B) {
+	s1 := &sync.Map{}
+	s2 := &sync.Map{}
+	load := struct{}{}
+	var k int
+	b.Run("simple", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			s1.Store(rand.Int(), load)
+		}
+	})
+	b.Run("simple remove", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			k = rand.Int()
+			s1.Load(k)
+			s1.Delete(k)
+		}
+	})
+	b.Run("bool", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			s2.Store(rand.Int(), true)
+		}
+	})
+	b.Run("bool remove", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			k = rand.Int()
+			s2.Load(k)
+			s2.Store(k, false)
+		}
+	})
+}
