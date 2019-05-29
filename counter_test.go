@@ -26,7 +26,8 @@ func ExampleRotateCounter() {
 }
 
 func TestCounter(t *testing.T) {
-	counter := utils.NewCounter()
+	counter := utils.NewCounterFromN(0)
+	counter = utils.NewCounter()
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < 10; i++ {
@@ -76,7 +77,12 @@ func TestUint32Counter(t *testing.T) {
 }
 
 func TestRotateCounter(t *testing.T) {
-	counter, err := utils.NewRotateCounter(10)
+	counter, err := utils.NewRotateCounterFromN(100, 10)
+	if err == nil {
+		t.Fatal("should got error")
+	}
+
+	counter, err = utils.NewRotateCounter(10)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
