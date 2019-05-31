@@ -170,7 +170,6 @@ func (j *Journal) Rotate() (err error) {
 
 	j.Lock()
 	defer j.Unlock()
-
 	utils.Logger.Debug("starting to rotate")
 
 	if err = j.Flush(); err != nil {
@@ -180,7 +179,7 @@ func (j *Journal) Rotate() (err error) {
 	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
-		// first run
+		// need to refresh legacy, so need scan=true
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
@@ -252,6 +251,9 @@ func (j *Journal) GetMetric() map[string]interface{} {
 // LoadLegacyBuf load legacy data one by one
 // ⚠️Warn: should call `j.LockLegacy()` before invoke this method
 func (j *Journal) LoadLegacyBuf(data *Data) (err error) {
+	if !j.IsLegacyRunning() {
+		utils.Logger.Panic("should call `j.LockLegacy()` first")
+	}
 	j.RLock()
 	defer j.RUnlock()
 
