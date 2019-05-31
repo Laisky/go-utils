@@ -20,26 +20,34 @@ var (
 	bitOrder = binary.BigEndian
 )
 
+type BaseSerilizer struct {
+	sync.Mutex
+}
+
 // DataEncoder data serializer
 type DataEncoder struct {
+	BaseSerilizer
 	writeChan chan interface{}
 	writer    *msgp.Writer
 }
 
 // DataDecoder data deserializer
 type DataDecoder struct {
+	BaseSerilizer
 	readChan chan interface{}
 	reader   *msgp.Reader
 }
 
 // IdsEncoder ids serializer
 type IdsEncoder struct {
+	BaseSerilizer
 	baseID int64
 	writer *bufio.Writer
 }
 
 // IdsDecoder ids deserializer
 type IdsDecoder struct {
+	BaseSerilizer
 	baseID int64
 	reader *bufio.Reader
 }
@@ -77,6 +85,8 @@ func NewDataDecoder(fp *os.File) *DataDecoder {
 
 // Write serialize data info fp
 func (enc *DataEncoder) Write(msg *Data) (err error) {
+	enc.Lock()
+	defer enc.Unlock()
 	if err = msg.EncodeMsg(enc.writer); err != nil {
 		return errors.Wrap(err, "try to Encode journal data got error")
 	}
@@ -89,6 +99,8 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 
 // Flush flush buf to fp
 func (enc *DataEncoder) Flush() error {
+	enc.Lock()
+	defer enc.Unlock()
 	return enc.writer.Flush()
 }
 
@@ -118,6 +130,8 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 		offset = id - enc.baseID // offset
 	}
 
+	enc.Lock()
+	defer enc.Unlock()
 	if err = binary.Write(enc.writer, bitOrder, offset); err != nil {
 		return errors.Wrap(err, "try to write ids got error")
 	}
@@ -132,6 +146,8 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 
 // Flush flush buf to fp
 func (enc *IdsEncoder) Flush() error {
+	enc.Lock()
+	defer enc.Unlock()
 	return enc.writer.Flush()
 }
 

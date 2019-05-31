@@ -38,6 +38,18 @@ func ExampleInt64Set() {
 
 func BenchmarkInt64Set(b *testing.B) {
 	s := journal.NewInt64Set()
+	b.Run("parallel", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				s.Add(rand.Int63())
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				s.CheckAndRemove(rand.Int63())
+			}
+		})
+	})
 	b.Run("add", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s.Add(rand.Int63())
