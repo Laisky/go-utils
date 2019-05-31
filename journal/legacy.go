@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// LegacyLoader loader to handle legacy data and ids
 type LegacyLoader struct {
 	dataFNames, idsFNames []string
 	ctx                   *legacyCtx
@@ -23,6 +24,7 @@ type legacyCtx struct {
 	decoder                     *DataDecoder
 }
 
+// NewLegacyLoader create new LegacyLoader
 func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 	utils.Logger.Debug("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
@@ -38,6 +40,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 	return l
 }
 
+// AddID add id in ids
 func (l *LegacyLoader) AddID(id int64) {
 	l.ctx.ids.Add(id)
 }
@@ -49,6 +52,7 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	l.idsFNames = idsFNames
 	l.ctx.ids = NewInt64Set()
 	l.ctx.isReadyReload = len(dataFNames) != 0
+	go utils.ForceGC()
 }
 
 // removeFile delete file, should run sync to avoid dirty files

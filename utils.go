@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 
 	"github.com/pkg/errors"
 )
@@ -54,4 +55,10 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 			delete(data, k)
 		}
 	}
+}
+
+// ForceGC force to run blocking manual gc.
+func ForceGC() {
+	runtime.GC()
+	debug.FreeOSMemory()
 }
