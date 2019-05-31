@@ -57,8 +57,29 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 	}
 }
 
+// ForceGCSignalC send signal to trigger manual gc
+var forceGCSignalC chan struct{}
+
 // ForceGC force to run blocking manual gc.
 func ForceGC() {
 	runtime.GC()
 	debug.FreeOSMemory()
+}
+
+// TriggerGC trigger GC unblocking
+func TriggerGC() {
+	select {
+	case forceGCSignalC <- struct{}{}:
+	default:
+	}
+}
+
+func init() {
+	go func() {
+		Logger.Info("running gc trigger")
+		defer Logger.Panic("manual gc trigger quit")
+		for _ = range forceGCSignalC {
+			ForceGC()
+		}
+	}()
 }

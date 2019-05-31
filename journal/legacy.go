@@ -36,7 +36,6 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 			ids:           NewInt64Set(),
 		},
 	}
-
 	return l
 }
 
@@ -52,7 +51,6 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	l.idsFNames = idsFNames
 	l.ctx.ids = NewInt64Set()
 	l.ctx.isReadyReload = len(dataFNames) != 0
-	go utils.ForceGC()
 }
 
 // removeFile delete file, should run sync to avoid dirty files

@@ -16,15 +16,26 @@ const (
 	// FlushInterval interval to flush serializer
 	FlushInterval = 1 * time.Second
 	// RotateCheckInterval interval to rotate journal files
-	RotateCheckInterval = 1 * time.Second
+	RotateCheckInterval   = 1 * time.Second
+	defaultRotateDuration = 1 * time.Minute
+	defaultBufSizeBytes   = 1024 * 1024 * 200
 )
 
 // JournalConfig configuration of Journal
 type JournalConfig struct {
-	BufDirPath             string
-	BufSizeBytes           int64
-	RotateCheckIntervalNum int
-	RotateDuration         time.Duration
+	BufDirPath     string
+	BufSizeBytes   int64
+	RotateDuration time.Duration
+	IsAggresiveGC  bool
+}
+
+// NewConfig get JournalConfig with default configuration
+func NewConfig() *JournalConfig {
+	return &JournalConfig{
+		RotateDuration: defaultRotateDuration,
+		BufSizeBytes:   defaultBufSizeBytes,
+		IsAggresiveGC:  true,
+	}
 }
 
 // Journal redo log consist by msgs and committed ids
@@ -49,9 +60,6 @@ func NewJournal(cfg *JournalConfig) *Journal {
 		legacyLock:    utils.NewMutex(),
 	}
 
-	if j.RotateCheckIntervalNum <= 0 {
-		j.RotateCheckIntervalNum = 1000
-	}
 	if j.RotateDuration < 1*time.Minute {
 		j.RotateDuration = 1 * time.Minute
 	}
@@ -210,6 +218,9 @@ func (j *Journal) RefreshLegacyLoader() {
 		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+		if j.IsAggresiveGC {
+			utils.TriggerGC()
+		}
 	}
 }
 

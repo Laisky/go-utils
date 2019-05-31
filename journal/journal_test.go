@@ -51,9 +51,8 @@ func TestJournal(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cfg := &journal.JournalConfig{
-		BufDirPath:             dir,
-		BufSizeBytes:           100,
-		RotateCheckIntervalNum: 50,
+		BufDirPath:   dir,
+		BufSizeBytes: 100,
 	}
 	j := journal.NewJournal(cfg)
 	data := &journal.Data{}
