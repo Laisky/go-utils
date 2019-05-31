@@ -5,12 +5,18 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
+)
+
+const (
+	// FlushInterval interval to flush serializer
+	FlushInterval = 1 * time.Second
+	// RotateCheckInterval interval to rotate journal files
+	RotateCheckInterval = 10 * time.Second
 )
 
 // JournalConfig configuration of Journal
@@ -23,38 +29,39 @@ type JournalConfig struct {
 
 // Journal redo log consist by msgs and committed ids
 type Journal struct {
+	sync.RWMutex // journal rwlock
 	*JournalConfig
-	dataFp, idsFp   *os.File // current writting journal file
-	fsStat          *BufFileStat
-	legacy          *LegacyLoader
-	dataEnc         *DataEncoder
-	idsEnc          *IdsEncoder
-	l               *sync.RWMutex // journal rwlock
-	isLegacyRunning uint32        // true if is loading legacy now
-	rotateCheckCnt  int
-	rotateLock      uint32
-	latestRotateT   time.Time
+	rotateLock, legacyLock *utils.Mutex
+	dataFp, idsFp          *os.File // current writting journal file
+	fsStat                 *BufFileStat
+	legacy                 *LegacyLoader
+	dataEnc                *DataEncoder
+	idsEnc                 *IdsEncoder
+	rotateCheckCnt         int
+	latestRotateT          time.Time
 }
 
 // NewJournal create new Journal
 func NewJournal(cfg *JournalConfig) *Journal {
 	j := &Journal{
-		JournalConfig:   cfg,
-		isLegacyRunning: 0,
-		l:               &sync.RWMutex{},
-		rotateLock:      0,
+		JournalConfig: cfg,
+		rotateLock:    utils.NewMutex(),
+		legacyLock:    utils.NewMutex(),
 	}
 
 	if j.RotateCheckIntervalNum <= 0 {
 		j.RotateCheckIntervalNum = 1000
 	}
-
 	if j.RotateDuration < 1*time.Minute {
 		j.RotateDuration = 1 * time.Minute
 	}
+	if j.BufSizeBytes < 50*1024*1024 {
+		utils.Logger.Warn("buf size bytes too small", zap.Int64("bytes", j.BufSizeBytes))
+	}
 
 	j.initBufDir()
-	go j.runFlush()
+	go j.runFlushTrigger()
+	go j.runRotateTrigger()
 	return j
 }
 
@@ -70,6 +77,7 @@ func (j *Journal) initBufDir() {
 	}
 }
 
+// Flush flush journal files
 func (j *Journal) Flush() (err error) {
 	if j.idsEnc != nil {
 		// utils.Logger.Debug("flush ids")
@@ -88,63 +96,58 @@ func (j *Journal) Flush() (err error) {
 	return err
 }
 
-func (j *Journal) runFlush() {
-	var (
-		step = 1 * time.Second
-		err  error
-	)
+func (j *Journal) runFlushTrigger() {
+	defer utils.Logger.Panic("journal flush exit")
+	var err error
 	for {
-		time.Sleep(step)
-		j.l.Lock()
+		time.Sleep(FlushInterval)
+		j.Lock()
 		if err = j.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
 		}
-		j.l.Unlock()
+		j.Unlock()
 	}
 }
 
-func (j *Journal) checkRotate() error {
-	if fi, err := j.dataFp.Stat(); err != nil {
-		return errors.Wrap(err, "try to load file stat got error")
-	} else {
-		if fi.Size() > j.BufSizeBytes || utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
-			go j.Rotate()
-			j.rotateCheckCnt = 0
+func (j *Journal) runRotateTrigger() {
+	defer utils.Logger.Panic("journal rotate exit")
+	for {
+		time.Sleep(RotateCheckInterval)
+		if j.dataFp == nil {
+			continue
+		}
+		if fi, err := j.dataFp.Stat(); err != nil {
+			continue
+		} else {
+			if fi.Size() > j.BufSizeBytes || utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
+				go j.Rotate()
+				j.rotateCheckCnt = 0
+			}
 		}
 	}
-
-	return nil
 }
 
+// LoadMaxId load max id from journal ids files
 func (j *Journal) LoadMaxId() (int64, error) {
 	return j.legacy.LoadMaxId()
 }
 
+// WriteData write data to journal
 func (j *Journal) WriteData(data *Data) (err error) {
-	j.l.RLock() // will blocked by flush & rotate
-	defer j.l.RUnlock()
-
-	j.rotateCheckCnt++
-	if j.rotateCheckCnt > j.RotateCheckIntervalNum {
-		if err = j.checkRotate(); err != nil {
-			return errors.Wrap(err, "check rotate got error")
-		}
-	}
+	j.RLock() // will blocked by flush & rotate
+	defer j.RUnlock()
 
 	// utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
 	return j.dataEnc.Write(data)
 }
 
+// WriteId write id to journal
 func (j *Journal) WriteId(id int64) error {
-	j.l.RLock() // will blocked by flush & rotate
-	defer j.l.RUnlock()
+	j.RLock() // will blocked by flush & rotate
+	defer j.RUnlock()
 
 	j.legacy.AddID(id)
 	return j.idsEnc.Write(id)
-}
-
-func (j *Journal) setRotateWaiting() bool {
-	return atomic.CompareAndSwapUint32(&j.rotateLock, 0, 1)
 }
 
 // Rotate create new data and ids buf file
@@ -152,13 +155,13 @@ func (j *Journal) setRotateWaiting() bool {
 func (j *Journal) Rotate() (err error) {
 	utils.Logger.Debug("try to rotate")
 
-	if !j.setRotateWaiting() { // another rotate is waiting
+	if !j.rotateLock.TryLock() { // another rotate is running
 		return
 	}
-	defer atomic.StoreUint32(&j.rotateLock, 0)
+	defer j.rotateLock.ForceRealse()
 
-	j.l.Lock()
-	defer j.l.Unlock()
+	j.Lock()
+	defer j.Unlock()
 
 	utils.Logger.Debug("starting to rotate")
 
@@ -210,21 +213,25 @@ func (j *Journal) RefreshLegacyLoader() {
 	}
 }
 
+// LockLegacy lock legacy to prevent rotate
 func (j *Journal) LockLegacy() bool {
 	utils.Logger.Debug("try to lock legacy")
-	return atomic.CompareAndSwapUint32(&j.isLegacyRunning, 0, 1)
+	return j.legacyLock.TryLock()
 }
 
+// IsLegacyRunning check whether running legacy loading
 func (j *Journal) IsLegacyRunning() bool {
 	utils.Logger.Debug("IsLegacyRunning")
-	return atomic.LoadUint32(&j.isLegacyRunning) == 1
+	return j.legacyLock.IsLocked()
 }
 
+// UnLockLegacy release legacy lock
 func (j *Journal) UnLockLegacy() bool {
 	utils.Logger.Debug("try to unlock legacy")
-	return atomic.CompareAndSwapUint32(&j.isLegacyRunning, 1, 0)
+	return j.legacyLock.TryRelease()
 }
 
+// GetMetric monitor inteface
 func (j *Journal) GetMetric() map[string]interface{} {
 	return map[string]interface{}{
 		"idsSetLen": j.legacy.ctx.ids.GetLen(),
@@ -234,8 +241,8 @@ func (j *Journal) GetMetric() map[string]interface{} {
 // LoadLegacyBuf load legacy data one by one
 // ⚠️Warn: should call `j.LockLegacy()` before invoke this method
 func (j *Journal) LoadLegacyBuf(data *Data) (err error) {
-	j.l.RLock()
-	defer j.l.RUnlock()
+	j.RLock()
+	defer j.RUnlock()
 
 	if err = j.legacy.Load(data); err == io.EOF {
 		utils.Logger.Debug("LoadLegacyBuf done")
