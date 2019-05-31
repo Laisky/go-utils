@@ -16,15 +16,26 @@ const (
 	// FlushInterval interval to flush serializer
 	FlushInterval = 1 * time.Second
 	// RotateCheckInterval interval to rotate journal files
-	RotateCheckInterval = 1 * time.Second
+	RotateCheckInterval   = 1 * time.Second
+	defaultRotateDuration = 1 * time.Minute
+	defaultBufSizeBytes   = 1024 * 1024 * 200
 )
 
 // JournalConfig configuration of Journal
 type JournalConfig struct {
-	BufDirPath             string
-	BufSizeBytes           int64
-	RotateCheckIntervalNum int
-	RotateDuration         time.Duration
+	BufDirPath     string
+	BufSizeBytes   int64
+	RotateDuration time.Duration
+	IsAggresiveGC  bool
+}
+
+// NewConfig get JournalConfig with default configuration
+func NewConfig() *JournalConfig {
+	return &JournalConfig{
+		RotateDuration: defaultRotateDuration,
+		BufSizeBytes:   defaultBufSizeBytes,
+		IsAggresiveGC:  true,
+	}
 }
 
 // Journal redo log consist by msgs and committed ids
@@ -49,9 +60,6 @@ func NewJournal(cfg *JournalConfig) *Journal {
 		legacyLock:    utils.NewMutex(),
 	}
 
-	if j.RotateCheckIntervalNum <= 0 {
-		j.RotateCheckIntervalNum = 1000
-	}
 	if j.RotateDuration < 1*time.Minute {
 		j.RotateDuration = 1 * time.Minute
 	}
@@ -162,7 +170,6 @@ func (j *Journal) Rotate() (err error) {
 
 	j.Lock()
 	defer j.Unlock()
-
 	utils.Logger.Debug("starting to rotate")
 
 	if err = j.Flush(); err != nil {
@@ -172,7 +179,7 @@ func (j *Journal) Rotate() (err error) {
 	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
-		// first run
+		// need to refresh legacy, so need scan=true
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
@@ -210,6 +217,9 @@ func (j *Journal) RefreshLegacyLoader() {
 		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+		if j.IsAggresiveGC {
+			utils.TriggerGC()
+		}
 	}
 }
 
@@ -241,6 +251,9 @@ func (j *Journal) GetMetric() map[string]interface{} {
 // LoadLegacyBuf load legacy data one by one
 // ⚠️Warn: should call `j.LockLegacy()` before invoke this method
 func (j *Journal) LoadLegacyBuf(data *Data) (err error) {
+	if !j.IsLegacyRunning() {
+		utils.Logger.Panic("should call `j.LockLegacy()` first")
+	}
 	j.RLock()
 	defer j.RUnlock()
 
