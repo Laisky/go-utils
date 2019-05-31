@@ -40,7 +40,7 @@ func SetupClock(refreshInterval time.Duration) {
 
 // ClockType high performance clock with lazy refreshing
 type ClockType struct {
-	*sync.RWMutex
+	sync.RWMutex
 	interval           time.Duration
 	now                time.Time
 	timeStrRFC3339Nano string
@@ -50,7 +50,6 @@ type ClockType struct {
 // NewClock create new Clock
 func NewClock(refreshInterval time.Duration) *ClockType {
 	c := &ClockType{
-		RWMutex:  &sync.RWMutex{},
 		interval: refreshInterval,
 	}
 	go c.runRefresh()

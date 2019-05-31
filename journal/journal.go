@@ -16,7 +16,7 @@ const (
 	// FlushInterval interval to flush serializer
 	FlushInterval = 1 * time.Second
 	// RotateCheckInterval interval to rotate journal files
-	RotateCheckInterval = 10 * time.Second
+	RotateCheckInterval = 1 * time.Second
 )
 
 // JournalConfig configuration of Journal

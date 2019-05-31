@@ -12,7 +12,7 @@ import (
 
 // Counter int64 counter
 type Counter struct {
-	*sync.Mutex
+	sync.Mutex
 	n, lastN int64
 	lastT    time.Time
 }
@@ -20,7 +20,6 @@ type Counter struct {
 // NewCounter create Counter from 0
 func NewCounter() *Counter {
 	return &Counter{
-		Mutex: &sync.Mutex{},
 		n:     0,
 		lastT: UTCNow(),
 		lastN: 0,
