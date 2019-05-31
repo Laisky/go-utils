@@ -68,6 +68,7 @@ func (l *LegacyLoader) Load(data *Data) (err error) {
 		if !l.ctx.isReadyReload { // legacy files not prepared
 			return io.EOF
 		}
+		l.ctx.isReadyReload = false
 
 		utils.Logger.Debug("reload ids & data file idx")
 		if err = l.LoadAllids(l.ctx.ids); err != nil {
@@ -90,13 +91,15 @@ READ_NEW_FILE:
 
 READ_NEW_LINE:
 	if err = l.ctx.decoder.Read(data); err != nil {
-		if err == io.EOF {
-			if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
-				utils.Logger.Debug("all data files finished")
-				return io.EOF
-			}
-		} else { // current file is broken
+		if err != io.EOF {
+			// current file is broken
 			utils.Logger.Error("try to load data file got error", zap.Error(err))
+		}
+
+		if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
+			utils.Logger.Debug("all data files finished")
+			l.ctx.isNeedReload = true
+			return io.EOF
 		}
 
 		// read new file
@@ -197,8 +200,6 @@ func (l *LegacyLoader) Clean() error {
 
 	l.ctx.dataFp.Close()
 	l.ctx.dataFp = nil // `Load` need this
-	l.ctx.isNeedReload = true
-	l.ctx.isReadyReload = false
 	utils.Logger.Info("clean all legacy files")
 	return nil
 }

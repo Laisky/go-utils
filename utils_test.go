@@ -112,3 +112,8 @@ func TestFlattenMap(t *testing.T) {
 		t.Fatalf("g should not exists")
 	}
 }
+
+func TestTriggerGC(t *testing.T) {
+	utils.TriggerGC()
+	utils.ForceGC()
+}
