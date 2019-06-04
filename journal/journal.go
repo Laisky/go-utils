@@ -48,7 +48,6 @@ type Journal struct {
 	legacy                 *LegacyLoader
 	dataEnc                *DataEncoder
 	idsEnc                 *IdsEncoder
-	rotateCheckCnt         int
 	latestRotateT          time.Time
 }
 
@@ -70,6 +69,7 @@ func NewJournal(cfg *JournalConfig) *Journal {
 	j.initBufDir()
 	go j.runFlushTrigger()
 	go j.runRotateTrigger()
+	j.Rotate() // manually first run
 	return j
 }
 
@@ -121,17 +121,7 @@ func (j *Journal) runRotateTrigger() {
 	defer utils.Logger.Panic("journal rotate exit")
 	for {
 		time.Sleep(RotateCheckInterval)
-		if j.dataFp == nil {
-			continue
-		}
-		if fi, err := j.dataFp.Stat(); err != nil {
-			continue
-		} else {
-			if fi.Size() > j.BufSizeBytes || utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
-				go j.Rotate()
-				j.rotateCheckCnt = 0
-			}
-		}
+		go j.Rotate()
 	}
 }
 
@@ -158,15 +148,33 @@ func (j *Journal) WriteId(id int64) error {
 	return j.idsEnc.Write(id)
 }
 
+func (j *Journal) isReadyToRotate() bool {
+	if j.dataFp == nil {
+		return true
+	}
+
+	if fi, err := j.dataFp.Stat(); err != nil {
+		utils.Logger.Error("try to get file stat got error", zap.Error(err))
+		return false
+	} else if fi.Size() < j.BufSizeBytes &&
+		utils.Clock.GetUTCNow().Sub(j.latestRotateT) < j.RotateDuration {
+		return false
+	}
+
+	return true
+}
+
 // Rotate create new data and ids buf file
 // this function is not threadsafe
 func (j *Journal) Rotate() (err error) {
 	utils.Logger.Debug("try to rotate")
-
 	if !j.rotateLock.TryLock() { // another rotate is running
 		return
 	}
 	defer j.rotateLock.ForceRealse()
+	if !j.isReadyToRotate() {
+		return
+	}
 
 	j.Lock()
 	defer j.Unlock()
@@ -244,7 +252,7 @@ func (j *Journal) UnLockLegacy() bool {
 // GetMetric monitor inteface
 func (j *Journal) GetMetric() map[string]interface{} {
 	return map[string]interface{}{
-		"idsSetLen": j.legacy.ctx.ids.GetLen(),
+		"idsSetLen": j.legacy.GetIdsLen(),
 	}
 }
 

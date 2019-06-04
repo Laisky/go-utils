@@ -21,6 +21,7 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/flosch/pongo2 v0.0.0-20190505152737-8914e1cf9164 // indirect
 	github.com/gavv/monotime v0.0.0-20171021193802-6f8212e8d10d // indirect
+	github.com/gin-gonic/gin v1.4.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
@@ -31,7 +32,7 @@ require (
 	github.com/iris-contrib/formBinder v0.0.0-20190104093907-fbd5963f41e1 // indirect
 	github.com/iris-contrib/go.uuid v2.0.0+incompatible // indirect
 	github.com/iris-contrib/httpexpect v0.0.0-20180314041918-ebe99fcebbce // indirect
-	github.com/json-iterator/go v1.1.5
+	github.com/json-iterator/go v1.1.6
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kataras/golog v0.0.0-20180321173939-03be10146386 // indirect
 	github.com/kataras/iris v11.1.1+incompatible
@@ -42,8 +43,6 @@ require (
 	github.com/mattn/go-colorable v0.1.1 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
 	github.com/mitchellh/mapstructure v0.0.0-20180511142126-bb74f1db0675 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
@@ -62,7 +61,6 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.1.1
-	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/tinylib/msgp v1.1.0
 	github.com/ugorji/go v1.1.4
 	github.com/willf/bitset v1.1.10 // indirect

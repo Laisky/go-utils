@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -77,8 +78,7 @@ func TriggerGC() {
 
 func init() {
 	go func() {
-		Logger.Info("running gc trigger")
-		defer Logger.Panic("manual gc trigger quit")
+		defer fmt.Println("manual gc trigger quit")
 		for _ = range forceGCSignalC {
 			ForceGC()
 		}
