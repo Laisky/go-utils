@@ -3,6 +3,7 @@ package journal
 import (
 	"io"
 	"os"
+	"sync"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -11,6 +12,7 @@ import (
 
 // LegacyLoader loader to handle legacy data and ids
 type LegacyLoader struct {
+	sync.Mutex
 	dataFNames, idsFNames []string
 	ctx                   *legacyCtx
 }
@@ -46,11 +48,21 @@ func (l *LegacyLoader) AddID(id int64) {
 
 // Reset reset journal legacy link to existing files
 func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
+	l.Lock()
+	defer l.Unlock()
+
 	utils.Logger.Debug("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
 	l.ctx.ids = NewInt64Set()
 	l.ctx.isReadyReload = len(dataFNames) != 0
+}
+
+// GetIdsLen return length of ids
+func (l *LegacyLoader) GetIdsLen() int {
+	l.Lock()
+	defer l.Unlock()
+	return l.ctx.ids.GetLen()
 }
 
 // removeFile delete file, should run sync to avoid dirty files
