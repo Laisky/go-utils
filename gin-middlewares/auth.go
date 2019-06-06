@@ -79,8 +79,25 @@ type UserItf interface {
 	GetID() string
 }
 
+// CookieCfg configuration of cookies
+type CookieCfg struct {
+	MaxAge           int // seconds
+	Path, Host       string
+	Secure, HTTPOnly bool
+}
+
+// NewCookieCfg create default cookie configuration
+func NewCookieCfg() *CookieCfg {
+	return &CookieCfg{
+		MaxAge:   AuthTokenAge,
+		Path:     "/",
+		Secure:   false,
+		HTTPOnly: false,
+	}
+}
+
 // SetLoginCookie set jwt token to cookies
-func (a *Auth) SetLoginCookie(ctx context.Context, user UserItf) (err error) {
+func (a *Auth) SetLoginCookie(ctx context.Context, user UserItf, cfg *CookieCfg) (err error) {
 	utils.Logger.Info("user login", zap.String("user", user.GetID()))
 	ctx2 := GetGinCtxFromStdCtx(ctx)
 	var token string
@@ -88,6 +105,12 @@ func (a *Auth) SetLoginCookie(ctx context.Context, user UserItf) (err error) {
 		return errors.Wrap(err, "try to generate token got error")
 	}
 
-	ctx2.SetCookie(AuthTokenName, token, AuthTokenAge, "/", ctx2.Request.Host, true, true)
+	if cfg == nil {
+		cfg = NewCookieCfg()
+	}
+	if cfg.Host == "" {
+		cfg.Host = ctx2.Request.Host
+	}
+	ctx2.SetCookie(AuthTokenName, token, cfg.MaxAge, cfg.Path, cfg.Host, cfg.Secure, cfg.HTTPOnly)
 	return nil
 }

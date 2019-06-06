@@ -3,6 +3,7 @@ module github.com/Laisky/go-utils
 go 1.12
 
 require (
+	github.com/Depado/ginprom v1.1.1
 	github.com/Joker/jade v1.0.0 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/zap v1.9.2
@@ -74,9 +75,7 @@ require (
 	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
 )
