@@ -65,7 +65,7 @@ func TestJournal(t *testing.T) {
 			t.Fatalf("got error: %+v", err)
 		}
 
-		if id < threshold {
+		if id < threshold { // not committed
 			continue
 		}
 

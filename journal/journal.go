@@ -69,7 +69,6 @@ func NewJournal(cfg *JournalConfig) *Journal {
 	j.initBufDir()
 	go j.runFlushTrigger()
 	go j.runRotateTrigger()
-	j.Rotate() // manually first run
 	return j
 }
 
@@ -80,7 +79,7 @@ func (j *Journal) initBufDir() {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
 
-	if err = j.Rotate(); err != nil {
+	if err = j.Rotate(); err != nil { // manually first run
 		panic(err)
 	}
 }
@@ -121,7 +120,7 @@ func (j *Journal) runRotateTrigger() {
 	defer utils.Logger.Panic("journal rotate exit")
 	for {
 		time.Sleep(RotateCheckInterval)
-		go j.Rotate()
+		go j.tryRotate()
 	}
 }
 
@@ -164,18 +163,22 @@ func (j *Journal) isReadyToRotate() bool {
 	return true
 }
 
-// Rotate create new data and ids buf file
-// this function is not threadsafe
-func (j *Journal) Rotate() (err error) {
+func (j *Journal) tryRotate() error {
 	utils.Logger.Debug("try to rotate")
 	if !j.rotateLock.TryLock() { // another rotate is running
-		return
+		return nil
 	}
 	defer j.rotateLock.ForceRealse()
 	if !j.isReadyToRotate() {
-		return
+		return nil
 	}
 
+	return j.Rotate()
+}
+
+// Rotate create new data and ids buf file
+// this function is not threadsafe
+func (j *Journal) Rotate() (err error) {
 	j.Lock()
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
