@@ -79,3 +79,5 @@ require (
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
 )
+
+replace github.com/appleboy/gofight v2.0.0+incompatible => github.com/appleboy/gofight/v2 v2.1.1
