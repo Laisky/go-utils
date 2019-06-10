@@ -158,7 +158,7 @@ func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err err
 		if expiresAt, ok := payload[j.ExpiresAtKey]; !ok {
 			return payload, fmt.Errorf("token do not contains `%v`", j.ExpiresAtKey)
 		} else {
-			if ok, err = j.checkExpiresValid(UTCNow(), expiresAt); err != nil {
+			if ok, err = j.checkExpiresValid(Clock.GetUTCNow(), expiresAt); err != nil {
 				return payload, errors.Wrap(err, "parse token `expires_at` error")
 			} else if !ok {
 				return payload, fmt.Errorf("token expired at %v", payload[j.ExpiresAtKey])
