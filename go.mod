@@ -11,6 +11,7 @@ require (
 	github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398 // indirect
 	github.com/Shopify/sarama v1.22.1
 	github.com/ajg/form v1.5.1 // indirect
+	github.com/appleboy/gofight/v2 v2.1.1 // indirect
 	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -56,3 +57,5 @@ require (
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
 )
+
+replace github.com/appleboy/gofight v2.0.0+incompatible => github.com/appleboy/gofight/v2 v2.1.1
