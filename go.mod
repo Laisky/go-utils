@@ -12,6 +12,7 @@ require (
 	github.com/Shopify/sarama v1.19.0
 	github.com/Shopify/toxiproxy v2.1.4+incompatible // indirect
 	github.com/ajg/form v1.5.1 // indirect
+	github.com/appleboy/gofight/v2 v2.1.1 // indirect
 	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
@@ -41,7 +42,6 @@ require (
 	github.com/klauspost/compress v1.5.0 // indirect
 	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
-	github.com/mattn/go-colorable v0.1.1 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
 	github.com/mitchellh/mapstructure v0.0.0-20180511142126-bb74f1db0675 // indirect
 	github.com/moul/http2curl v1.0.0 // indirect
