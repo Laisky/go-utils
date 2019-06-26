@@ -69,7 +69,7 @@ func (a *Auth) ValidateAndGetUID(ctx context.Context) (uid bson.ObjectId, err er
 		return "", errors.Wrap(err, "token invalidate")
 	}
 
-	uid = bson.ObjectIdHex(payload[a.j.UserIDKey].(string))
+	uid = bson.ObjectIdHex(payload[a.j.JWTUserIDKey].(string))
 	return uid, nil
 }
 
