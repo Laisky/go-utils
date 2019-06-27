@@ -24,6 +24,7 @@ package utils
 // ```
 
 import (
+	oj "encoding/json"
 	"fmt"
 	"time"
 
@@ -165,47 +166,29 @@ func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map
 	return tokenStr, nil
 }
 
-// // Validate (deprecated) validate the token and return the payload
-// //
-// // if token is invalidate, err will not be nil.
-// func (j *JWT) Validate(tokenStr string) (payload map[string]interface{}, err error) {
-// 	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
-// 	var (
-// 		claims jwt.MapClaims
-// 		ok     bool
-// 	)
-// 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-// 		// Don't forget to validate the alg is what you expect:
-// 		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.JWTSigningMethod {
-// 			return nil, errors.New("JWT method not allowd")
-// 		}
-// 		return j.Secret, nil
-// 	})
-// 	if err != nil || !token.Valid {
-// 		// delay return after got payload
-// 		err = errors.Wrap(err, "token invalidate")
-// 	}
+// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
+func (j *JWT) VerifyAndReplaceExp(payload map[string]interface{}) (err error) {
+	now := Clock.GetUTCNow().Unix()
+	switch exp := payload[j.JWTExpiresAtKey].(type) {
+	case float64:
+		if int64(exp) > now {
+			payload[j.JWTExpiresAtKey] = time.Unix(int64(exp), 0).UTC()
+			return nil
+		}
+		err = fmt.Errorf("token expired")
+	case oj.Number:
+		v, _ := exp.Int64()
+		if v > now {
+			payload[j.JWTExpiresAtKey] = time.Unix(v, 0).UTC()
+			return nil
+		}
+		err = fmt.Errorf("token expired")
+	default:
+		err = fmt.Errorf("unknown expires format")
+	}
 
-// 	payload = map[string]interface{}{}
-// 	if claims, ok = token.Claims.(jwt.MapClaims); !ok {
-// 		return nil, errors.New("payload type not match `map[string]interface{}`")
-// 	}
-// 	for k, v := range claims {
-// 		payload[k] = v
-// 	}
-// 	if err != nil { // no need for furthur validate
-// 		return payload, err
-// 	}
-
-// 	if !claims.VerifyExpiresAt(Clock.GetUTCNow().Unix(), true) {
-// 		return payload, fmt.Errorf("token expired")
-// 	}
-// 	if _, ok = payload[j.JWTUserIDKey]; !ok {
-// 		return payload, fmt.Errorf("token must contains `%v`", j.JWTUserIDKey)
-// 	}
-
-// 	return payload, err
-// }
+	return err
+}
 
 // Validate validate the token and return the payload
 //
@@ -232,8 +215,8 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 		return payload, err
 	}
 
-	if !payload.VerifyExpiresAt(Clock.GetUTCNow().Unix(), true) { // exp must exists
-		return payload, fmt.Errorf("token expired")
+	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
+		return payload, errors.Wrap(err, "token invalidate")
 	}
 	if _, ok = payload[j.JWTUserIDKey]; !ok {
 		err = fmt.Errorf("token must contains `%v`", j.JWTUserIDKey)
@@ -318,6 +301,30 @@ func (j *DivideJWT) GenerateToken(user JWTUserModel, expiresAt time.Time, payloa
 	return tokenStr, nil
 }
 
+// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
+func (j *DivideJWT) VerifyAndReplaceExp(payload jwt.MapClaims) (err error) {
+	now := Clock.GetUTCNow().Unix()
+	switch exp := payload[j.JWTExpiresAtKey].(type) {
+	case float64:
+		if int64(exp) > now {
+			payload[j.JWTExpiresAtKey] = time.Unix(int64(exp), 0).UTC()
+			return nil
+		}
+		err = fmt.Errorf("token expired")
+	case oj.Number:
+		v, _ := exp.Int64()
+		if v > now {
+			payload[j.JWTExpiresAtKey] = time.Unix(v, 0).UTC()
+			return nil
+		}
+		err = fmt.Errorf("token expired")
+	default:
+		err = fmt.Errorf("unknown expires format")
+	}
+
+	return err
+}
+
 // Validate validate the token and return the payload
 //
 // if token is invalidate, err will not be nil.
@@ -343,8 +350,8 @@ func (j *DivideJWT) Validate(user JWTUserModel, tokenStr string) (payload jwt.Ma
 		return payload, err
 	}
 
-	if !payload.VerifyExpiresAt(Clock.GetUTCNow().Unix(), true) { // exp must exists
-		return payload, fmt.Errorf("token expired")
+	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
+		return payload, errors.Wrap(err, "token invalidate")
 	}
 	if _, ok = payload[j.JWTUserIDKey]; !ok {
 		err = fmt.Errorf("token must contains `%v`", j.JWTUserIDKey)

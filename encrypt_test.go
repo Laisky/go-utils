@@ -1,7 +1,6 @@
 package utils_test
 
 import (
-	jj "encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -63,6 +62,85 @@ func TestGenerateDivideToken(t *testing.T) {
 	}
 }
 
+func TestValidToken(t *testing.T) {
+	j, err := utils.NewJWT(utils.NewJWTCfg([]byte("4738947328rh3ru23f32hf238f238fh28f")))
+	if err != nil {
+		t.Errorf("got error %+v", err)
+	}
+	expect := map[string]interface{}{
+		"k1":                  "v1",
+		"k2":                  "v2",
+		"k3":                  "v3",
+		utils.JWTUserIDKey:    "laisky",
+		utils.JWTExpiresAtKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
+	}
+	t.Logf("exp: %v", expect["exp"])
+	// correct token
+	token := "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQ3MDE5NzQ0MDAsImsxIjoidjEiLCJrMiI6InYyIiwiazMiOiJ2MyIsInVpZCI6ImxhaXNreSJ9.dS5DHPA_5vM-A4VIa8pFvag4EYp9PrRjmDtBth-EFYYJ5rprtUf83WTO8AQ1295AaGi0uES2bLmkQA8lQGI4Wg"
+
+	got, err := j.Validate(token)
+	if err != nil {
+		t.Fatalf("got error %+v", err)
+	}
+	t.Logf("got: %+v", got)
+	for k, ev := range expect {
+		if v, ok := got[k]; !ok {
+			t.Fatalf("key %v not exists in got", k)
+		} else {
+			if v == ev {
+				continue
+			}
+			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
+		}
+	}
+
+	// check expires
+	token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE0MDE5NzQ0MDAsImsxIjoidjEiLCJrMiI6InYyIiwiazMiOiJ2MyIsInVpZCI6ImxhaXNreSJ9.DhNK_cmiPkOUs2gU4X3Ue5utd0wHpyaCimnKSrrr4XQmdzgfKpaYbPzlouDa0KUVqDSmYPYaLAi3v6m1geV48g"
+	if got, err = j.Validate(token); err == nil {
+		t.Logf("got: %v", got)
+		t.Fatal("token should be expired")
+	} else if !strings.Contains(err.Error(), "token invalidate") {
+		t.Fatalf("expect invalidate error, bug got %+v", err)
+	}
+
+	// check without `exp`
+	token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.74A-PjmIj9Vqwfp8MWQGfeVkSxDbH0N2pA5Ru_r0au8YKhNsvk4H7BH0sz97-i0sf_0Izq-VhRqLQM2qP6qlWA"
+	if got, err = j.Validate(token); err == nil {
+		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
+	} else if !strings.Contains(err.Error(), "unknown expires format") {
+		t.Fatalf("expect unknown expires format error, but got: %+v", err)
+	}
+
+	// check without `uid`
+	token = "eyJhbGciOiJIUzUxMiJ9.eyJleHAiOjQ3MDE5NzQ0MDAsImsxIjoidjEiLCJrMiI6InYyIiwiazMiOiJ2MyJ9.nF1_ySCLWUppYjgBLRMjBRtjfqZkaqaT8p3QaVjHlg7qBIRvXPVArdWsqRAKqpA1nAxwQjYnhVI9tOslK-M04w"
+	if got, err = j.Validate(token); err == nil {
+		t.Error("token should be error since of lack of `uid`")
+	} else if !strings.Contains(err.Error(), "must contains `uid`") {
+		t.Fatalf("expect invalidate error, bug got %+v", err)
+	}
+
+	// check different method
+	token = "eyJhbGciOiJIUzM4NCJ9.eyJleHAiOjQ3MDE5NzQ0MDAsImsxIjoidjEiLCJrMiI6InYyIiwiazMiOiJ2MyIsInVpZCI6ImxhaXNreSJ9.SF7MS3drdHjQ2k1cDyiWspnDx6f0QiBpxT0B3NM0it1eHd01fJ25Zh2n8iH42DFa"
+	if got, err = j.Validate(token); err == nil {
+		t.Error("token should be error since of method incorrect`")
+	} else if !strings.Contains(err.Error(), "JWT method not allowd") {
+		t.Fatalf("expect method error, bug got %+v", err)
+	}
+	// invalidate method, but should return complete payload
+	t.Logf("got: %+v", got)
+	for k, ev := range expect {
+		if v, ok := got[k]; !ok {
+			t.Fatalf("key %v not exists in got", k)
+		} else {
+			if v == ev ||
+				k == j.JWTExpiresAtKey {
+				continue
+			}
+			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
+		}
+	}
+}
+
 func TestValidDivideToken(t *testing.T) {
 	j, err := utils.NewDivideJWT(utils.NewDivideJWTCfg())
 	if err != nil {
@@ -73,7 +151,7 @@ func TestValidDivideToken(t *testing.T) {
 		"k2":                  "v2",
 		"k3":                  "v3",
 		utils.JWTUserIDKey:    "laisky",
-		utils.JWTExpiresAtKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).Unix(),
+		utils.JWTExpiresAtKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
 	}
 	t.Logf("exp: %v", expect["exp"])
 	// correct token
@@ -89,21 +167,8 @@ func TestValidDivideToken(t *testing.T) {
 		if v, ok := got[k]; !ok {
 			t.Fatalf("key %v not exists in got", k)
 		} else {
-			switch val := v.(type) {
-			case float64:
-				if int64(val) == ev {
-					continue
-				}
-			case jj.Number:
-				if vv, err := val.Int64(); err != nil {
-					t.Fatalf("got error: %+v", err)
-				} else if vv == ev {
-					continue
-				}
-			default:
-				if val == ev {
-					continue
-				}
+			if v == ev {
+				continue
 			}
 			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
 		}
@@ -122,8 +187,8 @@ func TestValidDivideToken(t *testing.T) {
 	token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.74A-PjmIj9Vqwfp8MWQGfeVkSxDbH0N2pA5Ru_r0au8YKhNsvk4H7BH0sz97-i0sf_0Izq-VhRqLQM2qP6qlWA"
 	if got, err = j.Validate(u, token); err == nil {
 		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
-	} else if !strings.Contains(err.Error(), "token expired") {
-		t.Fatalf("expect expired error, bug got %+v", err)
+	} else if !strings.Contains(err.Error(), "unknown expires format") {
+		t.Fatalf("expect unknown expires format error, but got: %+v", err)
 	}
 
 	// check without `uid`
@@ -147,21 +212,9 @@ func TestValidDivideToken(t *testing.T) {
 		if v, ok := got[k]; !ok {
 			t.Fatalf("key %v not exists in got", k)
 		} else {
-			switch val := v.(type) {
-			case float64:
-				if int64(val) == ev {
-					continue
-				}
-			case jj.Number:
-				if vv, err := val.Int64(); err != nil {
-					t.Fatalf("got error: %+v", err)
-				} else if vv == ev {
-					continue
-				}
-			default:
-				if val == ev {
-					continue
-				}
+			if v == ev ||
+				k == j.JWTExpiresAtKey {
+				continue
 			}
 			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
 		}
