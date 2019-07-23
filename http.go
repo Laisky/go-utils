@@ -10,12 +10,10 @@ import (
 
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
-	"github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
 
 var (
-	json       = jsoniter.ConfigCompatibleWithStandardLibrary
 	httpClient = &http.Client{ // default http client
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,
