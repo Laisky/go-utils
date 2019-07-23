@@ -3,6 +3,7 @@ package journal
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/RoaringBitmap/roaring"
 )
@@ -61,6 +62,7 @@ func (s *Uint32Set) GetLen() int {
 // cost much more memory than bitmap
 type Int64Set struct {
 	padding struct{}
+	n       int64
 	d       *sync.Map
 }
 
@@ -74,22 +76,20 @@ func NewInt64Set() *Int64Set {
 
 // Add add new number
 func (s *Int64Set) Add(i int64) {
+	atomic.AddInt64(&s.n, 1)
 	s.d.Store(i, s.padding)
 }
 
 // CheckAndRemove return true if exists
 func (s *Int64Set) CheckAndRemove(i int64) (ok bool) {
-	_, ok = s.d.Load(i)
+	if _, ok = s.d.Load(i); ok {
+		atomic.AddInt64(&s.n, -1)
+	}
 	s.d.Delete(i)
 	return ok
 }
 
 // GetLen return length
 func (s *Int64Set) GetLen() int {
-	l := 0
-	s.d.Range(func(k, v interface{}) bool {
-		l++
-		return true
-	})
-	return l
+	return int(atomic.LoadInt64(&s.n))
 }

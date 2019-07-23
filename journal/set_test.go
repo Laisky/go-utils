@@ -76,6 +76,16 @@ func BenchmarkInt64Set(b *testing.B) {
 			s.Add(rand.Int63())
 		}
 	})
+	b.Run("count", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			s.GetLen()
+		}
+	})
+	// b.Run("count v2", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		s.GetLenV2()
+	// 	}
+	// })
 	b.Run("remove", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s.CheckAndRemove(rand.Int63())

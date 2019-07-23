@@ -92,9 +92,8 @@ func (c *ConfigSrv) GetInt(name string) (int, bool) {
 		} else {
 			return int(i), true
 		}
-	} else {
-		return 0, false
 	}
+	return 0, false
 }
 
 // GetBool get `bool` from the localcache of config-server
@@ -106,9 +105,8 @@ func (c *ConfigSrv) GetBool(name string) (bool, bool) {
 		} else {
 			return ret, true
 		}
-	} else {
-		return false, false
 	}
+	return false, false
 }
 
 // Map interate `set(k, v)`
