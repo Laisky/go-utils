@@ -8,8 +8,11 @@ import (
 	"runtime"
 	"runtime/debug"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // GetFuncName return the name of func
 func GetFuncName(f interface{}) string {
@@ -79,7 +82,7 @@ func TriggerGC() {
 func init() {
 	go func() {
 		defer fmt.Println("manual gc trigger quit")
-		for _ = range forceGCSignalC {
+		for range forceGCSignalC {
 			ForceGC()
 		}
 	}()
