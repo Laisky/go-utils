@@ -102,6 +102,30 @@ func (s *SettingsType) Set(key string, val interface{}) {
 	viper.Set(key, val)
 }
 
+// IsSet check whether exists
+func (s *SettingsType) IsSet(key string) bool {
+	s.Lock()
+	defer s.Unlock()
+
+	return viper.IsSet(key)
+}
+
+// GetStringMap return map contains interface
+func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
+	s.Lock()
+	defer s.Unlock()
+
+	return viper.GetStringMap(key)
+}
+
+// GetStringMapString return map contains strings
+func (s *SettingsType) GetStringMapString(key string) map[string]string {
+	s.Lock()
+	defer s.Unlock()
+
+	return viper.GetStringMapString(key)
+}
+
 const cfgFname = "settings.yml"
 
 // Setup load config file settings.yml

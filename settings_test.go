@@ -37,7 +37,12 @@ func TestSettings(t *testing.T) {
 		st  = []byte(`---
 key1: val1
 key2: val2
-key3: val3`)
+key3: val3
+key4:
+  k4.1: 12
+  k4.2: "qq"
+  k4.3: "123 : 123"
+`)
 	)
 
 	dirName, err := ioutil.TempDir("", "go-utils-test")
@@ -79,6 +84,13 @@ key3: val3`)
 		if got != expect {
 			t.Errorf("load %v, expect %v, got %v", k, expect, got)
 		}
+	}
+
+	mr := utils.Settings.GetStringMapString("key4")
+	if mr["k4.1"] != "12" ||
+		mr["k4.2"] != "qq" ||
+		mr["k4.3"] != "123 : 123" {
+		t.Fatalf("string map string got %+v", mr)
 	}
 }
 
