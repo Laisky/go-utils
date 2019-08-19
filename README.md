@@ -48,6 +48,7 @@ There are small tools including:
   * `FallBack`
   * `RegexNamedSubMatch`
   * `FlattenMap`
+* `GZCompressor`
 
 see more examples in  tests or [document](https://godoc.org/github.com/Laisky/go-utils)
 
@@ -81,7 +82,7 @@ load settings from commandline arguments, yaml file or spring-cloud-config-serve
     }
     ```
 
-1. load settings from yaml file:
+2. load settings from yaml file:
 
     prepare settings file:
 
