@@ -103,8 +103,27 @@ func (j *Journal) Flush() (err error) {
 	return err
 }
 
+// FlushAndClose flush journal files
+func (j *Journal) FlushAndClose() (err error) {
+	if j.idsEnc != nil {
+		if err = j.idsEnc.Close(); err != nil {
+			err = errors.Wrap(err, "try to close ids got error")
+		}
+	}
+
+	if j.dataEnc != nil {
+		if dataErr := j.dataEnc.Close(); dataErr != nil {
+			err = errors.Wrap(err, "try to close data got error")
+		}
+	}
+
+	return err
+}
+
 func (j *Journal) runFlushTrigger() {
 	defer utils.Logger.Panic("journal flush exit")
+	defer j.FlushAndClose()
+
 	var err error
 	for {
 		time.Sleep(FlushInterval)
@@ -118,9 +137,12 @@ func (j *Journal) runFlushTrigger() {
 
 func (j *Journal) runRotateTrigger() {
 	defer utils.Logger.Panic("journal rotate exit")
+	var err error
 	for {
 		time.Sleep(RotateCheckInterval)
-		go j.tryRotate()
+		if err = j.tryRotate(); err != nil {
+			utils.Logger.Error("try to rotate journal got error", zap.Error(err))
+		}
 	}
 }
 
@@ -183,7 +205,7 @@ func (j *Journal) Rotate() (err error) {
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
 
-	if err = j.Flush(); err != nil {
+	if err = j.FlushAndClose(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
@@ -209,14 +231,18 @@ func (j *Journal) Rotate() (err error) {
 		j.dataFp.Close()
 	}
 	j.dataFp = j.fsStat.NewDataFp
-	j.dataEnc = NewDataEncoder(j.dataFp)
+	if j.dataEnc, err = NewDataEncoder(j.dataFp); err != nil {
+		return errors.Wrap(err, "try to create new data encoder got error")
+	}
 
 	// create & open ids file
 	if j.idsFp != nil {
 		j.idsFp.Close()
 	}
 	j.idsFp = j.fsStat.NewIDsFp
-	j.idsEnc = NewIdsEncoder(j.idsFp)
+	if j.idsEnc, err = NewIdsEncoder(j.idsFp); err != nil {
+		return errors.Wrap(err, "try to create new ids encoder got error")
+	}
 
 	return nil
 }

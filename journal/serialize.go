@@ -2,6 +2,7 @@ package journal
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -29,6 +30,7 @@ type DataEncoder struct {
 	BaseSerilizer
 	writeChan chan interface{}
 	writer    *msgp.Writer
+	gzWriter  *utils.GZCompressor
 }
 
 // DataDecoder data deserializer
@@ -36,51 +38,73 @@ type DataDecoder struct {
 	BaseSerilizer
 	readChan chan interface{}
 	reader   *msgp.Reader
+	gzReader io.Reader
 }
 
 // IdsEncoder ids serializer
 type IdsEncoder struct {
 	BaseSerilizer
-	baseID int64
-	writer *bufio.Writer
+	baseID   int64
+	writer   *bufio.Writer
+	gzWriter *utils.GZCompressor
 }
 
 // IdsDecoder ids deserializer
 type IdsDecoder struct {
 	BaseSerilizer
-	baseID int64
-	reader *bufio.Reader
+	baseID   int64
+	reader   *bufio.Reader
+	gzReader io.Reader
 }
 
 // NewDataEncoder create new DataEncoder
-func NewDataEncoder(fp *os.File) *DataEncoder {
+func NewDataEncoder(fp *os.File) (*DataEncoder, error) {
+	gzWriter := utils.NewGZCompressor(&utils.GZCompressorCfg{
+		BufSizeByte: BufSize,
+		Writer:      fp,
+	})
 	return &DataEncoder{
-		writer: msgp.NewWriterSize(fp, BufSize),
-	}
+		gzWriter: gzWriter,
+		writer:   msgp.NewWriterSize(gzWriter, BufSize),
+	}, nil
 }
 
 // NewIdsEncoder create new IdsEncoder
-func NewIdsEncoder(fp *os.File) *IdsEncoder {
+func NewIdsEncoder(fp *os.File) (*IdsEncoder, error) {
+	gzWriter := utils.NewGZCompressor(&utils.GZCompressorCfg{
+		BufSizeByte: BufSize,
+		Writer:      fp,
+	})
 	return &IdsEncoder{
-		baseID: -1,
-		writer: bufio.NewWriter(fp),
-	}
+		baseID:   -1,
+		gzWriter: gzWriter,
+		writer:   bufio.NewWriter(gzWriter),
+	}, nil
 }
 
 // NewIdsDecoder create new IdsDecoder
-func NewIdsDecoder(fp *os.File) *IdsDecoder {
-	return &IdsDecoder{
-		baseID: -1,
-		reader: bufio.NewReaderSize(fp, BufSize),
+func NewIdsDecoder(fp *os.File) (*IdsDecoder, error) {
+	gzReader, err := gzip.NewReader(fp)
+	if err != nil {
+		return nil, errors.Wrap(err, "try to use gzip read ids fp got error")
 	}
+	return &IdsDecoder{
+		baseID:   -1,
+		gzReader: gzReader,
+		reader:   bufio.NewReaderSize(gzReader, BufSize),
+	}, nil
 }
 
 // NewDataDecoder create new DataDecoder
-func NewDataDecoder(fp *os.File) *DataDecoder {
-	reader := msgp.NewReaderSize(fp, BufSize)
-	return &DataDecoder{
-		reader: reader,
+func NewDataDecoder(fp *os.File) (*DataDecoder, error) {
+	gzReader, err := gzip.NewReader(fp)
+	if err != nil {
+		return nil, errors.Wrap(err, "try to use gzip read ids fp got error")
 	}
+	return &DataDecoder{
+		gzReader: gzReader,
+		reader:   msgp.NewReaderSize(gzReader, BufSize),
+	}, nil
 }
 
 // Write serialize data info fp
@@ -90,6 +114,8 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 	if err = msg.EncodeMsg(enc.writer); err != nil {
 		return errors.Wrap(err, "try to Encode journal data got error")
 	}
+	enc.writer.Flush()
+	enc.gzWriter.Flush()
 
 	// if err = enc.writer.Flush(); err != nil {
 	// 	return errors.Wrap(err, "try to flush journal data got error")
@@ -98,10 +124,31 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 }
 
 // Flush flush buf to fp
-func (enc *DataEncoder) Flush() error {
+func (enc *DataEncoder) Flush() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
-	return enc.writer.Flush()
+	if err = enc.writer.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush data encoder got error")
+	}
+	if err = enc.gzWriter.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush data encoder gz got error")
+	}
+	enc.gzWriter.Flush()
+	return
+}
+
+// Close close data gzip writer
+func (enc *DataEncoder) Close() (err error) {
+	enc.Lock()
+	defer enc.Unlock()
+	if err = enc.writer.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush data encoder got error")
+	}
+	if err = enc.gzWriter.Flush(); err != nil {
+		return errors.Wrap(err, "try to close data gz encoder got error")
+	}
+	enc.writer = nil
+	return
 }
 
 // Read deserialize data from fp
@@ -135,20 +182,40 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	if err = binary.Write(enc.writer, bitOrder, offset); err != nil {
 		return errors.Wrap(err, "try to write ids got error")
 	}
-
-	// if err = enc.writer.Flush(); err != nil {
-	// 	return errors.Wrap(err, "try to flush ids got error")
-	// }
+	enc.writer.Flush()
+	enc.gzWriter.Flush()
 
 	// utils.Logger.Debug("write id", zap.Int64("offset", offset), zap.Int64("id", id))
 	return nil
 }
 
 // Flush flush buf to fp
-func (enc *IdsEncoder) Flush() error {
+func (enc *IdsEncoder) Flush() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
-	return enc.writer.Flush()
+	if err = enc.writer.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush ids encoder got error")
+	}
+	if err = enc.gzWriter.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush ids encoder gz got error")
+	}
+	enc.gzWriter.Flush()
+
+	return
+}
+
+// Close close ids gzip writer
+func (enc *IdsEncoder) Close() (err error) {
+	enc.Lock()
+	defer enc.Unlock()
+	if err = enc.writer.Flush(); err != nil {
+		return errors.Wrap(err, "try to flush ids encoder got error")
+	}
+	if err = enc.gzWriter.Flush(); err != nil {
+		return errors.Wrap(err, "try to close ids gz encoder got error")
+	}
+	enc.writer = nil
+	return
 }
 
 // LoadMaxId load the maxium id in all files
