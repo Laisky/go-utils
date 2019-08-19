@@ -21,9 +21,9 @@ import (
 
 var (
 	// DataFileNameReg journal data file name pattern
-	DataFileNameReg = regexp.MustCompile(`\d{8}_\d{8}\.buf`)
+	DataFileNameReg = regexp.MustCompile(`^\d{8}_\d{8}\.buf$`)
 	// IDFileNameReg journal id file name pattern
-	IDFileNameReg = regexp.MustCompile(`\d{8}_\d{8}\.ids`)
+	IDFileNameReg = regexp.MustCompile(`^\d{8}_\d{8}\.ids$`)
 	layout        = "20060102"
 	layoutWithTZ  = "20060102-0700"
 )
