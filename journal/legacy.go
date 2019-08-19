@@ -98,7 +98,9 @@ READ_NEW_FILE:
 		if err != nil {
 			return errors.Wrap(err, "try to open data file got error")
 		}
-		l.ctx.decoder = NewDataDecoder(l.ctx.dataFp)
+		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp); err != nil {
+			return errors.Wrap(err, "try to decode data file got error")
+		}
 	}
 
 READ_NEW_LINE:
@@ -134,11 +136,13 @@ READ_NEW_LINE:
 	return nil
 }
 
+// LoadMaxId load max id from all ids files
 func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 	utils.Logger.Debug("LoadMaxId...")
 	var (
-		fp *os.File
-		id int64
+		fp         *os.File
+		id         int64
+		idsDecoder *IdsDecoder
 	)
 	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
@@ -149,10 +153,19 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 		defer fp.Close()
 
-		idsDecoder := NewIdsDecoder(fp)
-		id, err = idsDecoder.LoadMaxId()
-		if err != nil {
-			return 0, errors.Wrapf(err, "try to read file `%v` got error", fname)
+		if idsDecoder, err = NewIdsDecoder(fp); err != nil {
+			utils.Logger.Error("try to read ids file got error",
+				zap.Error(err),
+				zap.String("fname", fp.Name()),
+			)
+			continue
+		}
+		if id, err = idsDecoder.LoadMaxId(); err != nil {
+			utils.Logger.Error("try to read ids file got error",
+				zap.Error(err),
+				zap.String("fname", fp.Name()),
+			)
+			continue
 		}
 		if id < maxId {
 			maxId = id
@@ -163,31 +176,42 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 	return id, nil
 }
 
+// LoadAllids read all ids from ids file into ids set
 func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 	utils.Logger.Debug("LoadAllids...")
 	var (
-		err error
-		fp  *os.File
+		err        error
+		fp         *os.File
+		idsDecoder *IdsDecoder
 	)
+
+	defer func() {
+		if fp != nil {
+			fp.Close()
+		}
+		if allErr != nil {
+			utils.Logger.Error("try to load all ids got error", zap.Error(allErr))
+		}
+	}()
 
 	startTs := utils.Clock.GetUTCNow()
 	for _, fname := range l.idsFNames {
 		// utils.Logger.Debug("load ids from file", zap.String("fname", fname))
+		if fp != nil {
+			fp.Close()
+		}
 		fp, err = os.Open(fname)
-		defer fp.Close()
 		if err != nil {
 			allErr = errors.Wrapf(err, "try to open ids file `%v` to load all ids got error", fname)
-			utils.Logger.Error("try to open ids file to load all ids got error",
-				zap.String("fname", fname),
-				zap.Error(err))
+			continue
 		}
-
-		idsDecoder := NewIdsDecoder(fp)
+		if idsDecoder, err = NewIdsDecoder(fp); err != nil {
+			allErr = errors.Wrapf(err, "try to decode ids file `%v` got error", fname)
+			continue
+		}
 		if err = idsDecoder.ReadAllToInt64Set(ids); err != nil {
 			allErr = errors.Wrapf(err, "try to read ids file `%v` got error", fname)
-			utils.Logger.Error("try to read ids file got error",
-				zap.String("fname", fname),
-				zap.Error(err))
+			continue
 		}
 	}
 

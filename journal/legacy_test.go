@@ -46,14 +46,20 @@ func TestLegacy(t *testing.T) {
 	t.Logf("create file name: %v", idsFp2.Name())
 
 	// put data
-	dataEncoder := journal.NewDataEncoder(dataFp1)
+	dataEncoder, err := journal.NewDataEncoder(dataFp1)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 1"}, ID: 1})
 	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 2"}, ID: 2})
 	if err = dataEncoder.Flush(); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	dataEncoder = journal.NewDataEncoder(dataFp2)
+	dataEncoder, err = journal.NewDataEncoder(dataFp2)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 21"}, ID: 21})
 	dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 22"}, ID: 22})
 	if err = dataEncoder.Flush(); err != nil {
@@ -62,7 +68,10 @@ func TestLegacy(t *testing.T) {
 
 	// put ids
 	// except 2
-	idsEncoder := journal.NewIdsEncoder(idsFp1)
+	idsEncoder, err := journal.NewIdsEncoder(idsFp1)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	if err = idsEncoder.Write(1); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -73,7 +82,10 @@ func TestLegacy(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	idsEncoder = journal.NewIdsEncoder(idsFp2)
+	idsEncoder, err = journal.NewIdsEncoder(idsFp2)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	if err = idsEncoder.Write(22); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}

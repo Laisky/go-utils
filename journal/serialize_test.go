@@ -28,7 +28,10 @@ func TestSerializer(t *testing.T) {
 		Data: map[string]interface{}{"tag": "testtag", "message": 123},
 	}
 
-	encoder := journal.NewDataEncoder(fp)
+	encoder, err := journal.NewDataEncoder(fp)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	if err = encoder.Write(m); err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -38,7 +41,10 @@ func TestSerializer(t *testing.T) {
 
 	var got = &journal.Data{}
 	fp.Seek(0, 0)
-	decoder := journal.NewDataDecoder(fp)
+	var decoder *journal.DataDecoder
+	if decoder, err = journal.NewDataDecoder(fp); err != nil {
+		t.Fatalf("%+v", err)
+	}
 	if err = decoder.Read(got); err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -61,7 +67,10 @@ func BenchmarkSerializer(b *testing.B) {
 	m := &journal.Data{
 		Data: map[string]interface{}{"tag": "tag", "message": "jr32oirj23r2ifj32ofjfwefefwfwfwefwefwef 234rt34t 34t 34t43t 34t o2jfo2fjof2"},
 	}
-	encoder := journal.NewDataEncoder(fp)
+	encoder, err := journal.NewDataEncoder(fp)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
 
 	b.Run("encoder", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -75,7 +84,10 @@ func BenchmarkSerializer(b *testing.B) {
 
 	fp.Seek(0, 0)
 	n := 0
-	decoder := journal.NewDataDecoder(fp)
+	decoder, err := journal.NewDataDecoder(fp)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
 	b.Run("decoder", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n++
@@ -105,8 +117,10 @@ func TestIdsSerializer(t *testing.T) {
 	defer os.Remove(fp.Name())
 	t.Logf("create file name: %v", fp.Name())
 
-	encoder := journal.NewIdsEncoder(fp)
-	decoder := journal.NewIdsDecoder(fp)
+	encoder, err := journal.NewIdsEncoder(fp)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 
 	for id := int64(0); id < 1000; id++ {
 		if err = encoder.Write(id); err != nil {
@@ -121,11 +135,25 @@ func TestIdsSerializer(t *testing.T) {
 		}
 	}
 
-	if err = encoder.Flush(); err != nil {
+	if err = encoder.Close(); err != nil {
 		t.Fatalf("%+v", err)
 	}
+	// fp.Close()
+	// fp, err = os.Open(fp.Name())
+	// if err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
 
+	fs, err := fp.Stat()
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("file size: %v", fs.Size())
 	fp.Seek(0, 0)
+	decoder, err := journal.NewIdsDecoder(fp)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
 	ids, err := decoder.ReadAllToBmap()
 	if err != nil {
 		t.Fatalf("%+v", err)
