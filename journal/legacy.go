@@ -18,8 +18,9 @@ type LegacyLoader struct {
 }
 
 type legacyCtx struct {
-	isNeedReload                bool // prepare datafp for `Load`
-	isReadyReload               bool // alreddy update `dataFNames`
+	isNeedReload, // prepare datafp for `Load`
+	isCompress,
+	isReadyReload bool // alreddy update `dataFNames`
 	ids                         *Int64Set
 	dataFileIdx, dataFileMaxIdx int
 	dataFp                      *os.File
@@ -27,7 +28,7 @@ type legacyCtx struct {
 }
 
 // NewLegacyLoader create new LegacyLoader
-func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
+func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool) *LegacyLoader {
 	utils.Logger.Debug("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
 		dataFNames: dataFNames,
@@ -35,6 +36,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string) *LegacyLoader {
 		ctx: &legacyCtx{
 			isNeedReload:  true,
 			isReadyReload: len(dataFNames) != 0,
+			isCompress:    isCompress,
 			ids:           NewInt64Set(),
 		},
 	}
@@ -98,7 +100,7 @@ READ_NEW_FILE:
 		if err != nil {
 			return errors.Wrap(err, "try to open data file got error")
 		}
-		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp); err != nil {
+		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp, l.ctx.isCompress); err != nil {
 			return errors.Wrap(err, "try to decode data file got error")
 		}
 	}
@@ -153,7 +155,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 		defer fp.Close()
 
-		if idsDecoder, err = NewIdsDecoder(fp); err != nil {
+		if idsDecoder, err = NewIdsDecoder(fp, l.ctx.isCompress); err != nil {
 			utils.Logger.Error("try to read ids file got error",
 				zap.Error(err),
 				zap.String("fname", fp.Name()),
@@ -205,7 +207,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 			allErr = errors.Wrapf(err, "try to open ids file `%v` to load all ids got error", fname)
 			continue
 		}
-		if idsDecoder, err = NewIdsDecoder(fp); err != nil {
+		if idsDecoder, err = NewIdsDecoder(fp, l.ctx.isCompress); err != nil {
 			allErr = errors.Wrapf(err, "try to decode ids file `%v` got error", fname)
 			continue
 		}

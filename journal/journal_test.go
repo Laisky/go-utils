@@ -137,6 +137,7 @@ func BenchmarkJournal(b *testing.B) {
 		b.Fatalf("got error: %+v", err)
 	}
 
+	j.LockLegacy()
 	b.Run("load", func(b *testing.B) {
 		if err = j.LoadLegacyBuf(data); err == io.EOF {
 			return

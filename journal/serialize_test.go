@@ -16,47 +16,49 @@ import (
 )
 
 func TestSerializer(t *testing.T) {
-	fp, err := ioutil.TempFile("", "journal-test")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	defer fp.Close()
-	defer os.Remove(fp.Name())
-	t.Logf("create file name: %v", fp.Name())
+	for _, isCompress := range [...]bool{true, false} {
+		fp, err := ioutil.TempFile("", "journal-test")
+		if err != nil {
+			t.Fatalf("%+v", err)
+		}
+		defer fp.Close()
+		defer os.Remove(fp.Name())
+		t.Logf("create file name: %v", fp.Name())
 
-	m := &journal.Data{
-		Data: map[string]interface{}{"tag": "testtag", "message": 123},
-	}
+		m := &journal.Data{
+			Data: map[string]interface{}{"tag": "testtag", "message": 123},
+		}
 
-	encoder, err := journal.NewDataEncoder(fp)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = encoder.Write(m); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = encoder.Flush(); err != nil {
-		t.Fatalf("%+v", err)
-	}
+		encoder, err := journal.NewDataEncoder(fp, isCompress)
+		if err != nil {
+			t.Fatalf("%+v", err)
+		}
+		if err = encoder.Write(m); err != nil {
+			t.Fatalf("%+v", err)
+		}
+		if err = encoder.Flush(); err != nil {
+			t.Fatalf("%+v", err)
+		}
 
-	var got = &journal.Data{}
-	fp.Seek(0, 0)
-	var decoder *journal.DataDecoder
-	if decoder, err = journal.NewDataDecoder(fp); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = decoder.Read(got); err != nil {
-		t.Fatalf("%+v", err)
-	}
+		var got = &journal.Data{}
+		fp.Seek(0, 0)
+		var decoder *journal.DataDecoder
+		if decoder, err = journal.NewDataDecoder(fp, isCompress); err != nil {
+			t.Fatalf("%+v", err)
+		}
+		if err = decoder.Read(got); err != nil {
+			t.Fatalf("%+v", err)
+		}
 
-	t.Logf("got: %+v", got)
-	if string(got.Data["tag"].(string)) != m.Data["tag"] ||
-		int(got.Data["message"].(int64)) != m.Data["message"] {
-		t.Errorf("expect %v:%v, got %v:%v", m.Data["tag"], m.Data["message"], string(got.Data["tag"].(string)), int(got.Data["message"].(int64)))
+		t.Logf("got: %+v", got)
+		if string(got.Data["tag"].(string)) != m.Data["tag"] ||
+			int(got.Data["message"].(int64)) != m.Data["message"] {
+			t.Errorf("expect %v:%v, got %v:%v", m.Data["tag"], m.Data["message"], string(got.Data["tag"].(string)), int(got.Data["message"].(int64)))
+		}
 	}
 }
 
-func BenchmarkSerializer(b *testing.B) {
+func BenchmarkSerializerWithCompress(b *testing.B) {
 	fp, err := ioutil.TempFile("", "journal-test")
 	if err != nil {
 		b.Fatalf("%+v", err)
@@ -67,12 +69,12 @@ func BenchmarkSerializer(b *testing.B) {
 	m := &journal.Data{
 		Data: map[string]interface{}{"tag": "tag", "message": "jr32oirj23r2ifj32ofjfwefefwfwfwefwefwef 234rt34t 34t 34t43t 34t o2jfo2fjof2"},
 	}
-	encoder, err := journal.NewDataEncoder(fp)
+	encoder, err := journal.NewDataEncoder(fp, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
 
-	b.Run("encoder", func(b *testing.B) {
+	b.Run("encoder with compress", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			if err = encoder.Write(m); err != nil {
 				b.Fatalf("%+v", err)
@@ -84,11 +86,63 @@ func BenchmarkSerializer(b *testing.B) {
 
 	fp.Seek(0, 0)
 	n := 0
-	decoder, err := journal.NewDataDecoder(fp)
+	decoder, err := journal.NewDataDecoder(fp, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	b.Run("decoder", func(b *testing.B) {
+	b.Run("decoder with compress", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n++
+			v := &journal.Data{}
+			if err = decoder.Read(v); err == io.EOF {
+				return
+			} else if err != nil {
+				b.Fatalf("%+v", err)
+			}
+
+			if string(v.Data["tag"].(string)) != m.Data["tag"].(string) ||
+				string(v.Data["message"].(string)) != m.Data["message"].(string) {
+				b.Fatal("load incorrect")
+			}
+		}
+	})
+
+	// b.Errorf("run: %v", n)
+}
+
+func BenchmarkSerializerWithoutCompress(b *testing.B) {
+	fp, err := ioutil.TempFile("", "journal-test")
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer fp.Close()
+	defer os.Remove(fp.Name())
+	b.Logf("create file name: %v", fp.Name())
+	m := &journal.Data{
+		Data: map[string]interface{}{"tag": "tag", "message": "jr32oirj23r2ifj32ofjfwefefwfwfwefwefwef 234rt34t 34t 34t43t 34t o2jfo2fjof2"},
+	}
+	encoder, err := journal.NewDataEncoder(fp, false)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	b.Run("encoder with compress", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err = encoder.Write(m); err != nil {
+				b.Fatalf("%+v", err)
+			}
+		}
+		encoder.Flush()
+	})
+	encoder.Flush()
+
+	fp.Seek(0, 0)
+	n := 0
+	decoder, err := journal.NewDataDecoder(fp, false)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	b.Run("decoder with compress", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n++
 			v := &journal.Data{}
@@ -109,63 +163,65 @@ func BenchmarkSerializer(b *testing.B) {
 }
 
 func TestIdsSerializer(t *testing.T) {
-	fp, err := ioutil.TempFile("", "journal-test")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	defer fp.Close()
-	defer os.Remove(fp.Name())
-	t.Logf("create file name: %v", fp.Name())
+	for _, isCompress := range [...]bool{true, false} {
+		fp, err := ioutil.TempFile("", "journal-test")
+		if err != nil {
+			t.Fatalf("%+v", err)
+		}
+		defer fp.Close()
+		defer os.Remove(fp.Name())
+		t.Logf("create file name: %v", fp.Name())
 
-	encoder, err := journal.NewIdsEncoder(fp)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	for id := int64(0); id < 1000; id++ {
-		if err = encoder.Write(id); err != nil {
+		encoder, err := journal.NewIdsEncoder(fp, isCompress)
+		if err != nil {
 			t.Fatalf("%+v", err)
 		}
 
-		err = encoder.Write(math.MaxInt64 + id + 100)
-		if err != nil {
-			if !strings.Contains(err.Error(), "id should bigger than 0") {
+		for id := int64(0); id < 1000; id++ {
+			if err = encoder.Write(id); err != nil {
 				t.Fatalf("%+v", err)
 			}
+
+			err = encoder.Write(math.MaxInt64 + id + 100)
+			if err != nil {
+				if !strings.Contains(err.Error(), "id should bigger than 0") {
+					t.Fatalf("%+v", err)
+				}
+			}
 		}
-	}
 
-	if err = encoder.Close(); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	// fp.Close()
-	// fp, err = os.Open(fp.Name())
-	// if err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
-
-	fs, err := fp.Stat()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("file size: %v", fs.Size())
-	fp.Seek(0, 0)
-	decoder, err := journal.NewIdsDecoder(fp)
-	if err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
-	ids, err := decoder.ReadAllToBmap()
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	t.Logf("got ids: %+v", ids)
-	for id := 0; id < 2000; id++ {
-		if id < 1000 && !ids.ContainsInt(id) {
-			t.Fatalf("%v should in ids", id)
+		if err = encoder.Close(); err != nil {
+			t.Fatalf("%+v", err)
 		}
-		if id >= 1000 && ids.ContainsInt(id) {
-			t.Fatalf("%v should not in ids", id)
+		// fp.Close()
+		// fp, err = os.Open(fp.Name())
+		// if err != nil {
+		// 	t.Fatalf("%+v", err)
+		// }
+
+		fs, err := fp.Stat()
+		if err != nil {
+			t.Fatalf("%+v", err)
+		}
+		t.Logf("file size: %v", fs.Size())
+		fp.Seek(0, 0)
+		decoder, err := journal.NewIdsDecoder(fp, isCompress)
+		if err != nil {
+			t.Fatalf("got error: %+v", err)
+		}
+		ids, err := decoder.ReadAllToBmap()
+		if err != nil {
+			t.Fatalf("%+v", err)
+		}
+
+		t.Logf("got ids: %+v", ids)
+		for id := 0; id < 2000; id++ {
+			if id < 1000 && !ids.ContainsInt(id) {
+				t.Fatalf("%v should in ids", id)
+			}
+			if id >= 1000 && ids.ContainsInt(id) {
+				t.Fatalf("%v should not in ids", id)
+			}
 		}
 	}
 }
