@@ -23,10 +23,10 @@ const (
 
 // JournalConfig configuration of Journal
 type JournalConfig struct {
-	BufDirPath     string
-	BufSizeBytes   int64
-	RotateDuration time.Duration
-	IsAggresiveGC  bool
+	BufDirPath                string
+	BufSizeBytes              int64
+	RotateDuration            time.Duration
+	IsAggresiveGC, IsCompress bool
 }
 
 // NewConfig get JournalConfig with default configuration
@@ -35,6 +35,7 @@ func NewConfig() *JournalConfig {
 		RotateDuration: defaultRotateDuration,
 		BufSizeBytes:   defaultBufSizeBytes,
 		IsAggresiveGC:  true,
+		IsCompress:     true,
 	}
 }
 
@@ -231,7 +232,7 @@ func (j *Journal) Rotate() (err error) {
 		j.dataFp.Close()
 	}
 	j.dataFp = j.fsStat.NewDataFp
-	if j.dataEnc, err = NewDataEncoder(j.dataFp); err != nil {
+	if j.dataEnc, err = NewDataEncoder(j.dataFp, j.IsCompress); err != nil {
 		return errors.Wrap(err, "try to create new data encoder got error")
 	}
 
@@ -240,7 +241,7 @@ func (j *Journal) Rotate() (err error) {
 		j.idsFp.Close()
 	}
 	j.idsFp = j.fsStat.NewIDsFp
-	if j.idsEnc, err = NewIdsEncoder(j.idsFp); err != nil {
+	if j.idsEnc, err = NewIdsEncoder(j.idsFp, j.IsCompress); err != nil {
 		return errors.Wrap(err, "try to create new ids encoder got error")
 	}
 
@@ -251,7 +252,7 @@ func (j *Journal) Rotate() (err error) {
 func (j *Journal) RefreshLegacyLoader() {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
+		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {
