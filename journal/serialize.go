@@ -1,5 +1,10 @@
 package journal
 
+/*
+gzWriter -> writer -> fp
+fp -> gzReader -> reader
+*/
+
 import (
 	"bufio"
 	"compress/gzip"
@@ -147,12 +152,9 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 	}
 	enc.writer.Flush()
 	if enc.isCompress {
-		enc.gzWriter.Flush()
+		enc.gzWriter.WriteFooter()
 	}
 
-	// if err = enc.writer.Flush(); err != nil {
-	// 	return errors.Wrap(err, "try to flush journal data got error")
-	// }
 	return nil
 }
 
@@ -167,7 +169,6 @@ func (enc *DataEncoder) Flush() (err error) {
 		if err = enc.gzWriter.Flush(); err != nil {
 			return errors.Wrap(err, "try to flush data encoder gz got error")
 		}
-		enc.gzWriter.Flush()
 	}
 	return
 }
@@ -221,7 +222,7 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	}
 	enc.writer.Flush()
 	if enc.isCompress {
-		enc.gzWriter.Flush()
+		enc.gzWriter.WriteFooter()
 	}
 
 	// utils.Logger.Debug("write id", zap.Int64("offset", offset), zap.Int64("id", id))
@@ -239,7 +240,6 @@ func (enc *IdsEncoder) Flush() (err error) {
 		if err = enc.gzWriter.Flush(); err != nil {
 			return errors.Wrap(err, "try to flush ids encoder gz got error")
 		}
-		enc.gzWriter.Flush()
 	}
 
 	return

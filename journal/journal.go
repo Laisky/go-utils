@@ -14,7 +14,7 @@ import (
 
 const (
 	// FlushInterval interval to flush serializer
-	FlushInterval = 1 * time.Second
+	deafultFlushInterval = 5 * time.Second
 	// RotateCheckInterval interval to rotate journal files
 	RotateCheckInterval   = 1 * time.Second
 	defaultRotateDuration = 1 * time.Minute
@@ -27,6 +27,7 @@ type JournalConfig struct {
 	BufSizeBytes              int64
 	RotateDuration            time.Duration
 	IsAggresiveGC, IsCompress bool
+	FlushInterval             time.Duration // interval to flush serializer
 }
 
 // NewConfig get JournalConfig with default configuration
@@ -35,7 +36,8 @@ func NewConfig() *JournalConfig {
 		RotateDuration: defaultRotateDuration,
 		BufSizeBytes:   defaultBufSizeBytes,
 		IsAggresiveGC:  true,
-		IsCompress:     true,
+		IsCompress:     false,
+		FlushInterval:  defaultBufSizeBytes,
 	}
 }
 
@@ -127,7 +129,7 @@ func (j *Journal) runFlushTrigger() {
 
 	var err error
 	for {
-		time.Sleep(FlushInterval)
+		time.Sleep(j.FlushInterval)
 		j.Lock()
 		if err = j.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
