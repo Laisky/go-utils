@@ -74,7 +74,7 @@ func BenchmarkSerializerWithCompress(b *testing.B) {
 		b.Fatalf("%+v", err)
 	}
 
-	b.Run("encoder with compress", func(b *testing.B) {
+	b.Run("data encoder with compress", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			if err = encoder.Write(m); err != nil {
 				b.Fatalf("%+v", err)
@@ -90,7 +90,7 @@ func BenchmarkSerializerWithCompress(b *testing.B) {
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	b.Run("decoder with compress", func(b *testing.B) {
+	b.Run("data decoder with compress", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n++
 			v := &journal.Data{}
