@@ -21,10 +21,10 @@ type legacyCtx struct {
 	isNeedReload, // prepare datafp for `Load`
 	isCompress,
 	isReadyReload bool // alreddy update `dataFNames`
-	ids                         *Int64Set
-	dataFileIdx, dataFileMaxIdx int
-	dataFp                      *os.File
-	decoder                     *DataDecoder
+	ids                       *Int64Set
+	dataFileIdx, dataFilesLen int
+	dataFp                    *os.File
+	decoder                   *DataDecoder
 }
 
 // NewLegacyLoader create new LegacyLoader
@@ -88,20 +88,31 @@ func (l *LegacyLoader) Load(data *Data) (err error) {
 		if err = l.LoadAllids(l.ctx.ids); err != nil {
 			utils.Logger.Error("try to load all ids got error", zap.Error(err))
 		}
-		l.ctx.dataFileMaxIdx = len(l.dataFNames) - 1
-		l.ctx.dataFileIdx = 0
+		l.ctx.dataFilesLen = len(l.dataFNames)
+		l.ctx.dataFileIdx = -1
 		l.ctx.isNeedReload = false
 	}
 
 READ_NEW_FILE:
 	if l.ctx.dataFp == nil {
+		l.ctx.dataFileIdx++
+		if l.ctx.dataFileIdx == l.ctx.dataFilesLen { // all data files finished
+			utils.Logger.Debug("all data files finished")
+			l.ctx.isNeedReload = true
+			return io.EOF
+		}
+
 		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		l.ctx.dataFp, err = os.Open(l.dataFNames[l.ctx.dataFileIdx])
 		if err != nil {
-			return errors.Wrap(err, "try to open data file got error")
+			utils.Logger.Error("try to open data file got error", zap.Error(err))
+			l.ctx.dataFp = nil
+			goto READ_NEW_FILE
 		}
 		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp, l.ctx.isCompress); err != nil {
-			return errors.Wrap(err, "try to decode data file got error")
+			utils.Logger.Error("try to decode data file got error", zap.Error(err))
+			l.ctx.dataFp = nil
+			goto READ_NEW_FILE
 		}
 	}
 
@@ -112,19 +123,12 @@ READ_NEW_LINE:
 			utils.Logger.Error("try to load data file got error", zap.Error(err))
 		}
 
-		if l.ctx.dataFileIdx == l.ctx.dataFileMaxIdx { // all data files finished
-			utils.Logger.Debug("all data files finished")
-			l.ctx.isNeedReload = true
-			return io.EOF
-		}
-
 		// read new file
 		if err = l.ctx.dataFp.Close(); err != nil {
 			utils.Logger.Error("try to close file got error", zap.String("file", l.dataFNames[l.ctx.dataFileIdx]), zap.Error(err))
 		}
 
 		l.ctx.dataFp = nil
-		l.ctx.dataFileIdx++
 		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		goto READ_NEW_FILE
 	}

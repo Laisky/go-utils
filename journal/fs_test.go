@@ -94,5 +94,5 @@ func TestPrepareNewBufFile(t *testing.T) {
 }
 
 func init() {
-	utils.SetupLogger("debug")
+	utils.SetupLogger("error")
 }

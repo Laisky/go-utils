@@ -54,3 +54,12 @@ func (c *GZCompressor) Flush() (err error) {
 	c.gzWriter.Reset(c.buf)
 	return nil
 }
+
+// WriteFooter write gz footer
+func (c *GZCompressor) WriteFooter() (err error) {
+	if err = c.gzWriter.Close(); err != nil {
+		return err
+	}
+	c.gzWriter.Reset(c.buf)
+	return nil
+}
