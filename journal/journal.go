@@ -45,6 +45,7 @@ func NewConfig() *JournalConfig {
 type Journal struct {
 	sync.RWMutex // journal rwlock
 	*JournalConfig
+
 	rotateLock, legacyLock *utils.Mutex
 	dataFp, idsFp          *os.File // current writting journal file
 	fsStat                 *BufFileStat
@@ -143,7 +144,11 @@ func (j *Journal) runRotateTrigger() {
 	var err error
 	for {
 		time.Sleep(RotateCheckInterval)
-		if err = j.tryRotate(); err != nil {
+		if !j.isReadyToRotate() {
+			continue
+		}
+
+		if err = j.Rotate(); err != nil {
 			utils.Logger.Error("try to rotate journal got error", zap.Error(err))
 		}
 	}
@@ -176,34 +181,32 @@ func (j *Journal) isReadyToRotate() bool {
 	if j.dataFp == nil {
 		return true
 	}
+	if !j.rotateLock.TryLock() {
+		return false
+	}
 
 	if fi, err := j.dataFp.Stat(); err != nil {
 		utils.Logger.Error("try to get file stat got error", zap.Error(err))
 		return false
-	} else if fi.Size() < j.BufSizeBytes &&
-		utils.Clock.GetUTCNow().Sub(j.latestRotateT) < j.RotateDuration {
-		return false
+	} else if fi.Size() > j.BufSizeBytes ||
+		utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
+		return true
 	}
 
-	return true
+	return false
 }
 
-func (j *Journal) tryRotate() error {
-	utils.Logger.Debug("try to rotate")
-	if !j.rotateLock.TryLock() { // another rotate is running
+/*Rotate create new data and ids buf file
+this function is not threadsafe.
+*/
+func (j *Journal) Rotate() (err error) {
+	// make sure no other rorate is running
+	if !j.rotateLock.TryLock() {
 		return nil
 	}
 	defer j.rotateLock.ForceRealse()
-	if !j.isReadyToRotate() {
-		return nil
-	}
 
-	return j.Rotate()
-}
-
-// Rotate create new data and ids buf file
-// this function is not threadsafe
-func (j *Journal) Rotate() (err error) {
+	// stop legacy processing
 	j.Lock()
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
@@ -216,7 +219,7 @@ func (j *Journal) Rotate() (err error) {
 	// scan and create files
 	if j.LockLegacy() {
 		// need to refresh legacy, so need scan=true
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true, j.IsCompress); err != nil {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
@@ -224,7 +227,7 @@ func (j *Journal) Rotate() (err error) {
 		j.UnLockLegacy()
 	} else {
 		// no need to scan old buf files
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false, j.IsCompress); err != nil {
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
 	}

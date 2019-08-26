@@ -65,42 +65,48 @@ type IdsDecoder struct {
 }
 
 // NewDataEncoder create new DataEncoder
-func NewDataEncoder(fp *os.File, isCompress bool) (*DataEncoder, error) {
-	encoder := &DataEncoder{
+func NewDataEncoder(fp *os.File, isCompress bool) (enc *DataEncoder, err error) {
+	enc = &DataEncoder{
 		BaseSerializer: BaseSerializer{
 			isCompress: isCompress,
 		},
 	}
 	if isCompress {
-		encoder.gzWriter = utils.NewGZCompressor(&utils.GZCompressorCfg{
+		if enc.gzWriter, err = utils.NewGZCompressor(&utils.GZCompressorCfg{
 			BufSizeByte: BufSize,
 			Writer:      fp,
-		})
-		encoder.writer = msgp.NewWriterSize(encoder.gzWriter, BufSize)
+			GzLevel:     gzip.BestSpeed,
+		}); err != nil {
+			return nil, err
+		}
+		enc.writer = msgp.NewWriterSize(enc.gzWriter, BufSize)
 	} else {
-		encoder.writer = msgp.NewWriterSize(fp, BufSize)
+		enc.writer = msgp.NewWriterSize(fp, BufSize)
 	}
-	return encoder, nil
+	return enc, nil
 }
 
 // NewIdsEncoder create new IdsEncoder
-func NewIdsEncoder(fp *os.File, isCompress bool) (*IdsEncoder, error) {
-	encoder := &IdsEncoder{
+func NewIdsEncoder(fp *os.File, isCompress bool) (enc *IdsEncoder, err error) {
+	enc = &IdsEncoder{
 		BaseSerializer: BaseSerializer{
 			isCompress: isCompress,
 		},
 		baseID: -1,
 	}
 	if isCompress {
-		encoder.gzWriter = utils.NewGZCompressor(&utils.GZCompressorCfg{
+		if enc.gzWriter, err = utils.NewGZCompressor(&utils.GZCompressorCfg{
 			BufSizeByte: BufSize,
 			Writer:      fp,
-		})
-		encoder.writer = bufio.NewWriterSize(encoder.gzWriter, BufSize)
+			GzLevel:     gzip.BestSpeed,
+		}); err != nil {
+			return nil, err
+		}
+		enc.writer = bufio.NewWriterSize(enc.gzWriter, BufSize)
 	} else {
-		encoder.writer = bufio.NewWriterSize(fp, BufSize)
+		enc.writer = bufio.NewWriterSize(fp, BufSize)
 	}
-	return encoder, nil
+	return enc, nil
 }
 
 // NewIdsDecoder create new IdsDecoder
