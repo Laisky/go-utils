@@ -10,6 +10,7 @@ import (
 type GZCompressorCfg struct {
 	BufSizeByte int       // buf size in bytes
 	Writer      io.Writer // bottom writer
+	GzLevel     int
 }
 
 // GZCompressor compress by gz with buf
@@ -20,17 +21,20 @@ type GZCompressor struct {
 }
 
 // NewGZCompressor create new GZCompressor
-func NewGZCompressor(cfg *GZCompressorCfg) *GZCompressor {
+func NewGZCompressor(cfg *GZCompressorCfg) (c *GZCompressor, err error) {
 	if cfg.BufSizeByte < 0 {
 		Logger.Panic("`BufSizeByte` should great than or equal to 0")
 	}
 
-	c := &GZCompressor{
+	c = &GZCompressor{
 		GZCompressorCfg: cfg,
 	}
 	c.buf = bufio.NewWriterSize(c.Writer, c.BufSizeByte)
-	c.gzWriter = gzip.NewWriter(c.buf)
-	return c
+	if c.gzWriter, err = gzip.NewWriterLevel(c.buf, c.GzLevel); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 // Write write bytes via compressor

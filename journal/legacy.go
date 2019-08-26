@@ -78,6 +78,7 @@ func (l *LegacyLoader) removeFile(fpath string) {
 }
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
+	utils.Logger.Debug("try to legacy msg")
 	if l.ctx.isNeedReload { // reload ctx
 		if !l.ctx.isReadyReload { // legacy files not prepared
 			return io.EOF
@@ -102,14 +103,17 @@ READ_NEW_FILE:
 			return io.EOF
 		}
 
-		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
+		utils.Logger.Debug("read new data file",
+			zap.Strings("data_files", l.dataFNames),
+			zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		l.ctx.dataFp, err = os.Open(l.dataFNames[l.ctx.dataFileIdx])
 		if err != nil {
 			utils.Logger.Error("try to open data file got error", zap.Error(err))
 			l.ctx.dataFp = nil
 			goto READ_NEW_FILE
 		}
-		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp, l.ctx.isCompress); err != nil {
+
+		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp, isFileGZ(l.ctx.dataFp.Name())); err != nil {
 			utils.Logger.Error("try to decode data file got error", zap.Error(err))
 			l.ctx.dataFp = nil
 			goto READ_NEW_FILE
@@ -129,7 +133,7 @@ READ_NEW_LINE:
 		}
 
 		l.ctx.dataFp = nil
-		utils.Logger.Debug("read new data file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
+		utils.Logger.Debug("finish read file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
 		goto READ_NEW_FILE
 	}
 
@@ -159,7 +163,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 		}
 		defer fp.Close()
 
-		if idsDecoder, err = NewIdsDecoder(fp, l.ctx.isCompress); err != nil {
+		if idsDecoder, err = NewIdsDecoder(fp, isFileGZ(fp.Name())); err != nil {
 			utils.Logger.Error("try to read ids file got error",
 				zap.Error(err),
 				zap.String("fname", fp.Name()),
@@ -211,7 +215,7 @@ func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
 			allErr = errors.Wrapf(err, "try to open ids file `%v` to load all ids got error", fname)
 			continue
 		}
-		if idsDecoder, err = NewIdsDecoder(fp, l.ctx.isCompress); err != nil {
+		if idsDecoder, err = NewIdsDecoder(fp, isFileGZ(fp.Name())); err != nil {
 			allErr = errors.Wrapf(err, "try to decode ids file `%v` got error", fname)
 			continue
 		}

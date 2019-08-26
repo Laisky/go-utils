@@ -31,7 +31,7 @@ require (
 	github.com/kataras/golog v0.0.0-20180321173939-03be10146386 // indirect
 	github.com/kataras/iris v11.1.1+incompatible
 	github.com/kataras/pio v0.0.0-20190103105442-ea782b38602d // indirect
-	github.com/klauspost/compress v1.7.1 // indirect
+	github.com/klauspost/compress v1.7.1
 	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/labstack/gommon v0.2.9 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect

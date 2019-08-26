@@ -21,12 +21,17 @@ import (
 
 var (
 	// DataFileNameReg journal data file name pattern
-	DataFileNameReg = regexp.MustCompile(`^\d{8}_\d{8}\.buf.gz$`)
+	DataFileNameReg = regexp.MustCompile(`^\d{8}_\d{8}\.buf(.gz)?$`)
 	// IDFileNameReg journal id file name pattern
-	IDFileNameReg = regexp.MustCompile(`^\d{8}_\d{8}\.ids.gz$`)
-	layout        = "20060102"
-	layoutWithTZ  = "20060102-0700"
+	IDFileNameReg   = regexp.MustCompile(`^\d{8}_\d{8}\.ids(.gz)?$`)
+	fileGzSuffixReg = regexp.MustCompile(`\.gz$`)
+	layout          = "20060102"
+	layoutWithTZ    = "20060102-0700"
 )
+
+func isFileGZ(fname string) bool {
+	return fileGzSuffixReg.MatchString(fname)
+}
 
 // PrepareDir `mkdir -p`
 func PrepareDir(path string) error {
@@ -55,7 +60,7 @@ type BufFileStat struct {
 }
 
 // PrepareNewBufFile create new data & id files, and update BufFileStat
-func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsStat *BufFileStat, err error) {
+func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ bool) (fsStat *BufFileStat, err error) {
 	utils.Logger.Debug("prepare new buf file",
 		zap.String("dirpath", dirPath),
 		zap.Bool("is_scan", isScan),
@@ -114,18 +119,24 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan bool) (fsS
 	// `latestxxxFName` means new buf file name now
 	now := utils.Clock.GetUTCNow()
 	if latestDataFName == "" {
-		latestDataFName = now.Format(layout) + "_00000001.buf.gz"
+		latestDataFName = now.Format(layout) + "_00000001.buf"
+		if isWithGZ {
+			latestDataFName += ".gz"
+		}
 	} else {
-		if latestDataFName, err = GenerateNewBufFName(now, latestDataFName); err != nil {
+		if latestDataFName, err = GenerateNewBufFName(now, latestDataFName, isWithGZ); err != nil {
 			return nil, errors.Wrapf(err, "generate new data fname `%v` got error", latestDataFName)
 		}
 	}
 
 	// generate new buf ids file name
 	if latestIDsFName == "" {
-		latestIDsFName = now.Format(layout) + "_00000001.ids.gz"
+		latestIDsFName = now.Format(layout) + "_00000001.ids"
+		if isWithGZ {
+			latestDataFName += ".gz"
+		}
 	} else {
-		if latestIDsFName, err = GenerateNewBufFName(now, latestIDsFName); err != nil {
+		if latestIDsFName, err = GenerateNewBufFName(now, latestIDsFName, isWithGZ); err != nil {
 			return nil, errors.Wrapf(err, "generate new ids fname `%v` got error", latestIDsFName)
 		}
 	}
@@ -155,7 +166,7 @@ func OpenBufFile(filepath string) (fp *os.File, err error) {
 
 // GenerateNewBufFName return new buf file name depends on current time
 // file name looks like `yyyymmddnnnn.ids`, nnnn begin from 0001 for each day
-func GenerateNewBufFName(now time.Time, oldFName string) (string, error) {
+func GenerateNewBufFName(now time.Time, oldFName string, isWithGZ bool) (string, error) {
 	utils.Logger.Debug("GenerateNewBufFName", zap.Time("now", now), zap.String("oldFName", oldFName))
 	finfo := strings.SplitN(oldFName, ".", 2) // {name, ext}
 	if len(finfo) < 2 {
@@ -163,7 +174,10 @@ func GenerateNewBufFName(now time.Time, oldFName string) (string, error) {
 	}
 	fts := finfo[0][:8]
 	fidx := finfo[0][9:]
-	fext := finfo[1]
+	fext := strings.TrimSuffix(finfo[1], ".gz")
+	if isWithGZ {
+		fext += ".gz"
+	}
 
 	ft, err := time.Parse(layoutWithTZ, fts+"+0000")
 	if err != nil {
