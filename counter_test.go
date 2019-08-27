@@ -186,6 +186,87 @@ func TestIncrementRotateCounter(t *testing.T) {
 
 }
 
+func TestParallelRotateCounter(t *testing.T) {
+	utils.SetupLogger("debug")
+	pcounter, err := utils.NewParallelCounter(10, 100)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	counter := pcounter.GetChild()
+
+	var (
+		start, got, step int64
+	)
+	if got = counter.Count(); got-start < 1 {
+		t.Fatalf("%v should bigger than %v", got, start)
+	}
+	start = got
+
+	if got = counter.Count(); got-start < 1 {
+		t.Fatalf("%v should bigger than %v", got, start)
+	}
+	start = got
+
+	if got = counter.Count(); got-start < 1 {
+		t.Fatalf("%v should bigger than %v", got, start)
+	}
+	start = got
+
+	step = 4
+	if got = counter.CountN(step); got-start < step {
+		t.Fatalf("%v should bigger than %v", got, start)
+	}
+	start = got
+
+	step = 15
+	if got = counter.CountN(step); got-start < step {
+		t.Fatalf("%v should bigger than %v", got, start)
+	}
+	start = got
+
+	step = 110
+	if got = counter.CountN(step); got > step+start%100 {
+		t.Fatalf("%v should bigger than %v", got, step+start%100)
+	}
+	start = got
+
+	// test duplicate
+	if pcounter, err = utils.NewParallelCounter(0, 10000000); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	counter1 := pcounter.GetChild()
+	counter2 := pcounter.GetChild()
+
+	ns := sync.Map{}
+	wg := sync.WaitGroup{}
+	val := struct{}{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000000; i++ {
+			n := counter1.Count()
+			if _, ok := ns.LoadOrStore(n, val); ok {
+				t.Fatalf("should not contains: %v", n)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			n := counter2.CountN(100)
+
+			if _, ok := ns.LoadOrStore(n, val); ok {
+				t.Fatalf("should not contains: %v", n)
+			}
+		}
+	}()
+
+	wg.Wait()
+
+}
+
 func TestRotateCounterFromN(t *testing.T) {
 	counter, err := utils.NewRotateCounterFromN(2, 10)
 	if err != nil {
@@ -297,6 +378,276 @@ func BenchmarkRotateCounter(b *testing.B) {
 			})
 		}
 	})
+}
+
+/*BenchmarkAllCounter
+
+BenchmarkAllCounter/atomicCounter_count_1-4         	200000000	         7.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/rotateCounter_count_1-4         	20000000	       112 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/increCounter_count_1-4          	50000000	        30.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/childCounter_count_1-4          	100000000	        15.7 ns/op	       1 B/op	       0 allocs/op
+BenchmarkAllCounter/atomicCounter_count_500-4       	200000000	         6.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/rotateCounter_count_500-4       	   30000	     48907 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/increCounter_count_500-4        	 2000000	       688 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/childCounter_count_500-4        	  200000	      7917 ns/op	     950 B/op	       4 allocs/op
+BenchmarkAllCounter/atomicCounter_parallel-4_count_1-4         	20000000	       104 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/rotateCounter_parallel-4_count_1-4         	 3000000	       382 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/increCounter_parallel-4_count_1-4          	10000000	       166 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/childCounter_parallel-4_count_1-4          	20000000	       112 ns/op	       9 B/op	       0 allocs/op
+BenchmarkAllCounter/atomicCounter_parallel-4_count_500-4       	30000000	       104 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/rotateCounter_parallel-4_count_500-4       	   10000	    179839 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/increCounter_parallel-4_count_500-4        	 1000000	      3297 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCounter/childCounter_parallel-4_count_500-4        	   30000	     47194 ns/op	    4402 B/op	      22 allocs/op
+*/
+func BenchmarkAllCounter(b *testing.B) {
+	var err error
+	atomicCounter := utils.NewCounter()
+	rotateCounter, err := utils.NewRotateCounter(100000000)
+	if err != nil {
+		b.Fatalf("got error: %+v", err)
+	}
+	increCounter, err := utils.NewMonotonicRotateCounter(100000000)
+	if err != nil {
+		b.Fatalf("got error: %+v", err)
+	}
+	parallelCounter, err := utils.NewParallelCounter(100, 100000000)
+	if err != nil {
+		b.Fatalf("got error: %+v", err)
+	}
+	childCounter := parallelCounter.GetChild()
+
+	// count 1
+	b.Run("atomicCounter count 1", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			atomicCounter.Count()
+		}
+	})
+	b.Run("rotateCounter count 1", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			rotateCounter.Count()
+		}
+	})
+	b.Run("increCounter count 1", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			increCounter.Count()
+		}
+	})
+	b.Run("childCounter count 1", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			childCounter.Count()
+		}
+	})
+
+	// count 500
+	b.Run("atomicCounter count 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			atomicCounter.CountN(500)
+		}
+	})
+	b.Run("rotateCounter count 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			rotateCounter.CountN(500)
+		}
+	})
+	b.Run("increCounter count 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			increCounter.CountN(500)
+		}
+	})
+	b.Run("childCounter count 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			childCounter.CountN(500)
+		}
+	})
+
+	// parallel count 1
+	b.Run("atomicCounter parallel-4 count 1", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.Count()
+			}
+		})
+	})
+	b.Run("rotateCounter parallel-4 count 1", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.Count()
+			}
+		})
+	})
+	b.Run("increCounter parallel-4 count 1", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.Count()
+			}
+		})
+	})
+	b.Run("childCounter parallel-4 count 1", func(b *testing.B) {
+		cc1 := parallelCounter.GetChild()
+		cc2 := parallelCounter.GetChild()
+		cc3 := parallelCounter.GetChild()
+		cc4 := parallelCounter.GetChild()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc1.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc2.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc3.Count()
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc4.Count()
+			}
+		})
+	})
+
+	// parallel count 500
+	b.Run("atomicCounter parallel-4 count 500", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				atomicCounter.CountN(500)
+			}
+		})
+	})
+	b.Run("rotateCounter parallel-4 count 500", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				rotateCounter.CountN(500)
+			}
+		})
+	})
+	b.Run("increCounter parallel-4 count 500", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				increCounter.CountN(500)
+			}
+		})
+	})
+	b.Run("childCounter parallel-4 count 500", func(b *testing.B) {
+		cc1 := parallelCounter.GetChild()
+		cc2 := parallelCounter.GetChild()
+		cc3 := parallelCounter.GetChild()
+		cc4 := parallelCounter.GetChild()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc1.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc2.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc3.CountN(500)
+			}
+		})
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				cc4.CountN(500)
+			}
+		})
+	})
+
 }
 
 func BenchmarkIncrementalRotateCounter(b *testing.B) {
