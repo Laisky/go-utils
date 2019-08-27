@@ -49,7 +49,7 @@ func TestGenerateNewBufFName(t *testing.T) {
 		if err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
-		newFName, err = journal.GenerateNewBufFName(now, testcase.OldFName)
+		newFName, err = journal.GenerateNewBufFName(now, testcase.OldFName, false)
 		if err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
@@ -67,7 +67,7 @@ func TestPrepareNewBufFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	bufStat, err := journal.PrepareNewBufFile(dir, nil, true)
+	bufStat, err := journal.PrepareNewBufFile(dir, nil, true, false)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}

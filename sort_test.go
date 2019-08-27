@@ -64,5 +64,6 @@ func TestSortBiggest(t *testing.T) {
 }
 
 func init() {
-	utils.SetupLogger("debug")
+	// utils.SetupLogger("debug")
+	utils.SetupLogger("info")
 }
