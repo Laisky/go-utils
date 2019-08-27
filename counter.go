@@ -260,6 +260,7 @@ func (c *Uint32Counter) CountN(n uint32) uint32 {
 
 const defaultQuoteStep = 1000
 
+// ParallelCounter parallel count with child counter
 type ParallelCounter struct {
 	sync.Mutex
 	n,
@@ -267,12 +268,14 @@ type ParallelCounter struct {
 	rotatePoint int64
 }
 
+// ChildParallelCounter child of ParallelCounter
 type ChildParallelCounter struct {
 	sync.Mutex
 	p       *ParallelCounter
 	n, maxN int64
 }
 
+// NewParallelCounter get new parallel counter
 func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) {
 	Logger.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
 	if quoteStep <= 0 {
@@ -289,6 +292,27 @@ func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) 
 	}, nil
 }
 
+// NewParallelCounterFromN get new parallel counter
+func NewParallelCounterFromN(n, quoteStep, rotatePoint int64) (*ParallelCounter, error) {
+	Logger.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
+	if quoteStep <= 0 {
+		quoteStep = defaultQuoteStep
+	}
+	if n < 0 {
+		return nil, fmt.Errorf("n must greater than 0")
+	}
+	if rotatePoint <= 0 || quoteStep >= rotatePoint {
+		return nil, fmt.Errorf("rotate should greater than quoteStep and 0")
+	}
+
+	return &ParallelCounter{
+		n:           n,
+		quoteStep:   quoteStep,
+		rotatePoint: rotatePoint,
+	}, nil
+}
+
+// GetQuote child request new quote from parent
 func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 	if step <= 0 {
 		step = c.quoteStep
@@ -314,6 +338,7 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 	return
 }
 
+// GetChild create new child
 func (c *ParallelCounter) GetChild() *ChildParallelCounter {
 	cc := &ChildParallelCounter{
 		p: c,
@@ -322,10 +347,12 @@ func (c *ParallelCounter) GetChild() *ChildParallelCounter {
 	return cc
 }
 
+// Get get current count
 func (c *ChildParallelCounter) Get() int64 {
 	return atomic.LoadInt64(&c.n)
 }
 
+// Count count 1
 func (c *ChildParallelCounter) Count() (r int64) {
 	r = atomic.AddInt64(&c.n, 1)
 	if r > atomic.LoadInt64(&c.maxN) {
@@ -355,6 +382,7 @@ func (c *ChildParallelCounter) Count() (r int64) {
 	return r
 }
 
+// CountN count n
 func (c *ChildParallelCounter) CountN(n int64) (r int64) {
 	for i := int64(0); i < n-1; i++ {
 		c.Count()
