@@ -18,7 +18,8 @@ const (
 	// RotateCheckInterval interval to rotate journal files
 	RotateCheckInterval   = 1 * time.Second
 	defaultRotateDuration = 1 * time.Minute
-	defaultBufSizeBytes   = 1024 * 1024 * 200
+	// defaultRotateDuration = 3 * time.Second // TODO
+	defaultBufSizeBytes = 1024 * 1024 * 200
 )
 
 // JournalConfig configuration of Journal
@@ -63,8 +64,9 @@ func NewJournal(cfg *JournalConfig) *Journal {
 		legacyLock:    utils.NewMutex(),
 	}
 
-	if j.RotateDuration < 1*time.Minute {
-		j.RotateDuration = 1 * time.Minute
+	if j.RotateDuration < defaultRotateDuration {
+		utils.Logger.Warn("journal rotate duration too short",
+			zap.Duration("rotate_duration", j.RotateDuration))
 	}
 	if j.BufSizeBytes < 50*1024*1024 {
 		utils.Logger.Warn("buf size bytes too small", zap.Int64("bytes", j.BufSizeBytes))
@@ -177,23 +179,28 @@ func (j *Journal) WriteId(id int64) error {
 	return j.idsEnc.Write(id)
 }
 
-func (j *Journal) isReadyToRotate() bool {
+func (j *Journal) isReadyToRotate() (ok bool) {
 	if j.dataFp == nil {
-		return true
+		ok = true
 	}
-	if !j.rotateLock.TryLock() {
-		return false
-	}
+	// if !j.rotateLock.TryLock() {
+	// 	utils.Logger.Debug("rotate not ready for cannot acquire rotateLock")
+	// 	ok = false
+	// }
 
 	if fi, err := j.dataFp.Stat(); err != nil {
 		utils.Logger.Error("try to get file stat got error", zap.Error(err))
-		return false
+		ok = false
 	} else if fi.Size() > j.BufSizeBytes ||
 		utils.Clock.GetUTCNow().Sub(j.latestRotateT) > j.RotateDuration {
-		return true
+		ok = true
 	}
 
-	return false
+	utils.Logger.Debug("check isReadyToRotate",
+		zap.Bool("ready", ok),
+		zap.String("file", j.dataFp.Name()),
+	)
+	return
 }
 
 /*Rotate create new data and ids buf file
@@ -218,6 +225,8 @@ func (j *Journal) Rotate() (err error) {
 	j.latestRotateT = utils.Clock.GetUTCNow()
 	// scan and create files
 	if j.LockLegacy() {
+		utils.Logger.Debug("acquired legacy lock, create new file and refresh legacy loader",
+			zap.String("dir", j.BufDirPath))
 		// need to refresh legacy, so need scan=true
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true, j.IsCompress); err != nil {
 			j.UnLockLegacy()
@@ -226,6 +235,8 @@ func (j *Journal) Rotate() (err error) {
 		j.RefreshLegacyLoader()
 		j.UnLockLegacy()
 	} else {
+		utils.Logger.Debug("can not acquire legacy lock, so only create new file",
+			zap.String("dir", j.BufDirPath))
 		// no need to scan old buf files
 		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false, j.IsCompress); err != nil {
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
