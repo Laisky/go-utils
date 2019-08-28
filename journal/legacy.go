@@ -78,7 +78,11 @@ func (l *LegacyLoader) removeFile(fpath string) {
 }
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
-	utils.Logger.Debug("try to legacy msg")
+	utils.Logger.Debug("try to load legacy msg",
+		zap.Bool("isNeedReload", l.ctx.isNeedReload),
+		zap.Bool("isReadyReload", l.ctx.isReadyReload),
+	)
+
 	if l.ctx.isNeedReload { // reload ctx
 		if !l.ctx.isReadyReload { // legacy files not prepared
 			return io.EOF
