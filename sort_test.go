@@ -62,8 +62,3 @@ func TestSortBiggest(t *testing.T) {
 		t.Errorf("except 99, got %v", items[0].GetValue())
 	}
 }
-
-func init() {
-	// utils.SetupLogger("debug")
-	utils.SetupLogger("info")
-}

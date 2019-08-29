@@ -132,8 +132,3 @@ func TestConfigSrv(t *testing.T) {
 		t.Fatal("`key3` should equal to `true`")
 	}
 }
-
-func init() {
-	// utils.SetupLogger("debug")
-	utils.SetupLogger("info")
-}
