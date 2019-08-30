@@ -41,11 +41,10 @@ func (c *Counter) Get() int64 {
 // GetSpeed return increasing speed from lastest invoke `GetSpeed`
 func (c *Counter) GetSpeed() (r float64) {
 	c.Lock()
-	defer c.Unlock()
-
 	r = Round(float64(c.Get()-c.lastN)/UTCNow().Sub(c.lastT).Seconds(), .5, 2)
 	c.lastT = UTCNow()
 	c.lastN = c.Get()
+	c.Unlock()
 	return r
 }
 
@@ -322,14 +321,14 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 	}
 
 	c.Lock()
-	defer c.Unlock()
-
 	from = atomic.LoadInt64(&c.n)
 	to = atomic.AddInt64(&c.n, step) - 1
 	if c.rotatePoint > 0 && to > c.rotatePoint { // need rotate
 		from = 0
 		to = step
+		atomic.StoreInt64(&c.n, to+1)
 	}
+	c.Unlock()
 
 	Logger.Debug("get quote",
 		zap.Int64("step", step),
@@ -357,7 +356,6 @@ func (c *ChildParallelCounter) Count() (r int64) {
 	r = atomic.AddInt64(&c.n, 1)
 	if r > atomic.LoadInt64(&c.maxN) {
 		c.Lock()
-		defer c.Unlock()
 		if r > c.p.rotatePoint {
 			r = r % c.p.rotatePoint
 		}
@@ -377,6 +375,7 @@ func (c *ChildParallelCounter) Count() (r int64) {
 
 		atomic.StoreInt64(&c.n, cn)
 		atomic.StoreInt64(&c.maxN, cmax)
+		c.Unlock()
 	}
 
 	return r
