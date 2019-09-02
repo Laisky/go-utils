@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,8 @@ import (
 )
 
 const (
+	ctxKey utils.CtxKeyT = "key"
+
 	// FlushInterval interval to flush serializer
 	deafultFlushInterval = 5 * time.Second
 	// RotateCheckInterval interval to rotate journal files
@@ -50,6 +53,8 @@ type Journal struct {
 	sync.RWMutex // journal rwlock
 	*JournalConfig
 
+	ctx                    context.Context
+	cancel                 func()
 	rotateLock, legacyLock *utils.Mutex
 	dataFp, idsFp          *os.File // current writting journal file
 	fsStat                 *BufFileStat
@@ -57,17 +62,19 @@ type Journal struct {
 	dataEnc                *DataEncoder
 	idsEnc                 *IdsEncoder
 	latestRotateT          time.Time
-	running                bool
 }
 
 // NewJournal create new Journal
-func NewJournal(cfg *JournalConfig) *Journal {
+func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 	j := &Journal{
 		JournalConfig: cfg,
 		rotateLock:    utils.NewMutex(),
 		legacyLock:    utils.NewMutex(),
-		running:       true,
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	j.ctx, j.cancel = context.WithCancel(ctx)
 
 	if j.RotateDuration < defaultRotateDuration {
 		utils.Logger.Warn("journal rotate duration too short",
@@ -78,15 +85,20 @@ func NewJournal(cfg *JournalConfig) *Journal {
 	}
 
 	j.initBufDir()
-	go j.runFlushTrigger()
-	go j.runRotateTrigger()
+	go j.runFlushTrigger(context.WithValue(j.ctx, ctxKey, "flushTrigger"))
+	go j.runRotateTrigger(context.WithValue(j.ctx, ctxKey, "rotateTrigger"))
+	go func() {
+		<-j.ctx.Done()
+		utils.Logger.Info("journal exit")
+	}()
 	return j
 }
 
 func (j *Journal) Close() {
+	utils.Logger.Info("close Journal")
 	j.Lock()
-	j.running = false
 	j.Flush()
+	j.cancel()
 	j.Unlock()
 }
 
@@ -97,7 +109,7 @@ func (j *Journal) initBufDir() {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
 
-	if err = j.Rotate(); err != nil { // manually first run
+	if err = j.Rotate(context.WithValue(j.ctx, ctxKey, "rotate")); err != nil { // manually first run
 		panic(err)
 	}
 }
@@ -139,18 +151,18 @@ func (j *Journal) flushAndClose() (err error) {
 	return err
 }
 
-func (j *Journal) runFlushTrigger() {
-	defer func() {
-		if j.running {
-			utils.Logger.Panic("journal flush exit")
-		}
-		utils.Logger.Info("journal flush exit")
-	}()
+func (j *Journal) runFlushTrigger(ctx context.Context) {
 	defer j.Flush()
 
 	var err error
-	for j.running {
+	for {
 		j.Lock()
+		select {
+		case <-ctx.Done():
+			utils.Logger.Info("journal flush exit")
+		default:
+		}
+
 		if err = j.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
 		}
@@ -159,19 +171,19 @@ func (j *Journal) runFlushTrigger() {
 	}
 }
 
-func (j *Journal) runRotateTrigger() {
-	defer func() {
-		if j.running {
-			utils.Logger.Panic("journal rotate exit")
-		}
-		utils.Logger.Info("journal rotate exit")
-	}()
+func (j *Journal) runRotateTrigger(ctx context.Context) {
 	defer j.Flush()
 
 	var err error
-	for j.running {
+	for {
+		select {
+		case <-ctx.Done():
+			utils.Logger.Info("journal rotate exit")
+		default:
+		}
+
 		if j.isReadyToRotate() {
-			if err = j.Rotate(); err != nil {
+			if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
 				utils.Logger.Error("try to rotate journal got error", zap.Error(err))
 			}
 		}
@@ -230,7 +242,7 @@ func (j *Journal) isReadyToRotate() (ok bool) {
 /*Rotate create new data and ids buf file
 this function is not threadsafe.
 */
-func (j *Journal) Rotate() (err error) {
+func (j *Journal) Rotate(ctx context.Context) (err error) {
 	// make sure no other rorate is running
 	if !j.rotateLock.TryLock() {
 		return nil
@@ -241,6 +253,12 @@ func (j *Journal) Rotate() (err error) {
 	j.Lock()
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 
 	if err = j.flushAndClose(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
@@ -292,7 +310,8 @@ func (j *Journal) Rotate() (err error) {
 func (j *Journal) RefreshLegacyLoader() {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
+		ctx := context.WithValue(j.ctx, ctxKey, "legacyLoader")
+		j.legacy = NewLegacyLoader(ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {

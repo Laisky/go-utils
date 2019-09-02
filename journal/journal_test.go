@@ -1,6 +1,7 @@
 package journal_test
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,6 +13,10 @@ import (
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
+)
+
+const (
+	ctxKey utils.CtxKeyT = "key"
 )
 
 func BenchmarkLock(b *testing.B) {
@@ -44,23 +49,27 @@ func fakedata(length int) map[int64]interface{} {
 }
 
 func TestJournal(t *testing.T) {
-	utils.SetupLogger("debug")
+	utils.SetupLogger("info")
 	dir, err := ioutil.TempDir("", "journal-test")
 	if err != nil {
 		log.Fatal(err)
 	}
 	t.Logf("create directory: %v", dir)
-	defer os.RemoveAll(dir)
 
+	ctx := context.Background()
 	cfg := &journal.JournalConfig{
 		BufDirPath:     dir,
 		BufSizeBytes:   100,
 		CommittedIDTTL: 1 * time.Second,
 	}
-	j := journal.NewJournal(cfg)
-	defer j.Close()
+	j := journal.NewJournal(context.WithValue(ctx, ctxKey, "journal"), cfg)
 	data := &journal.Data{}
 	threshold := int64(50)
+
+	defer func() {
+		j.Close()
+		os.RemoveAll(dir)
+	}()
 
 	for id, val := range fakedata(1000) {
 		data.Data = map[string]interface{}{"val": val}
@@ -78,7 +87,7 @@ func TestJournal(t *testing.T) {
 		}
 	}
 
-	if err = j.Rotate(); err != nil {
+	if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
@@ -108,18 +117,19 @@ func TestJournal(t *testing.T) {
 }
 
 func BenchmarkJournal(b *testing.B) {
-	dir, err := ioutil.TempDir("", "journal-test")
+	dir, err := ioutil.TempDir("", "journal-test-bench")
 	if err != nil {
 		log.Fatal(err)
 	}
 	b.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
+	ctx := context.Background()
 	cfg := &journal.JournalConfig{
 		BufDirPath:   dir,
 		BufSizeBytes: 100,
 	}
-	j := journal.NewJournal(cfg)
+	j := journal.NewJournal(context.WithValue(ctx, ctxKey, "journal"), cfg)
 	data := &journal.Data{
 		Data: map[string]interface{}{"data": "xxx"},
 		ID:   1,
@@ -137,7 +147,7 @@ func BenchmarkJournal(b *testing.B) {
 		}
 	})
 
-	if err = j.Rotate(); err != nil {
+	if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 

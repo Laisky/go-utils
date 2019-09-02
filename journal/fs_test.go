@@ -60,7 +60,7 @@ func TestGenerateNewBufFName(t *testing.T) {
 }
 
 func TestPrepareNewBufFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "golang-test")
+	dir, err := ioutil.TempDir("", "journal-test-fs")
 	if err != nil {
 		log.Fatal(err)
 	}

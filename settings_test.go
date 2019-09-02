@@ -45,7 +45,7 @@ key4:
 `)
 	)
 
-	dirName, err := ioutil.TempDir("", "go-utils-test")
+	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
 	if err != nil {
 		t.Fatalf("try to create tmp dir got error: %+v", err)
 	}
@@ -54,7 +54,7 @@ key4:
 		t.Fatalf("try to create tmp file got error: %+v", err)
 	}
 	t.Logf("create file: %v", fp.Name())
-	// defer os.RemoveAll(dirName)
+	defer os.RemoveAll(dirName)
 
 	fp.Write(st)
 	fp.Close()

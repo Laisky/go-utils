@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"io"
 	"os"
 	"sync"
@@ -14,12 +15,9 @@ import (
 // LegacyLoader loader to handle legacy data and ids
 type LegacyLoader struct {
 	sync.Mutex
-	dataFNames, idsFNames []string
-	ctx                   *legacyCtx
-}
 
-type legacyCtx struct {
-	isNeedReload, // prepare datafp for `Load`
+	dataFNames, idsFNames []string
+	isNeedReload,         // prepare datafp for `Load`
 	isCompress,
 	isReadyReload bool // alreddy update `dataFNames`
 	ids                       *Int64SetWithTTL
@@ -29,24 +27,28 @@ type legacyCtx struct {
 }
 
 // NewLegacyLoader create new LegacyLoader
-func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool, committedIDTTL time.Duration) *LegacyLoader {
+func NewLegacyLoader(ctx context.Context, dataFNames, idsFNames []string, isCompress bool, committedIDTTL time.Duration) *LegacyLoader {
 	utils.Logger.Debug("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
-		dataFNames: dataFNames,
-		idsFNames:  idsFNames,
-		ctx: &legacyCtx{
-			isNeedReload:  true,
-			isReadyReload: len(dataFNames) != 0,
-			isCompress:    isCompress,
-			ids:           NewInt64SetWithTTL(committedIDTTL),
-		},
+		dataFNames:    dataFNames,
+		idsFNames:     idsFNames,
+		isNeedReload:  true,
+		isReadyReload: len(dataFNames) != 0,
+		isCompress:    isCompress,
+		ids:           NewInt64SetWithTTL(context.WithValue(ctx, ctxKey, "ids"), committedIDTTL),
 	}
+
+	go func() {
+		<-ctx.Done()
+		utils.Logger.Info("legacy loader exit")
+	}()
+
 	return l
 }
 
 // AddID add id in ids
 func (l *LegacyLoader) AddID(id int64) {
-	l.ctx.ids.AddInt64(id)
+	l.ids.AddInt64(id)
 }
 
 // Reset reset journal legacy link to existing files
@@ -57,15 +59,15 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	utils.Logger.Debug("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
-	// l.ctx.ids = NewInt64Set()
-	l.ctx.isReadyReload = len(dataFNames) != 0
+	// l.ids = NewInt64Set()
+	l.isReadyReload = len(dataFNames) != 0
 }
 
 // GetIdsLen return length of ids
 func (l *LegacyLoader) GetIdsLen() int {
 	l.Lock()
 	defer l.Unlock()
-	return l.ctx.ids.GetLen()
+	return l.ids.GetLen()
 }
 
 // removeFile delete file, should run sync to avoid dirty files
@@ -80,69 +82,69 @@ func (l *LegacyLoader) removeFile(fpath string) {
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
 	utils.Logger.Debug("try to load legacy msg",
-		zap.Bool("isNeedReload", l.ctx.isNeedReload),
-		zap.Bool("isReadyReload", l.ctx.isReadyReload),
+		zap.Bool("isNeedReload", l.isNeedReload),
+		zap.Bool("isReadyReload", l.isReadyReload),
 	)
 
-	if l.ctx.isNeedReload { // reload ctx
-		if !l.ctx.isReadyReload { // legacy files not prepared
+	if l.isNeedReload { // reload ctx
+		if !l.isReadyReload { // legacy files not prepared
 			return io.EOF
 		}
-		l.ctx.isReadyReload = false
+		l.isReadyReload = false
 
 		utils.Logger.Debug("reload ids & data file idx")
-		if err = l.LoadAllids(l.ctx.ids); err != nil {
+		if err = l.LoadAllids(l.ids); err != nil {
 			utils.Logger.Error("try to load all ids got error", zap.Error(err))
 		}
-		l.ctx.dataFilesLen = len(l.dataFNames)
-		l.ctx.dataFileIdx = -1
-		l.ctx.isNeedReload = false
+		l.dataFilesLen = len(l.dataFNames)
+		l.dataFileIdx = -1
+		l.isNeedReload = false
 	}
 
 READ_NEW_FILE:
-	if l.ctx.dataFp == nil {
-		l.ctx.dataFileIdx++
-		if l.ctx.dataFileIdx == l.ctx.dataFilesLen { // all data files finished
+	if l.dataFp == nil {
+		l.dataFileIdx++
+		if l.dataFileIdx == l.dataFilesLen { // all data files finished
 			utils.Logger.Debug("all data files finished")
-			l.ctx.isNeedReload = true
+			l.isNeedReload = true
 			return io.EOF
 		}
 
 		utils.Logger.Debug("read new data file",
 			zap.Strings("data_files", l.dataFNames),
-			zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
-		l.ctx.dataFp, err = os.Open(l.dataFNames[l.ctx.dataFileIdx])
+			zap.String("fname", l.dataFNames[l.dataFileIdx]))
+		l.dataFp, err = os.Open(l.dataFNames[l.dataFileIdx])
 		if err != nil {
 			utils.Logger.Error("try to open data file got error", zap.Error(err))
-			l.ctx.dataFp = nil
+			l.dataFp = nil
 			goto READ_NEW_FILE
 		}
 
-		if l.ctx.decoder, err = NewDataDecoder(l.ctx.dataFp, isFileGZ(l.ctx.dataFp.Name())); err != nil {
+		if l.decoder, err = NewDataDecoder(l.dataFp, isFileGZ(l.dataFp.Name())); err != nil {
 			utils.Logger.Error("try to decode data file got error", zap.Error(err))
-			l.ctx.dataFp = nil
+			l.dataFp = nil
 			goto READ_NEW_FILE
 		}
 	}
 
 READ_NEW_LINE:
-	if err = l.ctx.decoder.Read(data); err != nil {
+	if err = l.decoder.Read(data); err != nil {
 		if err != io.EOF {
 			// current file is broken
 			utils.Logger.Error("try to load data file got error", zap.Error(err))
 		}
 
 		// read new file
-		if err = l.ctx.dataFp.Close(); err != nil {
-			utils.Logger.Error("try to close file got error", zap.String("file", l.dataFNames[l.ctx.dataFileIdx]), zap.Error(err))
+		if err = l.dataFp.Close(); err != nil {
+			utils.Logger.Error("try to close file got error", zap.String("file", l.dataFNames[l.dataFileIdx]), zap.Error(err))
 		}
 
-		l.ctx.dataFp = nil
-		utils.Logger.Debug("finish read file", zap.String("fname", l.dataFNames[l.ctx.dataFileIdx]))
+		l.dataFp = nil
+		utils.Logger.Debug("finish read file", zap.String("fname", l.dataFNames[l.dataFileIdx]))
 		goto READ_NEW_FILE
 	}
 
-	if l.ctx.ids.CheckAndRemove(data.ID) { // ignore committed data
+	if l.ids.CheckAndRemove(data.ID) { // ignore committed data
 		// utils.Logger.Debug("data already consumed", zap.Int64("id", id))
 		goto READ_NEW_LINE
 	}
@@ -249,8 +251,8 @@ func (l *LegacyLoader) Clean() error {
 		l.idsFNames = nil
 	}
 
-	l.ctx.dataFp.Close()
-	l.ctx.dataFp = nil // `Load` need this
+	l.dataFp.Close()
+	l.dataFp = nil // `Load` need this
 	utils.Logger.Info("clean all legacy files")
 	return nil
 }

@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -102,8 +103,11 @@ func (s *Int64Set) GetLen() int {
 
 type Int64SetWithTTL struct {
 	sync.RWMutex
-	chgLock  *sync.Mutex
-	running  bool
+	chgLock *sync.Mutex
+
+	ctx    context.Context
+	cancel func()
+
 	ttl      time.Duration
 	og, ng   *sync.Map
 	ogN, ngN int64
@@ -113,21 +117,25 @@ const (
 	defaultIDSetTTL = 1 * time.Minute
 )
 
-func NewInt64SetWithTTL(ttl time.Duration) *Int64SetWithTTL {
+func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL {
 	if ttl < defaultIDSetTTL {
 		utils.Logger.Warn("TTL too small")
 	}
 
 	s := &Int64SetWithTTL{
-		running: true,
 		chgLock: &sync.Mutex{},
 		ttl:     ttl,
 		ng:      &sync.Map{},
 	}
+	s.ctx, s.cancel = context.WithCancel(ctx)
 	utils.Logger.Info("NewInt64SetWithTTL",
 		zap.Duration("ttl", s.ttl),
 	)
-	go s.rotateRunner()
+	go s.rotateRunner(context.WithValue(ctx, ctxKey, "rotator"))
+	go func() {
+		<-ctx.Done()
+		utils.Logger.Info("Int64SetWithTTL exit")
+	}()
 	return s
 }
 
@@ -185,21 +193,20 @@ func (s *Int64SetWithTTL) GetLen() (r int) {
 	return r
 }
 
-func (s *Int64SetWithTTL) Stop() {
-	s.running = false
+func (s *Int64SetWithTTL) Close() {
+	s.cancel()
 }
 
-func (s *Int64SetWithTTL) rotateRunner() {
-	defer func() {
-		if s.running {
-			utils.Logger.Panic("rotateRunner exit")
+func (s *Int64SetWithTTL) rotateRunner(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			utils.Logger.Info("rotateRunner exit")
+			return
+		default:
 		}
-		utils.Logger.Info("rotateRunner exit")
-	}()
 
-	for s.running {
 		time.Sleep(s.ttl)
-
 		s.Lock()
 		s.ogN, s.ngN = s.ngN, 0
 		s.og = s.ng

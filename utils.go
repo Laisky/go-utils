@@ -16,6 +16,8 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+type CtxKeyT string
+
 // GetFuncName return the name of func
 func GetFuncName(f interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()

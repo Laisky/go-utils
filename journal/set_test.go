@@ -1,6 +1,7 @@
 package journal_test
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 	"time"
@@ -33,7 +34,10 @@ func TestNewInt64Set(t *testing.T) {
 
 func TestInt64SetWithTTL(t *testing.T) {
 	utils.SetupLogger("debug")
-	s := journal.NewInt64SetWithTTL(1 * time.Second)
+	ctx := context.Background()
+	s := journal.NewInt64SetWithTTL(
+		context.WithValue(ctx, ctxKey, "idsSet"),
+		1*time.Second)
 	for i := int64(0); i < 10; i++ {
 		s.AddInt64(i)
 	}
@@ -96,7 +100,10 @@ BenchmarkInt64SetWithTTL/parallel-4      2000000              4139 ns/op        
 */
 func BenchmarkInt64SetWithTTL(b *testing.B) {
 	utils.SetupLogger("info")
-	s := journal.NewInt64SetWithTTL(5 * time.Second)
+	ctx := context.Background()
+	s := journal.NewInt64SetWithTTL(
+		context.WithValue(ctx, ctxKey, "idsSet"),
+		5*time.Second)
 	b.Run("add", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s.AddInt64(rand.Int63())
