@@ -85,8 +85,8 @@ func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 	}
 
 	j.initBufDir()
-	go j.runFlushTrigger(context.WithValue(j.ctx, ctxKey, "flushTrigger"))
-	go j.runRotateTrigger(context.WithValue(j.ctx, ctxKey, "rotateTrigger"))
+	go j.runFlushTrigger(j.ctx)
+	go j.runRotateTrigger(j.ctx)
 	go func() {
 		<-j.ctx.Done()
 		utils.Logger.Info("journal exit")
@@ -109,7 +109,7 @@ func (j *Journal) initBufDir() {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
 
-	if err = j.Rotate(context.WithValue(j.ctx, ctxKey, "rotate")); err != nil { // manually first run
+	if err = j.Rotate(j.ctx); err != nil { // manually first run
 		panic(err)
 	}
 }
@@ -183,7 +183,7 @@ func (j *Journal) runRotateTrigger(ctx context.Context) {
 		}
 
 		if j.isReadyToRotate() {
-			if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
+			if err = j.Rotate(ctx); err != nil {
 				utils.Logger.Error("try to rotate journal got error", zap.Error(err))
 			}
 		}
@@ -310,8 +310,7 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 func (j *Journal) RefreshLegacyLoader() {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		ctx := context.WithValue(j.ctx, ctxKey, "legacyLoader")
-		j.legacy = NewLegacyLoader(ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
+		j.legacy = NewLegacyLoader(j.ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {

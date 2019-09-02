@@ -131,7 +131,7 @@ func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL
 	utils.Logger.Info("NewInt64SetWithTTL",
 		zap.Duration("ttl", s.ttl),
 	)
-	go s.rotateRunner(context.WithValue(ctx, ctxKey, "rotator"))
+	go s.rotateRunner(ctx)
 	go func() {
 		<-ctx.Done()
 		utils.Logger.Info("Int64SetWithTTL exit")

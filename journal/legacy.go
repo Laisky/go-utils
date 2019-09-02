@@ -35,7 +35,7 @@ func NewLegacyLoader(ctx context.Context, dataFNames, idsFNames []string, isComp
 		isNeedReload:  true,
 		isReadyReload: len(dataFNames) != 0,
 		isCompress:    isCompress,
-		ids:           NewInt64SetWithTTL(context.WithValue(ctx, ctxKey, "ids"), committedIDTTL),
+		ids:           NewInt64SetWithTTL(ctx, committedIDTTL),
 	}
 
 	go func() {

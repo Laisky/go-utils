@@ -106,14 +106,14 @@ func TestLegacy(t *testing.T) {
 
 		ctx := context.Background()
 		legacy := journal.NewLegacyLoader(
-			context.WithValue(ctx, ctxKey, "legacy"),
+			ctx,
 			[]string{dataFp1.Name(), dataFp2.Name()},
 			[]string{idsFp1.Name(), idsFp2.Name()},
 			isCompress,
 			defaultIDTTL,
 		)
 		idmaps := journal.NewInt64SetWithTTL(
-			context.WithValue(ctx, ctxKey, "idsSet"),
+			ctx,
 			defaultIDTTL)
 		err = legacy.LoadAllids(idmaps)
 		t.Logf("got ids: %+v", idmaps)
@@ -162,14 +162,14 @@ func TestEmptyLegacy(t *testing.T) {
 
 		ctx := context.Background()
 		legacy := journal.NewLegacyLoader(
-			context.WithValue(ctx, ctxKey, "legacy"),
+			ctx,
 			[]string{},
 			[]string{},
 			isCompress,
 			defaultIDTTL,
 		)
 		ids := journal.NewInt64SetWithTTL(
-			context.WithValue(ctx, ctxKey, "idsSet"),
+			ctx,
 			defaultIDTTL)
 		err = legacy.LoadAllids(ids)
 		if err != nil {
