@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
@@ -43,6 +44,7 @@ func fakedata(length int) map[int64]interface{} {
 }
 
 func TestJournal(t *testing.T) {
+	utils.SetupLogger("debug")
 	dir, err := ioutil.TempDir("", "journal-test")
 	if err != nil {
 		log.Fatal(err)
@@ -51,10 +53,12 @@ func TestJournal(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cfg := &journal.JournalConfig{
-		BufDirPath:   dir,
-		BufSizeBytes: 100,
+		BufDirPath:     dir,
+		BufSizeBytes:   100,
+		CommittedIDTTL: 1 * time.Second,
 	}
 	j := journal.NewJournal(cfg)
+	defer j.Close()
 	data := &journal.Data{}
 	threshold := int64(50)
 
@@ -81,6 +85,7 @@ func TestJournal(t *testing.T) {
 	if !j.LockLegacy() {
 		t.Fatal("can not lock legacy")
 	}
+	time.Sleep(1500 * time.Millisecond)
 	i := 0
 	for {
 		if err = j.LoadLegacyBuf(data); err == io.EOF {
@@ -100,7 +105,6 @@ func TestJournal(t *testing.T) {
 	if i != int(threshold) {
 		t.Fatalf("expect %v, got %v", threshold, i)
 	}
-
 }
 
 func BenchmarkJournal(b *testing.B) {

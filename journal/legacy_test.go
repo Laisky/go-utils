@@ -6,8 +6,13 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Laisky/go-utils/journal"
+)
+
+const (
+	defaultIDTTL = 5 * time.Minute
 )
 
 func TestLegacy(t *testing.T) {
@@ -102,8 +107,9 @@ func TestLegacy(t *testing.T) {
 			[]string{dataFp1.Name(), dataFp2.Name()},
 			[]string{idsFp1.Name(), idsFp2.Name()},
 			isCompress,
+			defaultIDTTL,
 		)
-		idmaps := journal.NewInt64Set()
+		idmaps := journal.NewInt64SetWithTTL(defaultIDTTL)
 		err = legacy.LoadAllids(idmaps)
 		t.Logf("got ids: %+v", idmaps)
 		if err = idsEncoder.Write(22); err != nil {
@@ -153,8 +159,9 @@ func TestEmptyLegacy(t *testing.T) {
 			[]string{},
 			[]string{},
 			isCompress,
+			defaultIDTTL,
 		)
-		ids := journal.NewInt64Set()
+		ids := journal.NewInt64SetWithTTL(defaultIDTTL)
 		err = legacy.LoadAllids(ids)
 		if err != nil {
 			t.Fatalf("got error: %+v", err)

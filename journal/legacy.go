@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -21,14 +22,14 @@ type legacyCtx struct {
 	isNeedReload, // prepare datafp for `Load`
 	isCompress,
 	isReadyReload bool // alreddy update `dataFNames`
-	ids                       *Int64Set
+	ids                       *Int64SetWithTTL
 	dataFileIdx, dataFilesLen int
 	dataFp                    *os.File
 	decoder                   *DataDecoder
 }
 
 // NewLegacyLoader create new LegacyLoader
-func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool) *LegacyLoader {
+func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool, committedIDTTL time.Duration) *LegacyLoader {
 	utils.Logger.Debug("new legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l := &LegacyLoader{
 		dataFNames: dataFNames,
@@ -37,7 +38,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool) *LegacyLoa
 			isNeedReload:  true,
 			isReadyReload: len(dataFNames) != 0,
 			isCompress:    isCompress,
-			ids:           NewInt64Set(),
+			ids:           NewInt64SetWithTTL(committedIDTTL),
 		},
 	}
 	return l
@@ -45,7 +46,7 @@ func NewLegacyLoader(dataFNames, idsFNames []string, isCompress bool) *LegacyLoa
 
 // AddID add id in ids
 func (l *LegacyLoader) AddID(id int64) {
-	l.ctx.ids.Add(id)
+	l.ctx.ids.AddInt64(id)
 }
 
 // Reset reset journal legacy link to existing files
@@ -56,7 +57,7 @@ func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	utils.Logger.Debug("reset legacy loader", zap.Strings("dataFiles", dataFNames), zap.Strings("idsFiles", idsFNames))
 	l.dataFNames = dataFNames
 	l.idsFNames = idsFNames
-	l.ctx.ids = NewInt64Set()
+	// l.ctx.ids = NewInt64Set()
 	l.ctx.isReadyReload = len(dataFNames) != 0
 }
 
@@ -191,7 +192,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 }
 
 // LoadAllids read all ids from ids file into ids set
-func (l *LegacyLoader) LoadAllids(ids *Int64Set) (allErr error) {
+func (l *LegacyLoader) LoadAllids(ids *Int64SetWithTTL) (allErr error) {
 	utils.Logger.Debug("LoadAllids...")
 	var (
 		err        error
