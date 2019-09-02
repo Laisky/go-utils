@@ -98,10 +98,11 @@ func (c *ClockType) runRefresh() {
 }
 
 // GetUTCNow return Clock current time.Time
-func (c *ClockType) GetUTCNow() time.Time {
+func (c *ClockType) GetUTCNow() (t time.Time) {
 	c.RLock()
-	defer c.RUnlock()
-	return c.now
+	t = c.now
+	c.RUnlock()
+	return t
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string

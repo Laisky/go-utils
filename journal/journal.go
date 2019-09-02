@@ -19,7 +19,8 @@ const (
 	RotateCheckInterval   = 1 * time.Second
 	defaultRotateDuration = 1 * time.Minute
 	// defaultRotateDuration = 3 * time.Second // TODO
-	defaultBufSizeBytes = 1024 * 1024 * 200
+	defaultBufSizeBytes   = 1024 * 1024 * 200
+	defaultCommittedIDTTL = 5 * time.Minute
 )
 
 // JournalConfig configuration of Journal
@@ -28,7 +29,8 @@ type JournalConfig struct {
 	BufSizeBytes              int64
 	RotateDuration            time.Duration
 	IsAggresiveGC, IsCompress bool
-	FlushInterval             time.Duration // interval to flush serializer
+	FlushInterval,            // interval to flush serializer
+	CommittedIDTTL time.Duration
 }
 
 // NewConfig get JournalConfig with default configuration
@@ -39,6 +41,7 @@ func NewConfig() *JournalConfig {
 		IsAggresiveGC:  true,
 		IsCompress:     false,
 		FlushInterval:  defaultBufSizeBytes,
+		CommittedIDTTL: defaultCommittedIDTTL,
 	}
 }
 
@@ -54,6 +57,7 @@ type Journal struct {
 	dataEnc                *DataEncoder
 	idsEnc                 *IdsEncoder
 	latestRotateT          time.Time
+	running                bool
 }
 
 // NewJournal create new Journal
@@ -62,6 +66,7 @@ func NewJournal(cfg *JournalConfig) *Journal {
 		JournalConfig: cfg,
 		rotateLock:    utils.NewMutex(),
 		legacyLock:    utils.NewMutex(),
+		running:       true,
 	}
 
 	if j.RotateDuration < defaultRotateDuration {
@@ -76,6 +81,13 @@ func NewJournal(cfg *JournalConfig) *Journal {
 	go j.runFlushTrigger()
 	go j.runRotateTrigger()
 	return j
+}
+
+func (j *Journal) Close() {
+	j.Lock()
+	j.running = false
+	j.Flush()
+	j.Unlock()
 }
 
 // initBufDir initialize buf directory and create buf files
@@ -109,8 +121,9 @@ func (j *Journal) Flush() (err error) {
 	return err
 }
 
-// FlushAndClose flush journal files
-func (j *Journal) FlushAndClose() (err error) {
+// flushAndClose flush journal files
+func (j *Journal) flushAndClose() (err error) {
+	utils.Logger.Debug("flushAndClose")
 	if j.idsEnc != nil {
 		if err = j.idsEnc.Close(); err != nil {
 			err = errors.Wrap(err, "try to close ids got error")
@@ -127,32 +140,43 @@ func (j *Journal) FlushAndClose() (err error) {
 }
 
 func (j *Journal) runFlushTrigger() {
-	defer utils.Logger.Panic("journal flush exit")
-	defer j.FlushAndClose()
+	defer func() {
+		if j.running {
+			utils.Logger.Panic("journal flush exit")
+		}
+		utils.Logger.Info("journal flush exit")
+	}()
+	defer j.Flush()
 
 	var err error
-	for {
-		time.Sleep(j.FlushInterval)
+	for j.running {
 		j.Lock()
 		if err = j.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
 		}
 		j.Unlock()
+		time.Sleep(j.FlushInterval)
 	}
 }
 
 func (j *Journal) runRotateTrigger() {
-	defer utils.Logger.Panic("journal rotate exit")
+	defer func() {
+		if j.running {
+			utils.Logger.Panic("journal rotate exit")
+		}
+		utils.Logger.Info("journal rotate exit")
+	}()
+	defer j.Flush()
+
 	var err error
-	for {
-		time.Sleep(RotateCheckInterval)
-		if !j.isReadyToRotate() {
-			continue
+	for j.running {
+		if j.isReadyToRotate() {
+			if err = j.Rotate(); err != nil {
+				utils.Logger.Error("try to rotate journal got error", zap.Error(err))
+			}
 		}
 
-		if err = j.Rotate(); err != nil {
-			utils.Logger.Error("try to rotate journal got error", zap.Error(err))
-		}
+		time.Sleep(RotateCheckInterval)
 	}
 }
 
@@ -218,7 +242,7 @@ func (j *Journal) Rotate() (err error) {
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
 
-	if err = j.FlushAndClose(); err != nil {
+	if err = j.flushAndClose(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
@@ -268,7 +292,7 @@ func (j *Journal) Rotate() (err error) {
 func (j *Journal) RefreshLegacyLoader() {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress)
+		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {

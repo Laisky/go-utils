@@ -4,6 +4,10 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 
 	"github.com/RoaringBitmap/roaring"
 )
@@ -28,29 +32,31 @@ func NewUint32Set() *Uint32Set {
 // AddInt64 add new number
 func (s *Uint32Set) AddInt64(i int64) {
 	s.Lock()
-	defer s.Unlock()
 	s.d.Add(uint32(i % math.MaxUint32))
+	s.Unlock()
 }
 
 // CheckAndRemoveInt64 return true if exists
 func (s *Uint32Set) CheckAndRemoveInt64(i int64) (ok bool) {
 	s.Lock()
-	defer s.Unlock()
-	return s.d.CheckedRemove(uint32(i % math.MaxUint32))
+	ok = s.d.CheckedRemove(uint32(i % math.MaxUint32))
+	s.Unlock()
+	return ok
 }
 
 // AddUint32 add new number
 func (s *Uint32Set) AddUint32(i uint32) {
 	s.Lock()
-	defer s.Unlock()
 	s.d.Add(i)
+	s.Unlock()
 }
 
 // CheckAndRemoveUint32 return true if exists
 func (s *Uint32Set) CheckAndRemoveUint32(i uint32) (ok bool) {
 	s.Lock()
-	defer s.Unlock()
-	return s.d.CheckedRemove(i)
+	ok = s.d.CheckedRemove(i)
+	s.Unlock()
+	return ok
 }
 
 // GetLen (deprecated) return length
@@ -92,4 +98,112 @@ func (s *Int64Set) CheckAndRemove(i int64) (ok bool) {
 // GetLen return length
 func (s *Int64Set) GetLen() int {
 	return int(atomic.LoadInt64(&s.n))
+}
+
+type Int64SetWithTTL struct {
+	sync.RWMutex
+	chgLock  *sync.Mutex
+	running  bool
+	ttl      time.Duration
+	og, ng   *sync.Map
+	ogN, ngN int64
+}
+
+const (
+	defaultIDSetTTL = 1 * time.Minute
+)
+
+func NewInt64SetWithTTL(ttl time.Duration) *Int64SetWithTTL {
+	if ttl < defaultIDSetTTL {
+		utils.Logger.Warn("TTL too small")
+	}
+
+	s := &Int64SetWithTTL{
+		running: true,
+		chgLock: &sync.Mutex{},
+		ttl:     ttl,
+		ng:      &sync.Map{},
+	}
+	utils.Logger.Info("NewInt64SetWithTTL",
+		zap.Duration("ttl", s.ttl),
+	)
+	go s.rotateRunner()
+	return s
+}
+
+func (s *Int64SetWithTTL) Add(id int) {
+	s.AddInt64(int64(id))
+}
+
+func (s *Int64SetWithTTL) AddInt64(id int64) {
+	t := utils.Clock.GetUTCNow()
+	s.RLock()
+	if _, ok := s.ng.LoadOrStore(id, t); !ok {
+		atomic.AddInt64(&s.ngN, 1)
+	} else { // already exists
+		s.chgLock.Lock()
+		if _, ok = s.ng.LoadOrStore(id, t); !ok {
+			atomic.AddInt64(&s.ngN, 1)
+		} else {
+			s.ng.Store(id, t)
+		}
+		s.chgLock.Unlock()
+	}
+	s.RUnlock()
+}
+
+// CheckAndRemove return true if id committed
+func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
+	s.RLock()
+	defer s.RUnlock()
+	var (
+		t  = utils.Clock.GetUTCNow()
+		vi interface{}
+	)
+	if vi, ok = s.ng.Load(id); ok {
+		return true
+	}
+
+	if s.og != nil {
+		if vi, ok = s.og.Load(id); ok {
+			if vi.(time.Time).After(t) {
+				return true
+			}
+
+			s.og.Delete(id)
+			atomic.AddInt64(&s.ogN, -1)
+		}
+	}
+
+	return false
+}
+
+func (s *Int64SetWithTTL) GetLen() (r int) {
+	s.RLock()
+	r = int(atomic.LoadInt64(&s.ogN) + atomic.LoadInt64(&s.ngN))
+	s.RUnlock()
+	return r
+}
+
+func (s *Int64SetWithTTL) Stop() {
+	s.running = false
+}
+
+func (s *Int64SetWithTTL) rotateRunner() {
+	defer func() {
+		if s.running {
+			utils.Logger.Panic("rotateRunner exit")
+		}
+		utils.Logger.Info("rotateRunner exit")
+	}()
+
+	for s.running {
+		time.Sleep(s.ttl)
+
+		s.Lock()
+		s.ogN, s.ngN = s.ngN, 0
+		s.og = s.ng
+		s.ng = &sync.Map{}
+		s.Unlock()
+	}
 }
