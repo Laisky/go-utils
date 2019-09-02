@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/structures"
 )
 
@@ -157,8 +156,4 @@ func TestGetTopKItems(t *testing.T) {
 	if items[2].GetPriority() != 3 {
 		t.Errorf("expect 3, got %+v", items[2].GetPriority())
 	}
-}
-
-func init() {
-	utils.SetupLogger("debug")
 }

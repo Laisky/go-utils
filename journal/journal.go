@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -13,13 +14,16 @@ import (
 )
 
 const (
+	ctxKey utils.CtxKeyT = "key"
+
 	// FlushInterval interval to flush serializer
 	deafultFlushInterval = 5 * time.Second
 	// RotateCheckInterval interval to rotate journal files
 	RotateCheckInterval   = 1 * time.Second
 	defaultRotateDuration = 1 * time.Minute
 	// defaultRotateDuration = 3 * time.Second // TODO
-	defaultBufSizeBytes = 1024 * 1024 * 200
+	defaultBufSizeBytes   = 1024 * 1024 * 200
+	defaultCommittedIDTTL = 5 * time.Minute
 )
 
 // JournalConfig configuration of Journal
@@ -28,7 +32,8 @@ type JournalConfig struct {
 	BufSizeBytes              int64
 	RotateDuration            time.Duration
 	IsAggresiveGC, IsCompress bool
-	FlushInterval             time.Duration // interval to flush serializer
+	FlushInterval,            // interval to flush serializer
+	CommittedIDTTL time.Duration
 }
 
 // NewConfig get JournalConfig with default configuration
@@ -39,6 +44,7 @@ func NewConfig() *JournalConfig {
 		IsAggresiveGC:  true,
 		IsCompress:     false,
 		FlushInterval:  defaultBufSizeBytes,
+		CommittedIDTTL: defaultCommittedIDTTL,
 	}
 }
 
@@ -47,6 +53,8 @@ type Journal struct {
 	sync.RWMutex // journal rwlock
 	*JournalConfig
 
+	ctx                    context.Context
+	cancel                 func()
 	rotateLock, legacyLock *utils.Mutex
 	dataFp, idsFp          *os.File // current writting journal file
 	fsStat                 *BufFileStat
@@ -57,12 +65,16 @@ type Journal struct {
 }
 
 // NewJournal create new Journal
-func NewJournal(cfg *JournalConfig) *Journal {
+func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 	j := &Journal{
 		JournalConfig: cfg,
 		rotateLock:    utils.NewMutex(),
 		legacyLock:    utils.NewMutex(),
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	j.ctx, j.cancel = context.WithCancel(ctx)
 
 	if j.RotateDuration < defaultRotateDuration {
 		utils.Logger.Warn("journal rotate duration too short",
@@ -73,9 +85,21 @@ func NewJournal(cfg *JournalConfig) *Journal {
 	}
 
 	j.initBufDir()
-	go j.runFlushTrigger()
-	go j.runRotateTrigger()
+	go j.runFlushTrigger(j.ctx)
+	go j.runRotateTrigger(j.ctx)
+	go func() {
+		<-j.ctx.Done()
+		utils.Logger.Info("journal exit")
+	}()
 	return j
+}
+
+func (j *Journal) Close() {
+	utils.Logger.Info("close Journal")
+	j.Lock()
+	j.Flush()
+	j.cancel()
+	j.Unlock()
 }
 
 // initBufDir initialize buf directory and create buf files
@@ -85,7 +109,7 @@ func (j *Journal) initBufDir() {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
 
-	if err = j.Rotate(); err != nil { // manually first run
+	if err = j.Rotate(j.ctx); err != nil { // manually first run
 		panic(err)
 	}
 }
@@ -109,8 +133,9 @@ func (j *Journal) Flush() (err error) {
 	return err
 }
 
-// FlushAndClose flush journal files
-func (j *Journal) FlushAndClose() (err error) {
+// flushAndClose flush journal files
+func (j *Journal) flushAndClose() (err error) {
+	utils.Logger.Debug("flushAndClose")
 	if j.idsEnc != nil {
 		if err = j.idsEnc.Close(); err != nil {
 			err = errors.Wrap(err, "try to close ids got error")
@@ -126,33 +151,44 @@ func (j *Journal) FlushAndClose() (err error) {
 	return err
 }
 
-func (j *Journal) runFlushTrigger() {
-	defer utils.Logger.Panic("journal flush exit")
-	defer j.FlushAndClose()
+func (j *Journal) runFlushTrigger(ctx context.Context) {
+	defer j.Flush()
 
 	var err error
 	for {
-		time.Sleep(j.FlushInterval)
 		j.Lock()
+		select {
+		case <-ctx.Done():
+			utils.Logger.Info("journal flush exit")
+		default:
+		}
+
 		if err = j.Flush(); err != nil {
 			utils.Logger.Error("try to flush ids&data got error", zap.Error(err))
 		}
 		j.Unlock()
+		time.Sleep(j.FlushInterval)
 	}
 }
 
-func (j *Journal) runRotateTrigger() {
-	defer utils.Logger.Panic("journal rotate exit")
+func (j *Journal) runRotateTrigger(ctx context.Context) {
+	defer j.Flush()
+
 	var err error
 	for {
-		time.Sleep(RotateCheckInterval)
-		if !j.isReadyToRotate() {
-			continue
+		select {
+		case <-ctx.Done():
+			utils.Logger.Info("journal rotate exit")
+		default:
 		}
 
-		if err = j.Rotate(); err != nil {
-			utils.Logger.Error("try to rotate journal got error", zap.Error(err))
+		if j.isReadyToRotate() {
+			if err = j.Rotate(ctx); err != nil {
+				utils.Logger.Error("try to rotate journal got error", zap.Error(err))
+			}
 		}
+
+		time.Sleep(RotateCheckInterval)
 	}
 }
 
@@ -206,7 +242,7 @@ func (j *Journal) isReadyToRotate() (ok bool) {
 /*Rotate create new data and ids buf file
 this function is not threadsafe.
 */
-func (j *Journal) Rotate() (err error) {
+func (j *Journal) Rotate(ctx context.Context) (err error) {
 	// make sure no other rorate is running
 	if !j.rotateLock.TryLock() {
 		return nil
@@ -218,7 +254,13 @@ func (j *Journal) Rotate() (err error) {
 	defer j.Unlock()
 	utils.Logger.Debug("starting to rotate")
 
-	if err = j.FlushAndClose(); err != nil {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	if err = j.flushAndClose(); err != nil {
 		return errors.Wrap(err, "try to flush journal got error")
 	}
 
@@ -268,7 +310,7 @@ func (j *Journal) Rotate() (err error) {
 func (j *Journal) RefreshLegacyLoader() {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		j.legacy = NewLegacyLoader(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress)
+		j.legacy = NewLegacyLoader(j.ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {

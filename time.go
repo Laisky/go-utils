@@ -41,10 +41,10 @@ func SetupClock(refreshInterval time.Duration) {
 // ClockType high performance clock with lazy refreshing
 type ClockType struct {
 	sync.RWMutex
-	interval           time.Duration
-	now                time.Time
-	timeStrRFC3339Nano string
-	isStop             bool
+	interval time.Duration
+	now      time.Time
+	// timeStrRFC3339Nano string
+	isStop bool
 }
 
 // NewClock create new Clock
@@ -90,7 +90,6 @@ func (c *ClockType) runRefresh() {
 			return
 		}
 		c.now = UTCNow()
-		c.timeStrRFC3339Nano = c.now.Format(time.RFC3339Nano)
 		interval = c.interval
 		c.Unlock()
 
@@ -99,15 +98,14 @@ func (c *ClockType) runRefresh() {
 }
 
 // GetUTCNow return Clock current time.Time
-func (c *ClockType) GetUTCNow() time.Time {
+func (c *ClockType) GetUTCNow() (t time.Time) {
 	c.RLock()
-	defer c.RUnlock()
-	return c.now
+	t = c.now
+	c.RUnlock()
+	return t
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
 func (c *ClockType) GetTimeInRFC3339Nano() string {
-	c.RLock()
-	defer c.RUnlock()
-	return c.timeStrRFC3339Nano
+	return c.GetUTCNow().Format(time.RFC3339Nano)
 }

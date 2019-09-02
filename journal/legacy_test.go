@@ -1,13 +1,19 @@
 package journal_test
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Laisky/go-utils/journal"
+)
+
+const (
+	defaultIDTTL = 5 * time.Minute
 )
 
 func TestLegacy(t *testing.T) {
@@ -98,12 +104,17 @@ func TestLegacy(t *testing.T) {
 		idsFp1.Close()
 		idsFp2.Close()
 
+		ctx := context.Background()
 		legacy := journal.NewLegacyLoader(
+			ctx,
 			[]string{dataFp1.Name(), dataFp2.Name()},
 			[]string{idsFp1.Name(), idsFp2.Name()},
 			isCompress,
+			defaultIDTTL,
 		)
-		idmaps := journal.NewInt64Set()
+		idmaps := journal.NewInt64SetWithTTL(
+			ctx,
+			defaultIDTTL)
 		err = legacy.LoadAllids(idmaps)
 		t.Logf("got ids: %+v", idmaps)
 		if err = idsEncoder.Write(22); err != nil {
@@ -142,19 +153,24 @@ func TestLegacy(t *testing.T) {
 
 func TestEmptyLegacy(t *testing.T) {
 	for _, isCompress := range [...]bool{true, false} {
-		dir, err := ioutil.TempDir("", "journal-test")
+		dir, err := ioutil.TempDir("", "journal-test-emptry-legacy")
 		if err != nil {
 			log.Fatal(err)
 		}
 		t.Logf("create directory: %v", dir)
 		defer os.RemoveAll(dir)
 
+		ctx := context.Background()
 		legacy := journal.NewLegacyLoader(
+			ctx,
 			[]string{},
 			[]string{},
 			isCompress,
+			defaultIDTTL,
 		)
-		ids := journal.NewInt64Set()
+		ids := journal.NewInt64SetWithTTL(
+			ctx,
+			defaultIDTTL)
 		err = legacy.LoadAllids(ids)
 		if err != nil {
 			t.Fatalf("got error: %+v", err)

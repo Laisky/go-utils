@@ -400,6 +400,8 @@ BenchmarkAllCounter/increCounter_parallel-4_count_500-4        	 1000000	      3
 BenchmarkAllCounter/childCounter_parallel-4_count_500-4        	   30000	     47194 ns/op	    4402 B/op	      22 allocs/op
 */
 func BenchmarkAllCounter(b *testing.B) {
+	b.ReportAllocs()
+	utils.SetupLogger("info")
 	var err error
 	atomicCounter := utils.NewCounter()
 	rotateCounter, err := utils.NewRotateCounter(100000000)

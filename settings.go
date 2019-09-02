@@ -112,16 +112,16 @@ func (s *SettingsType) IsSet(key string) bool {
 
 // GetStringMap return map contains interface
 func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetStringMap(key)
 }
 
 // GetStringMapString return map contains strings
 func (s *SettingsType) GetStringMapString(key string) map[string]string {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 
 	return viper.GetStringMapString(key)
 }
