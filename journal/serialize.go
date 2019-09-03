@@ -321,7 +321,7 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 }
 
 // ReadAllToBmap read all ids in all files into set
-func (dec *IdsDecoder) ReadAllToInt64Set(ids *Int64SetWithTTL) (err error) {
+func (dec *IdsDecoder) ReadAllToInt64Set(ids Int64SetItf) (err error) {
 	var id int64
 	for {
 		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {

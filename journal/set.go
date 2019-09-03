@@ -13,6 +13,13 @@ import (
 	"github.com/RoaringBitmap/roaring"
 )
 
+type Int64SetItf interface {
+	Add(int)
+	AddInt64(int64)
+	CheckAndRemove(int64) bool
+	GetLen() int
+}
+
 // Uint32Set set depends on bitmap.
 // only support uint32, so cannot support more than 4294967295 numbers.
 type Uint32Set struct {
@@ -82,7 +89,11 @@ func NewInt64Set() *Int64Set {
 }
 
 // Add add new number
-func (s *Int64Set) Add(i int64) {
+func (s *Int64Set) Add(i int) {
+	s.AddInt64(int64(i))
+}
+
+func (s *Int64Set) AddInt64(i int64) {
 	atomic.AddInt64(&s.n, 1)
 	s.d.Store(i, s.padding)
 }
@@ -117,6 +128,7 @@ const (
 	defaultIDSetTTL = 1 * time.Minute
 )
 
+// NewInt64SetWithTTL create new int64 set with ttl
 func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL {
 	if ttl < defaultIDSetTTL {
 		utils.Logger.Warn("TTL too small")
@@ -131,18 +143,20 @@ func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL
 	utils.Logger.Info("NewInt64SetWithTTL",
 		zap.Duration("ttl", s.ttl),
 	)
-	go s.rotateRunner(ctx)
+	go s.rotateRunner(s.ctx)
 	go func() {
-		<-ctx.Done()
+		<-s.ctx.Done()
 		utils.Logger.Info("Int64SetWithTTL exit")
 	}()
 	return s
 }
 
+// Add add int
 func (s *Int64SetWithTTL) Add(id int) {
 	s.AddInt64(int64(id))
 }
 
+// AddInt64 add int64
 func (s *Int64SetWithTTL) AddInt64(id int64) {
 	t := utils.Clock.GetUTCNow().Unix()
 	s.RLock()
@@ -186,6 +200,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 	return false
 }
 
+// GetLen get items number of set
 func (s *Int64SetWithTTL) GetLen() (r int) {
 	s.RLock()
 	r = int(atomic.LoadInt64(&s.ogN) + atomic.LoadInt64(&s.ngN))
@@ -193,6 +208,7 @@ func (s *Int64SetWithTTL) GetLen() (r int) {
 	return r
 }
 
+// Close close set, stop rotate
 func (s *Int64SetWithTTL) Close() {
 	s.cancel()
 }
@@ -206,11 +222,11 @@ func (s *Int64SetWithTTL) rotateRunner(ctx context.Context) {
 		default:
 		}
 
-		time.Sleep(s.ttl)
 		s.Lock()
 		s.ogN, s.ngN = s.ngN, 0
 		s.og = s.ng
 		s.ng = &sync.Map{}
 		s.Unlock()
+		time.Sleep(s.ttl)
 	}
 }
