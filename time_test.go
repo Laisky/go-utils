@@ -67,22 +67,68 @@ func TestClock(t *testing.T) {
 
 	// test ts
 	ts := c.GetUTCNow()
-	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+	if c.GetUTCNow().After(ts) {
 		t.Fatalf("should got same ts")
 	}
-	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
-		t.Fatalf("should got same ts")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
-		t.Fatalf("should got same ts")
-	}
-	if c.GetUTCNow().Sub(ts) > 1*time.Nanosecond {
+	if c.GetUTCNow().After(ts) {
 		t.Fatalf("should got same ts")
 	}
 	time.Sleep(50 * time.Millisecond)
-	if c.GetUTCNow().Sub(ts) < 100*time.Millisecond {
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetUTCNow().Sub(ts) < 50*time.Millisecond {
 		t.Fatalf("should not got same ts")
+	}
+
+	// test ts string
+	timeStr := c.GetTimeInRFC3339Nano()
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	if c.GetTimeInRFC3339Nano() != timeStr {
+		t.Fatalf("should got same time string")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetTimeInRFC3339Nano() == timeStr {
+		t.Fatalf("should not got same time string")
+	}
+}
+
+func TestClock2(t *testing.T) {
+	c := utils.NewClock2(context.Background(), 100*time.Millisecond)
+	ts := c.GetUTCNow()
+	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
+
+	// test ts
+	time.Sleep(10 * time.Millisecond) // first refresh
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	if c.GetUTCNow().After(ts) {
+		t.Fatalf("should got same ts")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if c.GetUTCNow().Sub(ts) < 50*time.Millisecond {
+		t.Fatalf("should not got same ts, got: %+v", c.GetUTCNow().Format(time.RFC3339Nano))
 	}
 
 	// test ts string
@@ -113,15 +159,15 @@ func TestClock(t *testing.T) {
 // }
 
 /*
-BenchmarkClock/normal_time-4         	20000000	       106 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock_time_with_500ms-4         	100000000	        20.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock_time_with_100ms-4         	100000000	        20.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock_time_with_10ms-4      	100000000	        20.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock_time_with_1ms-4           	100000000	        22.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_500ms-4        	300000000	         4.18 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_100ms-4        	300000000	         4.29 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_10ms-4         	300000000	         4.20 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_1ms-4          	300000000	         4.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/normal_time-4         	20000000	       109 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_500ms-4         	100000000	        20.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_100ms-4         	100000000	        20.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_10ms-4          	100000000	        20.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_1ms-4           	100000000	        22.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_500ms-4        	200000000	         6.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_100ms-4        	200000000	         5.96 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_10ms-4         	200000000	         6.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_1ms-4          	200000000	         6.15 ns/op	       0 B/op	       0 allocs/op
 */
 func BenchmarkClock(b *testing.B) {
 	utils.SetupLogger("error")

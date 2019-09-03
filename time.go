@@ -61,6 +61,7 @@ type ClockType struct {
 func NewClock(refreshInterval time.Duration) *ClockType {
 	c := &ClockType{
 		interval: refreshInterval,
+		now:      UTCNow(),
 	}
 	go c.runRefresh()
 
@@ -141,6 +142,7 @@ type Clock2Type struct {
 func NewClock2(ctx context.Context, refreshInterval time.Duration) *Clock2Type {
 	c := &Clock2Type{
 		interval: refreshInterval,
+		now:      UTCNow().UnixNano(),
 	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	go c.runRefresh(c.ctx)
@@ -161,19 +163,20 @@ func (c *Clock2Type) runRefresh(ctx context.Context) {
 			Logger.Info("clock refresher exit")
 			return
 		default:
+			c.RLock()
+			interval = c.interval
+			c.RUnlock()
+			time.Sleep(interval)
 		}
 
-		atomic.StoreInt64(&c.now, time.Now().Unix())
-		c.RLock()
-		interval = c.interval
-		c.RUnlock()
-		time.Sleep(interval)
+		atomic.StoreInt64(&c.now, time.Now().UnixNano())
 	}
 }
 
 // GetUTCNow return Clock2 current time.Time
 func (c *Clock2Type) GetUTCNow() (t time.Time) {
-	return time.Unix(atomic.LoadInt64(&c.now), 0).UTC()
+	ts := atomic.LoadInt64(&c.now)
+	return time.Unix(ts/1e9, ts%1e9).UTC()
 }
 
 // GetTimeInRFC3339Nano return Clock2 current time in string
