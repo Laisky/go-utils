@@ -102,8 +102,8 @@ func BenchmarkInt64SetWithTTL(b *testing.B) {
 	utils.SetupLogger("info")
 	ctx := context.Background()
 	s := journal.NewInt64SetWithTTL(
-		context.WithValue(ctx, ctxKey, "idsSet"),
-		5*time.Second)
+		ctx,
+		10*time.Second)
 	b.Run("add", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			s.AddInt64(rand.Int63())

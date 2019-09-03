@@ -144,7 +144,7 @@ func (s *Int64SetWithTTL) Add(id int) {
 }
 
 func (s *Int64SetWithTTL) AddInt64(id int64) {
-	t := utils.Clock.GetUTCNow()
+	t := utils.Clock.GetUTCNow().Unix()
 	s.RLock()
 	if _, ok := s.ng.LoadOrStore(id, t); !ok {
 		atomic.AddInt64(&s.ngN, 1)
@@ -165,7 +165,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 	s.RLock()
 	defer s.RUnlock()
 	var (
-		t  = utils.Clock.GetUTCNow()
+		t  = utils.Clock.GetUTCNow().Unix()
 		vi interface{}
 	)
 	if vi, ok = s.ng.Load(id); ok {
@@ -174,7 +174,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 
 	if s.og != nil {
 		if vi, ok = s.og.Load(id); ok {
-			if vi.(time.Time).After(t) {
+			if vi.(int64) > t {
 				return true
 			}
 
