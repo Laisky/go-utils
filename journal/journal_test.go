@@ -15,8 +15,8 @@ import (
 	"github.com/Laisky/go-utils/journal"
 )
 
-const (
-	ctxKey utils.CtxKeyT = "key"
+var (
+	ctxKey = utils.CtxKeyT{}
 )
 
 func BenchmarkLock(b *testing.B) {
