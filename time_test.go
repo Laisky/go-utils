@@ -1,6 +1,7 @@
 package utils_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -105,31 +106,79 @@ func TestClock(t *testing.T) {
 	}
 }
 
+// func TestLoop(t *testing.T) {
+// 	for {
+// 		time.Sleep(1 * time.Millisecond)
+// 	}
+// }
+
+/*
+BenchmarkClock/normal_time-4         	20000000	       106 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_500ms-4         	100000000	        20.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_100ms-4         	100000000	        20.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_10ms-4      	100000000	        20.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock_time_with_1ms-4           	100000000	        22.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_500ms-4        	300000000	         4.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_100ms-4        	300000000	         4.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_10ms-4         	300000000	         4.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClock/clock2_time_with_1ms-4          	300000000	         4.27 ns/op	       0 B/op	       0 allocs/op
+*/
 func BenchmarkClock(b *testing.B) {
+	utils.SetupLogger("error")
+	// clock 1
 	b.Run("normal time", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			time.Now().UTC()
 		}
 	})
-
-	utils.SetupClock(500 * time.Millisecond)
+	clock := utils.NewClock(500 * time.Millisecond)
 	b.Run("clock time with 500ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Clock.GetUTCNow()
+			clock.GetUTCNow()
 		}
 	})
-
-	utils.SetupClock(100 * time.Millisecond)
+	clock.SetupInterval(100 * time.Millisecond)
 	b.Run("clock time with 100ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Clock.GetUTCNow()
+			clock.GetUTCNow()
+		}
+	})
+	clock.SetupInterval(10 * time.Millisecond)
+	b.Run("clock time with 10ms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			clock.GetUTCNow()
+		}
+	})
+	clock.SetupInterval(1 * time.Millisecond)
+	b.Run("clock time with 1ms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			clock.GetUTCNow()
 		}
 	})
 
-	utils.SetupClock(1 * time.Millisecond)
-	b.Run("clock time with 1ms", func(b *testing.B) {
+	// clock 2
+	clock2 := utils.NewClock2(context.Background(), 500*time.Millisecond)
+	b.Run("clock2 time with 500ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Clock.GetUTCNow()
+			clock2.GetUTCNow()
+		}
+	})
+	clock2.SetupInterval(100 * time.Millisecond)
+	b.Run("clock2 time with 100ms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			clock2.GetUTCNow()
+		}
+	})
+	clock2.SetupInterval(10 * time.Millisecond)
+	b.Run("clock2 time with 10ms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			clock2.GetUTCNow()
+		}
+	})
+	clock2.SetupInterval(1 * time.Millisecond)
+	b.Run("clock2 time with 1ms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			clock2.GetUTCNow()
 		}
 	})
 }
