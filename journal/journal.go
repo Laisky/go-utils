@@ -161,6 +161,7 @@ func (j *Journal) runFlushTrigger(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			utils.Logger.Info("journal flush exit")
+			return
 		default:
 		}
 
@@ -180,6 +181,7 @@ func (j *Journal) runRotateTrigger(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			utils.Logger.Info("journal rotate exit")
+			return
 		default:
 		}
 
