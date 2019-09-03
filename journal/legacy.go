@@ -20,7 +20,7 @@ type LegacyLoader struct {
 	isNeedReload,         // prepare datafp for `Load`
 	isCompress,
 	isReadyReload bool // alreddy update `dataFNames`
-	ids                       *Int64SetWithTTL
+	ids                       Int64SetItf
 	dataFileIdx, dataFilesLen int
 	dataFp                    *os.File
 	decoder                   *DataDecoder
@@ -194,7 +194,7 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 }
 
 // LoadAllids read all ids from ids file into ids set
-func (l *LegacyLoader) LoadAllids(ids *Int64SetWithTTL) (allErr error) {
+func (l *LegacyLoader) LoadAllids(ids Int64SetItf) (allErr error) {
 	utils.Logger.Debug("LoadAllids...")
 	var (
 		err        error

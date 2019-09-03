@@ -28,12 +28,13 @@ const (
 
 // JournalConfig configuration of Journal
 type JournalConfig struct {
-	BufDirPath                string
-	BufSizeBytes              int64
-	RotateDuration            time.Duration
-	IsAggresiveGC, IsCompress bool
-	FlushInterval,            // interval to flush serializer
-	CommittedIDTTL time.Duration
+	BufDirPath     string
+	BufSizeBytes   int64
+	RotateDuration time.Duration
+	IsAggresiveGC, // force gc when reset legacy loader
+	IsCompress bool // [beta] enable gc when writing journal
+	FlushInterval, // interval to flush serializer
+	CommittedIDTTL time.Duration // remain ids in memory until ttl, to reduce duplicate msg
 }
 
 // NewConfig get JournalConfig with default configuration
