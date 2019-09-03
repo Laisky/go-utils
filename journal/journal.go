@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	ctxKey utils.CtxKeyT = "key"
-
 	// FlushInterval interval to flush serializer
 	deafultFlushInterval = 5 * time.Second
 	// RotateCheckInterval interval to rotate journal files
@@ -25,6 +23,8 @@ const (
 	defaultBufSizeBytes   = 1024 * 1024 * 200
 	defaultCommittedIDTTL = 5 * time.Minute
 )
+
+var ctxKey = utils.CtxKeyT{}
 
 // JournalConfig configuration of Journal
 type JournalConfig struct {

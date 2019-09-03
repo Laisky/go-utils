@@ -36,7 +36,7 @@ func TestInt64SetWithTTL(t *testing.T) {
 	utils.SetupLogger("debug")
 	ctx := context.Background()
 	s := journal.NewInt64SetWithTTL(
-		context.WithValue(ctx, ctxKey, "idsSet"),
+		ctx,
 		1*time.Second)
 	for i := int64(0); i < 10; i++ {
 		s.AddInt64(i)

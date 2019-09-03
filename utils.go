@@ -16,7 +16,7 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-type CtxKeyT string
+type CtxKeyT struct{}
 
 // GetFuncName return the name of func
 func GetFuncName(f interface{}) string {
