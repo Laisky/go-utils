@@ -214,10 +214,10 @@ func (s *Int64SetWithTTL) Close() {
 }
 
 func (s *Int64SetWithTTL) rotateRunner(ctx context.Context) {
+	defer utils.Logger.Info("rotateRunner exit")
 	for {
 		select {
 		case <-ctx.Done():
-			utils.Logger.Info("rotateRunner exit")
 			return
 		default:
 		}

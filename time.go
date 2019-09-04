@@ -22,6 +22,11 @@ func ParseTs2Time(ts int64) time.Time {
 	return time.Unix(ts, 0).UTC()
 }
 
+// UnixNano2UTC convert unixnano to UTC time
+func UnixNano2UTC(ts int64) time.Time {
+	return time.Unix(ts/1e9, ts%1e9).UTC()
+}
+
 // ---------------------------------------
 // Clock
 // ---------------------------------------
@@ -36,7 +41,7 @@ type ClockItf interface {
 
 const defaultClockInterval = 100 * time.Millisecond
 
-// Clock (Deprecated) high performance time utils
+// Clock high performance time utils
 var Clock = NewClock2(context.Background(), defaultClockInterval)
 
 // SetupClock setup internal Clock with step
@@ -48,7 +53,7 @@ func SetupClock(refreshInterval time.Duration) {
 	}
 }
 
-// ClockType high performance clock with lazy refreshing
+// ClockType (Deprecated) high performance clock with lazy refreshing
 type ClockType struct {
 	sync.RWMutex
 	interval time.Duration
@@ -57,7 +62,7 @@ type ClockType struct {
 	isStop bool
 }
 
-// NewClock create new Clock
+// NewClock (Deprecated) create new Clock
 func NewClock(refreshInterval time.Duration) *ClockType {
 	c := &ClockType{
 		interval: refreshInterval,
@@ -131,8 +136,7 @@ var Clock2 = NewClock2(context.Background(), defaultClockInterval)
 // Clock2Type high performance clock with lazy refreshing
 type Clock2Type struct {
 	sync.RWMutex
-	ctx    context.Context
-	cancel func()
+	stopChan chan struct{}
 
 	interval time.Duration
 	now      int64
@@ -143,24 +147,25 @@ func NewClock2(ctx context.Context, refreshInterval time.Duration) *Clock2Type {
 	c := &Clock2Type{
 		interval: refreshInterval,
 		now:      UTCNow().UnixNano(),
+		stopChan: make(chan struct{}),
 	}
-	c.ctx, c.cancel = context.WithCancel(ctx)
-	go c.runRefresh(c.ctx)
+	go c.runRefresh(ctx)
 
 	return c
 }
 
 // Close stop Clock2 update
 func (c *Clock2Type) Close() {
-	c.cancel()
+	c.stopChan <- struct{}{}
 }
 
 func (c *Clock2Type) runRefresh(ctx context.Context) {
 	var interval time.Duration
 	for {
 		select {
+		case <-c.stopChan:
+			return
 		case <-ctx.Done():
-			Logger.Info("clock refresher exit")
 			return
 		default:
 			c.RLock()
@@ -175,8 +180,7 @@ func (c *Clock2Type) runRefresh(ctx context.Context) {
 
 // GetUTCNow return Clock2 current time.Time
 func (c *Clock2Type) GetUTCNow() (t time.Time) {
-	ts := atomic.LoadInt64(&c.now)
-	return time.Unix(ts/1e9, ts%1e9).UTC()
+	return UnixNano2UTC(atomic.LoadInt64(&c.now))
 }
 
 // GetTimeInRFC3339Nano return Clock2 current time in string

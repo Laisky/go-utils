@@ -131,3 +131,7 @@ func TestTemplateWithMap(t *testing.T) {
 		t.Fatalf("want `%v`, got `%v`", want, got)
 	}
 }
+
+func init() {
+	utils.SetupLogger("info")
+}
