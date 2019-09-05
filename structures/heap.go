@@ -115,12 +115,13 @@ func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]Hea
 		p               = NewPriorityQ(isHighest, topN)
 	)
 
+LOAD_LOOP:
 	for i = 0; i < topN; i++ { // load first topN items
 		select {
 		case item, ok = <-inputChan:
 			if !ok { // channel closed
 				inputChan = nil
-				break
+				break LOAD_LOOP
 			}
 			nTotal++
 			if nTotal == 1 {

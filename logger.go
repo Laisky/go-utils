@@ -26,10 +26,6 @@ type LoggerType struct {
 	*zap.Logger
 }
 
-func init() {
-	SetupLogger("info")
-}
-
 // SetupLogger contstruct logger
 func SetupLogger(level string) {
 	var loglevel zap.AtomicLevel
@@ -100,4 +96,8 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zap.Field) {
 	}
 
 	l.Warn(msg, fields...)
+}
+
+func init() {
+	SetupLogger("info")
 }

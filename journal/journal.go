@@ -154,13 +154,13 @@ func (j *Journal) flushAndClose() (err error) {
 
 func (j *Journal) runFlushTrigger(ctx context.Context) {
 	defer j.Flush()
+	defer utils.Logger.Info("journal flush exit")
 
 	var err error
 	for {
 		j.Lock()
 		select {
 		case <-ctx.Done():
-			utils.Logger.Info("journal flush exit")
 			return
 		default:
 		}
@@ -175,12 +175,11 @@ func (j *Journal) runFlushTrigger(ctx context.Context) {
 
 func (j *Journal) runRotateTrigger(ctx context.Context) {
 	defer j.Flush()
-
+	defer utils.Logger.Info("journal rotate exit")
 	var err error
 	for {
 		select {
 		case <-ctx.Done():
-			utils.Logger.Info("journal rotate exit")
 			return
 		default:
 		}

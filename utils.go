@@ -65,9 +65,6 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 	}
 }
 
-// ForceGCSignalC send signal to trigger manual gc
-var forceGCSignalC = make(chan struct{})
-
 // ForceGC force to run blocking manual gc.
 func ForceGC() {
 	Logger.Info("force gc")
@@ -77,20 +74,17 @@ func ForceGC() {
 
 // TriggerGC trigger GC unblocking
 func TriggerGC() {
-	select {
-	case forceGCSignalC <- struct{}{}:
-	default:
-	}
-}
-
-func init() {
 	go func() {
-		defer fmt.Println("manual gc trigger quit")
-		for range forceGCSignalC {
-			ForceGC()
-		}
+		ForceGC()
 	}()
 }
+
+var (
+	// ForceGCBlocking force to start gc blocking
+	ForceGCBlocking = ForceGC
+	// ForceGCUnBlocking force to start gc unblocking
+	ForceGCUnBlocking = TriggerGC
+)
 
 var defaultTemplateWithMappReg = regexp.MustCompile(`(?sm)\$\{([^}]+)\}`)
 

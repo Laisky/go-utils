@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Laisky/go-utils"
-	zap "github.com/Laisky/zap"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -119,13 +118,13 @@ a:
 		},
 	}
 
-	jb, err := json.Marshal(fakedata)
-	if err != nil {
-		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
-	}
+	// jb, err := json.Marshal(fakedata)
+	// if err != nil {
+	// 	utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	// }
 	port := 24953
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go RunMockConfigSrv(port, jb)
+	go RunMockConfigSrv(port, fakedata)
 	time.Sleep(100 * time.Millisecond)
 
 	cfg := &utils.ConfigServerCfg{

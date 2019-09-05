@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"time"
 )
 
@@ -14,7 +15,7 @@ type Throttle struct {
 	*ThrottleCfg
 	token      struct{}
 	tokensChan chan struct{}
-	isStop     bool
+	stopChan   chan struct{}
 }
 
 // NewThrottle create new Throttle
@@ -22,7 +23,7 @@ func NewThrottle(cfg *ThrottleCfg) *Throttle {
 	t := &Throttle{
 		ThrottleCfg: cfg,
 		token:       struct{}{},
-		isStop:      false,
+		stopChan:    make(chan struct{}),
 	}
 	t.tokensChan = make(chan struct{}, t.Max)
 	return t
@@ -38,21 +39,41 @@ func (t *Throttle) Allow() bool {
 	}
 }
 
-// Run start throttle
+// Run (Deprecated) start throttle
 func (t *Throttle) Run() {
-	t.isStop = false
 	go func() {
+		defer Logger.Info("throttle exit")
 		for {
 			for i := 0; i < t.NPerSec; i++ {
 				select {
+				case <-t.stopChan:
+					return
 				case t.tokensChan <- t.token:
 				default:
 				}
 			}
 
-			if t.isStop {
-				return
+			time.Sleep(1 * time.Second)
+		}
+	}()
+}
+
+// RunWithCtx start throttle with context
+func (t *Throttle) RunWithCtx(ctx context.Context) {
+	go func() {
+		defer Logger.Info("throttle exit")
+		for {
+			for i := 0; i < t.NPerSec; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.stopChan:
+					return
+				case t.tokensChan <- t.token:
+				default:
+				}
 			}
+
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -60,5 +81,5 @@ func (t *Throttle) Run() {
 
 // Stop stop throttle
 func (t *Throttle) Stop() {
-	t.isStop = true
+	t.stopChan <- struct{}{}
 }
