@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/DataDog/zstd v1.3.8 // indirect
-	github.com/Depado/ginprom v1.2.0 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/zap v1.9.2
 	github.com/RoaringBitmap/roaring v0.4.18
@@ -14,6 +13,7 @@ require (
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.6
 	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/pkg/errors v0.8.1
