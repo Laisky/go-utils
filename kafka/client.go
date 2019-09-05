@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -30,11 +31,14 @@ type KafkaCliCfg struct {
 
 type KafkaCli struct {
 	*KafkaCliCfg
+
+	stopChan chan struct{}
+
 	cli                   *cluster.Consumer
 	beforeChan, afterChan chan *KafkaMsg
 }
 
-func NewKafkaCliWithGroupId(cfg *KafkaCliCfg) (*KafkaCli, error) {
+func NewKafkaCliWithGroupId(ctx context.Context, cfg *KafkaCliCfg) (*KafkaCli, error) {
 	utils.Logger.Debug("NewKafkaCliWithGroupId",
 		zap.Strings("brokers", cfg.Brokers),
 		zap.Strings("topics", cfg.Topics),
@@ -62,32 +66,56 @@ func NewKafkaCliWithGroupId(cfg *KafkaCliCfg) (*KafkaCli, error) {
 	k := &KafkaCli{
 		KafkaCliCfg: cfg,
 		cli:         consumer,
+		stopChan:    make(chan struct{}),
 		beforeChan:  cf.GetBeforeChan(),
 		afterChan:   cf.GetAfterChan(),
 	}
 
-	go k.ListenNotifications()
-	go k.runCommitor()
+	go k.ListenNotifications(ctx)
+	go k.runCommitor(ctx)
 	return k, nil
 }
 
 func (k *KafkaCli) Close() {
+	k.stopChan <- struct{}{}
 	k.cli.Close()
 }
 
-func (k *KafkaCli) ListenNotifications() {
-	for ntf := range k.cli.Notifications() {
+func (k *KafkaCli) ListenNotifications(ctx context.Context) {
+	defer utils.Logger.Debug("ListenNotifications exit")
+	var ntf *cluster.Notification
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-k.stopChan:
+			return
+		case ntf = <-k.cli.Notifications():
+		}
+
 		// bugs: sarama-cluster's bug, will race for notification
 		time.Sleep(50 * time.Millisecond)
 		utils.Logger.Debug(fmt.Sprintf("KafkaCli Notify: %v", ntf))
 	}
 }
 
-func (k *KafkaCli) Messages() <-chan *KafkaMsg {
-	msgChan := make(chan *KafkaMsg, 100)
-	var kmsg *KafkaMsg
+func (k *KafkaCli) Messages(ctx context.Context) <-chan *KafkaMsg {
+	msgChan := make(chan *KafkaMsg, 1000)
+	var (
+		msg  *sarama.ConsumerMessage
+		kmsg *KafkaMsg
+	)
 	go func() {
-		for msg := range k.cli.Messages() {
+		defer utils.Logger.Debug("message consumer exit")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-k.stopChan:
+				return
+			case msg = <-k.cli.Messages():
+			}
+
 			kmsg = k.KMsgPool.Get().(*KafkaMsg)
 			kmsg.Topic = msg.Topic
 			kmsg.Message = msg.Value
@@ -101,12 +129,23 @@ func (k *KafkaCli) Messages() <-chan *KafkaMsg {
 	return msgChan
 }
 
-func (k *KafkaCli) runCommitor() {
+func (k *KafkaCli) runCommitor(ctx context.Context) {
 	utils.Logger.Debug("start runCommitor")
-	defer utils.Logger.Panic("kafka commitor exit")
+	defer utils.Logger.Debug("kafka commitor exit")
 
-	cmsg := &sarama.ConsumerMessage{}
-	for kmsg := range k.afterChan {
+	var (
+		cmsg = &sarama.ConsumerMessage{}
+		kmsg *KafkaMsg
+	)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-k.stopChan:
+			return
+		case kmsg = <-k.afterChan:
+		}
+
 		if utils.Settings.GetBool("dry") {
 			utils.Logger.Info("commit message",
 				zap.Int32("partition", kmsg.Partition),

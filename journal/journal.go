@@ -249,7 +249,7 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 	if !j.rotateLock.TryLock() {
 		return nil
 	}
-	defer j.rotateLock.ForceRealse()
+	defer j.rotateLock.ForceRelease()
 
 	// stop legacy processing
 	j.Lock()

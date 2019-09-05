@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -69,25 +70,38 @@ var rotateCounterChanLength = 1000
 
 // RotateCounter rotate counter
 type RotateCounter struct {
+	Mutex
 	n, rotatePoint int64
 	c              chan int64
+	stopChan       chan struct{}
 }
 
 // NewRotateCounter create new RotateCounter with threshold from 0
 func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
+	return NewRotateCounterWithCtx(context.Background(), rotatePoint)
+}
+
+// NewRotateCounterWithCtx create new RotateCounter with threshold from 0
+func NewRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
 	c := &RotateCounter{
+		stopChan:    make(chan struct{}),
 		rotatePoint: rotatePoint,
 		c:           make(chan int64, rotateCounterChanLength),
 	}
-	go c.runGenerator()
+	go c.RunRotator(ctx)
 	return c, nil
 }
 
 // NewRotateCounterFromN create new RotateCounter with threshold from N
 func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
+	return NewRotateCounterFromNWithCtx(context.Background(), n, rotatePoint)
+}
+
+// NewRotateCounterFromNWithCtx create new RotateCounter with threshold from N
+func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
@@ -102,12 +116,31 @@ func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
 		rotatePoint: rotatePoint,
 		c:           make(chan int64, rotateCounterChanLength),
 	}
-	go c.runGenerator()
+	go c.RunRotator(ctx)
 	return c, nil
 }
 
-func (c *RotateCounter) runGenerator() {
+// Close stop rorate runner
+func (c *RotateCounter) Close() {
+	c.stopChan <- struct{}{}
+}
+
+// RunRotator start rotator
+func (c *RotateCounter) RunRotator(ctx context.Context) {
+	if !c.TryLock() {
+		return
+	}
+	defer c.ForceRelease()
+
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-c.stopChan:
+			return
+		default:
+		}
+
 		c.c <- c.n
 		c.n++
 		if c.n == c.rotatePoint {
@@ -136,29 +169,42 @@ var monotonicCounterChanLength = 10000
 // MonotonicRotateCounter monotonic increse counter uncontinuity,
 // has much better performance than RotateCounter.
 type MonotonicRotateCounter struct {
+	Mutex
 	n, rotatePoint    int64
 	innerStep, innerN int64
 	c                 chan int64
+	stopChan          chan struct{}
 }
 
 // NewMonotonicRotateCounter return new MonotonicRotateCounter with threshold from 0
 func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, error) {
+	return NewMonotonicRotateCounterWithCtx(context.Background(), rotatePoint)
+}
+
+// NewMonotonicRotateCounterWithCtx return new MonotonicRotateCounter with threshold from 0
+func NewMonotonicRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
 
 	c := &MonotonicRotateCounter{
+		stopChan:    make(chan struct{}),
 		rotatePoint: rotatePoint,
 		c:           make(chan int64, monotonicCounterChanLength),
 		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
 	}
 	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
-	go c.runGenerator()
+	go c.RunRotator(ctx)
 	return c, nil
 }
 
 // NewMonotonicCounterFromN return new MonotonicRotateCounter with threshold from n
 func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, error) {
+	return NewMonotonicCounterFromNWithCtx(context.Background(), n, rotatePoint)
+}
+
+// NewMonotonicCounterFromNWithCtx return new MonotonicRotateCounter with threshold from n
+func NewMonotonicCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*MonotonicRotateCounter, error) {
 	if rotatePoint <= 0 {
 		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
 	}
@@ -177,13 +223,31 @@ func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, er
 	}
 	c.rotatePoint -= c.innerN // `Count` at most add  `c.innerN`
 	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
-	go c.runGenerator()
+	go c.RunRotator(ctx)
 	return c, nil
 }
 
-func (c *MonotonicRotateCounter) runGenerator() {
+// Close stop rotator
+func (c *MonotonicRotateCounter) Close() {
+	c.stopChan <- struct{}{}
+}
+
+// RunRotator start rotator
+func (c *MonotonicRotateCounter) RunRotator(ctx context.Context) {
+	if !c.TryLock() {
+		return
+	}
+	defer c.ForceRelease()
+
 	c.n += c.innerStep
 	for {
+		select {
+		case <-c.stopChan:
+			return
+		case <-ctx.Done():
+		default:
+		}
+
 		c.c <- c.n
 		c.n += c.innerStep
 		if c.n >= c.rotatePoint {

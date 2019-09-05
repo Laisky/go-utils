@@ -37,7 +37,7 @@ func TestMutex(t *testing.T) {
 		t.Fatalf("duration: %v", time.Now().Sub(start).Seconds())
 	}
 
-	l.ForceRealse()
+	l.ForceRelease()
 	if l.IsLocked() {
 		t.Fatal("should not locked")
 	}
@@ -49,7 +49,7 @@ func ExampleMutex() {
 		utils.Logger.Info("can not acquire lock")
 		return
 	}
-	defer l.ForceRealse()
+	defer l.ForceRelease()
 
 }
 
