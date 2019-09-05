@@ -32,8 +32,8 @@ func (m *Mutex) TryRelease() bool {
 	return atomic.CompareAndSwapUint32(&m.l, 1, 0)
 }
 
-// ForceRealse force release lock
-func (m *Mutex) ForceRealse() {
+// ForceRelease force release lock
+func (m *Mutex) ForceRelease() {
 	atomic.StoreUint32(&m.l, 0)
 }
 
