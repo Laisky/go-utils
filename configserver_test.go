@@ -2,13 +2,15 @@ package utils_test
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/kataras/iris"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -51,32 +53,30 @@ var fakeConfigSrvData = map[string]interface{}{
 	},
 }
 
-func RunMockConfigSrv(port int, fakadata []byte) {
-	httpsrv := iris.New()
+func RunMockConfigSrv(port int, fakadata interface{}) {
+	httpsrv := gin.New()
 
-	httpsrv.Get("/app/profile/label", func(ctx iris.Context) {
-		if _, err := ctx.Write(fakadata); err != nil {
-			utils.Logger.Panic("try to return fake data got error", zap.Error(err))
-		}
+	httpsrv.GET("/app/profile/label", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, fakadata)
 	})
 
 	// run mock config-server
 	addr := fmt.Sprintf("localhost:%v", port)
 	utils.Logger.Debug("run config-server", zap.String("addr", addr))
-	if err := httpsrv.Run(iris.Addr(addr)); err != nil {
+	if err := httpsrv.Run(addr); err != nil {
 		utils.Logger.Panic("try to run server got error", zap.Error(err))
 	}
 }
 
 func TestConfigSrv(t *testing.T) {
-	jb, err := json.Marshal(fakeConfigSrvData)
-	if err != nil {
-		utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
-	}
+	// jb, err := json.Marshal(fakeConfigSrvData)
+	// if err != nil {
+	// 	utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	// }
 
 	port := 24951
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go RunMockConfigSrv(port, jb)
+	go RunMockConfigSrv(port, fakeConfigSrvData)
 	time.Sleep(100 * time.Millisecond)
 
 	var (

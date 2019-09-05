@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/Depado/ginprom"
+	ginprometheus "github.com/zsais/go-gin-prometheus"
 
 	"github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -40,11 +40,7 @@ func LoggerMiddleware(ctx *gin.Context) {
 }
 
 // BindPrometheus bind prometheus endpoint.
-func BindPrometheus(s *gin.Engine, path string) {
-	p := ginprom.New(
-		ginprom.Engine(s),
-		ginprom.Subsystem("gin"),
-		ginprom.Path(path),
-	)
-	s.Use(p.Instrument())
+func BindPrometheus(s *gin.Engine) {
+	p := ginprometheus.NewPrometheus("gin")
+	p.Use(s)
 }
