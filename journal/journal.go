@@ -54,8 +54,7 @@ type Journal struct {
 	sync.RWMutex // journal rwlock
 	*JournalConfig
 
-	ctx                    context.Context
-	cancel                 func()
+	stopChan               chan struct{}
 	rotateLock, legacyLock *utils.Mutex
 	dataFp, idsFp          *os.File // current writting journal file
 	fsStat                 *BufFileStat
@@ -68,6 +67,7 @@ type Journal struct {
 // NewJournal create new Journal
 func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 	j := &Journal{
+		stopChan:      make(chan struct{}),
 		JournalConfig: cfg,
 		rotateLock:    utils.NewMutex(),
 		legacyLock:    utils.NewMutex(),
@@ -75,7 +75,6 @@ func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	j.ctx, j.cancel = context.WithCancel(ctx)
 
 	if j.RotateDuration < defaultRotateDuration {
 		utils.Logger.Warn("journal rotate duration too short",
@@ -85,13 +84,9 @@ func NewJournal(ctx context.Context, cfg *JournalConfig) *Journal {
 		utils.Logger.Warn("buf size bytes too small", zap.Int64("bytes", j.BufSizeBytes))
 	}
 
-	j.initBufDir()
-	go j.runFlushTrigger(j.ctx)
-	go j.runRotateTrigger(j.ctx)
-	go func() {
-		<-j.ctx.Done()
-		utils.Logger.Info("journal exit")
-	}()
+	j.initBufDir(ctx)
+	go j.runFlushTrigger(ctx)
+	go j.runRotateTrigger(ctx)
 	return j
 }
 
@@ -99,18 +94,18 @@ func (j *Journal) Close() {
 	utils.Logger.Info("close Journal")
 	j.Lock()
 	j.Flush()
-	j.cancel()
+	j.stopChan <- struct{}{}
 	j.Unlock()
 }
 
 // initBufDir initialize buf directory and create buf files
-func (j *Journal) initBufDir() {
+func (j *Journal) initBufDir(ctx context.Context) {
 	err := PrepareDir(j.BufDirPath)
 	if err != nil {
 		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
 	}
 
-	if err = j.Rotate(j.ctx); err != nil { // manually first run
+	if err = j.Rotate(ctx); err != nil { // manually first run
 		panic(err)
 	}
 }
@@ -160,6 +155,8 @@ func (j *Journal) runFlushTrigger(ctx context.Context) {
 	for {
 		j.Lock()
 		select {
+		case <-j.stopChan:
+			return
 		case <-ctx.Done():
 			return
 		default:
@@ -179,6 +176,8 @@ func (j *Journal) runRotateTrigger(ctx context.Context) {
 	var err error
 	for {
 		select {
+		case <-j.stopChan:
+			return
 		case <-ctx.Done():
 			return
 		default:
@@ -257,6 +256,8 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 	utils.Logger.Debug("starting to rotate")
 
 	select {
+	case <-j.stopChan:
+		return
 	case <-ctx.Done():
 		return
 	default:
@@ -276,7 +277,7 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
-		j.RefreshLegacyLoader()
+		j.RefreshLegacyLoader(ctx)
 		j.UnLockLegacy()
 	} else {
 		utils.Logger.Debug("can not acquire legacy lock, so only create new file",
@@ -309,10 +310,10 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 }
 
 // RefreshLegacyLoader create or reset legacy loader
-func (j *Journal) RefreshLegacyLoader() {
+func (j *Journal) RefreshLegacyLoader(ctx context.Context) {
 	utils.Logger.Debug("RefreshLegacyLoader")
 	if j.legacy == nil {
-		j.legacy = NewLegacyLoader(j.ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
+		j.legacy = NewLegacyLoader(ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
 		j.legacy.Reset(j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname)
 		if j.IsAggresiveGC {
