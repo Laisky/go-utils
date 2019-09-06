@@ -38,11 +38,6 @@ func NewLegacyLoader(ctx context.Context, dataFNames, idsFNames []string, isComp
 		ids:           NewInt64SetWithTTL(ctx, committedIDTTL),
 	}
 
-	go func() {
-		<-ctx.Done()
-		utils.Logger.Info("legacy loader exit")
-	}()
-
 	return l
 }
 

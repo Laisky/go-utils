@@ -93,6 +93,7 @@ func (s *Int64Set) Add(i int) {
 	s.AddInt64(int64(i))
 }
 
+// AddInt64 add int64
 func (s *Int64Set) AddInt64(i int64) {
 	atomic.AddInt64(&s.n, 1)
 	s.d.Store(i, s.padding)
@@ -112,12 +113,11 @@ func (s *Int64Set) GetLen() int {
 	return int(atomic.LoadInt64(&s.n))
 }
 
+// Int64SetWithTTL int64 set with TTL
 type Int64SetWithTTL struct {
 	sync.RWMutex
-	chgLock *sync.Mutex
-
-	ctx    context.Context
-	cancel func()
+	chgLock  *sync.Mutex
+	stopChan chan struct{}
 
 	ttl      time.Duration
 	og, ng   *sync.Map
@@ -135,19 +135,15 @@ func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL
 	}
 
 	s := &Int64SetWithTTL{
-		chgLock: &sync.Mutex{},
-		ttl:     ttl,
-		ng:      &sync.Map{},
+		stopChan: make(chan struct{}),
+		chgLock:  &sync.Mutex{},
+		ttl:      ttl,
+		ng:       &sync.Map{},
 	}
-	s.ctx, s.cancel = context.WithCancel(ctx)
-	utils.Logger.Info("NewInt64SetWithTTL",
+	utils.Logger.Debug("NewInt64SetWithTTL",
 		zap.Duration("ttl", s.ttl),
 	)
-	go s.rotateRunner(s.ctx)
-	go func() {
-		<-s.ctx.Done()
-		utils.Logger.Info("Int64SetWithTTL exit")
-	}()
+	go s.StartRotate(ctx)
 	return s
 }
 
@@ -210,13 +206,16 @@ func (s *Int64SetWithTTL) GetLen() (r int) {
 
 // Close close set, stop rotate
 func (s *Int64SetWithTTL) Close() {
-	s.cancel()
+	s.stopChan <- struct{}{}
 }
 
-func (s *Int64SetWithTTL) rotateRunner(ctx context.Context) {
-	defer utils.Logger.Info("rotateRunner exit")
+// StartRotate start counter rotate
+func (s *Int64SetWithTTL) StartRotate(ctx context.Context) {
+	defer utils.Logger.Info("StartRotate exit")
 	for {
 		select {
+		case <-s.stopChan:
+			return
 		case <-ctx.Done():
 			return
 		default:

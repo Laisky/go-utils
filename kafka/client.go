@@ -83,14 +83,20 @@ func (k *KafkaCli) Close() {
 
 func (k *KafkaCli) ListenNotifications(ctx context.Context) {
 	defer utils.Logger.Debug("ListenNotifications exit")
-	var ntf *cluster.Notification
+	var (
+		ok  bool
+		ntf *cluster.Notification
+	)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-k.stopChan:
 			return
-		case ntf = <-k.cli.Notifications():
+		case ntf, ok = <-k.cli.Notifications():
+			if !ok {
+				return
+			}
 		}
 
 		// bugs: sarama-cluster's bug, will race for notification
@@ -102,6 +108,7 @@ func (k *KafkaCli) ListenNotifications(ctx context.Context) {
 func (k *KafkaCli) Messages(ctx context.Context) <-chan *KafkaMsg {
 	msgChan := make(chan *KafkaMsg, 1000)
 	var (
+		ok   bool
 		msg  *sarama.ConsumerMessage
 		kmsg *KafkaMsg
 	)
@@ -113,7 +120,10 @@ func (k *KafkaCli) Messages(ctx context.Context) <-chan *KafkaMsg {
 				return
 			case <-k.stopChan:
 				return
-			case msg = <-k.cli.Messages():
+			case msg, ok = <-k.cli.Messages():
+				if !ok {
+					return
+				}
 			}
 
 			kmsg = k.KMsgPool.Get().(*KafkaMsg)
