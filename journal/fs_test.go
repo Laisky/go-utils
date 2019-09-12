@@ -7,8 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ncw/directio"
+
+	"github.com/coreos/etcd/pkg/fileutil"
+
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/go-utils/journal"
+)
+
+const (
+	defaultBufFileSizeBytes = 1000000
 )
 
 type FNameCase struct {
@@ -67,7 +75,7 @@ func TestPrepareNewBufFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	bufStat, err := journal.PrepareNewBufFile(dir, nil, true, false)
+	bufStat, err := journal.PrepareNewBufFile(dir, nil, true, false, defaultBufFileSizeBytes)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -93,6 +101,63 @@ func TestPrepareNewBufFile(t *testing.T) {
 	}
 }
 
-func init() {
+const (
+	benchmarkFsDir = "/data/fluentd/go-utils/"
+	// benchmarkFsDir = "/Users/laisky/Downloads/"
+)
+
+func BenchmarkFSPreallocate(b *testing.B) {
 	utils.SetupLogger("error")
+	// create data files
+	dataFp1, err := directio.OpenFile(benchmarkFsDir+"fp1.dat", os.O_RDWR|os.O_CREATE, journal.FileMode)
+	// dataFp1, err := ioutil.TempFile("", "journal-test")
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer dataFp1.Close()
+	defer os.Remove(dataFp1.Name())
+	b.Logf("create file name: %v", dataFp1.Name())
+
+	dataFp2, err := directio.OpenFile(benchmarkFsDir+"fp2.dat", os.O_RDWR|os.O_CREATE, journal.FileMode)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer dataFp2.Close()
+	defer os.Remove(dataFp2.Name())
+	b.Logf("create file name: %v", dataFp2.Name())
+
+	dataFp3, err := directio.OpenFile(benchmarkFsDir+"fp3.dat", os.O_RDWR|os.O_CREATE, journal.FileMode)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer dataFp3.Close()
+	defer os.Remove(dataFp3.Name())
+	b.Logf("create file name: %v", dataFp3.Name())
+
+	payload := make([]byte, 1024)
+	b.Run("normal", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			dataFp1.Write(payload)
+			// dataFp1.Sync()
+		}
+	})
+
+	fileutil.Preallocate(dataFp2, 1024*1024*1000, false)
+	b.ResetTimer()
+	b.Run("preallocate", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			dataFp2.Write(payload)
+			// dataFp2.Sync()
+		}
+	})
+
+	fileutil.Preallocate(dataFp3, 1024*1024*1000, true)
+	b.ResetTimer()
+	b.Run("preallocate with extended", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			dataFp3.Write(payload)
+			// dataFp3.Sync()
+		}
+	})
+
 }

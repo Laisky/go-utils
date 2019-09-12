@@ -99,8 +99,6 @@ func (k *KafkaCli) ListenNotifications(ctx context.Context) {
 			}
 		}
 
-		// bugs: sarama-cluster's bug, will race for notification
-		time.Sleep(50 * time.Millisecond)
 		utils.Logger.Debug(fmt.Sprintf("KafkaCli Notify: %v", ntf))
 	}
 }
