@@ -163,7 +163,7 @@ func OpenBufFile(filepath string, fizeByte int64) (fp *os.File, err error) {
 		return nil, errors.Wrapf(err, "open file got error: %+v", filepath)
 	}
 	if fizeByte != 0 {
-		if err = fileutil.Preallocate(fp, fizeByte, true); err != nil {
+		if err = fileutil.Preallocate(fp, fizeByte, false); err != nil {
 			return nil, errors.Wrap(err, "try to preallocate fp got error")
 		}
 	}
