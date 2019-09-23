@@ -2,11 +2,12 @@ package journal
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/coreos/etcd/pkg/fileutil"
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -100,13 +101,15 @@ func (j *Journal) Close() {
 
 // initBufDir initialize buf directory and create buf files
 func (j *Journal) initBufDir(ctx context.Context) {
-	err := PrepareDir(j.BufDirPath)
-	if err != nil {
-		panic(fmt.Errorf("call PrepareDir got error: %+v", err))
+	var err error
+	if err = fileutil.TouchDirAll(j.BufDirPath); err != nil {
+		utils.Logger.Panic("try to prepare dir got error",
+			zap.String("dir_path", j.BufDirPath),
+			zap.Error(err))
 	}
 
 	if err = j.Rotate(ctx); err != nil { // manually first run
-		panic(err)
+		utils.Logger.Panic("try to call rotate got error", zap.Error(err))
 	}
 }
 
@@ -217,13 +220,12 @@ func (j *Journal) WriteId(id int64) error {
 }
 
 func (j *Journal) isReadyToRotate() (ok bool) {
+	j.RLock()
+	defer j.RUnlock()
+
 	if j.dataFp == nil {
-		ok = true
+		return true
 	}
-	// if !j.rotateLock.TryLock() {
-	// 	utils.Logger.Debug("rotate not ready for cannot acquire rotateLock")
-	// 	ok = false
-	// }
 
 	if fi, err := j.dataFp.Stat(); err != nil {
 		utils.Logger.Error("try to get file stat got error", zap.Error(err))
@@ -244,6 +246,7 @@ func (j *Journal) isReadyToRotate() (ok bool) {
 this function is not threadsafe.
 */
 func (j *Journal) Rotate(ctx context.Context) (err error) {
+	utils.Logger.Debug("try to starting to rotate")
 	// make sure no other rorate is running
 	if !j.rotateLock.TryLock() {
 		return nil
@@ -273,17 +276,17 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 		utils.Logger.Debug("acquired legacy lock, create new file and refresh legacy loader",
 			zap.String("dir", j.BufDirPath))
 		// need to refresh legacy, so need scan=true
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true, j.IsCompress); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, true, j.IsCompress, j.BufSizeBytes); err != nil {
 			j.UnLockLegacy()
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
-		j.RefreshLegacyLoader(ctx)
+		j.refreshLegacyLoader(ctx)
 		j.UnLockLegacy()
 	} else {
 		utils.Logger.Debug("can not acquire legacy lock, so only create new file",
 			zap.String("dir", j.BufDirPath))
 		// no need to scan old buf files
-		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false, j.IsCompress); err != nil {
+		if j.fsStat, err = PrepareNewBufFile(j.BufDirPath, j.fsStat, false, j.IsCompress, j.BufSizeBytes); err != nil {
 			return errors.Wrap(err, "call PrepareNewBufFile got error")
 		}
 	}
@@ -309,9 +312,9 @@ func (j *Journal) Rotate(ctx context.Context) (err error) {
 	return nil
 }
 
-// RefreshLegacyLoader create or reset legacy loader
-func (j *Journal) RefreshLegacyLoader(ctx context.Context) {
-	utils.Logger.Debug("RefreshLegacyLoader")
+// refreshLegacyLoader create or reset legacy loader
+func (j *Journal) refreshLegacyLoader(ctx context.Context) {
+	utils.Logger.Debug("refreshLegacyLoader")
 	if j.legacy == nil {
 		j.legacy = NewLegacyLoader(ctx, j.fsStat.OldDataFnames, j.fsStat.OldIdsDataFname, j.IsCompress, j.CommittedIDTTL)
 	} else {
@@ -355,6 +358,11 @@ func (j *Journal) LoadLegacyBuf(data *Data) (err error) {
 	}
 	j.RLock()
 	defer j.RUnlock()
+
+	if j.legacy == nil {
+		j.UnLockLegacy()
+		return io.EOF
+	}
 
 	if err = j.legacy.Load(data); err == io.EOF {
 		utils.Logger.Debug("LoadLegacyBuf done")

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/etcd/pkg/fileutil"
+
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
@@ -60,7 +62,7 @@ type BufFileStat struct {
 }
 
 // PrepareNewBufFile create new data & id files, and update BufFileStat
-func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ bool) (fsStat *BufFileStat, err error) {
+func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ bool, sizeBytes int64) (fsStat *BufFileStat, err error) {
 	utils.Logger.Debug("prepare new buf file",
 		zap.String("dirpath", dirPath),
 		zap.Bool("is_scan", isScan),
@@ -144,10 +146,10 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ 
 	utils.Logger.Debug("prepare new buf files",
 		zap.String("new ids fname", latestIDsFName),
 		zap.String("new data fname", latestDataFName))
-	if fsStat.NewDataFp, err = OpenBufFile(path.Join(dirPath, latestDataFName)); err != nil {
+	if fsStat.NewDataFp, err = OpenBufFile(path.Join(dirPath, latestDataFName), sizeBytes/2); err != nil {
 		return nil, err
 	}
-	if fsStat.NewIDsFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName)); err != nil {
+	if fsStat.NewIDsFp, err = OpenBufFile(path.Join(dirPath, latestIDsFName), 0); err != nil {
 		return nil, err
 	}
 
@@ -155,10 +157,15 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ 
 }
 
 // OpenBufFile create and open file
-func OpenBufFile(filepath string) (fp *os.File, err error) {
+func OpenBufFile(filepath string, fizeByte int64) (fp *os.File, err error) {
 	utils.Logger.Info("create new buf file", zap.String("fname", filepath))
 	if fp, err = os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, FileMode); err != nil {
 		return nil, errors.Wrapf(err, "open file got error: %+v", filepath)
+	}
+	if fizeByte != 0 {
+		if err = fileutil.Preallocate(fp, fizeByte, false); err != nil {
+			return nil, errors.Wrap(err, "try to preallocate fp got error")
+		}
 	}
 
 	return fp, nil
