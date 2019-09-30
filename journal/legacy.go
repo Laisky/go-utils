@@ -66,13 +66,16 @@ func (l *LegacyLoader) GetIdsLen() int {
 }
 
 // removeFile delete file, should run sync to avoid dirty files
-func (l *LegacyLoader) removeFile(fpath string) {
-	if err := os.Remove(fpath); err != nil {
-		utils.Logger.Error("try to delete file got error",
-			zap.String("file", fpath),
-			zap.Error(err))
+func (l *LegacyLoader) removeFiles(fs []string) {
+	for _, fpath := range fs {
+
+		if err := os.Remove(fpath); err != nil {
+			utils.Logger.Error("try to delete file got error",
+				zap.String("file", fpath),
+				zap.Error(err))
+		}
+		utils.Logger.Info("remove buf file", zap.String("file", fpath))
 	}
-	utils.Logger.Info("remove buf file", zap.String("file", fpath))
 }
 
 func (l *LegacyLoader) Load(data *Data) (err error) {
@@ -91,7 +94,7 @@ func (l *LegacyLoader) Load(data *Data) (err error) {
 		if err = l.LoadAllids(l.ids); err != nil {
 			utils.Logger.Error("try to load all ids got error", zap.Error(err))
 		}
-		l.dataFilesLen = len(l.dataFNames)
+		l.dataFilesLen = len(l.dataFNames) - 1
 		l.dataFileIdx = -1
 		l.isNeedReload = false
 	}
@@ -231,23 +234,19 @@ func (l *LegacyLoader) LoadAllids(ids Int64SetItf) (allErr error) {
 	return allErr
 }
 
+// Clean clean legacy files
 func (l *LegacyLoader) Clean() error {
-	if l.dataFNames != nil {
-		for _, f := range l.dataFNames {
-			l.removeFile(f)
-		}
-		l.dataFNames = nil
+	if len(l.dataFNames) > 1 {
+		l.removeFiles(l.dataFNames[:len(l.dataFNames)-1])
+		l.dataFNames = []string{l.dataFNames[len(l.dataFNames)-1]}
 	}
-
-	if l.idsFNames != nil {
-		for _, f := range l.idsFNames {
-			l.removeFile(f)
-		}
-		l.idsFNames = nil
+	if len(l.idsFNames) > 1 {
+		l.removeFiles(l.idsFNames[:len(l.idsFNames)-1])
+		l.idsFNames = []string{l.idsFNames[len(l.idsFNames)-1]}
 	}
 
 	l.dataFp.Close()
 	l.dataFp = nil // `Load` need this
-	utils.Logger.Info("clean all legacy files")
+	utils.Logger.Debug("clean all legacy files")
 	return nil
 }
