@@ -64,6 +64,7 @@ type ClockType struct {
 
 // NewClock (Deprecated) create new Clock
 func NewClock(refreshInterval time.Duration) *ClockType {
+	Logger.Warn("this function is deprecated, please use `NewClock2`")
 	c := &ClockType{
 		interval: refreshInterval,
 		now:      UTCNow(),

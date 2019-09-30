@@ -41,6 +41,7 @@ func (t *Throttle) Allow() bool {
 
 // Run (Deprecated) start throttle
 func (t *Throttle) Run() {
+	Logger.Warn("this method is deprecated, use `RunWithCtx` instead")
 	go func() {
 		defer Logger.Info("throttle exit")
 		for {

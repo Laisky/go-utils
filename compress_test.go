@@ -42,6 +42,28 @@ func TestGZCompressor(t *testing.T) {
 	}
 }
 
+/*
+goos: darwin
+goarch: amd64
+pkg: github.com/Laisky/go-utils
+BenchmarkGZCompressor/gz_write_1kB-4         	   18213	     64964 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_10kB-4        	    4683	    290520 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50kB-4        	     652	   1593705 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_100kB-4       	     378	   3050704 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/normal_write_1KB-4     	37975290	        29.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/normal_write_10KB-4    	 8449380	       137 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/normal_write_50KB-4    	  531210	      2313 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/normal_write_100KB-4   	  247237	      4665 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50kB_best_compression-4         	     783	   1491124 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50kB_best_speed-4               	    4370	    291897 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50kB_HuffmanOnly-4              	    4652	    250891 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/normal_write_50KB_to_file-4              	   10000	   4212378 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50KB_to_file-4                  	     286	   5067483 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50KB_to_file_best_speed-4       	    3494	    412151 ns/op	  148759 B/op	       0 allocs/op
+BenchmarkGZCompressor/gz_write_50KB_to_file_BestCompression-4  	     690	   1596123 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Laisky/go-utils	61.515s
+*/
 func BenchmarkGZCompressor(b *testing.B) {
 	fp, err := ioutil.TempFile("", "gz-test")
 	if err != nil {
