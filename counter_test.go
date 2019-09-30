@@ -171,23 +171,20 @@ func TestRotateCounter(t *testing.T) {
 	}
 
 	var r int64
-	if r = counter.Count(); r != 0 {
-		t.Errorf("want %v, got %v", 0, r)
-	}
 	if r = counter.Count(); r != 1 {
-		t.Errorf("want %v, got %v", 1, r)
+		t.Fatalf("want %v, got %v", 1, r)
 	}
 	if r = counter.Count(); r != 2 {
-		t.Errorf("want %v, got %v", 2, r)
+		t.Fatalf("want %v, got %v", 2, r)
 	}
 	if r = counter.CountN(3); r != 5 {
-		t.Errorf("want %v, got %v", 5, r)
+		t.Fatalf("want %v, got %v", 5, r)
 	}
 	if r = counter.CountN(10); r != 5 {
-		t.Errorf("want %v, got %v", 5, r)
+		t.Fatalf("want %v, got %v", 5, r)
 	}
 	if r = counter.CountN(248); r != 3 {
-		t.Errorf("want %v, got %v", 3, r)
+		t.Fatalf("want %v, got %v", 3, r)
 	}
 }
 
@@ -279,20 +276,17 @@ func TestRotateCounterFromN(t *testing.T) {
 	}
 
 	var r int64
-	if r = counter.Count(); r != 2 {
-		t.Errorf("want %v, got %v", 2, r)
-	}
 	if r = counter.Count(); r != 3 {
-		t.Errorf("want %v, got %v", 3, r)
+		t.Fatalf("want %v, got %v", 3, r)
 	}
 	if r = counter.Count(); r != 4 {
-		t.Errorf("want %v, got %v", 4, r)
+		t.Fatalf("want %v, got %v", 4, r)
 	}
 	if r = counter.CountN(3); r != 7 {
-		t.Errorf("want %v, got %v", 7, r)
+		t.Fatalf("want %v, got %v", 7, r)
 	}
 	if r = counter.CountN(10); r != 7 {
-		t.Errorf("want %v, got %v", 7, r)
+		t.Fatalf("want %v, got %v", 7, r)
 	}
 }
 

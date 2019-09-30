@@ -141,8 +141,8 @@ func (c *RotateCounter) runRotator(ctx context.Context) {
 
 			n = atomic.AddInt64(&c.n, 1)
 			if n > c.rotatePoint {
-				atomic.StoreInt64(&c.n, 0)
-				n = 0
+				atomic.StoreInt64(&c.n, 1)
+				n = 1
 			}
 			c.c <- n
 		}
