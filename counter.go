@@ -3,13 +3,21 @@ package utils
 import (
 	"context"
 	"fmt"
-	"math"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Laisky/zap"
 )
+
+// Int64CounterItf counter for int64
+type Int64CounterItf interface {
+	Count() int64
+	CountN(n int64) int64
+}
+
+// ===================================
 
 // Counter int64 counter
 type Counter struct {
@@ -66,11 +74,12 @@ func (c *Counter) CountN(n int64) int64 {
 
 // -------------------------------------------------
 
-var rotateCounterChanLength = 1000
+var rotateCounterChanLength = 10000
 
 // RotateCounter rotate counter
 type RotateCounter struct {
 	Mutex
+	rotateRunner   sync.Once
 	n, rotatePoint int64
 	c              chan int64
 	stopChan       chan struct{}
@@ -78,21 +87,13 @@ type RotateCounter struct {
 
 // NewRotateCounter create new RotateCounter with threshold from 0
 func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
-	return NewRotateCounterWithCtx(context.Background(), rotatePoint)
+	return NewRotateCounterFromNWithCtx(context.Background(), 0, rotatePoint)
 }
 
 // NewRotateCounterWithCtx create new RotateCounter with threshold from 0
 func NewRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*RotateCounter, error) {
-	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
-	}
-	c := &RotateCounter{
-		stopChan:    make(chan struct{}),
-		rotatePoint: rotatePoint,
-		c:           make(chan int64, rotateCounterChanLength),
-	}
-	go c.RunRotator(ctx)
-	return c, nil
+	return NewRotateCounterFromNWithCtx(ctx, 0, rotatePoint)
+
 }
 
 // NewRotateCounterFromN create new RotateCounter with threshold from N
@@ -116,7 +117,7 @@ func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*R
 		rotatePoint: rotatePoint,
 		c:           make(chan int64, rotateCounterChanLength),
 	}
-	go c.RunRotator(ctx)
+	go c.runRotator(ctx)
 	return c, nil
 }
 
@@ -125,28 +126,27 @@ func (c *RotateCounter) Close() {
 	c.stopChan <- struct{}{}
 }
 
-// RunRotator start rotator
-func (c *RotateCounter) RunRotator(ctx context.Context) {
-	if !c.TryLock() {
-		return
-	}
-	defer c.ForceRelease()
+// runRotator start rotator
+func (c *RotateCounter) runRotator(ctx context.Context) {
+	c.rotateRunner.Do(func() {
+		var n int64
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-c.stopChan:
+				return
+			default:
+			}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-c.stopChan:
-			return
-		default:
+			n = atomic.AddInt64(&c.n, 1)
+			if n > c.rotatePoint {
+				atomic.StoreInt64(&c.n, 1)
+				n = 1
+			}
+			c.c <- n
 		}
-
-		c.c <- c.n
-		c.n++
-		if c.n == c.rotatePoint {
-			c.n = 0
-		}
-	}
+	})
 }
 
 // Count increse and return the result
@@ -154,127 +154,20 @@ func (c *RotateCounter) Count() int64 {
 	return <-c.c
 }
 
+// Get return current counter's number
+func (c *RotateCounter) Get() int64 {
+	return atomic.LoadInt64(&c.n)
+}
+
 // CountN increse N and return the result
 func (c *RotateCounter) CountN(n int64) (r int64) {
-	for i := int64(0); i < n-1; i++ {
-		<-c.c
+	if n == 0 {
+		return c.Get()
 	}
-	return <-c.c
-}
-
-// --------------------------------------------
-
-var monotonicCounterChanLength = 10000
-
-// MonotonicRotateCounter monotonic increse counter uncontinuity,
-// has much better performance than RotateCounter.
-type MonotonicRotateCounter struct {
-	Mutex
-	n, rotatePoint    int64
-	innerStep, innerN int64
-	c                 chan int64
-	stopChan          chan struct{}
-}
-
-// NewMonotonicRotateCounter return new MonotonicRotateCounter with threshold from 0
-func NewMonotonicRotateCounter(rotatePoint int64) (*MonotonicRotateCounter, error) {
-	return NewMonotonicRotateCounterWithCtx(context.Background(), rotatePoint)
-}
-
-// NewMonotonicRotateCounterWithCtx return new MonotonicRotateCounter with threshold from 0
-func NewMonotonicRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*MonotonicRotateCounter, error) {
-	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+	for n > 0 {
+		r = <-c.c
+		n--
 	}
-
-	c := &MonotonicRotateCounter{
-		stopChan:    make(chan struct{}),
-		rotatePoint: rotatePoint,
-		c:           make(chan int64, monotonicCounterChanLength),
-		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
-	}
-	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
-	go c.RunRotator(ctx)
-	return c, nil
-}
-
-// NewMonotonicCounterFromN return new MonotonicRotateCounter with threshold from n
-func NewMonotonicCounterFromN(n, rotatePoint int64) (*MonotonicRotateCounter, error) {
-	return NewMonotonicCounterFromNWithCtx(context.Background(), n, rotatePoint)
-}
-
-// NewMonotonicCounterFromNWithCtx return new MonotonicRotateCounter with threshold from n
-func NewMonotonicCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*MonotonicRotateCounter, error) {
-	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
-	}
-	if n < 0 {
-		return nil, fmt.Errorf("n should bigger than 0, but got %v", n)
-	}
-	if n >= rotatePoint {
-		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
-	}
-
-	c := &MonotonicRotateCounter{
-		n:           n,
-		rotatePoint: rotatePoint,
-		c:           make(chan int64, monotonicCounterChanLength),
-		innerStep:   int64(math.Max(1, math.Min(100, float64(rotatePoint)/10))),
-	}
-	c.rotatePoint -= c.innerN // `Count` at most add  `c.innerN`
-	Logger.Debug("set inner step", zap.Int64("inner_step", c.innerStep))
-	go c.RunRotator(ctx)
-	return c, nil
-}
-
-// Close stop rotator
-func (c *MonotonicRotateCounter) Close() {
-	c.stopChan <- struct{}{}
-}
-
-// RunRotator start rotator
-func (c *MonotonicRotateCounter) RunRotator(ctx context.Context) {
-	if !c.TryLock() {
-		return
-	}
-	defer c.ForceRelease()
-
-	c.n += c.innerStep
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		case <-ctx.Done():
-		default:
-		}
-
-		c.c <- c.n
-		c.n += c.innerStep
-		if c.n >= c.rotatePoint {
-			c.n = 0
-		}
-	}
-}
-
-// Count increse and return the result
-func (c *MonotonicRotateCounter) Count() (n int64) {
-	if atomic.LoadInt64(&c.innerN)%c.innerStep == c.innerStep-1 {
-		n = <-c.c
-		atomic.StoreInt64(&c.innerN, n)
-		return n
-	}
-
-	return atomic.AddInt64(&c.innerN, 1)
-}
-
-// CountN increse N and return the result
-func (c *MonotonicRotateCounter) CountN(n int64) (r int64) {
-	for i := 0; i < FloorDivision(int(n), int(c.innerStep)); i++ {
-		<-c.c
-	}
-
-	r = <-c.c
-	atomic.StoreInt64(&c.innerN, r)
 	return r
 }
 
@@ -326,6 +219,7 @@ const defaultQuoteStep = 1000
 // ParallelCounter parallel count with child counter
 type ParallelCounter struct {
 	sync.Mutex
+	lockID int64
 	n,
 	quoteStep,
 	rotatePoint int64
@@ -333,7 +227,8 @@ type ParallelCounter struct {
 
 // ChildParallelCounter child of ParallelCounter
 type ChildParallelCounter struct {
-	sync.Mutex
+	sync.RWMutex
+	lockID  int64
 	p       *ParallelCounter
 	n, maxN int64
 }
@@ -349,6 +244,7 @@ func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) 
 	}
 
 	return &ParallelCounter{
+		lockID:      rand.Int63(),
 		n:           0,
 		quoteStep:   quoteStep,
 		rotatePoint: rotatePoint,
@@ -369,6 +265,7 @@ func NewParallelCounterFromN(n, quoteStep, rotatePoint int64) (*ParallelCounter,
 	}
 
 	return &ParallelCounter{
+		lockID:      rand.Int63(),
 		n:           n,
 		quoteStep:   quoteStep,
 		rotatePoint: rotatePoint,
@@ -384,14 +281,16 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 		step = step % c.rotatePoint
 	}
 
+	// Logger.Info("try acquire lock", zap.Int64("step", step), zap.Int64("lid", c.lockID))
 	c.Lock()
+	// Logger.Info("acquired lock", zap.Int64("step", step), zap.Int64("lid", c.lockID))
 	from = atomic.LoadInt64(&c.n)
 	to = atomic.AddInt64(&c.n, step) - 1
 	if c.rotatePoint > 0 && to > c.rotatePoint { // need rotate
-		from = 0
-		to = step
+		from, to = 0, step
 		atomic.StoreInt64(&c.n, to+1)
 	}
+	// Logger.Info("release lock", zap.Int64("step", step), zap.Int64("from", from), zap.Int64("lid", c.lockID), zap.Int64("to", to))
 	c.Unlock()
 
 	Logger.Debug("get quote",
@@ -404,7 +303,8 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 // GetChild create new child
 func (c *ParallelCounter) GetChild() *ChildParallelCounter {
 	cc := &ChildParallelCounter{
-		p: c,
+		lockID: rand.Int63(),
+		p:      c,
 	}
 	cc.n, cc.maxN = c.GetQuote(c.quoteStep)
 	return cc
@@ -417,28 +317,27 @@ func (c *ChildParallelCounter) Get() int64 {
 
 // Count count 1
 func (c *ChildParallelCounter) Count() (r int64) {
+	c.RLock()
 	r = atomic.AddInt64(&c.n, 1)
-	if r > atomic.LoadInt64(&c.maxN) {
+	cmax := atomic.LoadInt64(&c.maxN)
+	c.RUnlock()
+	if r > cmax {
+		// Logger.Info("try acquire child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
 		c.Lock()
-		if r > c.p.rotatePoint {
-			r = r % c.p.rotatePoint
-		}
-		var (
-			cn   = atomic.LoadInt64(&c.n)
-			cmax = atomic.LoadInt64(&c.maxN)
-		)
-		if r < cmax && r >= cn { // already get new quote
-			cn = atomic.AddInt64(&c.n, 1)
-			r = cn
-		}
+		// Logger.Info("acquired child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
+		r = r % c.p.rotatePoint
 
-		for r > cmax { // double check
-			cn, cmax = c.p.GetQuote(0)
-			r = cn
+		// double check
+		r = atomic.AddInt64(&c.n, 1)
+		cmax = atomic.LoadInt64(&c.maxN)
+		if r > cmax {
+			r, cmax = c.p.GetQuote(0)
 		}
-
-		atomic.StoreInt64(&c.n, cn)
+		atomic.StoreInt64(&c.n, r)
 		atomic.StoreInt64(&c.maxN, cmax)
+
+		// fmt.Println(">>", r, cmax)
+		// Logger.Info("release child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID), zap.Int64("to", cmax))
 		c.Unlock()
 	}
 

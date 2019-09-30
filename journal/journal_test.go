@@ -87,6 +87,10 @@ func TestJournal(t *testing.T) {
 		}
 	}
 
+	// because journal will keep at least one journal, so need rotate twice
+	if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
 	if err = j.Rotate(context.WithValue(ctx, ctxKey, "rotate")); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
