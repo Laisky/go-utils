@@ -1,10 +1,13 @@
 package utils_test
 
 import (
+	"math"
+	"math/rand"
 	"sync"
 	"testing"
 
 	utils "github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 )
 
 func ExampleCounter() {
@@ -22,6 +25,86 @@ func ExampleRotateCounter() {
 
 	counter.Count()    // 1
 	counter.CountN(10) // 1
+}
+
+func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, name string, store *sync.Map) {
+	defer wg.Done()
+	defer utils.Logger.Info("validator exit", zap.String("name", name))
+	var (
+		nParallel = 10
+		padding   = struct{}{}
+	)
+	if store == nil {
+		store = &sync.Map{}
+	}
+
+	for i := 0; i < nParallel; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer utils.Logger.Info("counter exit", zap.String("name", name))
+			var (
+				ok bool
+				n  int64
+			)
+			for j := 0; j < N; j++ {
+				n = counter.Count()
+				if _, ok = store.LoadOrStore(n, padding); ok {
+					utils.Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
+				}
+			}
+		}()
+	}
+	for i := 0; i < nParallel; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer utils.Logger.Info("multi counter exit", zap.String("name", name))
+			var (
+				ok      bool
+				step, n int64
+			)
+			for j := 0; j < N/100; j++ {
+				step = rand.Int63n(100) + 1
+				n = counter.CountN(step)
+				if _, ok = store.LoadOrStore(n, padding); ok {
+					utils.Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
+				}
+			}
+		}()
+	}
+
+	return
+}
+
+func TestCounterValidation(t *testing.T) {
+	utils.SetupLogger("info")
+	var (
+		err error
+		wg  = &sync.WaitGroup{}
+	)
+	atomicCounter := utils.NewCounter()
+	rotateCounter, err := utils.NewRotateCounter(math.MaxInt64)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	parallelCounter, err := utils.NewParallelCounter(100, math.MaxInt64)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	store2ChildCounter := &sync.Map{}
+	childCounter1 := parallelCounter.GetChild()
+	childCounter2 := parallelCounter.GetChild()
+	childCounter3 := parallelCounter.GetChild()
+
+	wg.Add(5)
+	go validateCounter(100000, wg, atomicCounter, "atomicCounter", nil)
+	go validateCounter(100000, wg, rotateCounter, "rotateCounter", nil)
+	go validateCounter(100000, wg, childCounter1, "childCounter-1", store2ChildCounter)
+	go validateCounter(100000, wg, childCounter2, "childCounter-2", store2ChildCounter)
+	go validateCounter(100000, wg, childCounter3, "childCounter-3", store2ChildCounter)
+	t.Log("waiting tasks")
+	wg.Wait()
 
 }
 
@@ -106,84 +189,6 @@ func TestRotateCounter(t *testing.T) {
 	if r = counter.CountN(248); r != 3 {
 		t.Errorf("want %v, got %v", 3, r)
 	}
-}
-
-func TestIncrementRotateCounter(t *testing.T) {
-	utils.SetupLogger("debug")
-	counter, err := utils.NewMonotonicRotateCounter(100)
-	if err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
-
-	var (
-		start, got, step int64
-	)
-	if got = counter.Count(); got-start < 1 {
-		t.Errorf("%v should bigger than %v", got, start)
-	}
-	start = got
-
-	if got = counter.Count(); got-start < 1 {
-		t.Errorf("%v should bigger than %v", got, start)
-	}
-	start = got
-
-	if got = counter.Count(); got-start < 1 {
-		t.Errorf("%v should bigger than %v", got, start)
-	}
-	start = got
-
-	step = 4
-	if got = counter.CountN(step); got-start < step {
-		t.Errorf("%v should bigger than %v", got, start)
-	}
-	start = got
-
-	step = 15
-	if got = counter.CountN(step); got-start < step {
-		t.Errorf("%v should bigger than %v", got, start)
-	}
-	start = got
-
-	step = 110
-	if got = counter.CountN(step); got > step+start%100 {
-		t.Errorf("%v should bigger than %v", got, step+start%100)
-	}
-	start = got
-
-	// test duplicate
-	if counter, err = utils.NewMonotonicRotateCounter(10000000); err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
-
-	ns := sync.Map{}
-	wg := sync.WaitGroup{}
-	val := struct{}{}
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000000; i++ {
-			n := counter.Count()
-			if _, ok := ns.LoadOrStore(n, val); ok {
-				t.Fatalf("should not contains: %v", n)
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
-			n := counter.CountN(500)
-
-			if _, ok := ns.LoadOrStore(n, val); ok {
-				t.Fatalf("should not contains: %v", n)
-			}
-		}
-	}()
-
-	wg.Wait()
-
 }
 
 func TestParallelRotateCounter(t *testing.T) {
@@ -382,33 +387,32 @@ func BenchmarkRotateCounter(b *testing.B) {
 
 /*BenchmarkAllCounter
 
-BenchmarkAllCounter/atomicCounter_count_1-4         	200000000	         7.17 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/rotateCounter_count_1-4         	20000000	       112 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/increCounter_count_1-4          	50000000	        30.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/childCounter_count_1-4          	100000000	        15.7 ns/op	       1 B/op	       0 allocs/op
-BenchmarkAllCounter/atomicCounter_count_500-4       	200000000	         6.95 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/rotateCounter_count_500-4       	   30000	     48907 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/increCounter_count_500-4        	 2000000	       688 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/childCounter_count_500-4        	  200000	      7917 ns/op	     950 B/op	       4 allocs/op
-BenchmarkAllCounter/atomicCounter_parallel-4_count_1-4         	20000000	       104 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/rotateCounter_parallel-4_count_1-4         	 3000000	       382 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/increCounter_parallel-4_count_1-4          	10000000	       166 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/childCounter_parallel-4_count_1-4          	20000000	       112 ns/op	       9 B/op	       0 allocs/op
-BenchmarkAllCounter/atomicCounter_parallel-4_count_500-4       	30000000	       104 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/rotateCounter_parallel-4_count_500-4       	   10000	    179839 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/increCounter_parallel-4_count_500-4        	 1000000	      3297 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllCounter/childCounter_parallel-4_count_500-4        	   30000	     47194 ns/op	    4402 B/op	      22 allocs/op
+✗ go test -run=All -bench=AllCo -benchtime=5s -benchmem
+goos: darwin
+goarch: amd64
+pkg: github.com/Laisky/go-utils
+BenchmarkAllCounter/atomicCounter_count_1-4             833836315                6.99 ns/op            0 B/op          0 allocs/op
+BenchmarkAllCounter/rotateCounter_count_1-4             26496855               219 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/childCounter_count_1-4              195491630               30.2 ns/op             1 B/op          0 allocs/op
+BenchmarkAllCounter/atomicCounter_count_500-4           821179578                7.09 ns/op            0 B/op          0 allocs/op
+BenchmarkAllCounter/rotateCounter_count_500-4              54483            108021 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/childCounter_count_500-4              372174             15063 ns/op             960 B/op          5 allocs/op
+BenchmarkAllCounter/atomicCounter_parallel-4_count_1-4          68061858               108 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/rotateCounter_parallel-4_count_1-4           5469538              1221 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/childCounter_parallel-4_count_1-4           30513360               211 ns/op               7 B/op          0 allocs/op
+BenchmarkAllCounter/atomicCounter_parallel-4_count_500-4        63054807               107 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/rotateCounter_parallel-4_count_500-4            9793            613852 ns/op               0 B/op          0 allocs/op
+BenchmarkAllCounter/childCounter_parallel-4_count_500-4            60672            102970 ns/op            3840 B/op         20 allocs/op
+PASS
+ok      github.com/Laisky/go-utils      82.997s
+
 */
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()
-	utils.SetupLogger("info")
+	utils.SetupLogger("error")
 	var err error
 	atomicCounter := utils.NewCounter()
 	rotateCounter, err := utils.NewRotateCounter(100000000)
-	if err != nil {
-		b.Fatalf("got error: %+v", err)
-	}
-	increCounter, err := utils.NewMonotonicRotateCounter(100000000)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
@@ -429,11 +433,6 @@ func BenchmarkAllCounter(b *testing.B) {
 			rotateCounter.Count()
 		}
 	})
-	b.Run("increCounter count 1", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			increCounter.Count()
-		}
-	})
 	b.Run("childCounter count 1", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			childCounter.Count()
@@ -449,11 +448,6 @@ func BenchmarkAllCounter(b *testing.B) {
 	b.Run("rotateCounter count 500", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			rotateCounter.CountN(500)
-		}
-	})
-	b.Run("increCounter count 500", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			increCounter.CountN(500)
 		}
 	})
 	b.Run("childCounter count 500", func(b *testing.B) {
@@ -504,28 +498,6 @@ func BenchmarkAllCounter(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				rotateCounter.Count()
-			}
-		})
-	})
-	b.Run("increCounter parallel-4 count 1", func(b *testing.B) {
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.Count()
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.Count()
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.Count()
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.Count()
 			}
 		})
 	})
@@ -601,28 +573,6 @@ func BenchmarkAllCounter(b *testing.B) {
 			}
 		})
 	})
-	b.Run("increCounter parallel-4 count 500", func(b *testing.B) {
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.CountN(500)
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.CountN(500)
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.CountN(500)
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				increCounter.CountN(500)
-			}
-		})
-	})
 	b.Run("childCounter parallel-4 count 500", func(b *testing.B) {
 		cc1 := parallelCounter.GetChild()
 		cc2 := parallelCounter.GetChild()
@@ -650,46 +600,4 @@ func BenchmarkAllCounter(b *testing.B) {
 		})
 	})
 
-}
-
-func BenchmarkIncrementalRotateCounter(b *testing.B) {
-	counter, err := utils.NewMonotonicRotateCounter(1000000000)
-	if err != nil {
-		b.Fatalf("got error: %+v", err)
-	}
-	b.Run("count 1", func(b *testing.B) {
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				counter.Count()
-			}
-		})
-	})
-	b.Run("count 1 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.Count()
-				}
-			})
-		}
-	})
-	b.Run("count 5", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			counter.CountN(5)
-		}
-	})
-	b.Run("count 500", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			counter.CountN(500)
-		}
-	})
-	b.Run("count 500 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.CountN(500)
-				}
-			})
-		}
-	})
 }
