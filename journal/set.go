@@ -120,8 +120,9 @@ type Int64SetWithTTL struct {
 	stopChan chan struct{}
 
 	ttl      time.Duration
+	ttlSec   int64
 	og, ng   *sync.Map
-	ogN, ngN int64
+	ogN, ngN int64 // {msgid: time}
 }
 
 const (
@@ -138,6 +139,7 @@ func NewInt64SetWithTTL(ctx context.Context, ttl time.Duration) *Int64SetWithTTL
 		stopChan: make(chan struct{}),
 		chgLock:  &sync.Mutex{},
 		ttl:      ttl,
+		ttlSec:   int64(ttl.Seconds()),
 		ng:       &sync.Map{},
 	}
 	utils.Logger.Debug("NewInt64SetWithTTL",
@@ -154,7 +156,7 @@ func (s *Int64SetWithTTL) Add(id int) {
 
 // AddInt64 add int64
 func (s *Int64SetWithTTL) AddInt64(id int64) {
-	t := utils.Clock.GetUTCNow().Unix()
+	t := utils.Clock.GetUTCNow().Unix() + s.ttlSec
 	s.RLock()
 	if _, ok := s.ng.LoadOrStore(id, t); !ok {
 		atomic.AddInt64(&s.ngN, 1)
@@ -179,15 +181,18 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 		vi interface{}
 	)
 	if vi, ok = s.ng.Load(id); ok {
+		utils.Logger.Debug("found in ng")
 		return true
 	}
 
 	if s.og != nil {
 		if vi, ok = s.og.Load(id); ok {
 			if vi.(int64) > t {
+				utils.Logger.Debug("found in og")
 				return true
 			}
 
+			utils.Logger.Debug("found in og, but expired")
 			s.og.Delete(id)
 			atomic.AddInt64(&s.ogN, -1)
 		}
@@ -221,11 +226,12 @@ func (s *Int64SetWithTTL) StartRotate(ctx context.Context) {
 		default:
 		}
 
+		time.Sleep(s.ttl)
 		s.Lock()
+		utils.Logger.Debug("rotate Int64SetWithTTL")
 		s.ogN, s.ngN = s.ngN, 0
 		s.og = s.ng
 		s.ng = &sync.Map{}
 		s.Unlock()
-		time.Sleep(s.ttl)
 	}
 }

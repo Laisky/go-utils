@@ -3,6 +3,7 @@ package journal_test
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,22 +44,22 @@ func TestInt64SetWithTTL(t *testing.T) {
 	}
 
 	for i := int64(5); i < 10; i++ {
-		s.CheckAndRemove(i)
+		if !s.CheckAndRemove(i) {
+			t.Fatalf("should contains %d", i)
+		}
 	}
 
-	if !s.CheckAndRemove(3) {
-		t.Fatal("should contains 3")
-	}
-	if !s.CheckAndRemove(7) {
-		t.Fatal("should contains 7")
+	for i := int64(5); i < 10; i++ {
+		if !s.CheckAndRemove(i) {
+			t.Fatalf("should contains %d", i)
+		}
 	}
 
-	time.Sleep(2100 * time.Millisecond)
-	if s.CheckAndRemove(3) {
-		t.Fatal("should not contains 3")
-	}
-	if s.CheckAndRemove(7) {
-		t.Fatal("should not contains 7")
+	time.Sleep(1100 * time.Millisecond) // all expired
+	for i := int64(0); i < 10; i++ {
+		if s.CheckAndRemove(i) {
+			t.Fatalf("should not contains %d", i)
+		}
 	}
 }
 
@@ -81,6 +82,43 @@ func TestNewUint32Set(t *testing.T) {
 	if s.CheckAndRemoveUint32(7) {
 		t.Fatal("should not contains 7")
 	}
+}
+
+func TestValidateInt64SetWithTTL(t *testing.T) {
+	s := journal.NewInt64SetWithTTL(context.Background(), 1*time.Second)
+	wg := &sync.WaitGroup{}
+	pool := &sync.Map{}
+	padding := struct{}{}
+
+	for nf := 0; nf < 4; nf++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var n int64
+			for i := 0; i < 10000; i++ {
+				n = rand.Int63()
+				s.AddInt64(n)
+				pool.Store(n, padding)
+			}
+		}()
+	}
+
+	wg.Wait()
+	pool.Range(func(k, v interface{}) bool {
+		if !s.CheckAndRemove(k.(int64)) {
+			t.Fatalf("should contains %d", k.(int64))
+		}
+		return true
+	})
+
+	time.Sleep(1100 * time.Millisecond)
+	pool.Range(func(k, v interface{}) bool {
+		if s.CheckAndRemove(k.(int64)) {
+			t.Fatalf("should not contains %d", k.(int64))
+		}
+		return true
+	})
+
 }
 
 func ExampleInt64Set() {
