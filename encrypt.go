@@ -119,6 +119,7 @@ func NewJWT(cfg *JwtCfg) (*JWT, error) {
 // Generate (Deprecated) generate JWT token.
 // old interface
 func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string, error) {
+	Logger.Warn("this method is deprecated, use `GenerateToken` instead")
 	jwtPayload := jwt.MapClaims{}
 	for k, v := range payload {
 		jwtPayload[k] = v

@@ -67,7 +67,7 @@ func (s *Uint32Set) CheckAndRemoveUint32(i uint32) (ok bool) {
 	return ok
 }
 
-// GetLen (deprecated) return length
+// GetLen return length
 func (s *Uint32Set) GetLen() int {
 	return int(s.d.GetCardinality())
 }
