@@ -1,10 +1,8 @@
-package ginMiddlewares
+package middlewares
 
 import (
 	"context"
 	"net/http"
-
-	ginprometheus "github.com/zsais/go-gin-prometheus"
 
 	"github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
@@ -15,7 +13,7 @@ import (
 type key string
 
 // GinCtxKey key of gin ctx that saved in request.context
-const GinCtxKey key = "ginctx"
+var GinCtxKey utils.CtxKeyT
 
 // FromStd convert std handler to gin.Handler, with gin context embedded
 func FromStd(handler http.HandlerFunc) gin.HandlerFunc {
@@ -37,10 +35,4 @@ func LoggerMiddleware(ctx *gin.Context) {
 		zap.String("method", ctx.Request.Method),
 	)
 	ctx.Next()
-}
-
-// BindPrometheus bind prometheus endpoint.
-func BindPrometheus(s *gin.Engine) {
-	p := ginprometheus.NewPrometheus("gin")
-	p.Use(s)
 }

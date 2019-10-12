@@ -1,13 +1,12 @@
-package ginMiddlewares_test
+package middlewares_test
 
 import (
 	"net/http"
 
+	middlewares "github.com/Laisky/go-utils/gin-middlewares"
 	"github.com/Laisky/zap"
 
 	"github.com/gin-gonic/gin"
-
-	ginMiddlewares "github.com/Laisky/go-utils/gin-middlewares"
 
 	"github.com/Laisky/go-utils"
 )
@@ -23,8 +22,8 @@ func (u *User) GetID() string {
 }
 
 func ExampleAuth() {
-	cfg := ginMiddlewares.NewAuthCfg("f32lifj2f32fj")
-	auth, err := ginMiddlewares.NewAuth(cfg)
+	cfg := middlewares.NewAuthCfg("f32lifj2f32fj")
+	auth, err := middlewares.NewAuth(cfg)
 	if err != nil {
 		utils.Logger.Panic("try to init gin auth got error", zap.Error(err))
 	}
@@ -38,15 +37,15 @@ func ExampleAuth() {
 	}
 
 	user := &User{}
-	if err = auth.SetLoginCookie(ctx, user, ginMiddlewares.NewCookieCfg()); err != nil {
+	if err = auth.SetLoginCookie(ctx, user, middlewares.NewCookieCfg()); err != nil {
 		utils.Logger.Error("try to set cookie got error", zap.Error(err))
 	}
 
 	Server := gin.New()
-	Server.Handle("ANY", "/authorized/", ginMiddlewares.FromStd(DemoHandle))
+	Server.Handle("ANY", "/authorized/", middlewares.FromStd(DemoHandle))
 }
 
 func DemoHandle(w http.ResponseWriter, r *http.Request) {
-	// ginMiddlewares
+	// middlewares
 	w.Write([]byte("hello"))
 }

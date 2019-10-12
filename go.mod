@@ -11,6 +11,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.16-0.20190423073834-d5779253526c+incompatible
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/gin-contrib/pprof v1.2.1
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.6
 	github.com/magiconair/properties v1.8.1 // indirect
@@ -26,6 +27,7 @@ require (
 	github.com/tinylib/msgp v1.1.0
 	github.com/ugorji/go/codec v1.1.5-pre
 	github.com/zsais/go-gin-prometheus v0.1.0
+	go.uber.org/zap v1.10.0
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
 	golang.org/x/text v0.3.2 // indirect
