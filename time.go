@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,20 +13,54 @@ func UTCNow() time.Time {
 	return time.Now().UTC()
 }
 
-// ParseTs2String can parse unix timestamp(int64) to string
-func ParseTs2String(ts int64, layout string) string {
-	return ParseTs2Time(ts).Format(layout)
+// ParseUnix2String can parse unix timestamp(int64) to string
+func ParseUnix2String(ts int64, layout string) string {
+	return ParseUnix2UTC(ts).Format(layout)
 }
 
-// ParseTs2Time can parse unix timestamp(int64) to time.Time
-func ParseTs2Time(ts int64) time.Time {
+// ParseUnix2UTC convert unix to UTC time
+func ParseUnix2UTC(ts int64) time.Time {
 	return time.Unix(ts, 0).UTC()
 }
 
-// UnixNano2UTC convert unixnano to UTC time
-func UnixNano2UTC(ts int64) time.Time {
+var (
+	// ParseTs2UTC can parse unix timestamp(int64) to time.Time
+	ParseTs2UTC = ParseUnix2UTC
+	// ParseTs2String can parse unix timestamp(int64) to string
+	ParseTs2String = ParseUnix2String
+)
+
+// ParseUnixNano2UTC convert unixnano to UTC time
+func ParseUnixNano2UTC(ts int64) time.Time {
 	return time.Unix(ts/1e9, ts%1e9).UTC()
 }
+
+// ParseHex2UTC parse hex to UTC time
+func ParseHex2UTC(ts string) (t time.Time, err error) {
+	var ut int64
+	if ut, err = strconv.ParseInt(ts, 16, 64); err != nil {
+		return
+	}
+
+	return ParseUnix2UTC(ut), nil
+}
+
+// ParseHexNano2UTC parse hex contains nano to UTC time
+func ParseHexNano2UTC(ts string) (t time.Time, err error) {
+	var ut int64
+	if ut, err = strconv.ParseInt(ts, 16, 64); err != nil {
+		return
+	}
+
+	return ParseUnixNano2UTC(ut), nil
+}
+
+var ( // compatable to old version
+	// ParseTs2Time can parse unix timestamp(int64) to time.Time
+	ParseTs2Time = ParseTs2UTC
+	// UnixNano2UTC convert unixnano to UTC time
+	UnixNano2UTC = ParseUnixNano2UTC
+)
 
 // ---------------------------------------
 // Clock
@@ -41,101 +76,32 @@ type ClockItf interface {
 
 const defaultClockInterval = 100 * time.Millisecond
 
-// Clock high performance time utils
-var Clock = NewClock2(context.Background(), defaultClockInterval)
-
 // SetupClock setup internal Clock with step
 func SetupClock(refreshInterval time.Duration) {
 	if Clock == nil {
-		Clock = NewClock2(context.Background(), refreshInterval)
+		Clock = NewClock(context.Background(), refreshInterval)
 	} else {
 		Clock.SetupInterval(refreshInterval)
 	}
 }
 
-// ClockType (Deprecated) high performance clock with lazy refreshing
-type ClockType struct {
-	sync.RWMutex
-	interval time.Duration
-	now      time.Time
-	// timeStrRFC3339Nano string
-	isStop bool
-}
+var (
+	// Clock high performance time utils, replace Clock1
+	Clock = NewClock(context.Background(), defaultClockInterval)
 
-// NewClock (Deprecated) create new Clock
-func NewClock(refreshInterval time.Duration) *ClockType {
-	Logger.Warn("this function is deprecated, please use `NewClock2`")
-	c := &ClockType{
-		interval: refreshInterval,
-		now:      UTCNow(),
-	}
-	go c.runRefresh()
+	// compatable to old version
 
-	return c
-}
-
-func (c *ClockType) Close() {
-	c.Stop()
-}
-
-// Stop stop Clock update
-func (c *ClockType) Stop() {
-	c.Lock()
-	defer c.Unlock()
-
-	c.isStop = true
-}
-
-// Run start Clock
-func (c *ClockType) Run() {
-	c.Lock()
-	defer c.Unlock()
-
-	c.isStop = false
-	go c.runRefresh()
-}
-
-// SetupInterval setup update interval
-func (c *ClockType) SetupInterval(interval time.Duration) {
-	c.Lock()
-	defer c.Unlock()
-
-	c.interval = interval
-}
-
-func (c *ClockType) runRefresh() {
-	var interval time.Duration
-	for {
-		c.Lock()
-		if c.isStop {
-			return
-		}
-		c.now = UTCNow()
-		interval = c.interval
-		c.Unlock()
-
-		time.Sleep(interval)
-	}
-}
-
-// GetUTCNow return Clock current time.Time
-func (c *ClockType) GetUTCNow() (t time.Time) {
-	c.RLock()
-	t = c.now
-	c.RUnlock()
-	return t
-}
-
-// GetTimeInRFC3339Nano return Clock current time in string
-func (c *ClockType) GetTimeInRFC3339Nano() string {
-	return c.GetUTCNow().Format(time.RFC3339Nano)
-}
-
-// Clock2 high performance time utils, replace Clock1
-var Clock2 = NewClock2(context.Background(), defaultClockInterval)
+	// Clock2 high performance time utils
+	Clock2 = Clock
+	// NewClock2 create new Clock
+	NewClock2 = NewClock
+)
 
 // Clock2Type high performance clock with lazy refreshing
-type Clock2Type struct {
+type Clock2Type ClockType
+
+// ClockType high performance clock with lazy refreshing
+type ClockType struct {
 	sync.RWMutex
 	stopChan chan struct{}
 
@@ -143,9 +109,9 @@ type Clock2Type struct {
 	now      int64
 }
 
-// NewClock2 create new Clock2
-func NewClock2(ctx context.Context, refreshInterval time.Duration) *Clock2Type {
-	c := &Clock2Type{
+// NewClock create new Clock
+func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockType {
+	c := &ClockType{
 		interval: refreshInterval,
 		now:      UTCNow().UnixNano(),
 		stopChan: make(chan struct{}),
@@ -155,12 +121,12 @@ func NewClock2(ctx context.Context, refreshInterval time.Duration) *Clock2Type {
 	return c
 }
 
-// Close stop Clock2 update
-func (c *Clock2Type) Close() {
+// Close stop Clock update
+func (c *ClockType) Close() {
 	c.stopChan <- struct{}{}
 }
 
-func (c *Clock2Type) runRefresh(ctx context.Context) {
+func (c *ClockType) runRefresh(ctx context.Context) {
 	var interval time.Duration
 	for {
 		select {
@@ -179,20 +145,30 @@ func (c *Clock2Type) runRefresh(ctx context.Context) {
 	}
 }
 
-// GetUTCNow return Clock2 current time.Time
-func (c *Clock2Type) GetUTCNow() (t time.Time) {
+// GetUTCNow return Clock current time.Time
+func (c *ClockType) GetUTCNow() (t time.Time) {
 	return UnixNano2UTC(atomic.LoadInt64(&c.now))
 }
 
-// GetTimeInRFC3339Nano return Clock2 current time in string
-func (c *Clock2Type) GetTimeInRFC3339Nano() string {
+// GetTimeInRFC3339Nano return Clock current time in string
+func (c *ClockType) GetTimeInRFC3339Nano() string {
 	return c.GetUTCNow().Format(time.RFC3339Nano)
 }
 
 // SetupInterval setup update interval
-func (c *Clock2Type) SetupInterval(interval time.Duration) {
+func (c *ClockType) SetupInterval(interval time.Duration) {
 	c.Lock()
 	defer c.Unlock()
 
 	c.interval = interval
+}
+
+// GetTimeInHex return current time in hex
+func (c *ClockType) GetTimeInHex() string {
+	return strconv.FormatInt(c.GetUTCNow().Unix(), 16)
+}
+
+// GetNanoTimeInHex return current time with nano in hex
+func (c *ClockType) GetNanoTimeInHex() string {
+	return strconv.FormatInt(c.GetUTCNow().UnixNano(), 16)
 }

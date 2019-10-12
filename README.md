@@ -24,31 +24,99 @@ import (
 )
 ```
 
-There are small tools including:
+There are many useful tools including:
 
 * `Clock`: high performance lazy load clock
+  * create
+    * `NewClock(context.Context, time.Duration) *ClockType`
+  * use
+    * `Clock.Close()`
+    * `Clock.GetUTCNow`
+    * `Clock.GetTimeInRFC3339Nano`
+    * `Clock.SetupInterval(time.Duration)`
+    * `Clock.GetTimeInHex() string`
+    * `Clock.GetNanoTimeInHex() string`
 * `Settings`: configuration manager that support yml and spring-cloud-config-server
+  * setup
+    * `SetupFromDir(dirPath string) error`
+    * `SetupFromFile(filePath string) error`
+    * `SetupFromConfigServer(cfg *ConfigServerCfg) (err error)`
+    * `SetupFromConfigServerWithRawYaml(cfg *ConfigServerCfg, key string)`
+  * use
+    * `Settings.Get(key string) interface{}`
+    * `Settings.GetString(key string) string`
+    * `Settings.GetStringSlice(key string) []string`
+    * `Settings.GetBool(key string) bool`
+    * `Settings.GetInt(key string) int`
+    * `Settings.GetInt64(key string) int64`
+    * `Settings.GetDuration(key string) time.Duration`
+    * `Settings.Set(key string, val interface{})`
+    * `Settings.IsSet(key string) bool`
+    * `Settings.GetStringMap(key string) map[string]interface{}`
+    * `Settings.GetStringMapString(key string) map[string]string`
 * `Counter`: counter and rotate counter
+  * create
+    * `NewCounter() *Counter`
+    * `NewCounterFromN(n int64) *Counter`
+    * `NewRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*RotateCounter, error)`
+    * `NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*RotateCounter, error)`
+    * `NewUint32Counter() *Uint32Counter`
+    * `NewUint32CounterFromN(n uint32) *Uint32Counter`
+    * `NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error)`
+    * `NewParallelCounterFromN(n, quoteStep, rotatePoint int64) (*ParallelCounter, error)`
 * `Mail`: simply email sender
+  * create
+    * `NewMail(host string, port int) *Mail`
+  * use
+    * `Mail.Login(username, password string)`
+    * `Mail.Send(frAddr, toAddr, frName, toName, subject, content string) (err error)`
 * encrypt.go:
-  * `JWT`: simply JWT encrypt/decrypt functions
-  * `GeneratePasswordHash`: generate hashed password
-  * `ValidatePasswordHash`: validate hashed password
+  * create:
+    * `NewJWT(cfg *JwtCfg) (*JWT, error)`
+  * use:
+    * `GeneratePasswordHash()`: generate hashed password
+    * `ValidatePasswordHash()`: validate hashed password
+    * `JWT.GenerateToken(userID interface{}, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error)`
+    * `JWT.Validate(tokenStr string) (payload jwt.MapClaims, err error)`
 * `RequestJSON`: simply http client that send json request and unmarshal response by json
 * `Logger`: high performance structrued logger based by zap
+  * setup:
+    * `SetupLogger(level string)`
+  * use
+    * `Logger.Info(msg string, fields ...zap.Field)`
+    * `Logger.Debug(msg string, fields ...zap.Field)`
+    * `Logger.Warn(msg string, fields ...zap.Field)`
+    * `Logger.Error(msg string, fields ...zap.Field)`
+    * `Logger.Panic(msg string, fields ...zap.Field)`
+    * `Logger.DebugSample(sample int, msg string, fields ...zap.Field)`
+    * `Logger.InfoSample(sample int, msg string, fields ...zap.Field)`
+    * `Logger.WarnSample(sample int, msg string, fields ...zap.Field)`
 * `Math`: some simply math functions
-  * `Round`: get round of float
+  * `Round(val float64, roundOn float64, places int) (newVal float64)`: get round of float
 * `Throttle`: throttling to limit throughput
 * time: some useful time functions
-  * `UTCNow()`
-  * `ParseTs2String`
-  * `ParseTs2Time`
+  * `UTCNow() time.Time`
+  * `ParseUnix2String(int64) string`
+  * `ParseUnix2UTC(int64) time.Time`
+  * `ParseUnixNano2UTC(int64) time.Time`
+  * `ParseHex2UTC(string) time.Time`
+  * `ParseHexNano2UTC(string) time.Time`
 * utils: some tool functions
-  * `GetFuncName`
-  * `FallBack`
-  * `RegexNamedSubMatch`
-  * `FlattenMap`
+  * `GetFuncName(f interface{}) string`
+  * `FallBack(orig func() interface{}, fallback interface{}) (ret interface{})`
+  * `RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]string) error`
+  * `FlattenMap(data map[string]interface{}, delimiter string)`
+  * `ForceGCBlocking()`
+  * `ForceGCUnBlocking()`
+  * `TemplateWithMap(tpl string, data map[string]interface{}) string`
 * `GZCompressor`
+  * create
+    * `NewGZCompressor(cfg *GZCompressorCfg) (c *GZCompressor, err error)`
+  * use
+    * `GZCompressor.Write(d []byte) (int, error)`
+    * `GZCompressor.WriteString(d string) (int, error)`
+    * `GZCompressor.Flush() (err error)`
+    * `GZCompressor.WriteFooter() (err error)`
 
 see more examples in  tests or [document](https://godoc.org/github.com/Laisky/go-utils)
 
