@@ -33,11 +33,14 @@ func TestMarshalUnmarshalData(t *testing.T) {
 }
 
 func BenchmarkMarshalMsgData(b *testing.B) {
+	var err error
 	v := Data{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		v.MarshalMsg(nil)
+		if _, err = v.MarshalMsg(nil); err != nil {
+			b.Fatalf("marshal: %+v", err)
+		}
 	}
 }
 
@@ -69,8 +72,13 @@ func BenchmarkUnmarshalData(b *testing.B) {
 
 func TestEncodeDecodeData(t *testing.T) {
 	v := Data{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
+	var (
+		err error
+		buf bytes.Buffer
+	)
+	if err = msgp.Encode(&buf, &v); err != nil {
+		t.Fatalf("encode: %+v", err)
+	}
 
 	m := v.Msgsize()
 	if buf.Len() > m {
@@ -78,13 +86,15 @@ func TestEncodeDecodeData(t *testing.T) {
 	}
 
 	vn := Data{}
-	err := msgp.Decode(&buf, &vn)
+	err = msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
 	}
 
 	buf.Reset()
-	msgp.Encode(&buf, &v)
+	if err = msgp.Encode(&buf, &v); err != nil {
+		t.Fatalf("encode: %+v", err)
+	}
 	err = msgp.NewReader(&buf).Skip()
 	if err != nil {
 		t.Error(err)
@@ -93,22 +103,34 @@ func TestEncodeDecodeData(t *testing.T) {
 
 func BenchmarkEncodeData(b *testing.B) {
 	v := Data{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
+	var (
+		err error
+		buf bytes.Buffer
+	)
+	if err = msgp.Encode(&buf, &v); err != nil {
+		b.Fatalf("encode: %+v", err)
+	}
 	b.SetBytes(int64(buf.Len()))
 	en := msgp.NewWriter(msgp.Nowhere)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		v.EncodeMsg(en)
+		if err = v.EncodeMsg(en); err != nil {
+			b.Fatalf("encode: %+v", err)
+		}
 	}
 	en.Flush()
 }
 
 func BenchmarkDecodeData(b *testing.B) {
 	v := Data{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
+	var (
+		err error
+		buf bytes.Buffer
+	)
+	if err = msgp.Encode(&buf, &v); err != nil {
+		b.Fatalf("encode: %+v", err)
+	}
 	b.SetBytes(int64(buf.Len()))
 	rd := msgp.NewEndlessReader(buf.Bytes(), b)
 	dc := msgp.NewReader(rd)

@@ -55,19 +55,19 @@ type baseJWT struct {
 	JWTUserIDKey, JWTExpiresAtKey string
 }
 
-// checkExpiresValid return the bool whether the `expires_at` is not expired
-func (j *baseJWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
-	expiresAt, ok := expiresAtI.(string)
-	if !ok {
-		return false, fmt.Errorf("`%v` is not string", j.JWTExpiresAtKey)
-	}
-	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
-	if err != nil {
-		return false, errors.Wrap(err, "try to parse token expires_at error")
-	}
+// // checkExpiresValid return the bool whether the `expires_at` is not expired
+// func (j *baseJWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
+// 	expiresAt, ok := expiresAtI.(string)
+// 	if !ok {
+// 		return false, fmt.Errorf("`%v` is not string", j.JWTExpiresAtKey)
+// 	}
+// 	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
+// 	if err != nil {
+// 		return false, errors.Wrap(err, "try to parse token expires_at error")
+// 	}
 
-	return now.Before(tokenT), nil
-}
+// 	return now.Before(tokenT), nil
+// }
 
 // JWT struct to generate and validate jwt tokens
 //

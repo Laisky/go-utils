@@ -180,7 +180,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 		t  = utils.Clock.GetUTCNow().Unix()
 		vi interface{}
 	)
-	if vi, ok = s.ng.Load(id); ok {
+	if _, ok = s.ng.Load(id); ok {
 		utils.Logger.Debug("found in ng")
 		return true
 	}

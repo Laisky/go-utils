@@ -47,5 +47,7 @@ func ExampleAuth() {
 
 func DemoHandle(w http.ResponseWriter, r *http.Request) {
 	// middlewares
-	w.Write([]byte("hello"))
+	if _, err := w.Write([]byte("hello")); err != nil {
+		utils.Logger.Error("http write", zap.Error(err))
+	}
 }

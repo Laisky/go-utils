@@ -29,22 +29,22 @@ func TestGenerateNewBufFName(t *testing.T) {
 		now      time.Time
 		newFName string
 		cases    = []*FNameCase{
-			&FNameCase{
+			{
 				OldFName:    "20060102_00000001.buf",
 				ExpectFName: "20060102_00000002.buf",
 				NowTS:       "20060102-0700",
 			},
-			&FNameCase{
+			{
 				OldFName:    "20060102_00000001.ids",
 				ExpectFName: "20060102_00000002.ids",
 				NowTS:       "20060102-0700",
 			},
-			&FNameCase{
+			{
 				OldFName:    "20060102_00000002.buf",
 				ExpectFName: "20060104_00000001.buf",
 				NowTS:       "20060104-0700",
 			},
-			&FNameCase{
+			{
 				OldFName:    "20060102_00000002.buf",
 				ExpectFName: "20060103_00000001.buf",
 				NowTS:       "20060103-0600",
@@ -137,25 +137,35 @@ func BenchmarkFSPreallocate(b *testing.B) {
 	payload := make([]byte, 1024)
 	b.Run("normal", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			dataFp1.Write(payload)
+			if _, err = dataFp1.Write(payload); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 			// dataFp1.Sync()
 		}
 	})
 
-	fileutil.Preallocate(dataFp2, 1024*1024*1000, false)
+	if err = fileutil.Preallocate(dataFp2, 1024*1024*1000, false); err != nil {
+		b.Fatalf("prealloc: %+v", err)
+	}
 	b.ResetTimer()
 	b.Run("preallocate", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			dataFp2.Write(payload)
+			if _, err = dataFp2.Write(payload); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 			// dataFp2.Sync()
 		}
 	})
 
-	fileutil.Preallocate(dataFp3, 1024*1024*1000, true)
+	if err = fileutil.Preallocate(dataFp3, 1024*1024*1000, true); err != nil {
+		b.Fatalf("prealloc: %+v", err)
+	}
 	b.ResetTimer()
 	b.Run("preallocate with extended", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			dataFp3.Write(payload)
+			if _, err = dataFp3.Write(payload); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 			// dataFp3.Sync()
 		}
 	})

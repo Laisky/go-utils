@@ -29,11 +29,11 @@ func TestMetricsSrv(t *testing.T) {
 	time.Sleep(1 * time.Second) // wait server start
 
 	for _, tcase := range []*urlCase{
-		&urlCase{
+		{
 			path: "/pprof",
 			resp: "CPU profile. You can specify the duration",
 		},
-		&urlCase{
+		{
 			path: "/metrics",
 			resp: "go_gc_duration_seconds",
 		},

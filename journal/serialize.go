@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	once     = &sync.Once{}
+	// once     = &sync.Once{}
 	bitOrder = binary.BigEndian
 )
 
@@ -35,15 +35,15 @@ type BaseSerializer struct {
 // DataEncoder data serializer
 type DataEncoder struct {
 	BaseSerializer
-	writeChan chan interface{}
-	writer    *msgp.Writer
-	gzWriter  *utils.GZCompressor
+	// writeChan chan interface{}
+	writer   *msgp.Writer
+	gzWriter *utils.GZCompressor
 }
 
 // DataDecoder data deserializer
 type DataDecoder struct {
 	BaseSerializer
-	readChan chan interface{}
+	// readChan chan interface{}
 	reader   *msgp.Reader
 	gzReader io.Reader
 }
@@ -120,7 +120,7 @@ func NewIdsDecoder(fp *os.File, isCompress bool) (decoder *IdsDecoder, err error
 	if isCompress {
 		decoder.gzReader, err = gzip.NewReader(fp)
 		if err != nil {
-			return nil, errors.Wrap(err, "try to use gzip read ids fp got error")
+			return nil, errors.Wrap(err, "use gzip read ids fp")
 		}
 		decoder.reader = bufio.NewReaderSize(decoder.gzReader, BufSize)
 	} else {
@@ -140,7 +140,7 @@ func NewDataDecoder(fp *os.File, isCompress bool) (decoder *DataDecoder, err err
 	if isCompress {
 		decoder.gzReader, err = gzip.NewReader(fp)
 		if err != nil {
-			return nil, errors.Wrap(err, "try to use gzip read ids fp got error")
+			return nil, errors.Wrap(err, "use gzip read ids fp")
 		}
 		decoder.reader = msgp.NewReaderSize(decoder.gzReader, BufSize)
 	} else {
@@ -154,14 +154,14 @@ func (enc *DataEncoder) Write(msg *Data) (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = msg.EncodeMsg(enc.writer); err != nil {
-		return errors.Wrap(err, "try to Encode journal data got error")
+		return errors.Wrap(err, "Encode journal data")
 	}
 	enc.writer.Flush()
 	if enc.isCompress {
-		enc.gzWriter.WriteFooter()
+		err = enc.gzWriter.WriteFooter()
 	}
 
-	return nil
+	return
 }
 
 // Flush flush buf to fp
@@ -169,11 +169,11 @@ func (enc *DataEncoder) Flush() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = enc.writer.Flush(); err != nil {
-		return errors.Wrap(err, "try to flush data encoder got error")
+		return errors.Wrap(err, "flush data encoder")
 	}
 	if enc.isCompress {
 		if err = enc.gzWriter.Flush(); err != nil {
-			return errors.Wrap(err, "try to flush data encoder gz got error")
+			return errors.Wrap(err, "flush data encoder gz")
 		}
 	}
 	return
@@ -184,11 +184,11 @@ func (enc *DataEncoder) Close() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = enc.writer.Flush(); err != nil {
-		return errors.Wrap(err, "try to flush data encoder got error")
+		return errors.Wrap(err, "flush data encoder")
 	}
 	if enc.isCompress {
 		if err = enc.gzWriter.Flush(); err != nil {
-			return errors.Wrap(err, "try to close data gz encoder got error")
+			return errors.Wrap(err, "close data gz encoder")
 		}
 	}
 	enc.writer = nil
@@ -224,15 +224,15 @@ func (enc *IdsEncoder) Write(id int64) (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = binary.Write(enc.writer, bitOrder, offset); err != nil {
-		return errors.Wrap(err, "try to write ids got error")
+		return errors.Wrap(err, "write ids")
 	}
 	enc.writer.Flush()
 	if enc.isCompress {
-		enc.gzWriter.WriteFooter()
+		err = enc.gzWriter.WriteFooter()
 	}
 
 	// utils.Logger.Debug("write id", zap.Int64("offset", offset), zap.Int64("id", id))
-	return nil
+	return
 }
 
 // Flush flush buf to fp
@@ -240,11 +240,11 @@ func (enc *IdsEncoder) Flush() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = enc.writer.Flush(); err != nil {
-		return errors.Wrap(err, "try to flush ids encoder got error")
+		return errors.Wrap(err, "flush ids encoder")
 	}
 	if enc.isCompress {
 		if err = enc.gzWriter.Flush(); err != nil {
-			return errors.Wrap(err, "try to flush ids encoder gz got error")
+			return errors.Wrap(err, "flush ids encoder gz")
 		}
 	}
 
@@ -256,11 +256,11 @@ func (enc *IdsEncoder) Close() (err error) {
 	enc.Lock()
 	defer enc.Unlock()
 	if err = enc.writer.Flush(); err != nil {
-		return errors.Wrap(err, "try to flush ids encoder got error")
+		return errors.Wrap(err, "flush ids encoder")
 	}
 	if enc.isCompress {
 		if err = enc.gzWriter.Flush(); err != nil {
-			return errors.Wrap(err, "try to close ids gz encoder got error")
+			return errors.Wrap(err, "close ids gz encoder")
 		}
 	}
 	enc.writer = nil
@@ -274,7 +274,7 @@ func (dec *IdsDecoder) LoadMaxId() (maxId int64, err error) {
 		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {
 			break
 		} else if err != nil {
-			return 0, errors.Wrap(err, "try to read ids got error")
+			return 0, errors.Wrap(err, "read ids")
 		}
 
 		if dec.baseID == -1 {
@@ -301,7 +301,7 @@ func (dec *IdsDecoder) ReadAllToBmap() (ids *roaring.Bitmap, err error) {
 		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, errors.Wrap(err, "try to read ids got error")
+			return nil, errors.Wrap(err, "read ids")
 		}
 
 		if dec.baseID == -1 {
@@ -327,7 +327,7 @@ func (dec *IdsDecoder) ReadAllToInt64Set(ids Int64SetItf) (err error) {
 		if err = binary.Read(dec.reader, bitOrder, &id); err == io.EOF {
 			break
 		} else if err != nil {
-			return errors.Wrap(err, "try to read ids got error")
+			return errors.Wrap(err, "read ids")
 		}
 
 		if dec.baseID == -1 {

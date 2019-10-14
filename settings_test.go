@@ -19,7 +19,9 @@ func ExampleSettings() {
 	pflag.Parse()
 
 	// bind pflags to settings
-	utils.Settings.BindPFlags(pflag.CommandLine)
+	if err := utils.Settings.BindPFlags(pflag.CommandLine); err != nil {
+		utils.Logger.Panic("parse command")
+	}
 
 	// use
 	utils.Settings.Get("xxx")
@@ -55,8 +57,12 @@ key4:
 	t.Logf("create file: %v", fp.Name())
 	defer os.RemoveAll(dirName)
 
-	fp.Write(st)
-	fp.Close()
+	if _, err = fp.Write(st); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = fp.Close(); err != nil {
+		t.Fatalf("%+v", err)
+	}
 
 	t.Logf("load settings from: %v", dirName)
 	if err = utils.Settings.Setup(dirName); err != nil {
@@ -64,7 +70,9 @@ key4:
 	}
 
 	t.Logf(">> key1: %+v", viper.Get("key1"))
-	fp, err = os.Open(fp.Name())
+	if fp, err = os.Open(fp.Name()); err != nil {
+		t.Fatalf("open: %+v", err)
+	}
 	defer fp.Close()
 	if b, err := ioutil.ReadAll(fp); err != nil {
 		t.Fatalf("try to read tmp file got error: %+v", err)
@@ -101,7 +109,7 @@ func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
 		"label":    "label",
 		"version":  "12345",
 		"propertySources": []map[string]interface{}{
-			map[string]interface{}{
+			{
 				"name": "config name",
 				"source": map[string]string{
 					"profile": "profile",

@@ -27,7 +27,6 @@ require (
 	github.com/tinylib/msgp v1.1.0
 	github.com/ugorji/go/codec v1.1.5-pre
 	github.com/zsais/go-gin-prometheus v0.1.0
-	go.uber.org/zap v1.10.0
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
 	golang.org/x/text v0.3.2 // indirect

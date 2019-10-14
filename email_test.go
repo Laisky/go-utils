@@ -9,7 +9,9 @@ import (
 
 func TestSend(t *testing.T) {
 	utils.Settings.Set("debug", true)
-	utils.Settings.Setup("/Users/laisky/repo/pateo/configs/go-ramjet")
+	if err := utils.Settings.Setup("/Users/laisky/repo/pateo/configs/go-ramjet"); err != nil {
+		t.Fatalf("setup config %+v", err)
+	}
 
 	sender := utils.NewMail(utils.Settings.GetString("email.host"), utils.Settings.GetInt("email.port"))
 	sender.Login(utils.Settings.GetString("email.username"), utils.Settings.GetString("email.password"))

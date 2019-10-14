@@ -117,27 +117,25 @@ func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]Hea
 
 LOAD_LOOP:
 	for i = 0; i < topN; i++ { // load first topN items
-		select {
-		case item, ok = <-inputChan:
-			if !ok { // channel closed
-				inputChan = nil
-				break LOAD_LOOP
-			}
-			nTotal++
-			if nTotal == 1 {
-				thresItem = item
-			}
-
-			if (isHighest && item.GetPriority() < thresItem.GetPriority()) ||
-				(!isHighest && item.GetPriority() > thresItem.GetPriority()) {
-				thresItem = item
-			}
-
-			p.Push(&Item{
-				Key:      item.GetKey(),
-				Priority: item.GetPriority(),
-			})
+		item, ok = <-inputChan
+		if !ok { // channel closed
+			inputChan = nil
+			break LOAD_LOOP
 		}
+		nTotal++
+		if nTotal == 1 {
+			thresItem = item
+		}
+
+		if (isHighest && item.GetPriority() < thresItem.GetPriority()) ||
+			(!isHighest && item.GetPriority() > thresItem.GetPriority()) {
+			thresItem = item
+		}
+
+		p.Push(&Item{
+			Key:      item.GetKey(),
+			Priority: item.GetPriority(),
+		})
 	}
 
 	if inputChan == nil {

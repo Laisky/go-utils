@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type key string
-
 // GinCtxKey key of gin ctx that saved in request.context
 var GinCtxKey utils.CtxKeyT
 

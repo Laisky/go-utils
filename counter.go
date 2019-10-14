@@ -325,10 +325,9 @@ func (c *ChildParallelCounter) Count() (r int64) {
 		// Logger.Info("try acquire child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
 		c.Lock()
 		// Logger.Info("acquired child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
-		r = r % c.p.rotatePoint
 
 		// double check
-		r = atomic.AddInt64(&c.n, 1)
+		r = atomic.AddInt64(&c.n, 1) % c.p.rotatePoint
 		cmax = atomic.LoadInt64(&c.maxN)
 		if r > cmax {
 			r, cmax = c.p.GetQuote(0)

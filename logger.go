@@ -66,7 +66,6 @@ func SetupLogger(level string) {
 		Logger: zapLogger,
 	}
 
-	defer Logger.Sync()
 	Logger.Debug("Logger construction succeeded", zap.String("level", level))
 }
 

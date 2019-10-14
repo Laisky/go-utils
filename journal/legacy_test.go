@@ -17,7 +17,8 @@ const (
 )
 
 func TestLegacy(t *testing.T) {
-	for _, isCompress := range [...]bool{true, false} {
+	for _, isCompress := range [...]bool{false, true} {
+		t.Logf("test with compress: %v", isCompress)
 		// create data files
 		dataFp1, err := ioutil.TempFile("", "journal-test")
 		if err != nil {
@@ -57,8 +58,12 @@ func TestLegacy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
-		dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 1"}, ID: 1})
-		dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 2"}, ID: 2})
+		if err = dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 1"}, ID: 1}); err != nil {
+			t.Fatalf("write: %+v", err)
+		}
+		if err = dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 2"}, ID: 2}); err != nil {
+			t.Fatalf("write: %+v", err)
+		}
 		if err = dataEncoder.Flush(); err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
@@ -67,8 +72,12 @@ func TestLegacy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
-		dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 21"}, ID: 21})
-		dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 22"}, ID: 22})
+		if err = dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 21"}, ID: 21}); err != nil {
+			t.Fatalf("write: %+v", err)
+		}
+		if err = dataEncoder.Write(&journal.Data{Data: map[string]interface{}{"data": "data 22"}, ID: 22}); err != nil {
+			t.Fatalf("write: %+v", err)
+		}
 		if err = dataEncoder.Flush(); err != nil {
 			t.Fatalf("got error: %+v", err)
 		}
@@ -115,7 +124,9 @@ func TestLegacy(t *testing.T) {
 		idmaps := journal.NewInt64SetWithTTL(
 			ctx,
 			defaultIDTTL)
-		err = legacy.LoadAllids(idmaps)
+		if err = legacy.LoadAllids(idmaps); err != nil {
+			t.Fatalf("%+v", err)
+		}
 		t.Logf("got ids: %+v", idmaps)
 		if err = idsEncoder.Write(22); err != nil {
 			t.Fatalf("got error: %+v", err)

@@ -40,7 +40,7 @@ func BenchmarkMap(b *testing.B) {
 	b.Run("map get", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			k = utils.RandomStringWithLength(20)
-			_, _ = m[k]
+			_ = m[k]
 			delete(m, k)
 		}
 	})

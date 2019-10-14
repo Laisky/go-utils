@@ -24,6 +24,7 @@ func BenchmarkLock(b *testing.B) {
 		l := &sync.Mutex{}
 		for i := 0; i < b.N; i++ {
 			l.Lock()
+			b.Log("yo")
 			l.Unlock()
 		}
 	})
