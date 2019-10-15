@@ -107,7 +107,11 @@ const (
 )
 
 func BenchmarkFSPreallocate(b *testing.B) {
-	utils.SetupLogger("error")
+	var err error
+	// utils.Logger.ChangeLevel("error")
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	// create data files
 	dataFp1, err := directio.OpenFile(benchmarkFsDir+"fp1.dat", os.O_RDWR|os.O_CREATE, journal.FileMode)
 	// dataFp1, err := ioutil.TempFile("", "journal-test")

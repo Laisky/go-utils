@@ -182,7 +182,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 		vi interface{}
 	)
 	if _, ok = s.ng.Load(id); ok {
-		utils.Logger.Debug("found in ng")
+		// utils.Logger.Debug("found in ng")
 		return true
 	}
 
@@ -193,7 +193,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 				return true
 			}
 
-			utils.Logger.Debug("found in og, but expired")
+			// utils.Logger.Debug("found in og, but expired")
 			s.og.Delete(id)
 			atomic.AddInt64(&s.ogN, -1)
 		}

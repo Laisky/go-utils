@@ -50,7 +50,10 @@ func fakedata(length int) map[int64]interface{} {
 }
 
 func TestJournal(t *testing.T) {
-	utils.SetupLogger("info")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	dir, err := ioutil.TempDir("", "journal-test")
 	if err != nil {
 		log.Fatal(err)

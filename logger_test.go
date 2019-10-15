@@ -9,7 +9,10 @@ import (
 )
 
 func TestSetupLogger(t *testing.T) {
-	utils.SetupLogger("debug")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	utils.Logger.Info("test", zap.String("arg", "yo"))
 	utils.Logger.Debug("test", zap.String("arg", "yo"))
 	// if err := utils.Logger.Sync(); err != nil {
@@ -61,7 +64,7 @@ func TestSetupLogger(t *testing.T) {
 // }
 
 // func BenchmarkLogger(b *testing.B) {
-// 	utils.SetupLogger("info")
+// 	utils.Logger.ChangeLevel("info")
 // 	b.Run("origin zap", func(b *testing.B) {
 // 		for i := 0; i < b.N; i++ {
 // 			utils.Logger.Debug("yooo")
@@ -77,14 +80,19 @@ func TestSetupLogger(t *testing.T) {
 // }
 
 func BenchmarkLogger(b *testing.B) {
-	utils.SetupLogger("info")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			utils.Logger.Debug("yooo")
 		}
 	})
 
-	utils.SetupLogger("info")
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	// b.Run("log", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
 	// 		utils.Logger.Info("yooo")
@@ -93,7 +101,10 @@ func BenchmarkLogger(b *testing.B) {
 }
 
 func BenchmarkSampleLogger(b *testing.B) {
-	utils.SetupLogger("info")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			utils.Logger.DebugSample(100, "yooo")

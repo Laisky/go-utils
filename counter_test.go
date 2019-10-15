@@ -77,11 +77,13 @@ func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, n
 }
 
 func TestCounterValidation(t *testing.T) {
-	utils.SetupLogger("info")
 	var (
 		err error
 		wg  = &sync.WaitGroup{}
 	)
+	if err = utils.Logger.ChangeLevel("info"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	atomicCounter := utils.NewCounter()
 	rotateCounter, err := utils.NewRotateCounter(math.MaxInt64)
 	if err != nil {
@@ -188,7 +190,10 @@ func TestRotateCounter(t *testing.T) {
 }
 
 func TestParallelRotateCounter(t *testing.T) {
-	utils.SetupLogger("debug")
+	var err error
+	if err = utils.Logger.ChangeLevel("info"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	pcounter, err := utils.NewParallelCounter(10, 100)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
@@ -421,8 +426,10 @@ ok      github.com/Laisky/go-utils      82.997s
 */
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()
-	utils.SetupLogger("error")
 	var err error
+	if err = utils.Logger.ChangeLevel("info"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	atomicCounter := utils.NewCounter()
 	rotateCounter, err := utils.NewRotateCounter(100000000)
 	if err != nil {

@@ -190,7 +190,10 @@ BenchmarkClock/clock2_time_with_10us#01-4       	167978643	         6.56 ns/op	 
 
 */
 func BenchmarkClock(b *testing.B) {
-	utils.SetupLogger("error")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	// clock 1
 	b.Run("normal time", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

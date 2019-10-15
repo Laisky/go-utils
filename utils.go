@@ -2,7 +2,6 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -112,7 +111,7 @@ func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string
 		case float64:
 			vs = strconv.FormatFloat(v, 'f', -1, 64)
 		}
-		tpl = strings.ReplaceAll(tpl, fmt.Sprintf("${%v}", k), vs)
+		tpl = strings.ReplaceAll(tpl, "${"+k+"}", vs)
 	}
 
 	return tpl

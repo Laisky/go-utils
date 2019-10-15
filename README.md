@@ -195,7 +195,7 @@ high performance and simple logging tool based on [zap](https://github.com/uber-
 
 ```go
 // setup basic log level
-utils.SetupLogger("info")  // info/debug/warn/error
+utils.Logger.ChangeLevel("info")  // info/debug/warn/error
 
 // use as zap
 utils.Logger.Debug("some msg", zap.String("key", "val"))

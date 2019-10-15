@@ -34,7 +34,10 @@ func TestNewInt64Set(t *testing.T) {
 }
 
 func TestInt64SetWithTTL(t *testing.T) {
-	utils.SetupLogger("debug")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	ctx := context.Background()
 	s := journal.NewInt64SetWithTTL(
 		ctx,
@@ -137,7 +140,10 @@ BenchmarkInt64SetWithTTL/remove-4       50000000               140 ns/op        
 BenchmarkInt64SetWithTTL/parallel-4      2000000              4139 ns/op             348 B/op          8 allocs/op
 */
 func BenchmarkInt64SetWithTTL(b *testing.B) {
-	utils.SetupLogger("info")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
 	ctx := context.Background()
 	s := journal.NewInt64SetWithTTL(
 		ctx,
