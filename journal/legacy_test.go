@@ -19,8 +19,14 @@ const (
 func TestLegacy(t *testing.T) {
 	for _, isCompress := range [...]bool{false, true} {
 		t.Logf("test with compress: %v", isCompress)
+		dataFilePattern := "journal-test"
+		idsFilePattern := "journal-test"
+		if isCompress {
+			dataFilePattern += "*.buf.gz"
+			idsFilePattern += "*.ids.gz"
+		}
 		// create data files
-		dataFp1, err := ioutil.TempFile("", "journal-test")
+		dataFp1, err := ioutil.TempFile("", dataFilePattern)
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
@@ -28,7 +34,7 @@ func TestLegacy(t *testing.T) {
 		defer os.Remove(dataFp1.Name())
 		t.Logf("create file name: %v", dataFp1.Name())
 
-		dataFp2, err := ioutil.TempFile("", "journal-test")
+		dataFp2, err := ioutil.TempFile("", dataFilePattern)
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
@@ -37,7 +43,7 @@ func TestLegacy(t *testing.T) {
 		t.Logf("create file name: %v", dataFp2.Name())
 
 		// create ids files
-		idsFp1, err := ioutil.TempFile("", "journal-test")
+		idsFp1, err := ioutil.TempFile("", idsFilePattern)
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}
@@ -45,7 +51,7 @@ func TestLegacy(t *testing.T) {
 		defer os.Remove(idsFp1.Name())
 		t.Logf("create file name: %v", idsFp1.Name())
 
-		idsFp2, err := ioutil.TempFile("", "journal-test")
+		idsFp2, err := ioutil.TempFile("", idsFilePattern)
 		if err != nil {
 			t.Fatalf("%+v", err)
 		}

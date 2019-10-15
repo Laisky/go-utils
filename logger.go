@@ -45,10 +45,10 @@ func SetupLogger(level string) {
 	cfg := zap.Config{
 		Level:       loglevel,
 		Development: false,
-		Sampling: &zap.SamplingConfig{
-			Initial:    100,
-			Thereafter: 100,
-		},
+		// Sampling: &zap.SamplingConfig{
+		// 	Initial:    100,
+		// 	Thereafter: 100,
+		// },
 		Encoding:         "json",
 		EncoderConfig:    zap.NewProductionEncoderConfig(),
 		OutputPaths:      []string{"stdout"},

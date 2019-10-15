@@ -117,3 +117,4 @@ coverage.txt
 journal-fuzz.zip
 b.p
 go-utils.test
+/coverage.txt

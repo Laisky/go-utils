@@ -13,6 +13,7 @@ import (
 	"github.com/RoaringBitmap/roaring"
 )
 
+// Int64SetItf set for int64
 type Int64SetItf interface {
 	Add(int)
 	AddInt64(int64)
