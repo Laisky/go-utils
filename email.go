@@ -43,7 +43,7 @@ func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string) (er
 	s.SetHeader("Subject", subject)
 	s.SetBody("text/plain", content)
 
-	d := gomail.NewPlainDialer(m.host, m.port, m.username, m.password)
+	d := gomail.NewDialer(m.host, m.port, m.username, m.password)
 
 	if Settings.GetBool("dry") {
 		Logger.Info("try to send email",

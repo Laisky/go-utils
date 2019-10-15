@@ -24,6 +24,7 @@ func BenchmarkLock(b *testing.B) {
 		l := &sync.Mutex{}
 		for i := 0; i < b.N; i++ {
 			l.Lock()
+			b.Log("yo")
 			l.Unlock()
 		}
 	})
@@ -49,14 +50,18 @@ func fakedata(length int) map[int64]interface{} {
 }
 
 func TestJournal(t *testing.T) {
-	utils.SetupLogger("info")
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
 	dir, err := ioutil.TempDir("", "journal-test")
 	if err != nil {
 		log.Fatal(err)
 	}
 	t.Logf("create directory: %v", dir)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	cfg := &journal.JournalConfig{
 		BufDirPath:     dir,
 		BufSizeBytes:   100,
@@ -128,7 +133,8 @@ func BenchmarkJournal(b *testing.B) {
 	b.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	cfg := &journal.JournalConfig{
 		BufDirPath:   dir,
 		BufSizeBytes: 100,

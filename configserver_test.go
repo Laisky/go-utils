@@ -41,7 +41,7 @@ var fakeConfigSrvData = map[string]interface{}{
 	"label":    "label",
 	"version":  "12345",
 	"propertySources": []map[string]interface{}{
-		map[string]interface{}{
+		{
 			"name": "config name",
 			"source": map[string]string{
 				"profile": "profile",

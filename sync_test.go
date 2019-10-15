@@ -33,8 +33,8 @@ func TestMutex(t *testing.T) {
 	}
 	start := time.Now()
 	l.SpinLock(1*time.Second, 3*time.Second)
-	if time.Now().Sub(start) < 3*time.Second || time.Now().Sub(start) > 4100*time.Millisecond {
-		t.Fatalf("duration: %v", time.Now().Sub(start).Seconds())
+	if time.Since(start) < 3*time.Second || time.Since(start) > 4100*time.Millisecond {
+		t.Fatalf("duration: %v", time.Since(start).Seconds())
 	}
 
 	l.ForceRelease()

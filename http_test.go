@@ -21,9 +21,11 @@ func TestRequestJSON(t *testing.T) {
 		JSON map[string]string `json:"json"`
 	}
 	want := "{map[hello:world]}"
-	utils.RequestJSON("POST", "http://httpbin.org/post", &data, &resp)
+	if err := utils.RequestJSON("POST", "http://httpbin.org/post", &data, &resp); err != nil {
+		t.Fatalf("got: %v", resp)
+	}
 	if fmt.Sprintf("%v", resp) != want {
-		t.Errorf("got: %v", resp)
+		t.Fatalf("got: %v", resp)
 	}
 }
 func TestRequestJSONWithClient(t *testing.T) {
@@ -37,9 +39,11 @@ func TestRequestJSONWithClient(t *testing.T) {
 	}
 	want := "{map[hello:world]}"
 	httpClient := &http.Client{}
-	utils.RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp)
+	if err := utils.RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp); err != nil {
+		t.Fatalf("got: %v", resp)
+	}
 	if fmt.Sprintf("%v", resp) != want {
-		t.Errorf("got: %v", resp)
+		t.Fatalf("got: %v", resp)
 	}
 }
 

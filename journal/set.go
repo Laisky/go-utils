@@ -13,6 +13,7 @@ import (
 	"github.com/RoaringBitmap/roaring"
 )
 
+// Int64SetItf set for int64
 type Int64SetItf interface {
 	Add(int)
 	AddInt64(int64)
@@ -180,8 +181,8 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 		t  = utils.Clock.GetUTCNow().Unix()
 		vi interface{}
 	)
-	if vi, ok = s.ng.Load(id); ok {
-		utils.Logger.Debug("found in ng")
+	if _, ok = s.ng.Load(id); ok {
+		// utils.Logger.Debug("found in ng")
 		return true
 	}
 
@@ -192,7 +193,7 @@ func (s *Int64SetWithTTL) CheckAndRemove(id int64) (ok bool) {
 				return true
 			}
 
-			utils.Logger.Debug("found in og, but expired")
+			// utils.Logger.Debug("found in og, but expired")
 			s.og.Delete(id)
 			atomic.AddInt64(&s.ogN, -1)
 		}

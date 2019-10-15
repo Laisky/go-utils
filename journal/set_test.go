@@ -34,8 +34,12 @@ func TestNewInt64Set(t *testing.T) {
 }
 
 func TestInt64SetWithTTL(t *testing.T) {
-	utils.SetupLogger("debug")
-	ctx := context.Background()
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		t.Fatalf("set level: %+v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	s := journal.NewInt64SetWithTTL(
 		ctx,
 		1*time.Second)
@@ -85,7 +89,9 @@ func TestNewUint32Set(t *testing.T) {
 }
 
 func TestValidateInt64SetWithTTL(t *testing.T) {
-	s := journal.NewInt64SetWithTTL(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := journal.NewInt64SetWithTTL(ctx, 1*time.Second)
 	wg := &sync.WaitGroup{}
 	pool := &sync.Map{}
 	padding := struct{}{}
@@ -137,8 +143,12 @@ BenchmarkInt64SetWithTTL/remove-4       50000000               140 ns/op        
 BenchmarkInt64SetWithTTL/parallel-4      2000000              4139 ns/op             348 B/op          8 allocs/op
 */
 func BenchmarkInt64SetWithTTL(b *testing.B) {
-	utils.SetupLogger("info")
-	ctx := context.Background()
+	var err error
+	if err = utils.Logger.ChangeLevel("error"); err != nil {
+		b.Fatalf("set level: %+v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	s := journal.NewInt64SetWithTTL(
 		ctx,
 		10*time.Second)

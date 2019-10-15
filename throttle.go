@@ -39,26 +39,6 @@ func (t *Throttle) Allow() bool {
 	}
 }
 
-// Run (Deprecated) start throttle
-func (t *Throttle) Run() {
-	Logger.Warn("this method is deprecated, use `RunWithCtx` instead")
-	go func() {
-		defer Logger.Info("throttle exit")
-		for {
-			for i := 0; i < t.NPerSec; i++ {
-				select {
-				case <-t.stopChan:
-					return
-				case t.tokensChan <- t.token:
-				default:
-				}
-			}
-
-			time.Sleep(1 * time.Second)
-		}
-	}()
-}
-
 // RunWithCtx start throttle with context
 func (t *Throttle) RunWithCtx(ctx context.Context) {
 	go func() {

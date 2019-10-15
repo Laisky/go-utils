@@ -41,7 +41,9 @@ func TestSerializer(t *testing.T) {
 		}
 
 		var got = &journal.Data{}
-		fp.Seek(0, 0)
+		if _, err = fp.Seek(0, 0); err != nil {
+			t.Fatalf("seek: %+v", err)
+		}
 		var decoder *journal.DataDecoder
 		if decoder, err = journal.NewDataDecoder(fp, isCompress); err != nil {
 			t.Fatalf("%+v", err)
@@ -84,7 +86,9 @@ func BenchmarkSerializerWithCompress(b *testing.B) {
 	})
 	encoder.Flush()
 
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		b.Fatalf("seek: %+v", err)
+	}
 	n := 0
 	decoder, err := journal.NewDataDecoder(fp, true)
 	if err != nil {
@@ -136,7 +140,9 @@ func BenchmarkSerializerWithoutCompress(b *testing.B) {
 	})
 	encoder.Flush()
 
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		b.Fatalf("seek: %+v", err)
+	}
 	n := 0
 	decoder, err := journal.NewDataDecoder(fp, false)
 	if err != nil {
@@ -204,7 +210,9 @@ func TestIdsSerializer(t *testing.T) {
 			t.Fatalf("%+v", err)
 		}
 		t.Logf("file size: %v", fs.Size())
-		fp.Seek(0, 0)
+		if _, err = fp.Seek(0, 0); err != nil {
+			t.Fatalf("seek: %+v", err)
+		}
 		decoder, err := journal.NewIdsDecoder(fp, isCompress)
 		if err != nil {
 			t.Fatalf("got error: %+v", err)
@@ -258,7 +266,9 @@ func TestCodec(t *testing.T) {
 		}
 	}
 
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		t.Fatalf("seek: %+v", err)
+	}
 	data["message"] = map[string]interface{}{}
 	decoder := codec.NewDecoder(bufio.NewReader(fp), NewCodec())
 	for {

@@ -81,8 +81,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	gzWriter := gzip.NewWriter(buf)
 	b.Run("gz write 1kB", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload1K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload1K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -90,8 +94,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	buf.Reset()
 	b.Run("gz write 10kB", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload10K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload10K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -99,8 +107,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	buf.Reset()
 	b.Run("gz write 50kB", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -108,8 +120,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	buf.Reset()
 	b.Run("gz write 100kB", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload100K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload100K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -147,8 +163,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	}
 	b.Run("gz write 50kB best compression", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -159,8 +179,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	}
 	b.Run("gz write 50kB best speed", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -171,8 +195,12 @@ func BenchmarkGZCompressor(b *testing.B) {
 	}
 	b.Run("gz write 50kB HuffmanOnly", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
-			gzWriter.Close()
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
+			if err = gzWriter.Close(); err != nil {
+				b.Fatalf("close: %+v", err)
+			}
 			gzWriter.Reset(buf)
 			buf.Reset()
 		}
@@ -181,35 +209,49 @@ func BenchmarkGZCompressor(b *testing.B) {
 
 	b.Run("normal write 50KB to file", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			fp.Write(payload50K)
+			if _, err = fp.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 		}
 	})
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		b.Fatalf("seek: %+v", err)
+	}
 
 	gzWriter = gzip.NewWriter(fp)
 	b.Run("gz write 50KB to file", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 		}
 	})
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		b.Fatalf("seek: %+v", err)
+	}
 
 	if gzWriter, err = gzip.NewWriterLevel(buf, gzip.BestSpeed); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 	b.Run("gz write 50KB to file best speed", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 		}
 	})
-	fp.Seek(0, 0)
+	if _, err = fp.Seek(0, 0); err != nil {
+		b.Fatalf("seek: %+v", err)
+	}
 
 	if gzWriter, err = gzip.NewWriterLevel(buf, gzip.BestCompression); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 	b.Run("gz write 50KB to file BestCompression", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			gzWriter.Write(payload50K)
+			if _, err = gzWriter.Write(payload50K); err != nil {
+				b.Fatalf("write: %+v", err)
+			}
 		}
 	})
 

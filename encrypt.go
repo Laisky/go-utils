@@ -55,19 +55,19 @@ type baseJWT struct {
 	JWTUserIDKey, JWTExpiresAtKey string
 }
 
-// checkExpiresValid return the bool whether the `expires_at` is not expired
-func (j *baseJWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
-	expiresAt, ok := expiresAtI.(string)
-	if !ok {
-		return false, fmt.Errorf("`%v` is not string", j.JWTExpiresAtKey)
-	}
-	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
-	if err != nil {
-		return false, errors.Wrap(err, "try to parse token expires_at error")
-	}
+// // checkExpiresValid return the bool whether the `expires_at` is not expired
+// func (j *baseJWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
+// 	expiresAt, ok := expiresAtI.(string)
+// 	if !ok {
+// 		return false, fmt.Errorf("`%v` is not string", j.JWTExpiresAtKey)
+// 	}
+// 	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
+// 	if err != nil {
+// 		return false, errors.Wrap(err, "try to parse token expires_at error")
+// 	}
 
-	return now.Before(tokenT), nil
-}
+// 	return now.Before(tokenT), nil
+// }
 
 // JWT struct to generate and validate jwt tokens
 //
@@ -106,50 +106,6 @@ func NewJWT(cfg *JwtCfg) (*JWT, error) {
 		JwtCfg: cfg,
 	}, nil
 }
-
-// // Setup (deprecated) initialize JWT
-// func (j *JWT) Setup(secret string) {
-// 	// const key names
-// 	j.JWTExpiresAtKey = "expires_at"
-// 	j.JWTUserIDKey = "uid"
-
-// 	j.Secret = []byte(secret)
-// }
-
-// Generate (Deprecated) generate JWT token.
-// old interface
-func (j *JWT) Generate(expiresAt int64, payload map[string]interface{}) (string, error) {
-	Logger.Warn("this method is deprecated, use `GenerateToken` instead")
-	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
-	}
-	jwtPayload["expires_at"] = ParseTs2String(expiresAt, JWTExpiresLayout)
-
-	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
-	tokenStr, err := token.SignedString(j.Secret)
-	if err != nil {
-		return "", errors.Wrap(err, "try to signed token got error")
-	}
-	return tokenStr, nil
-}
-
-// // GenerateToken generate JWT token.
-// // do not use `expires_at` & `uid` as keys.
-// func (j *JWT) GenerateToken(userID string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
-// 	jwtPayload := jwt.MapClaims{}
-// 	for k, v := range payload {
-// 		jwtPayload[k] = v
-// 	}
-// 	jwtPayload[j.JWTExpiresAtKey] = expiresAt.Unix()
-// 	jwtPayload[j.JWTUserIDKey] = userID
-
-// 	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
-// 	if tokenStr, err = token.SignedString(j.Secret); err != nil {
-// 		return "", errors.Wrap(err, "try to signed token got error")
-// 	}
-// 	return tokenStr, nil
-// }
 
 // GenerateToken generate JWT token with userID(interface{})
 func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {

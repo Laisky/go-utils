@@ -58,7 +58,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	}
 	defer r.Body.Close()
 
-	if FloorDivision(r.StatusCode, 100) != 2 {
+	if r.StatusCode/100 != 2 {
 		respBytes, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")
@@ -93,7 +93,7 @@ func CheckResp(resp *http.Response) error {
 func checkRespStatus(c *chaining.Chain) (r interface{}, err error) {
 	resp := c.GetVal()
 	code := resp.(*http.Response).StatusCode
-	if FloorDivision(code, 100) != 2 {
+	if code/100 != 2 {
 		return resp, HTTPInvalidStatusError(code)
 	}
 

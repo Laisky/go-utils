@@ -133,5 +133,7 @@ func TestTemplateWithMap(t *testing.T) {
 }
 
 func init() {
-	utils.SetupLogger("info")
+	if err := utils.Logger.ChangeLevel("info"); err != nil {
+		utils.Logger.Panic("change level", zap.Error(err))
+	}
 }

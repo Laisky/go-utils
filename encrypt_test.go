@@ -100,7 +100,7 @@ func TestValidToken(t *testing.T) {
 		t.Logf("got: %v", got)
 		t.Fatal("token should be expired")
 	} else if !strings.Contains(err.Error(), "token invalidate") {
-		t.Fatalf("expect invalidate error, bug got %+v", err)
+		t.Fatalf("expect invalidate error, bug got %+v", got)
 	}
 
 	// check without `exp`
@@ -108,7 +108,7 @@ func TestValidToken(t *testing.T) {
 	if got, err = j.Validate(token); err == nil {
 		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
 	} else if !strings.Contains(err.Error(), "unknown expires format") {
-		t.Fatalf("expect unknown expires format error, but got: %+v", err)
+		t.Fatalf("expect unknown expires format error, but got: %+v", got)
 	}
 
 	// check without `uid`
@@ -116,7 +116,7 @@ func TestValidToken(t *testing.T) {
 	if got, err = j.Validate(token); err == nil {
 		t.Error("token should be error since of lack of `uid`")
 	} else if !strings.Contains(err.Error(), "must contains `uid`") {
-		t.Fatalf("expect invalidate error, bug got %+v", err)
+		t.Fatalf("expect invalidate error, bug got %+v", got)
 	}
 
 	// check different method
@@ -124,7 +124,7 @@ func TestValidToken(t *testing.T) {
 	if got, err = j.Validate(token); err == nil {
 		t.Error("token should be error since of method incorrect`")
 	} else if !strings.Contains(err.Error(), "JWT method not allowd") {
-		t.Fatalf("expect method error, bug got %+v", err)
+		t.Fatalf("expect method error, bug got %+v", got)
 	}
 	// invalidate method, but should return complete payload
 	t.Logf("got: %+v", got)
@@ -180,7 +180,7 @@ func TestValidDivideToken(t *testing.T) {
 		t.Logf("got: %v", got)
 		t.Fatal("token should be expired")
 	} else if !strings.Contains(err.Error(), "token invalidate") {
-		t.Fatalf("expect invalidate error, bug got %+v", err)
+		t.Fatalf("expect invalidate error, bug got %+v", got)
 	}
 
 	// check without `exp`
@@ -188,7 +188,7 @@ func TestValidDivideToken(t *testing.T) {
 	if got, err = j.Validate(u, token); err == nil {
 		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
 	} else if !strings.Contains(err.Error(), "unknown expires format") {
-		t.Fatalf("expect unknown expires format error, but got: %+v", err)
+		t.Fatalf("expect unknown expires format error, but got: %+v", got)
 	}
 
 	// check without `uid`
@@ -196,7 +196,7 @@ func TestValidDivideToken(t *testing.T) {
 	if got, err = j.Validate(u, token); err == nil {
 		t.Error("token should be error since of lack of `uid`")
 	} else if !strings.Contains(err.Error(), "must contains `uid`") {
-		t.Fatalf("expect invalidate error, bug got %+v", err)
+		t.Fatalf("expect invalidate error, bug got %+v", got)
 	}
 
 	// check different method
@@ -204,7 +204,7 @@ func TestValidDivideToken(t *testing.T) {
 	if got, err = j.Validate(u, token); err == nil {
 		t.Error("token should be error since of method incorrect`")
 	} else if !strings.Contains(err.Error(), "JWT method not allowd") {
-		t.Fatalf("expect method error, bug got %+v", err)
+		t.Fatalf("expect method error, bug got %+v", got)
 	}
 	// invalidate method, but should return complete payload
 	t.Logf("got: %+v", got)
@@ -319,7 +319,9 @@ func BenchmarkGeneratePasswordHash(b *testing.B) {
 
 	b.Run("generate", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.GeneratePasswordHash(pw)
+			if _, err = utils.GeneratePasswordHash(pw); err != nil {
+				b.Fatalf("got error: %+v", err)
+			}
 		}
 	})
 	b.Run("validate", func(b *testing.B) {

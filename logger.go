@@ -9,12 +9,17 @@ import (
 )
 
 var (
-	// Logger logging tool.
-	// Info(msg string, fields ...Field)
-	// Debug(msg string, fields ...Field)
-	// Warn(msg string, fields ...Field)
-	// Error(msg string, fields ...Field)
-	// Panic(msg string, fields ...Field)
+	/*Logger logging tool.
+
+	* Info(msg string, fields ...Field)
+	* Debug(msg string, fields ...Field)
+	* Warn(msg string, fields ...Field)
+	* Error(msg string, fields ...Field)
+	* Panic(msg string, fields ...Field)
+	* DebugSample(sample int, msg string, fields ...zap.Field)
+	* InfoSample(sample int, msg string, fields ...zap.Field)
+	* WarnSample(sample int, msg string, fields ...zap.Field)
+	 */
 	Logger *LoggerType
 )
 
@@ -24,31 +29,15 @@ const SampleRateDenominator = 1000
 // LoggerType extend from zap.Logger
 type LoggerType struct {
 	*zap.Logger
+	level zap.AtomicLevel
 }
 
-// SetupLogger contstruct logger
-func SetupLogger(level string) {
-	var loglevel zap.AtomicLevel
-	switch level {
-	case "debug":
-		loglevel = zap.NewAtomicLevelAt(zap.DebugLevel)
-	case "info":
-		loglevel = zap.NewAtomicLevelAt(zap.InfoLevel)
-	case "warn":
-		loglevel = zap.NewAtomicLevelAt(zap.WarnLevel)
-	case "error":
-		loglevel = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	default:
-		panic(fmt.Errorf("log level only be debug/info/warn/error"))
-	}
-
+// NewLogger create new logger
+func NewLogger(level string) (l *LoggerType, err error) {
+	zl := zap.NewAtomicLevel()
 	cfg := zap.Config{
-		Level:       loglevel,
-		Development: false,
-		Sampling: &zap.SamplingConfig{
-			Initial:    100,
-			Thereafter: 100,
-		},
+		Level:            zl,
+		Development:      false,
 		Encoding:         "json",
 		EncoderConfig:    zap.NewProductionEncoderConfig(),
 		OutputPaths:      []string{"stdout"},
@@ -59,15 +48,32 @@ func SetupLogger(level string) {
 
 	zapLogger, err := cfg.Build()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("build zap logger: %+v", err)
 	}
 
-	Logger = &LoggerType{
+	l = &LoggerType{
 		Logger: zapLogger,
+		level:  zl,
+	}
+	return l, l.ChangeLevel(level)
+}
+
+// ChangeLevel change logger level
+func (l *LoggerType) ChangeLevel(level string) (err error) {
+	switch level {
+	case "debug":
+		l.level.SetLevel(zap.DebugLevel)
+	case "info":
+		l.level.SetLevel(zap.InfoLevel)
+	case "warn":
+		l.level.SetLevel(zap.WarnLevel)
+	case "error":
+		l.level.SetLevel(zap.ErrorLevel)
+	default:
+		return fmt.Errorf("log level only be debug/info/warn/error")
 	}
 
-	defer Logger.Sync()
-	Logger.Debug("Logger construction succeeded", zap.String("level", level))
+	return
 }
 
 // DebugSample emit debug log with propability sample/SampleRateDenominator.
@@ -99,5 +105,9 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zap.Field) {
 }
 
 func init() {
-	SetupLogger("info")
+	var err error
+	if Logger, err = NewLogger("info"); err != nil {
+		panic(fmt.Sprintf("create logger: %+v", err))
+	}
+	Logger.Info("create logger", zap.String("level", "info"))
 }

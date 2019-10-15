@@ -11,6 +11,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.16-0.20190423073834-d5779253526c+incompatible
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/gin-contrib/pprof v1.2.1
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.6
 	github.com/magiconair/properties v1.8.1 // indirect
