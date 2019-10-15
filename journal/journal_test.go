@@ -60,7 +60,8 @@ func TestJournal(t *testing.T) {
 	}
 	t.Logf("create directory: %v", dir)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	cfg := &journal.JournalConfig{
 		BufDirPath:     dir,
 		BufSizeBytes:   100,
@@ -132,7 +133,8 @@ func BenchmarkJournal(b *testing.B) {
 	b.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	cfg := &journal.JournalConfig{
 		BufDirPath:   dir,
 		BufSizeBytes: 100,

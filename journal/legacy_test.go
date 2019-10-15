@@ -119,7 +119,8 @@ func TestLegacy(t *testing.T) {
 		idsFp1.Close()
 		idsFp2.Close()
 
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		legacy := journal.NewLegacyLoader(
 			ctx,
 			[]string{dataFp1.Name(), dataFp2.Name()},

@@ -10,11 +10,12 @@ import (
 
 func TestSetupLogger(t *testing.T) {
 	var err error
+	utils.Logger.Info("test", zap.String("arg", "111"))
 	if err = utils.Logger.ChangeLevel("error"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
-	utils.Logger.Info("test", zap.String("arg", "yo"))
-	utils.Logger.Debug("test", zap.String("arg", "yo"))
+	utils.Logger.Info("test", zap.String("arg", "222"))
+	utils.Logger.Debug("test", zap.String("arg", "333"))
 	// if err := utils.Logger.Sync(); err != nil {
 	// 	t.Fatalf("%+v", err)
 	// }

@@ -1,6 +1,6 @@
 # Go-Utils
 
-Many useful golang tools
+Many useful golang tools, support >= v1.12.
 
 ![GitHub release](https://img.shields.io/github/release/Laisky/go-utils.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

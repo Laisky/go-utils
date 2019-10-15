@@ -17,9 +17,3 @@ func Round(val float64, roundOn float64, places int) (newVal float64) {
 	newVal = round / pow
 	return
 }
-
-// FloorDivision (deprecated) 205/100 = 2
-func FloorDivision(val int, divisor int) int {
-	Logger.Warn("this function is deprecated, no need to use this")
-	return int(val / divisor)
-}
