@@ -56,7 +56,7 @@ func NewKafkaCliWithGroupId(ctx context.Context, cfg *KafkaCliCfg) (*KafkaCli, e
 	}
 
 	// new commit filter
-	cf := NewCommitFilter(&CommitFilterCfg{
+	cf := NewCommitFilter(ctx, &CommitFilterCfg{
 		KMsgPool:         cfg.KMsgPool,
 		IntervalNum:      cfg.IntervalNum,
 		IntervalDuration: cfg.IntervalDuration,

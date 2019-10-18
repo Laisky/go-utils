@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -27,7 +28,7 @@ type CommitFilter struct {
 	beforeChan, afterChan chan *KafkaMsg
 }
 
-func NewCommitFilter(cfg *CommitFilterCfg) *CommitFilter {
+func NewCommitFilter(ctx context.Context, cfg *CommitFilterCfg) *CommitFilter {
 	utils.Logger.Debug("NewCommitFilter",
 		zap.Duration("interval_duration", cfg.IntervalDuration),
 		zap.Int("interval_num", cfg.IntervalNum))
@@ -36,7 +37,7 @@ func NewCommitFilter(cfg *CommitFilterCfg) *CommitFilter {
 		beforeChan:      make(chan *KafkaMsg, 1000),
 		afterChan:       make(chan *KafkaMsg, 1000),
 	}
-	go f.runFilterBeforeChan()
+	go f.runFilterBeforeChan(ctx)
 	return f
 }
 
@@ -50,9 +51,9 @@ func (f *CommitFilter) GetAfterChan() chan *KafkaMsg {
 
 // runFilterBeforeChan maintain a kmsgSlots that cache the latest kmsg record.
 // invoke filterSlots2AfterChan in fixed frequency.
-func (f *CommitFilter) runFilterBeforeChan() {
+func (f *CommitFilter) runFilterBeforeChan(ctx context.Context) {
 	utils.Logger.Debug("start runFilterBeforeChan")
-	defer utils.Logger.Panic("runFilterBeforeChan quit")
+	defer utils.Logger.Debug("runFilterBeforeChan quit")
 	var (
 		kmsgSlots    = map[int32]*msgRecord{}
 		kmsg         *KafkaMsg
@@ -63,7 +64,13 @@ func (f *CommitFilter) runFilterBeforeChan() {
 		lastScanT    = utils.Clock.GetUTCNow()
 	)
 
-	for kmsg = range f.beforeChan {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case kmsg = <-f.beforeChan:
+		}
+
 		// record not exists, create new record
 		if record, ok = kmsgSlots[kmsg.Partition]; !ok {
 			kmsgSlots[kmsg.Partition] = &msgRecord{
