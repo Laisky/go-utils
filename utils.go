@@ -96,20 +96,22 @@ func TemplateWithMap(tpl string, data map[string]interface{}) string {
 func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string]interface{}) string {
 	var (
 		k, vs string
+		vi    interface{}
 	)
 	for _, kg := range tplReg.FindAllStringSubmatch(tpl, -1) {
 		k = kg[1]
-		switch v := data[k].(type) {
+		vi = data[k]
+		switch vi := vi.(type) {
 		case string:
-			vs = v
+			vs = vi
 		case []byte:
-			vs = string(v)
+			vs = string(vi)
 		case int:
-			vs = strconv.FormatInt(int64(v), 10)
+			vs = strconv.FormatInt(int64(vi), 10)
 		case int64:
-			vs = strconv.FormatInt(v, 10)
+			vs = strconv.FormatInt(vi, 10)
 		case float64:
-			vs = strconv.FormatFloat(v, 'f', -1, 64)
+			vs = strconv.FormatFloat(vi, 'f', -1, 64)
 		}
 		tpl = strings.ReplaceAll(tpl, "${"+k+"}", vs)
 	}
