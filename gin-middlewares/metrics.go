@@ -76,7 +76,8 @@ func StartHTTPMetricSrv(ctx context.Context, options ...MetricsOptFunc) {
 	}
 
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
 	srv := &http.Server{
 		Addr:    opt.addr,
 		Handler: router,
