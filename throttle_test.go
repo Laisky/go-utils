@@ -10,11 +10,12 @@ import (
 )
 
 func TestThrottle2(t *testing.T) {
-	throttle := utils.NewThrottle(&utils.ThrottleCfg{
+	ctx := context.Background()
+	throttle := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
-	throttle.RunWithCtx(context.Background())
+	defer throttle.Close()
 
 	time.Sleep(1050 * time.Millisecond)
 	for i := 0; i < 20; i++ {
@@ -31,11 +32,12 @@ func TestThrottle2(t *testing.T) {
 }
 
 func ExampleThrottle() {
-	throttle := utils.NewThrottle(&utils.ThrottleCfg{
+	ctx := context.Background()
+	throttle := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
-	throttle.RunWithCtx(context.Background())
+	// throttle.RunWithCtx(context.Background())
 
 	inChan := make(chan int)
 
