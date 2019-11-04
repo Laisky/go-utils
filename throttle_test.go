@@ -11,13 +11,27 @@ import (
 
 func TestThrottle2(t *testing.T) {
 	ctx := context.Background()
-	throttle := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
+	throttle, err := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	defer throttle.Close()
 
-	time.Sleep(1050 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	for i := 0; i < 20; i++ {
+		if !throttle.Allow() {
+			if i < 10 {
+				t.Fatalf("should be allowed: %v", i)
+			} else {
+				break
+			}
+		}
+	}
+
+	time.Sleep(2050 * time.Millisecond)
 	for i := 0; i < 20; i++ {
 		if !throttle.Allow() {
 			t.Fatalf("should be allowed: %v", i)
@@ -33,11 +47,14 @@ func TestThrottle2(t *testing.T) {
 
 func ExampleThrottle() {
 	ctx := context.Background()
-	throttle := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
+	throttle, err := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
-	// throttle.RunWithCtx(context.Background())
+	if err != nil {
+		utils.Logger.Panic("new throttle")
+	}
+	defer throttle.Close()
 
 	inChan := make(chan int)
 

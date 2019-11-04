@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -19,15 +20,22 @@ type Throttle struct {
 }
 
 // NewThrottleWithCtx create new Throttle
-func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) *Throttle {
-	t := &Throttle{
+func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err error) {
+	if cfg.NPerSec <= 0 {
+		return nil, fmt.Errorf("NPerSec should greater than 0")
+	}
+	if cfg.Max < cfg.NPerSec {
+		return nil, fmt.Errorf("Max should greater than NPerSec")
+	}
+
+	t = &Throttle{
 		ThrottleCfg: cfg,
 		token:       struct{}{},
 		stopChan:    make(chan struct{}),
 	}
 	t.tokensChan = make(chan struct{}, t.Max)
 	t.runWithCtx(ctx)
-	return t
+	return t, nil
 }
 
 // Allow check whether is allowed
