@@ -9,6 +9,7 @@ import (
 
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
+	"github.com/pkg/errors"
 	"github.com/shurcooL/graphql"
 )
 
@@ -36,8 +37,23 @@ type LoggerType struct {
 	level zap.AtomicLevel
 }
 
+// SetDefaultLogger set default utils.Logger
+func SetDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+	if l, err = NewLoggerWithName(name, level, opts...); err != nil {
+		return nil, errors.Wrap(err, "create new logger")
+	}
+
+	Logger = l
+	return Logger, nil
+}
+
 // NewLogger create new logger
 func NewLogger(level string, opts ...zap.Option) (l *LoggerType, err error) {
+	return NewLoggerWithName("", level, opts...)
+}
+
+// NewLoggerWithName create new logger with name
+func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	zl := zap.NewAtomicLevel()
 	cfg := zap.Config{
 		Level:            zl,
@@ -54,6 +70,7 @@ func NewLogger(level string, opts ...zap.Option) (l *LoggerType, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("build zap logger: %+v", err)
 	}
+	zapLogger = zapLogger.Named(name)
 
 	l = &LoggerType{
 		Logger: zapLogger,

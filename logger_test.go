@@ -127,7 +127,8 @@ func TestAlertHook(t *testing.T) {
 		pusher,
 		utils.WithAlertHookLevel(zap.WarnLevel),
 	)
-	logger, err := utils.NewLogger(
+	logger, err := utils.NewLoggerWithName(
+		"test",
 		"debug",
 		zap.Fields(zap.String("logger", "test")),
 		zap.Hooks(hook.GetZapHook()),
