@@ -2,6 +2,7 @@ package utils_test
 
 import (
 	"testing"
+	"time"
 
 	utils "github.com/Laisky/go-utils"
 	zap "github.com/Laisky/zap"
@@ -111,4 +112,62 @@ func BenchmarkSampleLogger(b *testing.B) {
 			utils.Logger.DebugSample(100, "yooo")
 		}
 	})
+}
+
+func TestAlertHook(t *testing.T) {
+	pusher := utils.NewAlertPusherWithAlertType(
+		"https://blog.laisky.com/graphql/query/",
+		"hello",
+		"rwkpVuAgaBZQBASKndHK",
+	)
+	defer pusher.Close()
+	hook := utils.NewAlertHook(
+		pusher,
+		utils.WithAlertHookLevel(zap.WarnLevel),
+	)
+	logger, err := utils.NewLogger(
+		"debug",
+		zap.Fields(zap.String("logger", "test")),
+		zap.Hooks(hook.GetZapHook()),
+	)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	t.Log("start ")
+	logger.Debug("DEBUG", zap.String("yo", "hello"))
+	logger.Info("Info", zap.String("yo", "hello"))
+	logger.Warn("Warn", zap.String("yo", "hello"))
+	logger.Error("Error", zap.String("yo", "hello"))
+	t.Log("end")
+	// t.Error()
+
+	time.Sleep(1 * time.Second)
+}
+func ExampleAlertHook() {
+	pusher := utils.NewAlertPusherWithAlertType(
+		"https://blog.laisky.com/graphql/query/",
+		"hello",
+		"rwkpVuAgaBZQBASKndHK",
+	)
+	defer pusher.Close()
+	hook := utils.NewAlertHook(
+		pusher,
+		utils.WithAlertHookLevel(zap.WarnLevel),
+	)
+	logger, err := utils.NewLogger(
+		"debug",
+		zap.Fields(zap.String("logger", "test")),
+		zap.Hooks(hook.GetZapHook()),
+	)
+	if err != nil {
+		utils.Logger.Error("create new logger", zap.Error(err))
+	}
+
+	logger.Debug("DEBUG", zap.String("yo", "hello"))
+	logger.Info("Info", zap.String("yo", "hello"))
+	logger.Warn("Warn", zap.String("yo", "hello"))
+	logger.Error("Error", zap.String("yo", "hello"))
+
+	time.Sleep(1 * time.Second)
 }
