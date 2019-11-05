@@ -116,12 +116,15 @@ func BenchmarkSampleLogger(b *testing.B) {
 }
 
 func TestAlertHook(t *testing.T) {
-	pusher := utils.NewAlertPusherWithAlertType(
+	pusher, err := utils.NewAlertPusherWithAlertType(
 		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
 		"rwkpVuAgaBZQBASKndHK",
 	)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	defer pusher.Close()
 	hook := utils.NewAlertHook(
 		pusher,
@@ -146,12 +149,15 @@ func TestAlertHook(t *testing.T) {
 	time.Sleep(5 * time.Second)
 }
 func ExampleAlertHook() {
-	pusher := utils.NewAlertPusherWithAlertType(
+	pusher, err := utils.NewAlertPusherWithAlertType(
 		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
 		"rwkpVuAgaBZQBASKndHK",
 	)
+	if err != nil {
+		utils.Logger.Panic("create alert pusher", zap.Error(err))
+	}
 	defer pusher.Close()
 	hook := utils.NewAlertHook(
 		pusher,
