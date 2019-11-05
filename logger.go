@@ -130,6 +130,7 @@ func init() {
 	if Logger, err = NewLogger("info"); err != nil {
 		panic(fmt.Sprintf("create logger: %+v", err))
 	}
+
 	Logger.Info("create logger", zap.String("level", "info"))
 }
 
@@ -174,8 +175,12 @@ func WithAlertPushTimeout(timeout time.Duration) AlertPushOption {
 }
 
 // NewAlertPusher create new AlertPusher
-func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption) (a *AlertPusher) {
+func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher", zap.String("pushAPI", pushAPI))
+	if pushAPI == "" {
+		return nil, fmt.Errorf("pushAPI should nout empty")
+	}
+
 	a = &AlertPusher{
 		stopChan:   make(chan struct{}),
 		senderChan: make(chan *alertMsg, 100),
@@ -192,16 +197,19 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption
 	})
 
 	go a.runSender(ctx)
-	return a
+	return a, nil
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOption) (a *AlertPusher) {
+func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOption) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
-	a = NewAlertPusher(ctx, pushAPI, opts...)
+	if a, err = NewAlertPusher(ctx, pushAPI, opts...); err != nil {
+		return nil, err
+	}
+
 	a.alertType = alertType
 	a.token = pushToken
-	return a
+	return a, nil
 }
 
 // Close close AlertPusher
@@ -246,7 +254,7 @@ func (a *AlertPusher) runSender(ctx context.Context) {
 		vars["token"] = graphql.String(payload.pushToken)
 		vars["msg"] = graphql.String(payload.msg)
 		if err = a.cli.Mutate(ctx, query, vars); err != nil {
-			Logger.Error("send alert mutation", zap.Error(err))
+			Logger.Debug("send alert mutation", zap.Error(err))
 		}
 
 		Logger.Debug("send telegram msg",
