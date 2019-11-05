@@ -1,6 +1,7 @@
 package utils_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -116,6 +117,7 @@ func BenchmarkSampleLogger(b *testing.B) {
 
 func TestAlertHook(t *testing.T) {
 	pusher := utils.NewAlertPusherWithAlertType(
+		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
 		"rwkpVuAgaBZQBASKndHK",
@@ -134,18 +136,17 @@ func TestAlertHook(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	t.Log("start ")
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
 	logger.Warn("Warn", zap.String("yo", "hello"))
 	logger.Error("Error", zap.String("yo", "hello"))
-	t.Log("end")
 	// t.Error()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 }
 func ExampleAlertHook() {
 	pusher := utils.NewAlertPusherWithAlertType(
+		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
 		"rwkpVuAgaBZQBASKndHK",

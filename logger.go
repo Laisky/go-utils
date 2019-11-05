@@ -174,20 +174,17 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption
 		Timeout: a.timeout,
 	})
 
-	a.runSender(ctx)
+	go a.runSender(ctx)
 	return a
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(url string, alertType, pushToken string) *AlertPusher {
-	Logger.Debug("create new AlertPusher", zap.String("url", url))
-	return &AlertPusher{
-		cli:        graphql.NewClient(url, httpClient),
-		stopChan:   make(chan struct{}),
-		senderChan: make(chan *alertMsg, 100),
-		token:      pushToken,
-		alertType:  alertType,
-	}
+func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOption) (a *AlertPusher) {
+	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
+	a = NewAlertPusher(ctx, pushAPI, opts...)
+	a.alertType = alertType
+	a.token = pushToken
+	return a
 }
 
 // Close close AlertPusher
@@ -227,6 +224,7 @@ func (a *AlertPusher) runSender(ctx context.Context) {
 		case payload = <-a.senderChan:
 		}
 
+		Logger.Debug("send alert", zap.String("type", payload.alertType))
 		vars["type"] = graphql.String(payload.alertType)
 		vars["token"] = graphql.String(payload.pushToken)
 		vars["msg"] = graphql.String(payload.msg)
@@ -266,11 +264,15 @@ func WithAlertHookLevel(level zapcore.LevelEnabler) AlertHookOption {
 }
 
 // NewAlertHook create AlertHook
-func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) *AlertHook {
-	return &AlertHook{
+func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) (a *AlertHook) {
+	a = &AlertHook{
 		pusher: pusher,
 		level:  defaultAlertHookLevel,
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 // GetZapHook get hook for zap logger
@@ -282,6 +284,7 @@ func (a *AlertHook) GetZapHook() func(zapcore.Entry) error {
 		msg := "logger: " + e.LoggerName + "\n"
 		msg += "time: " + e.Time.Format(time.RFC3339Nano) + "\n"
 		msg += "level: " + e.Level.String() + "\n"
+		msg += "caller: " + e.Caller.FullPath() + "\n"
 		msg += "stack: " + e.Stack + "\n"
 		msg += "message: " + e.Message + "\n"
 		return a.pusher.Send(msg)
