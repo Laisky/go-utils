@@ -214,8 +214,8 @@ func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType,
 
 // Close close AlertPusher
 func (a *AlertPusher) Close() {
+	close(a.stopChan) // should close stopChan first
 	close(a.senderChan)
-	close(a.stopChan)
 }
 
 // SendWithType send alert with specific type, token and msg
@@ -249,6 +249,7 @@ func (a *AlertPusher) runSender(ctx context.Context) {
 		case payload = <-a.senderChan:
 		}
 
+		// only allow use debug level logger
 		Logger.Debug("send alert", zap.String("type", payload.alertType))
 		vars["type"] = graphql.String(payload.alertType)
 		vars["token"] = graphql.String(payload.pushToken)
@@ -282,7 +283,13 @@ type AlertHook struct {
 type AlertHookOption func(*AlertHook)
 
 // WithAlertHookLevel level to trigger AlertHook
-func WithAlertHookLevel(level zapcore.LevelEnabler) AlertHookOption {
+func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
+	if level.Enabled(zap.DebugLevel) {
+		// because AlertPusher will use `debug` logger,
+		// hook with debug will cause infinite recursive
+		Logger.Panic("level should higher than debug")
+	}
+
 	return func(a *AlertHook) {
 		a.level = level
 	}
