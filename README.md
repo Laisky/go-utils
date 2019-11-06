@@ -81,7 +81,7 @@ There are many useful tools including:
 * `RequestJSON`: simply http client that send json request and unmarshal response by json
 * `Logger`: high performance structrued logger based by zap
   * setup:
-    * `SetupLogger(level string)`
+    * `Logger.ChangeLevel(level string) (err error)`
   * use
     * `Logger.Info(msg string, fields ...zap.Field)`
     * `Logger.Debug(msg string, fields ...zap.Field)`
@@ -91,6 +91,7 @@ There are many useful tools including:
     * `Logger.DebugSample(sample int, msg string, fields ...zap.Field)`
     * `Logger.InfoSample(sample int, msg string, fields ...zap.Field)`
     * `Logger.WarnSample(sample int, msg string, fields ...zap.Field)`
+* `AlertHook` add laisky-alert-bot pusher hook to Logger
 * `Math`: some simply math functions
   * `Round(val float64, roundOn float64, places int) (newVal float64)`: get round of float
 * `Throttle`: throttling to limit throughput
