@@ -308,17 +308,22 @@ func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) (a *AlertHook) {
 }
 
 // GetZapHook get hook for zap logger
-func (a *AlertHook) GetZapHook() func(zapcore.Entry) error {
-	return func(e zapcore.Entry) error {
+func (a *AlertHook) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
+	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
 		if !a.level.Enabled(e.Level) {
 			return nil
+		}
+
+		var fsb []byte
+		if fsb, err = json.Marshal(fs); err != nil {
+			return errors.Wrap(err, "json marshal fields")
 		}
 		msg := "logger: " + e.LoggerName + "\n"
 		msg += "time: " + e.Time.Format(time.RFC3339Nano) + "\n"
 		msg += "level: " + e.Level.String() + "\n"
 		msg += "caller: " + e.Caller.FullPath() + "\n"
 		msg += "stack: " + e.Stack + "\n"
-		msg += "message: " + e.Message + "\n"
+		msg += "message: " + e.Message + "\n" + string(fsb)
 		return a.pusher.Send(msg)
 	}
 }
