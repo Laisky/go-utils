@@ -143,7 +143,7 @@ func TestAlertHook(t *testing.T) {
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
 	logger.Warn("Warn", zap.String("yo", "hello"))
-	logger.Error("Error", zap.String("yo", "hello"))
+	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true))
 	// t.Error()
 
 	time.Sleep(5 * time.Second)
