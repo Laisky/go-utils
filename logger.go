@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
+
+	"github.com/Laisky/zap/buffer"
 
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
@@ -275,8 +278,9 @@ const (
 
 // AlertHook hook for zap.Logger
 type AlertHook struct {
-	pusher *AlertPusher
-	level  zapcore.LevelEnabler
+	pusher  *AlertPusher
+	encPool *sync.Pool
+	level   zapcore.LevelEnabler
 }
 
 // AlertHookOption option for create AlertHook
@@ -298,6 +302,11 @@ func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
 // NewAlertHook create AlertHook
 func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) (a *AlertHook) {
 	a = &AlertHook{
+		encPool: &sync.Pool{
+			New: func() interface{} {
+				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
+			},
+		},
 		pusher: pusher,
 		level:  defaultAlertHookLevel,
 	}
@@ -314,16 +323,23 @@ func (a *AlertHook) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error
 			return nil
 		}
 
-		var fsb []byte
-		if fsb, err = json.Marshal(fs); err != nil {
-			return errors.Wrap(err, "json marshal fields")
+		var bb *buffer.Buffer
+		enc := a.encPool.Get().(zapcore.Encoder)
+		bb, err = enc.EncodeEntry(e, fs)
+		if err != nil {
+			return errors.Wrap(err, "zapcore encode fields")
 		}
-		msg := "logger: " + e.LoggerName + "\n"
-		msg += "time: " + e.Time.Format(time.RFC3339Nano) + "\n"
-		msg += "level: " + e.Level.String() + "\n"
-		msg += "caller: " + e.Caller.FullPath() + "\n"
-		msg += "stack: " + e.Stack + "\n"
-		msg += "message: " + e.Message + "\n" + string(fsb)
+		fsb := bb.String()
+		bb.Reset()
+		a.encPool.Put(enc)
+
+		msg := "logger: " + e.LoggerName + "\n" +
+			"time: " + e.Time.Format(time.RFC3339Nano) + "\n" +
+			"level: " + e.Level.String() + "\n" +
+			"caller: " + e.Caller.FullPath() + "\n" +
+			"stack: " + e.Stack + "\n" +
+			"message: " + e.Message + "\n" +
+			fsb
 		return a.pusher.Send(msg)
 	}
 }

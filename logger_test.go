@@ -2,6 +2,7 @@ package utils_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -143,7 +144,7 @@ func TestAlertHook(t *testing.T) {
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
 	logger.Warn("Warn", zap.String("yo", "hello"))
-	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true))
+	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(fmt.Errorf("xxx")))
 	// t.Error()
 
 	time.Sleep(5 * time.Second)
