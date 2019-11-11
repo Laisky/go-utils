@@ -118,3 +118,12 @@ func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string
 
 	return tpl
 }
+
+var (
+	urlMaskingRegexp = regexp.MustCompile(`(\S+:)\S+(@\w+)`)
+)
+
+// URLMasking masking password in url
+func URLMasking(url, mask string) string {
+	return urlMaskingRegexp.ReplaceAllString(url, `${1}`+mask+`${2}`)
+}
