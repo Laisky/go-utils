@@ -143,11 +143,11 @@ func TestURLMasking(t *testing.T) {
 		mask = "*****"
 	)
 	for _, tc := range []*testcase{
-		&testcase{
+		{
 			"http://12ijij:3j23irj@jfjlwef.ffe.com",
 			"http://12ijij:" + mask + "@jfjlwef.ffe.com",
 		},
-		&testcase{
+		{
 			"https://12ijij:3j23irj@123.1221.14/13",
 			"https://12ijij:" + mask + "@123.1221.14/13",
 		},

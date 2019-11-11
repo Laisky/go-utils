@@ -135,7 +135,7 @@ func TestAlertHook(t *testing.T) {
 		"test",
 		"debug",
 		zap.Fields(zap.String("logger", "test")),
-		zap.Hooks(hook.GetZapHook()),
+		zap.HooksWithFields(hook.GetZapHook()),
 	)
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -167,7 +167,7 @@ func ExampleAlertHook() {
 	logger, err := utils.NewLogger(
 		"debug",
 		zap.Fields(zap.String("logger", "test")),
-		zap.Hooks(hook.GetZapHook()),
+		zap.HooksWithFields(hook.GetZapHook()),
 	)
 	if err != nil {
 		utils.Logger.Error("create new logger", zap.Error(err))
