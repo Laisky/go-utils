@@ -103,6 +103,7 @@ There are many useful tools including:
   * `ParseHex2UTC(string) time.Time`
   * `ParseHexNano2UTC(string) time.Time`
 * utils: some tool functions
+  * `URLMasking(url, mask string) string`
   * `GetFuncName(f interface{}) string`
   * `FallBack(orig func() interface{}, fallback interface{}) (ret interface{})`
   * `RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]string) error`

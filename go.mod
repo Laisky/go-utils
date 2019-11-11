@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/DataDog/zstd v1.3.8 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/zap v1.9.3
+	github.com/Laisky/zap v1.12.2
 	github.com/RoaringBitmap/roaring v0.4.18
 	github.com/Shopify/sarama v1.22.1
 	github.com/bsm/sarama-cluster v2.1.16-0.20190423073834-d5779253526c+incompatible
@@ -32,7 +32,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
 	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20191107235519-f7ea15e60b12 // indirect
+	golang.org/x/tools v0.0.0-20191109212701-97ad0ed33101 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce

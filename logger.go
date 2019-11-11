@@ -250,6 +250,9 @@ func (a *AlertPusher) runSender(ctx context.Context) {
 		case <-a.stopChan:
 			return
 		case payload = <-a.senderChan:
+			if payload == nil {
+				return
+			}
 		}
 
 		// only allow use debug level logger
