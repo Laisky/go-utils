@@ -14,7 +14,7 @@ import (
 func TestSetupLogger(t *testing.T) {
 	var err error
 	utils.Logger.Info("test", zap.String("arg", "111"))
-	if err = utils.Logger.ChangeLevel("error"); err != nil {
+	if err = utils.Logger.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
 	utils.Logger.Info("test", zap.String("arg", "222"))
@@ -23,6 +23,8 @@ func TestSetupLogger(t *testing.T) {
 	// 	t.Fatalf("%+v", err)
 	// }
 
+	logger := utils.Logger.With(zap.String("yo", "hello"))
+	logger.Warn("test")
 	// t.Error()
 }
 
