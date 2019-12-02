@@ -15,6 +15,7 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+// CtxKeyT type of context key
 type CtxKeyT struct{}
 
 // GetFuncName return the name of func

@@ -2,10 +2,13 @@ package structures_test
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/Laisky/go-utils/structures"
 )
+
+type HeapItemQ []structures.HeapItemItf
 
 // Item item that need to sort
 type Item struct {
@@ -24,7 +27,7 @@ func (it *Item) GetPriority() int {
 }
 
 var (
-	itemsWaitToSort = structures.HeapItemQ{
+	itemsWaitToSort = HeapItemQ{
 		&Item{p: 1},
 		&Item{p: 3},
 		&Item{p: 55},
@@ -37,7 +40,7 @@ var (
 
 func ExampleGetLargestNItems() {
 	var (
-		itemsWaitToSort = structures.HeapItemQ{
+		itemsWaitToSort = HeapItemQ{
 			&Item{p: 1},
 			&Item{p: 3},
 			&Item{p: 55},
@@ -72,7 +75,7 @@ func ExampleGetLargestNItems() {
 
 func ExampleGetSmallestNItems() {
 	var (
-		itemsWaitToSort = structures.HeapItemQ{
+		itemsWaitToSort = HeapItemQ{
 			&Item{p: 1},
 			&Item{p: 3},
 			&Item{p: 55},
@@ -116,7 +119,7 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	var (
-		items    structures.HeapItemQ
+		items    HeapItemQ
 		err      error
 		itemChan chan structures.HeapItemItf
 	)
@@ -156,4 +159,88 @@ func TestGetTopKItems(t *testing.T) {
 	if items[2].GetPriority() != 3 {
 		t.Errorf("expect 3, got %+v", items[2].GetPriority())
 	}
+}
+
+func TestLimitSizeHeap(t *testing.T) {
+	heap, err := structures.NewLimitSizeHeap(5, true)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var (
+		it structures.HeapItemItf
+		n  int
+	)
+	for i := 0; i < 100; i++ {
+		n = rand.Intn(1000)
+		it = heap.Push(&Item{
+			p: n,
+			k: n,
+		})
+		if it != nil {
+			t.Logf("push %v, pop %v", n, it.GetPriority())
+		} else {
+			t.Logf("push %v", n)
+		}
+	}
+
+	var oldit structures.HeapItemItf
+	for {
+		if it = heap.Pop(); it == nil {
+			return
+		}
+		if oldit == nil {
+			oldit = it
+			continue
+		}
+
+		if it.GetPriority() > oldit.GetPriority() {
+			t.Fatal(oldit.GetPriority(), it.GetPriority())
+		}
+	}
+}
+
+func BenchmarkLimitSizeHeap(b *testing.B) {
+	heap5, err := structures.NewLimitSizeHeap(5, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	heap50, err := structures.NewLimitSizeHeap(50, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	heap500, err := structures.NewLimitSizeHeap(500, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	var n int
+	b.Run("heap 5", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap5.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+	b.Run("heap 50", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap50.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+	b.Run("heap 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap500.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+
 }
