@@ -1,11 +1,15 @@
 package structures_test
 
 import (
+	"container/heap"
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/Laisky/go-utils/structures"
 )
+
+type HeapItemQ []structures.HeapItemItf
 
 // Item item that need to sort
 type Item struct {
@@ -24,7 +28,7 @@ func (it *Item) GetPriority() int {
 }
 
 var (
-	itemsWaitToSort = structures.HeapItemQ{
+	itemsWaitToSort = HeapItemQ{
 		&Item{p: 1},
 		&Item{p: 3},
 		&Item{p: 55},
@@ -37,7 +41,7 @@ var (
 
 func ExampleGetLargestNItems() {
 	var (
-		itemsWaitToSort = structures.HeapItemQ{
+		itemsWaitToSort = HeapItemQ{
 			&Item{p: 1},
 			&Item{p: 3},
 			&Item{p: 55},
@@ -72,7 +76,7 @@ func ExampleGetLargestNItems() {
 
 func ExampleGetSmallestNItems() {
 	var (
-		itemsWaitToSort = structures.HeapItemQ{
+		itemsWaitToSort = HeapItemQ{
 			&Item{p: 1},
 			&Item{p: 3},
 			&Item{p: 55},
@@ -116,7 +120,7 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	var (
-		items    structures.HeapItemQ
+		items    HeapItemQ
 		err      error
 		itemChan chan structures.HeapItemItf
 	)
@@ -156,4 +160,152 @@ func TestGetTopKItems(t *testing.T) {
 	if items[2].GetPriority() != 3 {
 		t.Errorf("expect 3, got %+v", items[2].GetPriority())
 	}
+}
+
+func TestPriorityQ(t *testing.T) {
+	for _, isMaxTop := range []bool{true, false} {
+		q := structures.NewPriorityQ(isMaxTop)
+		heap.Init(q)
+		var (
+			v, n int
+		)
+		for i := 0; i < 10000; i++ {
+			n = rand.Intn(100)
+			if n < 50 {
+				v = rand.Intn(1000)
+				heap.Push(q, &Item{
+					p: v,
+					k: v,
+				})
+			} else if n < 75 {
+				v = rand.Intn(1000)
+				q.Remove(&Item{
+					p: v,
+					k: v,
+				})
+				heap.Init(q)
+			} else {
+				if q.Len() > 0 {
+					heap.Pop(q)
+				}
+			}
+		}
+
+		heap.Push(q, &Item{
+			p: 0,
+			k: 0,
+		})
+		heap.Push(q, &Item{
+			p: 1000,
+			k: 1000,
+		})
+
+		results := make([]int, q.Len())[:0]
+		var lastP, curP int
+		for {
+			if q.Len() == 0 {
+				break
+			}
+			curP = heap.Pop(q).(*Item).GetPriority()
+			if lastP != 0 {
+				if isMaxTop && curP > lastP {
+					t.Errorf("%v should <= %v", curP, lastP)
+				} else if !isMaxTop && curP < lastP {
+					t.Errorf("%v should >= %v", curP, lastP)
+				}
+			}
+
+			lastP = curP
+			results = append(results, curP)
+		}
+		t.Logf("%v[%v]: %v\n", isMaxTop, len(results), results[:10])
+	}
+	// t.Error("done")
+}
+
+func TestLimitSizeHeap(t *testing.T) {
+	heap, err := structures.NewLimitSizeHeap(5, true)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var (
+		it structures.HeapItemItf
+		n  int
+	)
+	for i := 0; i < 100; i++ {
+		n = rand.Intn(1000)
+		it = heap.Push(&Item{
+			p: n,
+			k: n,
+		})
+		if it != nil {
+			t.Logf("push %v, pop %v", n, it.GetPriority())
+		} else {
+			t.Logf("push %v", n)
+		}
+	}
+
+	var oldit structures.HeapItemItf
+	results := []int{}
+	for {
+		if it = heap.Pop(); it == nil {
+			break
+		}
+		results = append(results, it.GetPriority())
+		if oldit != nil {
+			if oldit.GetPriority() > it.GetPriority() {
+				t.Fatal(oldit.GetPriority(), "should <=", it.GetPriority(), ",", results)
+			}
+		}
+		oldit = it
+	}
+
+	t.Log("results: ", results)
+	// t.Error("done")
+}
+
+func BenchmarkLimitSizeHeap(b *testing.B) {
+	heap5, err := structures.NewLimitSizeHeap(5, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	heap50, err := structures.NewLimitSizeHeap(50, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	heap500, err := structures.NewLimitSizeHeap(500, true)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	var n int
+	b.Run("heap 5", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap5.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+	b.Run("heap 50", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap50.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+	b.Run("heap 500", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			n = rand.Intn(1000)
+			heap500.Push(&Item{
+				p: n,
+				k: n,
+			})
+		}
+	})
+
 }

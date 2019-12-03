@@ -24,9 +24,9 @@ var (
 	* Warn(msg string, fields ...Field)
 	* Error(msg string, fields ...Field)
 	* Panic(msg string, fields ...Field)
-	* DebugSample(sample int, msg string, fields ...zap.Field)
-	* InfoSample(sample int, msg string, fields ...zap.Field)
-	* WarnSample(sample int, msg string, fields ...zap.Field)
+	* DebugSample(sample int, msg string, fields ...zapcore.Field)
+	* InfoSample(sample int, msg string, fields ...zapcore.Field)
+	* WarnSample(sample int, msg string, fields ...zapcore.Field)
 	 */
 	Logger *LoggerType
 )
@@ -102,7 +102,7 @@ func (l *LoggerType) ChangeLevel(level string) (err error) {
 
 // DebugSample emit debug log with propability sample/SampleRateDenominator.
 // sample could be [0, 1000], less than 0 means never, great than 1000 means certainly
-func (l *LoggerType) DebugSample(sample int, msg string, fields ...zap.Field) {
+func (l *LoggerType) DebugSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -111,7 +111,7 @@ func (l *LoggerType) DebugSample(sample int, msg string, fields ...zap.Field) {
 }
 
 // InfoSample emit info log with propability sample/SampleRateDenominator
-func (l *LoggerType) InfoSample(sample int, msg string, fields ...zap.Field) {
+func (l *LoggerType) InfoSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -120,12 +120,30 @@ func (l *LoggerType) InfoSample(sample int, msg string, fields ...zap.Field) {
 }
 
 // WarnSample emit warn log with propability sample/SampleRateDenominator
-func (l *LoggerType) WarnSample(sample int, msg string, fields ...zap.Field) {
+func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
 
 	l.Warn(msg, fields...)
+}
+
+// With creates a child logger and adds structured context to it. Fields added
+// to the child don't affect the parent, and vice versa.
+func (l *LoggerType) With(fields ...zapcore.Field) *LoggerType {
+	return &LoggerType{
+		Logger: l.Logger.With(fields...),
+		level:  l.level,
+	}
+}
+
+// WithOptions clones the current Logger, applies the supplied Options, and
+// returns the resulting Logger. It's safe to use concurrently.
+func (l *LoggerType) WithOptions(opts ...zap.Option) *LoggerType {
+	return &LoggerType{
+		Logger: l.Logger.WithOptions(opts...),
+		level:  l.level,
+	}
 }
 
 func init() {
