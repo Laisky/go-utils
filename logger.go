@@ -137,6 +137,15 @@ func (l *LoggerType) With(fields ...zapcore.Field) *LoggerType {
 	}
 }
 
+// WithOptions clones the current Logger, applies the supplied Options, and
+// returns the resulting Logger. It's safe to use concurrently.
+func (l *LoggerType) WithOptions(opts ...zap.Option) *LoggerType {
+	return &LoggerType{
+		Logger: l.Logger.WithOptions(opts...),
+		level:  l.level,
+	}
+}
+
 func init() {
 	var err error
 	if Logger, err = NewLogger("info"); err != nil {
