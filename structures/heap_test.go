@@ -1,6 +1,7 @@
 package structures_test
 
 import (
+	"container/heap"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -161,6 +162,67 @@ func TestGetTopKItems(t *testing.T) {
 	}
 }
 
+func TestPriorityQ(t *testing.T) {
+	for _, isMaxTop := range []bool{true, false} {
+		q := structures.NewPriorityQ(isMaxTop)
+		heap.Init(q)
+		var (
+			v, n int
+		)
+		for i := 0; i < 10000; i++ {
+			n = rand.Intn(100)
+			if n < 50 {
+				v = rand.Intn(1000)
+				heap.Push(q, &Item{
+					p: v,
+					k: v,
+				})
+			} else if n < 75 {
+				v = rand.Intn(1000)
+				q.Remove(&Item{
+					p: v,
+					k: v,
+				})
+				heap.Init(q)
+			} else {
+				if q.Len() > 0 {
+					heap.Pop(q)
+				}
+			}
+		}
+
+		heap.Push(q, &Item{
+			p: 0,
+			k: 0,
+		})
+		heap.Push(q, &Item{
+			p: 1000,
+			k: 1000,
+		})
+
+		results := make([]int, q.Len())[:0]
+		var lastP, curP int
+		for {
+			if q.Len() == 0 {
+				break
+			}
+			curP = heap.Pop(q).(*Item).GetPriority()
+			if lastP != 0 {
+				if isMaxTop && curP > lastP {
+					t.Errorf("%v should <= %v", curP, lastP)
+				} else if !isMaxTop && curP < lastP {
+					t.Errorf("%v should >= %v", curP, lastP)
+				}
+			}
+
+			lastP = curP
+			results = append(results, curP)
+		}
+		t.Logf("%v[%v]: %v\n", isMaxTop, len(results), results[:10])
+	}
+	// t.Error("done")
+}
+
 func TestLimitSizeHeap(t *testing.T) {
 	heap, err := structures.NewLimitSizeHeap(5, true)
 	if err != nil {
@@ -185,19 +247,22 @@ func TestLimitSizeHeap(t *testing.T) {
 	}
 
 	var oldit structures.HeapItemItf
+	results := []int{}
 	for {
 		if it = heap.Pop(); it == nil {
-			return
+			break
 		}
-		if oldit == nil {
-			oldit = it
-			continue
+		results = append(results, it.GetPriority())
+		if oldit != nil {
+			if oldit.GetPriority() > it.GetPriority() {
+				t.Fatal(oldit.GetPriority(), "should <=", it.GetPriority(), ",", results)
+			}
 		}
-
-		if it.GetPriority() > oldit.GetPriority() {
-			t.Fatal(oldit.GetPriority(), it.GetPriority())
-		}
+		oldit = it
 	}
+
+	t.Log("results: ", results)
+	// t.Error("done")
 }
 
 func BenchmarkLimitSizeHeap(b *testing.B) {
