@@ -114,6 +114,7 @@ cpu.pprof
 coverage.txt
 
 # fuzz
+corpus
 journal-fuzz.zip
 b.p
 go-utils.test
