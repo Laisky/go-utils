@@ -185,18 +185,18 @@ const (
 	defaultAlertPusherTimeout = 10 * time.Second
 )
 
-// AlertPushOption is AlertPusher's options
-type AlertPushOption func(*AlertPusher)
+// AlertPushOptFunc is AlertPusher's options
+type AlertPushOptFunc func(*AlertPusher)
 
 // WithAlertPushTimeout set AlertPusher HTTP timeout
-func WithAlertPushTimeout(timeout time.Duration) AlertPushOption {
+func WithAlertPushTimeout(timeout time.Duration) AlertPushOptFunc {
 	return func(a *AlertPusher) {
 		a.timeout = timeout
 	}
 }
 
 // NewAlertPusher create new AlertPusher
-func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption) (a *AlertPusher, err error) {
+func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher", zap.String("pushAPI", pushAPI))
 	if pushAPI == "" {
 		return nil, fmt.Errorf("pushAPI should nout empty")
@@ -222,7 +222,7 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOption) (a *AlertPusher, err error) {
+func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
 	if a, err = NewAlertPusher(ctx, pushAPI, opts...); err != nil {
 		return nil, err

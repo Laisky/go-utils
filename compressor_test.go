@@ -282,8 +282,40 @@ func BenchmarkGzip(b *testing.B) {
 			}
 		}
 	})
-
 }
+
+/*
+goos: darwin
+goarch: amd64
+pkg: github.com/Laisky/go-utils
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_10K-4         	   10195	    115989 ns/op	  584588 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_10K-4         	   10000	    114282 ns/op	  582810 B/op	      11 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_10K-4                         	    4320	    281743 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_10K-4         	    9741	    115122 ns/op	  581498 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_10K-4         	   10000	    110754 ns/op	  579144 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_10K-4                                  	 8525589	       139 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_50K-4                         	     571	   1910871 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_50K-4         	    8658	    157012 ns/op	  579934 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_50K-4         	    7998	    152650 ns/op	  578246 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_50K-4         	    8598	    152514 ns/op	  577482 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_50K-4         	    6781	    154517 ns/op	  576757 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_50K-4                                  	  507096	      2544 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_100K-4        	    6258	    222641 ns/op	  578490 B/op	      11 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_100K-4                        	     360	   3366950 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_100K-4        	    6814	    186113 ns/op	  575306 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_100K-4        	    6603	    190075 ns/op	  570878 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_100K-4        	    6446	    189761 ns/op	  575713 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_100K-4                                 	  259213	      4791 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_1K-4                          	   17718	     65976 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_1K-4          	   12034	     99579 ns/op	  576201 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_1K-4          	   10000	    102135 ns/op	  579617 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_1K-4          	   10000	    100201 ns/op	  577761 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_1K-4          	   12032	    100153 ns/op	  580680 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_1K-4                                   	41966409	        30.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Laisky/go-utils	33.127s
+Success: Benchmarks passed.
+*/
 func BenchmarkCompressor(b *testing.B) {
 	fp, err := ioutil.TempFile("", "gz-test")
 	if err != nil {

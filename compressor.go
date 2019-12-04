@@ -22,7 +22,9 @@ const (
 type CompressorItf interface {
 	Write([]byte) (int, error)
 	WriteString(string) (int, error)
+	// write footer and flust to lower writer
 	Flush() error
+	// write footer without flush
 	WriteFooter() error
 }
 
