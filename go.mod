@@ -14,6 +14,8 @@ require (
 	github.com/gin-contrib/pprof v1.2.1
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.6
+	github.com/klauspost/compress v1.9.3 // indirect
+	github.com/klauspost/pgzip v1.2.1
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/ncw/directio v1.0.5
