@@ -15,12 +15,9 @@ package utils
 //
 // ```js
 // {
-// 	"expires_at": "2286-11-20T17:46:40Z",
-// 	"k1": "v1",
-// 	"k2": "v2",
-// 	"k3": "v3",
-// 	"uid": "laisky"
-//   }
+//     "uid": "laisky",
+// 	   "exp": 4701974400
+// }
 // ```
 
 import (
@@ -42,8 +39,6 @@ var (
 )
 
 const (
-	// JWTExpiresLayout default expires date stores in payload
-	JWTExpiresLayout = time.RFC3339
 	// JWTUserIDKey default key of user_id stores in token payload
 	JWTUserIDKey = "uid"
 	// JWTExpiresAtKey default key of expires_at stores in token payload
@@ -54,20 +49,6 @@ type baseJWT struct {
 	JWTSigningMethod              *jwt.SigningMethodHMAC
 	JWTUserIDKey, JWTExpiresAtKey string
 }
-
-// // checkExpiresValid return the bool whether the `expires_at` is not expired
-// func (j *baseJWT) checkExpiresValid(now time.Time, expiresAtI interface{}) (ok bool, err error) {
-// 	expiresAt, ok := expiresAtI.(string)
-// 	if !ok {
-// 		return false, fmt.Errorf("`%v` is not string", j.JWTExpiresAtKey)
-// 	}
-// 	tokenT, err := time.Parse(JWTExpiresLayout, expiresAt)
-// 	if err != nil {
-// 		return false, errors.Wrap(err, "try to parse token expires_at error")
-// 	}
-
-// 	return now.Before(tokenT), nil
-// }
 
 // JWT struct to generate and validate jwt tokens
 //
