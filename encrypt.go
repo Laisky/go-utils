@@ -269,8 +269,10 @@ func (j *DivideJWT) GetExpiresKey() string {
 // do not use `expires_at` & `uid` as keys.
 func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
 	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
+	if payload != nil {
+		for k, v := range payload {
+			jwtPayload[k] = v
+		}
 	}
 	jwtPayload[j.expiresKey] = expiresAt.Unix()
 	jwtPayload[j.userIDKey] = user.GetUID()
