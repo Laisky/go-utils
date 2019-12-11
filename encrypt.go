@@ -34,15 +34,12 @@ import (
 )
 
 var (
-	// JWTSigningMethod default method to signing
-	JWTSigningMethod = jwt.SigningMethodHS512
-)
-
-const (
-	// JWTUserIDKey default key of user_id stores in token payload
-	JWTUserIDKey = "uid"
-	// JWTExpiresAtKey default key of expires_at stores in token payload
-	JWTExpiresAtKey = "exp"
+	// defaultJWTSignMethod default jwt signing method
+	defaultJWTSignMethod = jwt.SigningMethodHS512
+	// defaultJWTUserIDKey default key of user_id stores in token payload
+	defaultJWTUserIDKey = "uid"
+	// defaultJWTExpiresKey default key of expires_at stores in token payload
+	defaultJWTExpiresKey = "exp"
 )
 
 type baseJWT struct {
@@ -54,38 +51,74 @@ type baseJWT struct {
 //
 // use a global uniform secret to signing all token.
 type JWT struct {
-	*JwtCfg
+	*jwtOption
+	secret []byte
 }
 
-// JwtCfg configuration of JWT
-type JwtCfg struct {
-	baseJWT
-	Secret []byte
+type jwtOption struct {
+	signMethod *jwt.SigningMethodHMAC
+	userIDKey,
+	expiresKey string
 }
 
-// NewJWTCfg create new JwtCfg  with secret
-func NewJWTCfg(secret []byte) *JwtCfg {
-	return &JwtCfg{
-		Secret: secret,
-		baseJWT: baseJWT{
-			JWTSigningMethod: JWTSigningMethod,
-			JWTUserIDKey:     JWTUserIDKey,
-			JWTExpiresAtKey:  JWTExpiresAtKey,
-		},
+// JWTOptFunc jwt option
+type JWTOptFunc func(*jwtOption)
+
+// WithJWTSignMethod set jwt sign method
+func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
+	return func(opt *jwtOption) {
+		opt.signMethod = method
+	}
+}
+
+// WithJWTUserIDKey set jwt user id key in payload
+func WithJWTUserIDKey(userIDKey string) JWTOptFunc {
+	return func(opt *jwtOption) {
+		opt.userIDKey = userIDKey
+	}
+}
+
+// WithJWTExpiresKey set jwt expires key in payload
+func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
+	return func(opt *jwtOption) {
+		opt.expiresKey = expiresKey
 	}
 }
 
 // NewJWT create new JWT with JwtCfg
-func NewJWT(cfg *JwtCfg) (*JWT, error) {
-	if len(cfg.Secret) == 0 {
+func NewJWT(secret []byte, opts ...JWTOptFunc) (*JWT, error) {
+	if len(secret) == 0 {
 		return nil, errors.New("jwtCfg.Secret should not be empty")
+	}
+	opt := &jwtOption{
+		signMethod: defaultJWTSignMethod,
+		userIDKey:  defaultJWTUserIDKey,
+		expiresKey: defaultJWTExpiresKey,
+	}
+	for _, optf := range opts {
+		optf(opt)
 	}
 
 	jwt.TimeFunc = Clock.GetUTCNow
-
 	return &JWT{
-		JwtCfg: cfg,
+		jwtOption: opt,
+		secret:    secret,
 	}, nil
+}
+
+// GetSignMethod get jwt sign method
+func (j *JWT) GetSignMethod() *jwt.SigningMethodHMAC {
+	return j.signMethod
+}
+
+// GetUserIDKey get jwt user id key
+func (j *JWT) GetUserIDKey() string {
+	return j.userIDKey
+}
+
+// GetExpiresKey get jwt expires key
+func (j *JWT) GetExpiresKey() string {
+	return j.expiresKey
 }
 
 // GenerateToken generate JWT token with userID(interface{})
@@ -94,11 +127,11 @@ func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map
 	for k, v := range payload {
 		jwtPayload[k] = v
 	}
-	jwtPayload[j.JWTExpiresAtKey] = expiresAt.Unix()
-	jwtPayload[j.JWTUserIDKey] = userID
+	jwtPayload[j.expiresKey] = expiresAt.Unix()
+	jwtPayload[j.userIDKey] = userID
 
-	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(j.Secret); err != nil {
+	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
+	if tokenStr, err = token.SignedString(j.secret); err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
 	}
 	return tokenStr, nil
@@ -107,17 +140,17 @@ func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map
 // VerifyAndReplaceExp check expires and replace expires to time.Time if validated
 func (j *JWT) VerifyAndReplaceExp(payload map[string]interface{}) (err error) {
 	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.JWTExpiresAtKey].(type) {
+	switch exp := payload[j.expiresKey].(type) {
 	case float64:
 		if int64(exp) > now {
-			payload[j.JWTExpiresAtKey] = time.Unix(int64(exp), 0).UTC()
+			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
 			return nil
 		}
 		err = fmt.Errorf("token expired")
 	case oj.Number:
 		v, _ := exp.Int64()
 		if v > now {
-			payload[j.JWTExpiresAtKey] = time.Unix(v, 0).UTC()
+			payload[j.expiresKey] = time.Unix(v, 0).UTC()
 			return nil
 		}
 		err = fmt.Errorf("token expired")
@@ -135,10 +168,10 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.JWTSigningMethod {
+		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
 			return nil, errors.New("JWT method not allowd")
 		}
-		return j.Secret, nil
+		return j.secret, nil
 	})
 	if err != nil || !token.Valid {
 		// return after got payload
@@ -156,8 +189,8 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
 		return payload, errors.Wrap(err, "token invalidate")
 	}
-	if _, ok = payload[j.JWTUserIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.JWTUserIDKey)
+	if _, ok = payload[j.userIDKey]; !ok {
+		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
 	}
 	return payload, err
 }
@@ -176,64 +209,59 @@ func ValidatePasswordHash(hashedPassword, password []byte) bool {
 //
 // use seperate secret for each token
 type DivideJWT struct {
-	*DivideJWTCfg
+	*jwtOption
 }
 
-// JWTUserModel load secret by uid
-type JWTUserModel interface {
+// JWTUserItf load secret by uid
+type JWTUserItf interface {
 	GetUID() interface{}
-	LoadSecretByUID(uid interface{}) ([]byte, error)
-}
-
-// DivideJWTCfg configuration
-type DivideJWTCfg struct {
-	baseJWT
-}
-
-// NewDivideJWTCfg create new JwtCfg  with secret
-func NewDivideJWTCfg() *DivideJWTCfg {
-	jwt.TimeFunc = Clock.GetUTCNow
-	return &DivideJWTCfg{
-		baseJWT: baseJWT{
-			JWTSigningMethod: JWTSigningMethod,
-			JWTUserIDKey:     JWTUserIDKey,
-			JWTExpiresAtKey:  JWTExpiresAtKey,
-		},
-	}
+	GetSecret() []byte
 }
 
 // NewDivideJWT create new JWT with JwtCfg
-func NewDivideJWT(cfg *DivideJWTCfg) (*DivideJWT, error) {
-	if cfg.JWTUserIDKey == "" ||
-		cfg.JWTExpiresAtKey == "" ||
-		cfg.JWTSigningMethod == nil {
-		return nil, fmt.Errorf("configuration error")
+func NewDivideJWT(opts ...JWTOptFunc) (*DivideJWT, error) {
+	opt := &jwtOption{
+		signMethod: defaultJWTSignMethod,
+		userIDKey:  defaultJWTUserIDKey,
+		expiresKey: defaultJWTExpiresKey,
+	}
+	for _, optf := range opts {
+		optf(opt)
 	}
 
+	jwt.TimeFunc = Clock.GetUTCNow
 	return &DivideJWT{
-		DivideJWTCfg: cfg,
+		jwtOption: opt,
 	}, nil
+}
+
+// GetSignMethod get jwt sign method
+func (j *DivideJWT) GetSignMethod() *jwt.SigningMethodHMAC {
+	return j.signMethod
+}
+
+// GetUserIDKey get jwt user id key
+func (j *DivideJWT) GetUserIDKey() string {
+	return j.userIDKey
+}
+
+// GetExpiresKey get jwt expires key
+func (j *DivideJWT) GetExpiresKey() string {
+	return j.expiresKey
 }
 
 // GenerateToken generate JWT token.
 // do not use `expires_at` & `uid` as keys.
-func (j *DivideJWT) GenerateToken(user JWTUserModel, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
+func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
 	jwtPayload := jwt.MapClaims{}
 	for k, v := range payload {
 		jwtPayload[k] = v
 	}
-	jwtPayload[j.JWTExpiresAtKey] = expiresAt.Unix()
-	jwtPayload[j.JWTUserIDKey] = user.GetUID()
+	jwtPayload[j.expiresKey] = expiresAt.Unix()
+	jwtPayload[j.userIDKey] = user.GetUID()
 
-	token := jwt.NewWithClaims(JWTSigningMethod, jwtPayload)
-	var secret []byte
-	if secret, err = user.LoadSecretByUID(user.GetUID()); err != nil {
-		Logger.Error("try to load jwt secret by uid got error",
-			zap.Error(err),
-			zap.String("uid", fmt.Sprint(user.GetUID())))
-		return "", err
-	}
-	if tokenStr, err = token.SignedString(secret); err != nil {
+	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
+	if tokenStr, err = token.SignedString(user.GetSecret()); err != nil {
 		return "", errors.Wrap(err, "try to signed token got error")
 	}
 	return tokenStr, nil
@@ -242,17 +270,17 @@ func (j *DivideJWT) GenerateToken(user JWTUserModel, expiresAt time.Time, payloa
 // VerifyAndReplaceExp check expires and replace expires to time.Time if validated
 func (j *DivideJWT) VerifyAndReplaceExp(payload jwt.MapClaims) (err error) {
 	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.JWTExpiresAtKey].(type) {
+	switch exp := payload[j.expiresKey].(type) {
 	case float64:
 		if int64(exp) > now {
-			payload[j.JWTExpiresAtKey] = time.Unix(int64(exp), 0).UTC()
+			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
 			return nil
 		}
 		err = fmt.Errorf("token expired")
 	case oj.Number:
 		v, _ := exp.Int64()
 		if v > now {
-			payload[j.JWTExpiresAtKey] = time.Unix(v, 0).UTC()
+			payload[j.expiresKey] = time.Unix(v, 0).UTC()
 			return nil
 		}
 		err = fmt.Errorf("token expired")
@@ -266,14 +294,14 @@ func (j *DivideJWT) VerifyAndReplaceExp(payload jwt.MapClaims) (err error) {
 // Validate validate the token and return the payload
 //
 // if token is invalidate, err will not be nil.
-func (j *DivideJWT) Validate(user JWTUserModel, tokenStr string) (payload jwt.MapClaims, err error) {
+func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapClaims, err error) {
 	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.JWTSigningMethod {
+		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
 			return nil, errors.New("JWT method not allowd")
 		}
-		return user.LoadSecretByUID(user.GetUID())
+		return user.GetSecret(), nil
 	})
 	if err != nil || !token.Valid {
 		// return after got payload
@@ -291,8 +319,8 @@ func (j *DivideJWT) Validate(user JWTUserModel, tokenStr string) (payload jwt.Ma
 	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
 		return payload, errors.Wrap(err, "token invalidate")
 	}
-	if _, ok = payload[j.JWTUserIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.JWTUserIDKey)
+	if _, ok = payload[j.userIDKey]; !ok {
+		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
 	}
 	return payload, err
 }

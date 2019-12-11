@@ -22,8 +22,7 @@ func (u *User) GetID() string {
 }
 
 func ExampleAuth() {
-	cfg := middlewares.NewAuthCfg("f32lifj2f32fj")
-	auth, err := middlewares.NewAuth(cfg)
+	auth, err := middlewares.NewAuth([]byte("f32lifj2f32fj"))
 	if err != nil {
 		utils.Logger.Panic("try to init gin auth got error", zap.Error(err))
 	}
@@ -37,7 +36,7 @@ func ExampleAuth() {
 	}
 
 	user := &User{}
-	if err = auth.SetLoginCookie(ctx, user, middlewares.NewCookieCfg()); err != nil {
+	if err = auth.SetLoginCookie(ctx, user); err != nil {
 		utils.Logger.Error("try to set cookie got error", zap.Error(err))
 	}
 
