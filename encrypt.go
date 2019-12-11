@@ -176,6 +176,22 @@ func (j *JWT) VerifyAndReplaceExp(payload map[string]interface{}) (err error) {
 	return err
 }
 
+// ParseJWTTokenWithoutValidate parse and get payload without validate jwt token
+func ParseJWTTokenWithoutValidate(token string) (payload jwt.MapClaims, err error) {
+	var jt *jwt.Token
+	if jt, err = jwt.Parse(token, func(_ *jwt.Token) (interface{}, error) {
+		return "", nil
+	}); jt == nil && err != nil {
+		return nil, errors.Wrap(err, "parse jwt token")
+	}
+
+	var ok bool
+	if payload, ok = jt.Claims.(jwt.MapClaims); !ok {
+		return nil, errors.New("payload type not match `map[string]interface{}`")
+	}
+	return payload, nil
+}
+
 // Validate validate the token and return the payload
 //
 // if token is invalidate, err will not be nil.

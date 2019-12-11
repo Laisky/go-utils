@@ -1,6 +1,8 @@
 package utils_test
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,4 +76,25 @@ func BenchmarkMutex(b *testing.B) {
 		// 	}
 		// })
 	})
+}
+
+func TestLaiskyRemoteLockOptFunc(t *testing.T) {
+	cli, err := utils.NewLaiskyRemoteLock(
+		"https://blog.laisky.com/graphql/query/",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYwNzU5MzgsInVpZCI6InRlc3QifQ.Qm38mdHPViMxkYml7zQ_wFkqDhoHnv29JjVblvxfITEA9EftXPZQdtETuspK4WwjPWRR6QPHQ13hNFM0PwSulw",
+	)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	ctx := context.Background()
+	if ok, err := cli.AcquireLock(ctx, "test.foo", 30*time.Second, true); err != nil {
+		if !strings.Contains(err.Error(), "do not have permission") {
+			t.Fatalf("%+v", err)
+		}
+	} else if !ok {
+		t.Logf("not ok")
+	}
+
+	// t.Error("done")
 }
