@@ -66,6 +66,9 @@ type JWTOptFunc func(*jwtOption)
 
 // WithJWTSignMethod set jwt sign method
 func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
+	if method == nil {
+		Logger.Panic("method should not be nil")
+	}
 	return func(opt *jwtOption) {
 		opt.signMethod = method
 	}
@@ -73,15 +76,27 @@ func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
 
 // WithJWTUserIDKey set jwt user id key in payload
 func WithJWTUserIDKey(userIDKey string) JWTOptFunc {
+	if userIDKey == "" {
+		Logger.Panic("userIDKey should not be empty")
+	}
 	return func(opt *jwtOption) {
 		opt.userIDKey = userIDKey
+		if opt.expiresKey == opt.userIDKey {
+			Logger.Panic("expiresKey should not equal to userIDKey")
+		}
 	}
 }
 
 // WithJWTExpiresKey set jwt expires key in payload
 func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
+	if expiresKey == "" {
+		Logger.Panic("expiresKey should not be empty")
+	}
 	return func(opt *jwtOption) {
 		opt.expiresKey = expiresKey
+		if opt.expiresKey == opt.userIDKey {
+			Logger.Panic("expiresKey should not equal to userIDKey")
+		}
 	}
 }
 

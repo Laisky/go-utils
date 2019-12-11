@@ -24,16 +24,15 @@ const (
 	defaultAuthCookieHTTPOnly = false
 )
 
-type authOption struct {
-	jwtTokenExpireDuration time.Duration
-}
-
 // AuthOptFunc auth option
-type AuthOptFunc func(*authOption)
+type AuthOptFunc func(*Auth)
 
 // WithAuthCookieExpireDuration set auth cookie expiration
 func WithAuthCookieExpireDuration(d time.Duration) AuthOptFunc {
-	return func(opt *authOption) {
+	if d < 0 {
+		utils.Logger.Panic("duration should not less than 0", zap.Duration("duration", d))
+	}
+	return func(opt *Auth) {
 		opt.jwtTokenExpireDuration = d
 	}
 }
@@ -41,8 +40,8 @@ func WithAuthCookieExpireDuration(d time.Duration) AuthOptFunc {
 // Auth JWT cookie based token generator and validator.
 // Cookie looks like <defaultAuthTokenName>:`{<defaultAuthUserIDCtxKey>: "xxxx"}`
 type Auth struct {
-	*authOption
-	jwt *utils.JWT
+	jwt                    *utils.JWT
+	jwtTokenExpireDuration time.Duration
 }
 
 // NewAuth create new Auth with AuthCfg
@@ -52,16 +51,12 @@ func NewAuth(secret []byte, opts ...AuthOptFunc) (a *Auth, err error) {
 		return nil, errors.Wrap(err, "try to create Auth got error")
 	}
 
-	opt := &authOption{
+	a = &Auth{
 		jwtTokenExpireDuration: defaultAuthJWTTokenExpireDuration,
+		jwt:                    j,
 	}
 	for _, optf := range opts {
-		optf(opt)
-	}
-
-	a = &Auth{
-		authOption: opt,
-		jwt:        j,
+		optf(a)
 	}
 	return a, nil
 }
@@ -101,6 +96,9 @@ type AuthCookieOptFunc func(*authCookieOption)
 
 // WithAuthCookieMaxAge set auth cookie's maxAge
 func WithAuthCookieMaxAge(maxAge int) AuthCookieOptFunc {
+	if maxAge < 0 {
+		utils.Logger.Panic("maxAge should not less than 0", zap.Int("maxAge", maxAge))
+	}
 	return func(opt *authCookieOption) {
 		opt.maxAge = maxAge
 	}

@@ -304,11 +304,11 @@ type AlertHook struct {
 	level   zapcore.LevelEnabler
 }
 
-// AlertHookOption option for create AlertHook
-type AlertHookOption func(*AlertHook)
+// AlertHookOptFunc option for create AlertHook
+type AlertHookOptFunc func(*AlertHook)
 
 // WithAlertHookLevel level to trigger AlertHook
-func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
+func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
 	if level.Enabled(zap.DebugLevel) {
 		// because AlertPusher will use `debug` logger,
 		// hook with debug will cause infinite recursive
@@ -321,7 +321,7 @@ func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
 }
 
 // NewAlertHook create AlertHook
-func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) (a *AlertHook) {
+func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOptFunc) (a *AlertHook) {
 	a = &AlertHook{
 		encPool: &sync.Pool{
 			New: func() interface{} {
