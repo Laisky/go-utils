@@ -10,10 +10,10 @@ import (
 
 	"github.com/Laisky/zap/buffer"
 
+	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
 	"github.com/pkg/errors"
-	"github.com/shurcooL/graphql"
 )
 
 var (

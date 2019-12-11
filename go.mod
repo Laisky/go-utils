@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/DataDog/zstd v1.3.8 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
+	github.com/Laisky/graphql v1.0.0
 	github.com/Laisky/zap v1.12.2
 	github.com/RoaringBitmap/roaring v0.4.18
 	github.com/Shopify/sarama v1.22.1
@@ -24,7 +25,6 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.4 // indirect
 	github.com/prometheus/procfs v0.0.3 // indirect
-	github.com/shurcooL/graphql v0.0.0-20181231061246-d48a9a75455f
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.4.0
 	github.com/tinylib/msgp v1.1.0
