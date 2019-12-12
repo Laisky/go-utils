@@ -83,14 +83,19 @@ func TestLaiskyRemoteLock(t *testing.T) {
 	// utils.Logger.ChangeLevel("debug")
 	cli, err := utils.NewLaiskyRemoteLock(
 		"https://blog.laisky.com/graphql/query/",
-		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzUyODAsInVpZCI6ImxhaXNreSJ9.iPz0QUTw0ASld2jR8JJ1yaMrnOCj6SShu1U2NdTNFtKCjwMV64N-b0bhu8MAkqdUmrqgRkD1zstE39GutYF-YA",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
 	)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	ctx := context.Background()
-	if ok, err := cli.AcquireLock(ctx, "laisky.test", 10*time.Second, true); err != nil {
+	if ok, err := cli.AcquireLock(
+		ctx,
+		"laisky.test",
+		utils.WithAcquireLockDuration(10*time.Second),
+		utils.WithAcquireLockIsRenewal(true),
+	); err != nil {
 		if !strings.Contains(err.Error(), "Token is expired") {
 			t.Fatalf("%+v", err)
 		}
@@ -105,7 +110,7 @@ func TestLaiskyRemoteLock(t *testing.T) {
 func ExampleLaiskyRemoteLock() {
 	cli, err := utils.NewLaiskyRemoteLock(
 		"https://blog.laisky.com/graphql/query/",
-		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzUyODAsInVpZCI6ImxhaXNreSJ9.iPz0QUTw0ASld2jR8JJ1yaMrnOCj6SShu1U2NdTNFtKCjwMV64N-b0bhu8MAkqdUmrqgRkD1zstE39GutYF-YA",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
 	)
 	if err != nil {
 		utils.Logger.Error("create laisky lock", zap.Error(err))
@@ -117,7 +122,12 @@ func ExampleLaiskyRemoteLock() {
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 	defer cancel()
-	if ok, err = cli.AcquireLock(ctx, lockName, 10*time.Second, true); err != nil {
+	if ok, err = cli.AcquireLock(
+		ctx,
+		lockName,
+		utils.WithAcquireLockDuration(10*time.Second),
+		utils.WithAcquireLockIsRenewal(true),
+	); err != nil {
 		utils.Logger.Error("acquire lock", zap.String("lock_name", lockName))
 	}
 
