@@ -44,7 +44,7 @@ type Auth struct {
 	jwtTokenExpireDuration time.Duration
 }
 
-// NewAuth create new Auth with AuthCfg
+// NewAuth create new Auth
 func NewAuth(secret []byte, opts ...AuthOptFunc) (a *Auth, err error) {
 	var j *utils.JWT
 	if j, err = utils.NewJWT(secret); err != nil {

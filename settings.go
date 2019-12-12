@@ -158,14 +158,14 @@ func (s *SettingsType) SetupFromFile(filePath string) error {
 
 // SetupFromConfigServer load configs from config-server,
 // endpoint `{url}/{app}/{profile}/{label}`
-func (s *SettingsType) SetupFromConfigServer(cfg *ConfigServerCfg) (err error) {
+func (s *SettingsType) SetupFromConfigServer(url, app, profile, label string) (err error) {
 	Logger.Info("load settings from remote",
-		zap.String("url", cfg.URL),
-		zap.String("profile", cfg.Profile),
-		zap.String("label", cfg.Label),
-		zap.String("app", cfg.App))
+		zap.String("url", url),
+		zap.String("profile", profile),
+		zap.String("label", label),
+		zap.String("app", app))
 
-	srv := NewConfigSrv(cfg)
+	srv := NewConfigSrv(url, app, profile, label)
 	if err = srv.Fetch(); err != nil {
 		return errors.Wrap(err, "try to fetch remote config got error")
 	}
@@ -179,14 +179,14 @@ func (s *SettingsType) SetupFromConfigServer(cfg *ConfigServerCfg) (err error) {
 // endpoint `{url}/{app}/{profile}/{label}`
 //
 // load raw yaml content and parse.
-func (s *SettingsType) SetupFromConfigServerWithRawYaml(cfg *ConfigServerCfg, key string) (err error) {
+func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
 	Logger.Info("load settings from remote",
-		zap.String("url", cfg.URL),
-		zap.String("profile", cfg.Profile),
-		zap.String("label", cfg.Label),
-		zap.String("app", cfg.App))
+		zap.String("url", url),
+		zap.String("profile", profile),
+		zap.String("label", label),
+		zap.String("app", app))
 
-	srv := NewConfigSrv(cfg)
+	srv := NewConfigSrv(url, app, profile, label)
 	if err = srv.Fetch(); err != nil {
 		return errors.Wrap(err, "try to fetch remote config got error")
 	}

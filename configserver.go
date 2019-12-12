@@ -24,32 +24,31 @@ type Config struct {
 	Sources  []*ConfigSource `json:"propertySources"`
 }
 
-// ConfigServerCfg configs to connect to config-server
-type ConfigServerCfg struct {
-	URL     string // config-server api
-	Profile string // env
-	Label   string // branch
-	App     string // app name
-}
-
 // ConfigSrv can load configuration from Spring-Cloud-Config-Server
 type ConfigSrv struct {
-	*ConfigServerCfg
-	Cfg *Config
+	RemoteCfg *Config
+
+	url, // config-server api
+	profile, // env
+	label, // branch
+	app string // app name
 }
 
 // NewConfigSrv create ConfigSrv
-func NewConfigSrv(cfg *ConfigServerCfg) *ConfigSrv {
+func NewConfigSrv(url, app, profile, label string) *ConfigSrv {
 	return &ConfigSrv{
-		ConfigServerCfg: cfg,
-		Cfg:             &Config{},
+		RemoteCfg: &Config{},
+		url:       url,
+		app:       app,
+		label:     label,
+		profile:   profile,
 	}
 }
 
 // Fetch load data from config-server
 func (c *ConfigSrv) Fetch() error {
-	url := strings.Join([]string{c.URL, c.App, c.Profile, c.Label}, "/")
-	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.Cfg)
+	url := strings.Join([]string{c.url, c.app, c.profile, c.label}, "/")
+	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.RemoteCfg)
 	if err != nil {
 		return errors.Wrap(err, "try to get config got error")
 	}
@@ -63,7 +62,7 @@ func (c *ConfigSrv) Get(name string) (interface{}, bool) {
 		item string
 		val  interface{}
 	)
-	for _, src := range c.Cfg.Sources {
+	for _, src := range c.RemoteCfg.Sources {
 		for item, val = range src.Source {
 			if item == name {
 				return val, true
@@ -116,8 +115,8 @@ func (c *ConfigSrv) Map(set func(string, interface{})) {
 		val interface{}
 		src *ConfigSource
 	)
-	for i := 0; i < len(c.Cfg.Sources); i++ {
-		src = c.Cfg.Sources[i]
+	for i := 0; i < len(c.RemoteCfg.Sources); i++ {
+		src = c.RemoteCfg.Sources[i]
 		for key, val = range src.Source {
 			Logger.Debug("set settings", zap.String("key", key), zap.String("val", fmt.Sprint(val)))
 			set(key, val)

@@ -100,10 +100,10 @@ func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
 	}
 }
 
-// NewJWT create new JWT with JwtCfg
+// NewJWT create new JWT
 func NewJWT(secret []byte, opts ...JWTOptFunc) (*JWT, error) {
 	if len(secret) == 0 {
-		return nil, errors.New("jwtCfg.Secret should not be empty")
+		return nil, errors.New("secret should not be empty")
 	}
 	opt := &jwtOption{
 		signMethod: defaultJWTSignMethod,
@@ -249,7 +249,7 @@ type JWTUserItf interface {
 	GetSecret() []byte
 }
 
-// NewDivideJWT create new JWT with JwtCfg
+// NewDivideJWT create new JWT
 func NewDivideJWT(opts ...JWTOptFunc) (*DivideJWT, error) {
 	opt := &jwtOption{
 		signMethod: defaultJWTSignMethod,
