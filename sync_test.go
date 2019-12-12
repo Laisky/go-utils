@@ -2,6 +2,7 @@ package utils_test
 
 import (
 	"context"
+	"github.com/Laisky/zap"
 	"strings"
 	"testing"
 	"time"
@@ -78,23 +79,54 @@ func BenchmarkMutex(b *testing.B) {
 	})
 }
 
-func TestLaiskyRemoteLockOptFunc(t *testing.T) {
+func TestLaiskyRemoteLock(t *testing.T) {
+	// utils.Logger.ChangeLevel("debug")
 	cli, err := utils.NewLaiskyRemoteLock(
 		"https://blog.laisky.com/graphql/query/",
-		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYwNzU5MzgsInVpZCI6InRlc3QifQ.Qm38mdHPViMxkYml7zQ_wFkqDhoHnv29JjVblvxfITEA9EftXPZQdtETuspK4WwjPWRR6QPHQ13hNFM0PwSulw",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzUyODAsInVpZCI6ImxhaXNreSJ9.iPz0QUTw0ASld2jR8JJ1yaMrnOCj6SShu1U2NdTNFtKCjwMV64N-b0bhu8MAkqdUmrqgRkD1zstE39GutYF-YA",
 	)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	ctx := context.Background()
-	if ok, err := cli.AcquireLock(ctx, "test.foo", 30*time.Second, true); err != nil {
-		if !strings.Contains(err.Error(), "do not have permission") {
+	if ok, err := cli.AcquireLock(ctx, "laisky.test", 10*time.Second, true); err != nil {
+		if !strings.Contains(err.Error(), "Token is expired") {
 			t.Fatalf("%+v", err)
 		}
 	} else if !ok {
 		t.Logf("not ok")
 	}
 
+	time.Sleep(3 * time.Second)
 	// t.Error("done")
+}
+
+func ExampleLaiskyRemoteLock() {
+	cli, err := utils.NewLaiskyRemoteLock(
+		"https://blog.laisky.com/graphql/query/",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzUyODAsInVpZCI6ImxhaXNreSJ9.iPz0QUTw0ASld2jR8JJ1yaMrnOCj6SShu1U2NdTNFtKCjwMV64N-b0bhu8MAkqdUmrqgRkD1zstE39GutYF-YA",
+	)
+	if err != nil {
+		utils.Logger.Error("create laisky lock", zap.Error(err))
+	}
+
+	var (
+		ok          bool
+		lockName    = "laisky.test"
+		ctx, cancel = context.WithCancel(context.Background())
+	)
+	defer cancel()
+	if ok, err = cli.AcquireLock(ctx, lockName, 10*time.Second, true); err != nil {
+		utils.Logger.Error("acquire lock", zap.String("lock_name", lockName))
+	}
+
+	if ok {
+		utils.Logger.Info("success acquired lock")
+	} else {
+		utils.Logger.Info("do not acquired lock")
+		return
+	}
+
+	time.Sleep(3 * time.Second) // will auto renewal lock in background
 }

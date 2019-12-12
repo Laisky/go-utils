@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"github.com/Laisky/zap"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,14 @@ import (
 	"github.com/Laisky/graphql"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
+)
+
+const (
+	defaultLaiskyRemoteLockTokenUserKey    = "uid"
+	defaultLaiskyRemoteLockAuthCookieName  = "general"
+	defaultLaiskyRemoteLockTimeout         = 5 * time.Second
+	defaultLaiskyRemoteLockRenewalInterval = 1 * time.Second
+	defaultLaiskyRemoteLockMaxRetry        = 3
 )
 
 // Mutex mutex that support unblocking lock
@@ -54,12 +63,6 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 		time.Sleep(step)
 	}
 }
-
-const (
-	defaultLaiskyRemoteLockTokenUserKey   = "uid"
-	defaultLaiskyRemoteLockAuthCookieName = "general"
-	defaultLaiskyRemoteLockTimeout        = 5 * time.Second
-)
 
 // LaiskyRemoteLock acquire lock from Laisky's GraphQL API
 type LaiskyRemoteLock struct {
@@ -122,7 +125,8 @@ type acquireLockMutation struct {
 }
 
 // AcquireLock acquire lock with lockname,
-// if `isRenewal=true`, will refresh lock's lease.
+// if `isRenewal=true`, will automate refresh lock's lease until ctx done.
+// duration to specify how much time each renewal will extend.
 func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, duration time.Duration, isRenewal bool) (ok bool, err error) {
 	var (
 		query = new(acquireLockMutation)
@@ -136,5 +140,34 @@ func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, dur
 	if err = l.cli.Mutate(ctx, query, vars); err != nil {
 		return ok, errors.Wrap(err, "request graphql mutation")
 	}
-	return query.AcquireLock, nil
+	if ok = query.AcquireLock; isRenewal && ok {
+		go l.renewalLock(ctx, query, vars)
+	}
+	return ok, nil
+}
+
+func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMutation, vars map[string]interface{}) {
+	var (
+		nRetry   = 0
+		err      error
+		ticker   = time.NewTicker(defaultLaiskyRemoteLockRenewalInterval)
+		lockName = string(vars["lock_name"].(graphql.String))
+	)
+	defer ticker.Stop()
+	Logger.Debug("start to auto renewal lock", zap.String("lock_name", lockName))
+	for nRetry < defaultLaiskyRemoteLockMaxRetry {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		if err = l.cli.Mutate(ctx, query, vars); err != nil {
+			Logger.Error("renewal lock", zap.Error(err), zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
+			time.Sleep(1 * time.Second)
+			nRetry++
+		}
+		nRetry = 0
+		Logger.Debug("success renewal lock", zap.String("lock_name", lockName))
+	}
 }
