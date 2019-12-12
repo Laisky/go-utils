@@ -79,6 +79,7 @@ func (f *CommitFilter) runFilterBeforeChan(ctx context.Context) {
 			return
 		case <-scanSlots2CommitTicker.C:
 			f.filterSlots2AfterChan(kmsgSlots)
+			continue
 		case kmsg, ok = <-f.beforeChan:
 			if !ok {
 				return
