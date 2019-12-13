@@ -23,12 +23,7 @@ func ExampleConfigSrv() {
 		label   = "master"
 	)
 
-	c := utils.NewConfigSrv(&utils.ConfigServerCfg{
-		URL:     url,
-		App:     app,
-		Profile: profile,
-		Label:   label,
-	})
+	c := utils.NewConfigSrv(url, app, profile, label)
 	c.Get("management.context-path")
 	c.GetString("management.context-path")
 	c.GetBool("endpoints.health.sensitive")
@@ -86,21 +81,16 @@ func TestConfigSrv(t *testing.T) {
 		name    = "app"
 	)
 
-	c := utils.NewConfigSrv(&utils.ConfigServerCfg{
-		URL:     addr,
-		Profile: profile,
-		Label:   label,
-		App:     app,
-	})
+	c := utils.NewConfigSrv(addr, app, profile, label)
 	if err := c.Fetch(); err != nil {
 		t.Fatalf("init ConfigSrv got error: %+v", err)
 	}
 
-	t.Logf("got cfg name: %v", c.Cfg.Name)
-	t.Logf("got cfg profile: %v", c.Cfg.Profiles[0])
-	t.Logf("got cfg source name: %v", c.Cfg.Sources[0].Name)
+	t.Logf("got cfg name: %v", c.RemoteCfg.Name)
+	t.Logf("got cfg profile: %v", c.RemoteCfg.Profiles[0])
+	t.Logf("got cfg source name: %v", c.RemoteCfg.Sources[0].Name)
 
-	if c.Cfg.Name != name {
+	if c.RemoteCfg.Name != name {
 		t.Fatalf("cfg name error")
 	}
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestGenerateToken(t *testing.T) {
-	j, err := utils.NewJWT(utils.NewJWTCfg([]byte("4738947328rh3ru23f32hf238f238fh28f")))
+	j, err := utils.NewJWT([]byte("4738947328rh3ru23f32hf238f238fh28f"))
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -37,12 +37,12 @@ type jwtUser struct {
 func (u *jwtUser) GetUID() interface{} {
 	return "laisky"
 }
-func (u *jwtUser) LoadSecretByUID(uid interface{}) ([]byte, error) {
-	return u.secret, nil
+func (u *jwtUser) GetSecret() []byte {
+	return u.secret
 }
 
 func TestGenerateDivideToken(t *testing.T) {
-	j, err := utils.NewDivideJWT(utils.NewDivideJWTCfg())
+	j, err := utils.NewDivideJWT()
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -62,17 +62,26 @@ func TestGenerateDivideToken(t *testing.T) {
 	}
 }
 
+const (
+	defaultUserIDKey  = "uid"
+	defaultExpiresKey = "exp"
+)
+
 func TestValidToken(t *testing.T) {
-	j, err := utils.NewJWT(utils.NewJWTCfg([]byte("4738947328rh3ru23f32hf238f238fh28f")))
+	j, err := utils.NewJWT(
+		[]byte("4738947328rh3ru23f32hf238f238fh28f"),
+		utils.WithJWTUserIDKey(defaultUserIDKey),
+		utils.WithJWTExpiresKey(defaultExpiresKey),
+	)
 	if err != nil {
 		t.Errorf("got error %+v", err)
 	}
 	expect := map[string]interface{}{
-		"k1":                  "v1",
-		"k2":                  "v2",
-		"k3":                  "v3",
-		utils.JWTUserIDKey:    "laisky",
-		utils.JWTExpiresAtKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
+		"k1":              "v1",
+		"k2":              "v2",
+		"k3":              "v3",
+		defaultUserIDKey:  "laisky",
+		defaultExpiresKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
 	}
 	t.Logf("exp: %v", expect["exp"])
 	// correct token
@@ -106,7 +115,7 @@ func TestValidToken(t *testing.T) {
 	// check without `exp`
 	token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.74A-PjmIj9Vqwfp8MWQGfeVkSxDbH0N2pA5Ru_r0au8YKhNsvk4H7BH0sz97-i0sf_0Izq-VhRqLQM2qP6qlWA"
 	if got, err = j.Validate(token); err == nil {
-		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
+		t.Fatalf("token should be error since of lack of `%v`", defaultExpiresKey)
 	} else if !strings.Contains(err.Error(), "unknown expires format") {
 		t.Fatalf("expect unknown expires format error, but got: %+v", got)
 	}
@@ -133,7 +142,7 @@ func TestValidToken(t *testing.T) {
 			t.Fatalf("key %v not exists in got", k)
 		} else {
 			if v == ev ||
-				k == j.JWTExpiresAtKey {
+				k == defaultExpiresKey {
 				continue
 			}
 			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
@@ -142,16 +151,19 @@ func TestValidToken(t *testing.T) {
 }
 
 func TestValidDivideToken(t *testing.T) {
-	j, err := utils.NewDivideJWT(utils.NewDivideJWTCfg())
+	j, err := utils.NewDivideJWT(
+		utils.WithJWTUserIDKey(defaultUserIDKey),
+		utils.WithJWTExpiresKey(defaultExpiresKey),
+	)
 	if err != nil {
 		t.Errorf("got error %+v", err)
 	}
 	expect := map[string]interface{}{
-		"k1":                  "v1",
-		"k2":                  "v2",
-		"k3":                  "v3",
-		utils.JWTUserIDKey:    "laisky",
-		utils.JWTExpiresAtKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
+		"k1":              "v1",
+		"k2":              "v2",
+		"k3":              "v3",
+		defaultUserIDKey:  "laisky",
+		defaultExpiresKey: time.Date(2119, 1, 1, 0, 0, 0, 0, time.UTC).UTC(),
 	}
 	t.Logf("exp: %v", expect["exp"])
 	// correct token
@@ -186,7 +198,7 @@ func TestValidDivideToken(t *testing.T) {
 	// check without `exp`
 	token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJrMSI6InYxIiwiazIiOiJ2MiIsImszIjoidjMiLCJ1aWQiOiJsYWlza3kifQ.74A-PjmIj9Vqwfp8MWQGfeVkSxDbH0N2pA5Ru_r0au8YKhNsvk4H7BH0sz97-i0sf_0Izq-VhRqLQM2qP6qlWA"
 	if got, err = j.Validate(u, token); err == nil {
-		t.Fatalf("token should be error since of lack of `%v`", utils.JWTExpiresAtKey)
+		t.Fatalf("token should be error since of lack of `%v`", defaultExpiresKey)
 	} else if !strings.Contains(err.Error(), "unknown expires format") {
 		t.Fatalf("expect unknown expires format error, but got: %+v", got)
 	}
@@ -213,7 +225,7 @@ func TestValidDivideToken(t *testing.T) {
 			t.Fatalf("key %v not exists in got", k)
 		} else {
 			if v == ev ||
-				k == j.JWTExpiresAtKey {
+				k == defaultExpiresKey {
 				continue
 			}
 			t.Fatalf("value of key %v not match, expect %v, got %v", k, ev, v)
@@ -239,7 +251,7 @@ func TestPassword(t *testing.T) {
 }
 
 func ExampleJWT() {
-	jwt, err := utils.NewJWT(utils.NewJWTCfg([]byte("your secret key")))
+	jwt, err := utils.NewJWT([]byte("your secret key"))
 	if err != nil {
 		utils.Logger.Panic("try to init jwt got error", zap.Error(err))
 	}
@@ -263,7 +275,7 @@ func ExampleJWT() {
 }
 
 func ExampleDivideJWT() {
-	jwt, err := utils.NewDivideJWT(utils.NewDivideJWTCfg())
+	jwt, err := utils.NewDivideJWT()
 	if err != nil {
 		utils.Logger.Panic("try to init jwt got error", zap.Error(err))
 	}

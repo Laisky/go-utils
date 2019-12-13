@@ -26,6 +26,10 @@ var (
 	bitOrder = binary.BigEndian
 )
 
+const (
+	defaultCompressNBlocks = 8
+)
+
 // BaseSerializer base serializer
 type BaseSerializer struct {
 	sync.Mutex
@@ -37,7 +41,7 @@ type DataEncoder struct {
 	BaseSerializer
 	// writeChan chan interface{}
 	writer   *msgp.Writer
-	gzWriter *utils.GZCompressor
+	gzWriter utils.CompressorItf
 }
 
 // DataDecoder data deserializer
@@ -53,7 +57,7 @@ type IdsEncoder struct {
 	BaseSerializer
 	baseID   int64
 	writer   *bufio.Writer
-	gzWriter *utils.GZCompressor
+	gzWriter utils.CompressorItf
 }
 
 // IdsDecoder ids deserializer
@@ -72,11 +76,12 @@ func NewDataEncoder(fp *os.File, isCompress bool) (enc *DataEncoder, err error) 
 		},
 	}
 	if isCompress {
-		if enc.gzWriter, err = utils.NewGZCompressor(&utils.GZCompressorCfg{
-			BufSizeByte: BufSize,
-			Writer:      fp,
-			GzLevel:     gzip.BestSpeed,
-		}); err != nil {
+		if enc.gzWriter, err = utils.NewPGZCompressor(
+			fp,
+			utils.WithCompressBufSizeByte(BufSize),
+			utils.WithCompressLevel(gzip.BestSpeed),
+			utils.WithPGzipNBlocks(defaultCompressNBlocks),
+		); err != nil {
 			return nil, err
 		}
 		enc.writer = msgp.NewWriterSize(enc.gzWriter, BufSize)
@@ -95,11 +100,11 @@ func NewIdsEncoder(fp *os.File, isCompress bool) (enc *IdsEncoder, err error) {
 		baseID: -1,
 	}
 	if isCompress {
-		if enc.gzWriter, err = utils.NewGZCompressor(&utils.GZCompressorCfg{
-			BufSizeByte: BufSize,
-			Writer:      fp,
-			GzLevel:     gzip.BestSpeed,
-		}); err != nil {
+		if enc.gzWriter, err = utils.NewGZCompressor(
+			fp,
+			utils.WithCompressBufSizeByte(BufSize),
+			utils.WithCompressLevel(gzip.BestSpeed),
+		); err != nil {
 			return nil, err
 		}
 		enc.writer = bufio.NewWriterSize(enc.gzWriter, BufSize)

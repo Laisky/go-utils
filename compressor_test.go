@@ -13,10 +13,36 @@ import (
 func TestGZCompressor(t *testing.T) {
 	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
 	writer := &bytes.Buffer{}
-	c, err := utils.NewGZCompressor(&utils.GZCompressorCfg{
-		BufSizeByte: 1024 * 32,
-		Writer:      writer,
-	})
+	c, err := utils.NewGZCompressor(writer)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	if _, err = c.WriteString(originText); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+	if err = c.Flush(); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	var gz *gzip.Reader
+	if gz, err = gzip.NewReader(writer); err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	if bs, err := ioutil.ReadAll(gz); err != nil {
+		t.Fatalf("got error: %+v", err)
+	} else {
+		got := string(bs)
+		if got != originText {
+			t.Fatalf("got: %v", got)
+		}
+	}
+}
+
+func TestPGZCompressor(t *testing.T) {
+	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
+	writer := &bytes.Buffer{}
+	c, err := utils.NewPGZCompressor(writer)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -64,7 +90,7 @@ BenchmarkGZCompressor/gz_write_50KB_to_file_BestCompression-4  	     690	   1596
 PASS
 ok  	github.com/Laisky/go-utils	61.515s
 */
-func BenchmarkGZCompressor(b *testing.B) {
+func BenchmarkGzip(b *testing.B) {
 	fp, err := ioutil.TempFile("", "gz-test")
 	if err != nil {
 		b.Fatalf("%+v", err)
@@ -78,6 +104,7 @@ func BenchmarkGZCompressor(b *testing.B) {
 	payload50K := []byte(utils.RandomStringWithLength(10240 * 5))
 	payload100K := []byte(utils.RandomStringWithLength(102400))
 	buf := &bytes.Buffer{}
+
 	gzWriter := gzip.NewWriter(buf)
 	b.Run("gz write 1kB", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -158,6 +185,7 @@ func BenchmarkGZCompressor(b *testing.B) {
 			buf.Reset()
 		}
 	})
+
 	if gzWriter, err = gzip.NewWriterLevel(buf, gzip.BestCompression); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
@@ -254,5 +282,104 @@ func BenchmarkGZCompressor(b *testing.B) {
 			}
 		}
 	})
+}
 
+/*
+goos: darwin
+goarch: amd64
+pkg: github.com/Laisky/go-utils
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_10K-4         	   10195	    115989 ns/op	  584588 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_10K-4         	   10000	    114282 ns/op	  582810 B/op	      11 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_10K-4                         	    4320	    281743 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_10K-4         	    9741	    115122 ns/op	  581498 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_10K-4         	   10000	    110754 ns/op	  579144 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_10K-4                                  	 8525589	       139 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_50K-4                         	     571	   1910871 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_50K-4         	    8658	    157012 ns/op	  579934 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_50K-4         	    7998	    152650 ns/op	  578246 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_50K-4         	    8598	    152514 ns/op	  577482 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_50K-4         	    6781	    154517 ns/op	  576757 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_50K-4                                  	  507096	      2544 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_100K-4        	    6258	    222641 ns/op	  578490 B/op	      11 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_100K-4                        	     360	   3366950 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_100K-4        	    6814	    186113 ns/op	  575306 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_100K-4        	    6603	    190075 ns/op	  570878 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_100K-4        	    6446	    189761 ns/op	  575713 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_100K-4                                 	  259213	      4791 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/gzCompressor_gz_write_1K-4                          	   17718	     65976 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-250000_gz_write_1K-4          	   12034	     99579 ns/op	  576201 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks2-500000_gz_write_1K-4          	   10000	    102135 ns/op	  579617 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-250000_gz_write_1K-4          	   10000	    100201 ns/op	  577761 B/op	      11 allocs/op
+BenchmarkCompressor/pgzCompressor-blocks4-500000_gz_write_1K-4          	   12032	    100153 ns/op	  580680 B/op	      11 allocs/op
+BenchmarkCompressor/normal_write_1K-4                                   	41966409	        30.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Laisky/go-utils	33.127s
+Success: Benchmarks passed.
+*/
+func BenchmarkCompressor(b *testing.B) {
+	fp, err := ioutil.TempFile("", "gz-test")
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer fp.Close()
+	defer os.Remove(fp.Name())
+	b.Logf("create file name: %v", fp.Name())
+
+	buf := &bytes.Buffer{}
+	gzWriter, err := utils.NewGZCompressor(buf)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	pgzWriterP2Size250000, err := utils.NewPGZCompressor(buf, utils.WithPGzipNBlocks(2), utils.WithPGzipBlockSize(250000))
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	pgzWriterP2Size500000, err := utils.NewPGZCompressor(buf, utils.WithPGzipNBlocks(2), utils.WithPGzipBlockSize(500000))
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	pgzWriterP4Size250000, err := utils.NewPGZCompressor(buf, utils.WithPGzipNBlocks(4), utils.WithPGzipBlockSize(250000))
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	pgzWriterP4Size500000, err := utils.NewPGZCompressor(buf, utils.WithPGzipNBlocks(4), utils.WithPGzipBlockSize(500000))
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	for pname, payload := range map[string][]byte{
+		"1K":   []byte(utils.RandomStringWithLength(1024)),
+		"10K":  []byte(utils.RandomStringWithLength(10240)),
+		"50K":  []byte(utils.RandomStringWithLength(10240 * 5)),
+		"100K": []byte(utils.RandomStringWithLength(102400)),
+	} {
+		for name, compressWriter := range map[string]utils.CompressorItf{
+			"gzCompressor":                 gzWriter,
+			"pgzCompressor-blocks2-250000": pgzWriterP2Size250000,
+			"pgzCompressor-blocks2-500000": pgzWriterP2Size500000,
+			"pgzCompressor-blocks4-250000": pgzWriterP4Size250000,
+			"pgzCompressor-blocks4-500000": pgzWriterP4Size500000,
+		} {
+			b.Run(name+" gz write "+pname, func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					if _, err = compressWriter.Write(payload); err != nil {
+						b.Fatalf("write: %+v", err)
+					}
+					if err = compressWriter.WriteFooter(); err != nil {
+						b.Fatalf("close: %+v", err)
+					}
+					buf.Reset()
+				}
+			})
+			buf.Reset()
+		}
+
+		b.Run("normal write "+pname, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				buf.Write(payload)
+				buf.Reset()
+			}
+		})
+		buf.Reset()
+	}
 }

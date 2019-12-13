@@ -13,6 +13,43 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	defaultCommitCheckInterval = 3 * time.Second
+	defaultCommitCheckNum      = 10000
+	defaultCommitCheckChanSize = 10000
+)
+
+type commitCheckOption struct {
+	commitCheckInterval time.Duration
+	commitCheckNum,
+	commitCheckChanSize int
+}
+
+// CommitFilterOptFunc option for CommitFilter
+type CommitFilterOptFunc func(*commitCheckOption)
+
+// WithCommitFilterCheckInterval set commit check interval
+func WithCommitFilterCheckInterval(interval time.Duration) CommitFilterOptFunc {
+	return func(opt *commitCheckOption) {
+		opt.commitCheckInterval = interval
+	}
+}
+
+// WithCommitFilterCheckNum set commit check num
+func WithCommitFilterCheckNum(num int) CommitFilterOptFunc {
+	return func(opt *commitCheckOption) {
+		opt.commitCheckNum = num
+	}
+}
+
+// WithCommitFilterCheckChanSize set commit check channel's size
+func WithCommitFilterCheckChanSize(size int) CommitFilterOptFunc {
+	return func(opt *commitCheckOption) {
+		opt.commitCheckChanSize = size
+	}
+}
+
+// KafkaMsg kafka message
 type KafkaMsg struct {
 	Topic     string
 	Message   []byte
@@ -21,25 +58,25 @@ type KafkaMsg struct {
 	Timestamp time.Time
 }
 
+// KafkaCliCfg configuration for kafka message
 type KafkaCliCfg struct {
-	Brokers, Topics  []string
-	Groupid          string
-	KMsgPool         *sync.Pool
-	IntervalNum      int
-	IntervalDuration time.Duration
+	Brokers, Topics []string
+	Groupid         string
+	KMsgPool        *sync.Pool
 }
 
+// KafkaCli kafka consumer client
 type KafkaCli struct {
 	*KafkaCliCfg
-
 	stopChan chan struct{}
 
 	cli                   *cluster.Consumer
 	beforeChan, afterChan chan *KafkaMsg
 }
 
-func NewKafkaCliWithGroupId(ctx context.Context, cfg *KafkaCliCfg) (*KafkaCli, error) {
-	utils.Logger.Debug("NewKafkaCliWithGroupId",
+// NewKafkaCliWithGroupID create new kafka consumer
+func NewKafkaCliWithGroupID(ctx context.Context, cfg *KafkaCliCfg, opts ...CommitFilterOptFunc) (*KafkaCli, error) {
+	utils.Logger.Debug("NewKafkaCliWithGroupID",
 		zap.Strings("brokers", cfg.Brokers),
 		zap.Strings("topics", cfg.Topics),
 		zap.String("groupid", cfg.Groupid))
@@ -56,11 +93,7 @@ func NewKafkaCliWithGroupId(ctx context.Context, cfg *KafkaCliCfg) (*KafkaCli, e
 	}
 
 	// new commit filter
-	cf := NewCommitFilter(ctx, &CommitFilterCfg{
-		KMsgPool:         cfg.KMsgPool,
-		IntervalNum:      cfg.IntervalNum,
-		IntervalDuration: cfg.IntervalDuration,
-	})
+	cf := NewCommitFilter(ctx, cfg.KMsgPool, opts...)
 
 	// new KafkaCli
 	k := &KafkaCli{
@@ -76,11 +109,13 @@ func NewKafkaCliWithGroupId(ctx context.Context, cfg *KafkaCliCfg) (*KafkaCli, e
 	return k, nil
 }
 
+// Close close kafka client
 func (k *KafkaCli) Close() {
 	k.stopChan <- struct{}{}
 	k.cli.Close()
 }
 
+// ListenNotifications log kafka broker notify
 func (k *KafkaCli) ListenNotifications(ctx context.Context) {
 	defer utils.Logger.Debug("ListenNotifications exit")
 	var (
@@ -103,6 +138,7 @@ func (k *KafkaCli) ListenNotifications(ctx context.Context) {
 	}
 }
 
+// Messages get kafka messages chan
 func (k *KafkaCli) Messages(ctx context.Context) <-chan *KafkaMsg {
 	msgChan := make(chan *KafkaMsg, 1000)
 	var (
@@ -172,6 +208,7 @@ func (k *KafkaCli) runCommitor(ctx context.Context) {
 	}
 }
 
+// CommitWithMsg commit kafka message
 func (k *KafkaCli) CommitWithMsg(kmsg *KafkaMsg) {
 	k.beforeChan <- kmsg
 }

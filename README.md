@@ -72,7 +72,7 @@ There are many useful tools including:
     * `Mail.Send(frAddr, toAddr, frName, toName, subject, content string) (err error)`
 * encrypt.go:
   * create:
-    * `NewJWT(cfg *JwtCfg) (*JWT, error)`
+    * `NewJWT(secret []byte, opts ...JWTOptFunc) (*JWT, error)`
   * use:
     * `GeneratePasswordHash()`: generate hashed password
     * `ValidatePasswordHash()`: validate hashed password
@@ -241,7 +241,7 @@ JWT token and hashed password tools.
 
     ```go
     func ExampleJWT() {
-        jwt, err := utils.NewJWT(utils.NewJWTCfg([]byte("your secret key")))
+        jwt, err := utils.NewJWT([]byte("your secret key"))
         if err != nil {
             utils.Logger.Panic("try to init jwt got error", zap.Error(err))
         }

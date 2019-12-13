@@ -134,14 +134,7 @@ a:
 	addr := fmt.Sprintf("http://localhost:%v", port)
 	go RunMockConfigSrv(port, fakedata)
 	time.Sleep(100 * time.Millisecond)
-
-	cfg := &utils.ConfigServerCfg{
-		URL:     addr,
-		Profile: "profile",
-		Label:   "label",
-		App:     "app",
-	}
-	if err := utils.Settings.SetupFromConfigServerWithRawYaml(cfg, "raw"); err != nil {
+	if err := utils.Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 	for k, vi := range map[string]interface{}{

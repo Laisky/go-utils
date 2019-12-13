@@ -10,10 +10,10 @@ import (
 
 	"github.com/Laisky/zap/buffer"
 
+	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
 	"github.com/pkg/errors"
-	"github.com/shurcooL/graphql"
 )
 
 var (
@@ -185,18 +185,18 @@ const (
 	defaultAlertPusherTimeout = 10 * time.Second
 )
 
-// AlertPushOption is AlertPusher's options
-type AlertPushOption func(*AlertPusher)
+// AlertPushOptFunc is AlertPusher's options
+type AlertPushOptFunc func(*AlertPusher)
 
 // WithAlertPushTimeout set AlertPusher HTTP timeout
-func WithAlertPushTimeout(timeout time.Duration) AlertPushOption {
+func WithAlertPushTimeout(timeout time.Duration) AlertPushOptFunc {
 	return func(a *AlertPusher) {
 		a.timeout = timeout
 	}
 }
 
 // NewAlertPusher create new AlertPusher
-func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption) (a *AlertPusher, err error) {
+func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher", zap.String("pushAPI", pushAPI))
 	if pushAPI == "" {
 		return nil, fmt.Errorf("pushAPI should nout empty")
@@ -222,7 +222,7 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOption
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOption) (a *AlertPusher, err error) {
+func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
 	if a, err = NewAlertPusher(ctx, pushAPI, opts...); err != nil {
 		return nil, err
@@ -304,11 +304,11 @@ type AlertHook struct {
 	level   zapcore.LevelEnabler
 }
 
-// AlertHookOption option for create AlertHook
-type AlertHookOption func(*AlertHook)
+// AlertHookOptFunc option for create AlertHook
+type AlertHookOptFunc func(*AlertHook)
 
 // WithAlertHookLevel level to trigger AlertHook
-func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
+func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
 	if level.Enabled(zap.DebugLevel) {
 		// because AlertPusher will use `debug` logger,
 		// hook with debug will cause infinite recursive
@@ -321,7 +321,7 @@ func WithAlertHookLevel(level zapcore.Level) AlertHookOption {
 }
 
 // NewAlertHook create AlertHook
-func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOption) (a *AlertHook) {
+func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOptFunc) (a *AlertHook) {
 	a = &AlertHook{
 		encPool: &sync.Pool{
 			New: func() interface{} {

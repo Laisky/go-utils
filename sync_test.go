@@ -1,6 +1,9 @@
 package utils_test
 
 import (
+	"context"
+	"github.com/Laisky/zap"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,4 +77,66 @@ func BenchmarkMutex(b *testing.B) {
 		// 	}
 		// })
 	})
+}
+
+func TestLaiskyRemoteLock(t *testing.T) {
+	// utils.Logger.ChangeLevel("debug")
+	cli, err := utils.NewLaiskyRemoteLock(
+		"https://blog.laisky.com/graphql/query/",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
+	)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	ctx := context.Background()
+	if ok, err := cli.AcquireLock(
+		ctx,
+		"laisky.test",
+		utils.WithAcquireLockDuration(10*time.Second),
+		utils.WithAcquireLockIsRenewal(true),
+	); err != nil {
+		if !strings.Contains(err.Error(), "Token is expired") {
+			t.Fatalf("%+v", err)
+		}
+	} else if !ok {
+		t.Logf("not ok")
+	}
+
+	time.Sleep(3 * time.Second)
+	// t.Error("done")
+}
+
+func ExampleLaiskyRemoteLock() {
+	cli, err := utils.NewLaiskyRemoteLock(
+		"https://blog.laisky.com/graphql/query/",
+		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
+	)
+	if err != nil {
+		utils.Logger.Error("create laisky lock", zap.Error(err))
+	}
+
+	var (
+		ok          bool
+		lockName    = "laisky.test"
+		ctx, cancel = context.WithCancel(context.Background())
+	)
+	defer cancel()
+	if ok, err = cli.AcquireLock(
+		ctx,
+		lockName,
+		utils.WithAcquireLockDuration(10*time.Second),
+		utils.WithAcquireLockIsRenewal(true),
+	); err != nil {
+		utils.Logger.Error("acquire lock", zap.String("lock_name", lockName))
+	}
+
+	if ok {
+		utils.Logger.Info("success acquired lock")
+	} else {
+		utils.Logger.Info("do not acquired lock")
+		return
+	}
+
+	time.Sleep(3 * time.Second) // will auto renewal lock in background
 }

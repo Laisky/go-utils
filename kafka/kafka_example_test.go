@@ -18,14 +18,17 @@ func ExampleKafkaCli() {
 			},
 		}
 	)
-	cli, err := kafka.NewKafkaCliWithGroupId(context.Background(), &kafka.KafkaCliCfg{
-		Brokers:          []string{"brokers url here"},
-		Topics:           []string{"topics name here"},
-		Groupid:          "group id",
-		KMsgPool:         kmsgPool,
-		IntervalNum:      100,
-		IntervalDuration: 5 * time.Second,
-	})
+	cli, err := kafka.NewKafkaCliWithGroupID(
+		context.Background(),
+		&kafka.KafkaCliCfg{
+			Brokers:  []string{"brokers url here"},
+			Topics:   []string{"topics name here"},
+			Groupid:  "group id",
+			KMsgPool: kmsgPool,
+		},
+		kafka.WithCommitFilterCheckInterval(5*time.Second),
+		kafka.WithCommitFilterCheckNum(100),
+	)
 	if err != nil {
 		panic(errors.Wrap(err, "try to connect to kafka got error"))
 	}
