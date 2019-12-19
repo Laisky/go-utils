@@ -106,6 +106,7 @@ func WithAuthCookieMaxAge(maxAge int) AuthCookieOptFunc {
 
 // WithAuthCookiePath set auth cookie's path
 func WithAuthCookiePath(path string) AuthCookieOptFunc {
+	utils.Logger.Debug("set auth cookie path", zap.String("path", path))
 	return func(opt *authCookieOption) {
 		opt.path = path
 	}
@@ -113,6 +114,7 @@ func WithAuthCookiePath(path string) AuthCookieOptFunc {
 
 // WithAuthCookieSecure set auth cookie's secure
 func WithAuthCookieSecure(secure bool) AuthCookieOptFunc {
+	utils.Logger.Debug("set auth cookie secure", zap.Bool("secure", secure))
 	return func(opt *authCookieOption) {
 		opt.secure = secure
 	}
@@ -120,6 +122,7 @@ func WithAuthCookieSecure(secure bool) AuthCookieOptFunc {
 
 // WithAuthCookieHTTPOnly set auth cookie's HTTPOnly
 func WithAuthCookieHTTPOnly(httpOnly bool) AuthCookieOptFunc {
+	utils.Logger.Debug("set auth cookie httpOnly", zap.Bool("httpOnly", httpOnly))
 	return func(opt *authCookieOption) {
 		opt.httpOnly = httpOnly
 	}
@@ -127,6 +130,7 @@ func WithAuthCookieHTTPOnly(httpOnly bool) AuthCookieOptFunc {
 
 // WithAuthCookieHost set auth cookie's host
 func WithAuthCookieHost(host string) AuthCookieOptFunc {
+	utils.Logger.Debug("set auth cookie host", zap.String("host", host))
 	return func(opt *authCookieOption) {
 		opt.host = host
 	}

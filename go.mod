@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/DataDog/zstd v1.3.8 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/graphql v1.0.1
+	github.com/Laisky/graphql v1.0.3
 	github.com/Laisky/zap v1.12.2
 	github.com/RoaringBitmap/roaring v0.4.18
 	github.com/Shopify/sarama v1.22.1
@@ -25,6 +25,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.4 // indirect
 	github.com/prometheus/procfs v0.0.3 // indirect
+	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.4.0
 	github.com/tinylib/msgp v1.1.0
@@ -33,6 +34,7 @@ require (
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
+	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
 	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20191109212701-97ad0ed33101 // indirect
