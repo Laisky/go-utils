@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/DataDog/zstd v1.3.8 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/graphql v1.0.3
+	github.com/Laisky/graphql v1.0.4
 	github.com/Laisky/zap v1.12.2
 	github.com/RoaringBitmap/roaring v0.4.18
 	github.com/Shopify/sarama v1.22.1
