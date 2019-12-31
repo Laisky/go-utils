@@ -206,7 +206,7 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	})
 	if err != nil || !token.Valid {
 		// return after got payload
-		err = errors.Wrap(err, "token invalidate")
+		err = errors.Wrap(err, "token method invalidate")
 	}
 
 	var ok bool
@@ -218,7 +218,7 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	}
 
 	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token invalidate")
+		return payload, errors.Wrap(err, "token exp invalidate")
 	}
 	if _, ok = payload[j.userIDKey]; !ok {
 		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
