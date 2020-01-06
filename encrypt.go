@@ -42,11 +42,6 @@ var (
 	defaultJWTExpiresKey = "exp"
 )
 
-type baseJWT struct {
-	JWTSigningMethod              *jwt.SigningMethodHMAC
-	JWTUserIDKey, JWTExpiresAtKey string
-}
-
 // JWT struct to generate and validate jwt tokens
 //
 // use a global uniform secret to signing all token.
@@ -285,10 +280,8 @@ func (j *DivideJWT) GetExpiresKey() string {
 // do not use `expires_at` & `uid` as keys.
 func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
 	jwtPayload := jwt.MapClaims{}
-	if payload != nil {
-		for k, v := range payload {
-			jwtPayload[k] = v
-		}
+	for k, v := range payload {
+		jwtPayload[k] = v
 	}
 	jwtPayload[j.expiresKey] = expiresAt.Unix()
 	jwtPayload[j.userIDKey] = user.GetUID()

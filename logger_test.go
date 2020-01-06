@@ -182,3 +182,28 @@ func ExampleAlertHook() {
 
 	time.Sleep(1 * time.Second)
 }
+
+// func TestPateoAlertPusher(t *testing.T) {
+// 	ctx := context.Background()
+
+// 	utils.Settings.SetupFromFile("/Users/laisky/repo/pateo/configs/go-fluentd/settings.yml")
+
+// 	alert, err := utils.NewPateoAlertPusher(
+// 		ctx,
+// 		utils.Settings.GetString("settings.pateo_logger.push_api"),
+// 		utils.Settings.GetString("settings.pateo_logger.token"),
+// 	)
+// 	if err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+
+// 	// if err = alert.Send("test", "test content", utils.Clock.GetUTCNow()); err != nil {
+// 	// 	t.Fatalf("%+v", err)
+// 	// }
+
+// 	logger := utils.Logger.WithOptions(zap.HooksWithFields(alert.GetZapHook("test")))
+// 	logger.Error("test content", zap.String("field", "value"))
+
+// 	time.Sleep(1 * time.Second)
+// 	t.Error()
+// }

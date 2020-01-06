@@ -108,8 +108,8 @@ func TestValidToken(t *testing.T) {
 	if got, err = j.Validate(token); err == nil {
 		t.Logf("got: %v", got)
 		t.Fatal("token should be expired")
-	} else if !strings.Contains(err.Error(), "token invalidate") {
-		t.Fatalf("expect invalidate error, bug got %+v", got)
+	} else if !strings.Contains(err.Error(), "Token is expired") {
+		t.Fatalf("expect invalidate error, bug got %+v:%+v", err, got)
 	}
 
 	// check without `exp`

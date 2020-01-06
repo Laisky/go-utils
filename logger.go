@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -183,6 +184,7 @@ type alertMsg struct {
 
 const (
 	defaultAlertPusherTimeout = 10 * time.Second
+	defaultAlertPusherBufSize = 1000
 )
 
 // AlertPushOptFunc is AlertPusher's options
@@ -204,7 +206,7 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOptFun
 
 	a = &AlertPusher{
 		stopChan:   make(chan struct{}),
-		senderChan: make(chan *alertMsg, 100),
+		senderChan: make(chan *alertMsg, defaultAlertPusherBufSize),
 
 		timeout: defaultAlertPusherTimeout,
 		pushAPI: pushAPI,
@@ -256,6 +258,7 @@ func (a *AlertPusher) SendWithType(alertType, pushToken, msg string) (err error)
 
 func (a *AlertPusher) runSender(ctx context.Context) {
 	var (
+		ok      bool
 		payload *alertMsg
 		err     error
 		query   = new(alertMutation)
@@ -267,8 +270,8 @@ func (a *AlertPusher) runSender(ctx context.Context) {
 			return
 		case <-a.stopChan:
 			return
-		case payload = <-a.senderChan:
-			if payload == nil {
+		case payload, ok = <-a.senderChan:
+			if !ok {
 				return
 			}
 		}
@@ -297,15 +300,20 @@ const (
 	defaultAlertHookLevel = zapcore.ErrorLevel
 )
 
-// AlertHook hook for zap.Logger
-type AlertHook struct {
-	pusher  *AlertPusher
+type alertHookOption struct {
 	encPool *sync.Pool
 	level   zapcore.LevelEnabler
 }
 
+// AlertHook hook for zap.Logger
+type AlertHook struct {
+	*alertHookOption
+
+	pusher *AlertPusher
+}
+
 // AlertHookOptFunc option for create AlertHook
-type AlertHookOptFunc func(*AlertHook)
+type AlertHookOptFunc func(*alertHookOption)
 
 // WithAlertHookLevel level to trigger AlertHook
 func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
@@ -315,24 +323,28 @@ func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
 		Logger.Panic("level should higher than debug")
 	}
 
-	return func(a *AlertHook) {
+	return func(a *alertHookOption) {
 		a.level = level
 	}
 }
 
 // NewAlertHook create AlertHook
 func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOptFunc) (a *AlertHook) {
-	a = &AlertHook{
+	opt := &alertHookOption{
 		encPool: &sync.Pool{
 			New: func() interface{} {
 				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
 			},
 		},
-		pusher: pusher,
-		level:  defaultAlertHookLevel,
+		level: defaultAlertHookLevel,
 	}
-	for _, opt := range opts {
-		opt(a)
+	for _, optf := range opts {
+		optf(opt)
+	}
+
+	a = &AlertHook{
+		alertHookOption: opt,
+		pusher:          pusher,
 	}
 	return a
 }
@@ -362,5 +374,128 @@ func (a *AlertHook) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error
 			"message: " + e.Message + "\n" +
 			fsb
 		return a.pusher.Send(msg)
+	}
+}
+
+type pateoAlertMsg struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Time    string `json:"time"`
+}
+
+// PateoAlertPusher alert pusher for pateo wechat service
+type PateoAlertPusher struct {
+	*alertHookOption
+	cli        *http.Client
+	api, token string
+
+	senderBufChan chan *pateoAlertMsg
+}
+
+// NewPateoAlertPusher create new PateoAlertPusher
+func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHookOptFunc) (p *PateoAlertPusher, err error) {
+	opt := &alertHookOption{
+		encPool: &sync.Pool{
+			New: func() interface{} {
+				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
+			},
+		},
+		level: defaultAlertHookLevel,
+	}
+	for _, optf := range opts {
+		optf(opt)
+	}
+
+	p = &PateoAlertPusher{
+		alertHookOption: opt,
+		api:             api,
+		token:           token,
+		cli:             &http.Client{},
+	}
+
+	p.senderBufChan = make(chan *pateoAlertMsg, defaultAlertPusherBufSize)
+	go p.runSender(ctx)
+
+	return
+}
+
+func (p *PateoAlertPusher) runSender(ctx context.Context) {
+	var (
+		ok   bool
+		msg  *pateoAlertMsg
+		req  *http.Request
+		resp *http.Response
+		jb   []byte
+		err  error
+	)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok = <-p.senderBufChan:
+			if !ok {
+				return
+			}
+		}
+
+		if jb, err = json.Marshal(msg); err != nil {
+			Logger.Error("marshal msg to json", zap.Error(err))
+			continue
+		}
+		if req, err = http.NewRequest("POST", p.api, bytes.NewBuffer(jb)); err != nil {
+			Logger.Error("make pateo alert request", zap.Error(err))
+			continue
+		}
+		req.Header.Add(HTTPJSONHeader, HTTPJSONHeaderVal)
+		req.Header.Add("Authorization", "Bearer "+p.token)
+		if resp, err = p.cli.Do(req); err != nil {
+			Logger.Error("http post pateo alert server", zap.Error(err))
+			continue
+		}
+		if err = CheckResp(resp); err != nil {
+			Logger.Error("pateo alert server return error", zap.Error(err))
+			continue
+		}
+	}
+}
+
+// Send send alert msg
+func (p *PateoAlertPusher) Send(title, content string, ts time.Time) (err error) {
+	select {
+	case p.senderBufChan <- &pateoAlertMsg{
+		Title:   title,
+		Content: content,
+		Time:    ts.Format(time.RFC3339Nano),
+	}:
+		return nil
+	default:
+		return fmt.Errorf("sender chan overflow")
+	}
+}
+
+func (a *PateoAlertPusher) GetZapHook(title string) func(zapcore.Entry, []zapcore.Field) (err error) {
+	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
+		if !a.level.Enabled(e.Level) {
+			return nil
+		}
+
+		var bb *buffer.Buffer
+		enc := a.encPool.Get().(zapcore.Encoder)
+		bb, err = enc.EncodeEntry(e, fs)
+		if err != nil {
+			return errors.Wrap(err, "zapcore encode fields")
+		}
+		fsb := bb.String()
+		bb.Reset()
+		a.encPool.Put(enc)
+		msg := "logger: " + e.LoggerName + "\n" +
+			"time: " + e.Time.Format(time.RFC3339Nano) + "\n" +
+			"level: " + e.Level.String() + "\n" +
+			"caller: " + e.Caller.FullPath() + "\n" +
+			"stack: " + e.Stack + "\n" +
+			"message: " + e.Message + "\n" +
+			fsb
+
+		return a.Send(title+":"+e.Message, msg, e.Time)
 	}
 }

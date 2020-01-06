@@ -15,7 +15,7 @@ const (
 	// defaultAuthTokenName jwt token cookie name
 	defaultAuthTokenName = "token"
 	// defaultAuthUserIDCtxKey key of user ID in jwt token
-	defaultAuthUserIDCtxKey           = "auth_uid"
+	// defaultAuthUserIDCtxKey           = "auth_uid"
 	defaultAuthJWTTokenExpireDuration = 7 * 24 * time.Hour
 
 	defaultAuthCookieMaxAge   = 3600 * 24 * 7 // 7days
