@@ -41,8 +41,8 @@ type LoggerType struct {
 	level zap.AtomicLevel
 }
 
-// SetDefaultLogger set default utils.Logger
-func SetDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+// CreateNewDefaultLogger set default utils.Logger
+func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	if l, err = NewLoggerWithName(name, level, opts...); err != nil {
 		return nil, errors.Wrap(err, "create new logger")
 	}
@@ -127,6 +127,23 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field)
 	}
 
 	l.Warn(msg, fields...)
+}
+
+// Clone clone new Logger that inherit all config
+func (l *LoggerType) Clone() *LoggerType {
+	return &LoggerType{
+		Logger: l.Logger.With(),
+		level:  l.level,
+	}
+}
+
+// Named adds a new path segment to the logger's name. Segments are joined by
+// periods. By default, Loggers are unnamed.
+func (l *LoggerType) Named(s string) *LoggerType {
+	return &LoggerType{
+		Logger: l.Logger.Named(s),
+		level:  l.level,
+	}
 }
 
 // With creates a child logger and adds structured context to it. Fields added
@@ -475,7 +492,7 @@ func (p *PateoAlertPusher) Send(title, content string, ts time.Time) (err error)
 	}
 }
 
-func (a *PateoAlertPusher) GetZapHook(title string) func(zapcore.Entry, []zapcore.Field) (err error) {
+func (a *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
 		if !a.level.Enabled(e.Level) {
 			return nil
@@ -498,6 +515,6 @@ func (a *PateoAlertPusher) GetZapHook(title string) func(zapcore.Entry, []zapcor
 			"message: " + e.Message + "\n" +
 			fsb
 
-		return a.Send(title+":"+e.Message, msg, e.Time)
+		return a.Send(e.LoggerName+":"+e.Message, msg, e.Time)
 	}
 }
