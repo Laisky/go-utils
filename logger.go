@@ -17,6 +17,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// SampleRateDenominator sample rate = sample / SampleRateDenominator
+	SampleRateDenominator = 1000
+
+	defaultAlertPusherTimeout = 10 * time.Second
+	defaultAlertPusherBufSize = 1000
+	defaultAlertHookLevel     = zapcore.ErrorLevel
+)
+
 var (
 	/*Logger logging tool.
 
@@ -31,9 +40,6 @@ var (
 	 */
 	Logger *LoggerType
 )
-
-// SampleRateDenominator sample rate = sample / SampleRateDenominator
-const SampleRateDenominator = 1000
 
 // LoggerType extend from zap.Logger
 type LoggerType struct {
@@ -173,6 +179,10 @@ func init() {
 	Logger.Info("create logger", zap.String("level", "info"))
 }
 
+// ================================
+// alert pusher hook
+// ================================
+
 type alertMutation struct {
 	TelegramMonitorAlert struct {
 		Name graphql.String
@@ -183,14 +193,55 @@ type alertMutation struct {
 //
 // https://github.com/Laisky/laisky-blog-graphql/tree/master/telegram
 type AlertPusher struct {
+	*alertHookOption
+
 	cli        *graphql.Client
 	stopChan   chan struct{}
 	senderChan chan *alertMsg
 
-	token, alertType string
-
+	token, alertType,
 	pushAPI string
+}
+
+type alertHookOption struct {
+	encPool *sync.Pool
+	level   zapcore.LevelEnabler
 	timeout time.Duration
+}
+
+func newAlertHookOpt() *alertHookOption {
+	return &alertHookOption{
+		encPool: &sync.Pool{
+			New: func() interface{} {
+				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
+			},
+		},
+		level:   defaultAlertHookLevel,
+		timeout: defaultAlertPusherTimeout,
+	}
+}
+
+// AlertHookOptFunc option for create AlertHook
+type AlertHookOptFunc func(*alertHookOption)
+
+// WithAlertHookLevel level to trigger AlertHook
+func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
+	if level.Enabled(zap.DebugLevel) {
+		// because AlertPusher will use `debug` logger,
+		// hook with debug will cause infinite recursive
+		Logger.Panic("level should higher than debug")
+	}
+
+	return func(a *alertHookOption) {
+		a.level = level
+	}
+}
+
+// WithAlertPushTimeout set AlertPusher HTTP timeout
+func WithAlertPushTimeout(timeout time.Duration) AlertHookOptFunc {
+	return func(a *alertHookOption) {
+		a.timeout = timeout
+	}
 }
 
 type alertMsg struct {
@@ -199,37 +250,24 @@ type alertMsg struct {
 	msg string
 }
 
-const (
-	defaultAlertPusherTimeout = 10 * time.Second
-	defaultAlertPusherBufSize = 1000
-)
-
-// AlertPushOptFunc is AlertPusher's options
-type AlertPushOptFunc func(*AlertPusher)
-
-// WithAlertPushTimeout set AlertPusher HTTP timeout
-func WithAlertPushTimeout(timeout time.Duration) AlertPushOptFunc {
-	return func(a *AlertPusher) {
-		a.timeout = timeout
-	}
-}
-
 // NewAlertPusher create new AlertPusher
-func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
+func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertHookOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher", zap.String("pushAPI", pushAPI))
 	if pushAPI == "" {
 		return nil, fmt.Errorf("pushAPI should nout empty")
 	}
 
-	a = &AlertPusher{
-		stopChan:   make(chan struct{}),
-		senderChan: make(chan *alertMsg, defaultAlertPusherBufSize),
-
-		timeout: defaultAlertPusherTimeout,
-		pushAPI: pushAPI,
+	opt := newAlertHookOpt()
+	for _, optf := range opts {
+		optf(opt)
 	}
-	for _, opt := range opts {
-		opt(a)
+
+	a = &AlertPusher{
+		alertHookOption: opt,
+		stopChan:        make(chan struct{}),
+		senderChan:      make(chan *alertMsg, defaultAlertPusherBufSize),
+
+		pushAPI: pushAPI,
 	}
 
 	a.cli = graphql.NewClient(a.pushAPI, &http.Client{
@@ -241,7 +279,7 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertPushOptFun
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertPushOptFunc) (a *AlertPusher, err error) {
+func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertHookOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
 	if a, err = NewAlertPusher(ctx, pushAPI, opts...); err != nil {
 		return nil, err
@@ -313,61 +351,8 @@ func (a *AlertPusher) Send(msg string) (err error) {
 	return a.SendWithType(a.alertType, a.token, msg)
 }
 
-const (
-	defaultAlertHookLevel = zapcore.ErrorLevel
-)
-
-type alertHookOption struct {
-	encPool *sync.Pool
-	level   zapcore.LevelEnabler
-}
-
-// AlertHook hook for zap.Logger
-type AlertHook struct {
-	*alertHookOption
-
-	pusher *AlertPusher
-}
-
-// AlertHookOptFunc option for create AlertHook
-type AlertHookOptFunc func(*alertHookOption)
-
-// WithAlertHookLevel level to trigger AlertHook
-func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
-	if level.Enabled(zap.DebugLevel) {
-		// because AlertPusher will use `debug` logger,
-		// hook with debug will cause infinite recursive
-		Logger.Panic("level should higher than debug")
-	}
-
-	return func(a *alertHookOption) {
-		a.level = level
-	}
-}
-
-// NewAlertHook create AlertHook
-func NewAlertHook(pusher *AlertPusher, opts ...AlertHookOptFunc) (a *AlertHook) {
-	opt := &alertHookOption{
-		encPool: &sync.Pool{
-			New: func() interface{} {
-				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
-			},
-		},
-		level: defaultAlertHookLevel,
-	}
-	for _, optf := range opts {
-		optf(opt)
-	}
-
-	a = &AlertHook{
-		alertHookOption: opt,
-		pusher:          pusher,
-	}
-	return a
-}
-
 // GetZapHook get hook for zap logger
-func (a *AlertHook) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
+func (a *AlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
 		if !a.level.Enabled(e.Level) {
 			return nil
@@ -390,7 +375,7 @@ func (a *AlertHook) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error
 			"stack: " + e.Stack + "\n" +
 			"message: " + e.Message + "\n" +
 			fsb
-		return a.pusher.Send(msg)
+		return a.Send(msg)
 	}
 }
 
@@ -412,14 +397,7 @@ type PateoAlertPusher struct {
 
 // NewPateoAlertPusher create new PateoAlertPusher
 func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHookOptFunc) (p *PateoAlertPusher, err error) {
-	opt := &alertHookOption{
-		encPool: &sync.Pool{
-			New: func() interface{} {
-				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
-			},
-		},
-		level: defaultAlertHookLevel,
-	}
+	opt := newAlertHookOpt()
 	for _, optf := range opts {
 		optf(opt)
 	}
@@ -429,7 +407,9 @@ func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHo
 		api:             api,
 		token:           token,
 		logger:          Logger.With(),
-		cli:             &http.Client{},
+		cli: &http.Client{
+			Timeout: opt.timeout,
+		},
 	}
 
 	p.senderBufChan = make(chan *pateoAlertMsg, defaultAlertPusherBufSize)
@@ -492,21 +472,22 @@ func (p *PateoAlertPusher) Send(title, content string, ts time.Time) (err error)
 	}
 }
 
-func (a *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
+// GetZapHook get hook for zap logger
+func (p *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
-		if !a.level.Enabled(e.Level) {
+		if !p.level.Enabled(e.Level) {
 			return nil
 		}
 
 		var bb *buffer.Buffer
-		enc := a.encPool.Get().(zapcore.Encoder)
+		enc := p.encPool.Get().(zapcore.Encoder)
 		bb, err = enc.EncodeEntry(e, fs)
 		if err != nil {
 			return errors.Wrap(err, "zapcore encode fields")
 		}
 		fsb := bb.String()
 		bb.Reset()
-		a.encPool.Put(enc)
+		p.encPool.Put(enc)
 		msg := "logger: " + e.LoggerName + "\n" +
 			"time: " + e.Time.Format(time.RFC3339Nano) + "\n" +
 			"level: " + e.Level.String() + "\n" +
@@ -515,6 +496,6 @@ func (a *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (er
 			"message: " + e.Message + "\n" +
 			fsb
 
-		return a.Send(e.LoggerName+":"+e.Message, msg, e.Time)
+		return p.Send(e.LoggerName+":"+e.Message, msg, e.Time)
 	}
 }

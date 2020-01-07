@@ -129,19 +129,10 @@ func TestAlertHook(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	defer pusher.Close()
-	hook := utils.NewAlertHook(
-		pusher,
-		utils.WithAlertHookLevel(zap.WarnLevel),
-	)
-	logger, err := utils.NewLoggerWithName(
-		"test",
-		"debug",
+	logger := utils.Logger.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
-		zap.HooksWithFields(hook.GetZapHook()),
+		zap.HooksWithFields(pusher.GetZapHook()),
 	)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
 
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
@@ -151,7 +142,7 @@ func TestAlertHook(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 }
-func ExampleAlertHook() {
+func ExampleAlertPusher() {
 	pusher, err := utils.NewAlertPusherWithAlertType(
 		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
@@ -162,18 +153,10 @@ func ExampleAlertHook() {
 		utils.Logger.Panic("create alert pusher", zap.Error(err))
 	}
 	defer pusher.Close()
-	hook := utils.NewAlertHook(
-		pusher,
-		utils.WithAlertHookLevel(zap.WarnLevel),
-	)
-	logger, err := utils.NewLogger(
-		"debug",
+	logger := utils.Logger.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
-		zap.HooksWithFields(hook.GetZapHook()),
+		zap.HooksWithFields(pusher.GetZapHook()),
 	)
-	if err != nil {
-		utils.Logger.Error("create new logger", zap.Error(err))
-	}
 
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
