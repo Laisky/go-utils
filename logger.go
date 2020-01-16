@@ -390,7 +390,6 @@ type PateoAlertPusher struct {
 	*alertHookOption
 	cli        *http.Client
 	api, token string
-	logger     *LoggerType
 
 	senderBufChan chan *pateoAlertMsg
 }
@@ -406,7 +405,6 @@ func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHo
 		alertHookOption: opt,
 		api:             api,
 		token:           token,
-		logger:          Logger.With(),
 		cli: &http.Client{
 			Timeout: opt.timeout,
 		},
@@ -438,21 +436,21 @@ func (p *PateoAlertPusher) runSender(ctx context.Context) {
 		}
 
 		if jb, err = json.Marshal(msg); err != nil {
-			p.logger.Error("marshal msg to json", zap.Error(err))
+			Logger.Debug("marshal msg to json", zap.Error(err))
 			continue
 		}
 		if req, err = http.NewRequest("POST", p.api, bytes.NewBuffer(jb)); err != nil {
-			p.logger.Error("make pateo alert request", zap.Error(err))
+			Logger.Debug("make pateo alert request", zap.Error(err))
 			continue
 		}
 		req.Header.Add(HTTPJSONHeader, HTTPJSONHeaderVal)
 		req.Header.Add("Authorization", "Bearer "+p.token)
 		if resp, err = p.cli.Do(req); err != nil {
-			p.logger.Error("http post pateo alert server", zap.Error(err))
+			Logger.Debug("http post pateo alert server", zap.Error(err))
 			continue
 		}
 		if err = CheckResp(resp); err != nil {
-			p.logger.Error("pateo alert server return error", zap.Error(err))
+			Logger.Debug("pateo alert server return error", zap.Error(err))
 			continue
 		}
 	}

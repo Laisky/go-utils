@@ -65,25 +65,25 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 	}
 }
 
-// ForceGC force to run blocking manual gc.
-func ForceGC() {
+// ForceGCBlocking force to run blocking manual gc.
+func ForceGCBlocking() {
 	Logger.Info("force gc")
 	runtime.GC()
 	debug.FreeOSMemory()
 }
 
-// TriggerGC trigger GC unblocking
-func TriggerGC() {
+// ForceGCUnBlocking trigger GC unblocking
+func ForceGCUnBlocking() {
 	go func() {
 		ForceGC()
 	}()
 }
 
 var (
-	// ForceGCBlocking force to start gc blocking
-	ForceGCBlocking = ForceGC
-	// ForceGCUnBlocking force to start gc unblocking
-	ForceGCUnBlocking = TriggerGC
+	// ForceGC force to start gc blocking
+	ForceGC = ForceGCBlocking
+	// TriggerGC force to start gc unblocking
+	TriggerGC = ForceGCUnBlocking
 )
 
 var defaultTemplateWithMappReg = regexp.MustCompile(`(?sm)\$\{([^}]+)\}`)

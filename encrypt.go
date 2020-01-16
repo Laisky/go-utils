@@ -21,8 +21,11 @@ package utils
 // ```
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	oj "encoding/json"
 	"fmt"
+	"github.com/cespare/xxhash"
 	"time"
 
 	"github.com/Laisky/zap"
@@ -349,4 +352,19 @@ func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapC
 		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
 	}
 	return payload, err
+}
+
+var (
+	xxhasher     = xxhash.New()
+	sha256Hasher = sha256.New()
+)
+
+// HashSHA256String calculate string's hash by sha256
+func HashSHA256String(val string) string {
+	return hex.EncodeToString(sha256Hasher.Sum([]byte(val)))
+}
+
+// HashXxhashString calculate string's hash by sha256
+func HashXxhashString(val string) string {
+	return hex.EncodeToString(xxhasher.Sum([]byte(val)))
 }
