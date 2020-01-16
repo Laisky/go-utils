@@ -10,6 +10,7 @@ require (
 	github.com/RoaringBitmap/roaring v0.4.18
 	github.com/Shopify/sarama v1.22.1
 	github.com/bsm/sarama-cluster v2.1.16-0.20190423073834-d5779253526c+incompatible
+	github.com/cespare/xxhash v1.1.0
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-contrib/pprof v1.2.1

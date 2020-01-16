@@ -204,6 +204,10 @@ func (j *Journal) WriteData(data *Data) (err error) {
 	j.RLock() // will blocked by flush & rotate
 	defer j.RUnlock()
 
+	if j.legacy.IsIDExists(data.ID) {
+		return
+	}
+
 	// utils.Logger.Debug("write data", zap.Int64("id", GetId(*data)))
 	return j.dataEnc.Write(data)
 }

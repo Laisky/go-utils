@@ -46,6 +46,10 @@ func (l *LegacyLoader) AddID(id int64) {
 	l.ids.AddInt64(id)
 }
 
+func (l *LegacyLoader) IsIDExists(id int64) bool {
+	return l.ids.CheckAndRemove(id)
+}
+
 // Reset reset journal legacy link to existing files
 func (l *LegacyLoader) Reset(dataFNames, idsFNames []string) {
 	l.Lock()
