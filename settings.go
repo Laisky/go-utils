@@ -22,6 +22,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const defaultConfigFileName = "settings.yml"
+
 // SettingsType type of project settings
 type SettingsType struct {
 	sync.RWMutex
@@ -126,8 +128,6 @@ func (s *SettingsType) GetStringMapString(key string) map[string]string {
 	return viper.GetStringMapString(key)
 }
 
-const cfgFname = "settings.yml"
-
 // Setup load config file settings.yml
 func (s *SettingsType) Setup(configPath string) error {
 	return s.SetupFromDir(configPath)
@@ -136,7 +136,7 @@ func (s *SettingsType) Setup(configPath string) error {
 // SetupFromDir load settings from dir, default fname is `settings.yml`
 func (s *SettingsType) SetupFromDir(dirPath string) error {
 	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
-	fpath := filepath.Join(dirPath, cfgFname)
+	fpath := filepath.Join(dirPath, defaultConfigFileName)
 	return s.SetupFromFile(fpath)
 }
 
