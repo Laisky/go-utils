@@ -178,7 +178,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 				return
 			}
 			runtime.ReadMemStats(&m)
-			ratio = m.Alloc / memLimit
+			ratio = (m.Alloc * 100) / memLimit
 			Logger.Debug("mem stat",
 				zap.Uint64("mem", m.Alloc),
 				zap.Uint64("limit_mem", memLimit),
