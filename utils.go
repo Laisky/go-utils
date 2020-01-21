@@ -168,7 +168,8 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 		defer ticker.Stop()
 
 		var (
-			m runtime.MemStats
+			m     runtime.MemStats
+			ratio uint64
 		)
 		for {
 			select {
@@ -177,11 +178,14 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 				return
 			}
 			runtime.ReadMemStats(&m)
-			Logger.Debug("memo stat",
-				zap.Uint64("alloc", m.Alloc),
-				zap.Uint64("limit", memLimit),
+			ratio = m.Alloc / memLimit
+			Logger.Debug("mem stat",
+				zap.Uint64("mem", m.Alloc),
+				zap.Uint64("limit_mem", memLimit),
+				zap.Uint64("ratio", ratio),
+				zap.Uint64("limit_ratio", opt.memRatio),
 			)
-			if m.Alloc/memLimit >= opt.memRatio {
+			if ratio >= opt.memRatio {
 				ForceGCBlocking()
 			}
 		}
