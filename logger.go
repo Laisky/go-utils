@@ -360,9 +360,9 @@ func (a *AlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err err
 
 		var bb *buffer.Buffer
 		enc := a.encPool.Get().(zapcore.Encoder)
-		bb, err = enc.EncodeEntry(e, fs)
-		if err != nil {
-			return errors.Wrap(err, "zapcore encode fields")
+		if bb, err = enc.EncodeEntry(e, fs); err != nil {
+			Logger.Debug("zapcore encode fields got error", zap.Error(err))
+			return nil
 		}
 		fsb := bb.String()
 		bb.Reset()
@@ -375,7 +375,12 @@ func (a *AlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err err
 			"stack: " + e.Stack + "\n" +
 			"message: " + e.Message + "\n" +
 			fsb
-		return a.Send(msg)
+		if err = a.Send(msg); err != nil {
+			Logger.Debug("send alert got error", zap.Error(err))
+			return nil
+		}
+
+		return nil
 	}
 }
 
@@ -479,9 +484,9 @@ func (p *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (er
 
 		var bb *buffer.Buffer
 		enc := p.encPool.Get().(zapcore.Encoder)
-		bb, err = enc.EncodeEntry(e, fs)
-		if err != nil {
-			return errors.Wrap(err, "zapcore encode fields")
+		if bb, err = enc.EncodeEntry(e, fs); err != nil {
+			Logger.Debug("zapcore encode fields got error", zap.Error(err))
+			return nil
 		}
 		fsb := bb.String()
 		bb.Reset()
@@ -494,6 +499,11 @@ func (p *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (er
 			"message: " + e.Message + "\n" +
 			fsb
 
-		return p.Send(e.LoggerName+":"+e.Message, msg, e.Time)
+		if err = p.Send(e.LoggerName+":"+e.Message, msg, e.Time); err != nil {
+			Logger.Debug("send alert got error", zap.Error(err))
+			return nil
+		}
+
+		return nil
 	}
 }
