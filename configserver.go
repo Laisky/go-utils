@@ -83,29 +83,69 @@ func (c *ConfigSrv) GetString(name string) (string, bool) {
 }
 
 // GetInt get `int` from the localcache of config-server
-func (c *ConfigSrv) GetInt(name string) (int, bool) {
-	if val, ok := c.Get(name); ok {
-		if i, err := strconv.ParseInt(fmt.Sprintf("%v", val), 10, 64); err != nil {
-			Logger.Error("try to parse int got error", zap.String("val", fmt.Sprintf("%v", val)))
-			return 0, false
-		} else {
-			return int(i), true
+func (c *ConfigSrv) GetInt(name string) (val int, ok bool) {
+	var (
+		itf   interface{}
+		val64 int64
+		err   error
+	)
+	if itf, ok = c.Get(name); ok {
+		switch v := itf.(type) {
+		case int:
+			val = v
+		case int64:
+			val = int(v)
+		case string:
+			if val64, err = strconv.ParseInt(v, 10, 64); err != nil {
+				Logger.Error("cannot parse string to int64",
+					zap.String("name", name),
+					zap.String("val", fmt.Sprint(v)))
+				return val, false
+			}
+			val = int(val64)
+		default:
+			Logger.Error("unknown type",
+				zap.String("name", name),
+				zap.String("val", fmt.Sprint(v)))
+			return val, false
 		}
+
+		return
 	}
-	return 0, false
+
+	return
 }
 
 // GetBool get `bool` from the localcache of config-server
-func (c *ConfigSrv) GetBool(name string) (bool, bool) {
-	if val, ok := c.Get(name); ok {
-		if ret, err := strconv.ParseBool(fmt.Sprintf("%v", val)); err != nil {
-			Logger.Error("try to parse bool got error", zap.String("val", fmt.Sprintf("%v", val)))
-			return false, false
-		} else {
-			return ret, true
+func (c *ConfigSrv) GetBool(name string) (val bool, ok bool) {
+	var (
+		itf interface{}
+		err error
+	)
+	if itf, ok = c.Get(name); ok {
+		switch v := itf.(type) {
+		case int:
+			val = v != 0
+		case int64:
+			val = v != 0
+		case string:
+			if val, err = strconv.ParseBool(v); err != nil {
+				Logger.Error("cannot parse string to bool",
+					zap.String("name", name),
+					zap.String("val", fmt.Sprint(v)))
+				return val, false
+			}
+		default:
+			Logger.Error("unknown type",
+				zap.String("name", name),
+				zap.String("val", fmt.Sprint(v)))
+			return val, false
 		}
+
+		return
 	}
-	return false, false
+
+	return
 }
 
 // Map interate `set(k, v)`

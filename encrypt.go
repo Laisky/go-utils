@@ -21,8 +21,11 @@ package utils
 // ```
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	oj "encoding/json"
 	"fmt"
+	"github.com/cespare/xxhash"
 	"time"
 
 	"github.com/Laisky/zap"
@@ -41,11 +44,6 @@ var (
 	// defaultJWTExpiresKey default key of expires_at stores in token payload
 	defaultJWTExpiresKey = "exp"
 )
-
-type baseJWT struct {
-	JWTSigningMethod              *jwt.SigningMethodHMAC
-	JWTUserIDKey, JWTExpiresAtKey string
-}
 
 // JWT struct to generate and validate jwt tokens
 //
@@ -206,7 +204,7 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	})
 	if err != nil || !token.Valid {
 		// return after got payload
-		err = errors.Wrap(err, "token invalidate")
+		err = errors.Wrap(err, "token method invalidate")
 	}
 
 	var ok bool
@@ -218,7 +216,7 @@ func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
 	}
 
 	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token invalidate")
+		return payload, errors.Wrap(err, "token exp invalidate")
 	}
 	if _, ok = payload[j.userIDKey]; !ok {
 		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
@@ -285,10 +283,8 @@ func (j *DivideJWT) GetExpiresKey() string {
 // do not use `expires_at` & `uid` as keys.
 func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
 	jwtPayload := jwt.MapClaims{}
-	if payload != nil {
-		for k, v := range payload {
-			jwtPayload[k] = v
-		}
+	for k, v := range payload {
+		jwtPayload[k] = v
 	}
 	jwtPayload[j.expiresKey] = expiresAt.Unix()
 	jwtPayload[j.userIDKey] = user.GetUID()
@@ -356,4 +352,19 @@ func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapC
 		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
 	}
 	return payload, err
+}
+
+var (
+	xxhasher     = xxhash.New()
+	sha256Hasher = sha256.New()
+)
+
+// HashSHA256String calculate string's hash by sha256
+func HashSHA256String(val string) string {
+	return hex.EncodeToString(sha256Hasher.Sum([]byte(val)))
+}
+
+// HashXxhashString calculate string's hash by sha256
+func HashXxhashString(val string) string {
+	return hex.EncodeToString(xxhasher.Sum([]byte(val)))
 }

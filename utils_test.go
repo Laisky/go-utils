@@ -1,11 +1,10 @@
-package utils_test
+package utils
 
 import (
 	"fmt"
 	"regexp"
 	"testing"
 
-	"github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 )
 
@@ -14,18 +13,18 @@ func ExampleFallBack() {
 		panic("someting wrong")
 	}
 
-	utils.FallBack(targetFunc, 10) // got 10
+	FallBack(targetFunc, 10) // got 10
 }
 
-func foo() {}
+func testFoo() {}
 
 func ExampleGetFuncName() {
-	utils.GetFuncName(foo) // "github.com/Laisky/go-utils_test.foo"
+	GetFuncName(testFoo) // "github.com/Laisky/go-utils_test.testFoo"
 }
 
 func TestGetFuncName(t *testing.T) {
-	if name := utils.GetFuncName(foo); name != "github.com/Laisky/go-utils_test.foo" {
-		t.Fatalf("want `foo`, got `%v`", name)
+	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils.testFoo" {
+		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
 }
 
@@ -34,7 +33,7 @@ func TestFallBack(t *testing.T) {
 		panic("got error")
 	}
 	expect := 10
-	got := utils.FallBack(fail, 10)
+	got := FallBack(fail, 10)
 	if expect != got.(int) {
 		t.Errorf("expect %v got %v", expect, got)
 	}
@@ -44,8 +43,8 @@ func ExampleRegexNamedSubMatch() {
 	reg := regexp.MustCompile(`(?P<key>\d+.*)`)
 	str := "12345abcde"
 	groups := map[string]string{}
-	if err := utils.RegexNamedSubMatch(reg, str, groups); err != nil {
-		utils.Logger.Error("try to group match got error", zap.Error(err))
+	if err := RegexNamedSubMatch(reg, str, groups); err != nil {
+		Logger.Error("try to group match got error", zap.Error(err))
 	}
 
 	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
@@ -55,7 +54,7 @@ func TestRegexNamedSubMatch(t *testing.T) {
 	reg := regexp.MustCompile(`^(?P<time>.{23}) {0,}\| {0,}(?P<app>[^ ]+) {0,}\| {0,}(?P<level>[^ ]+) {0,}\| {0,}(?P<thread>[^ ]+) {0,}\| {0,}(?P<class>[^ ]+) {0,}\| {0,}(?P<line>\d+) {0,}([\|:] {0,}(?P<args>\{.*\})){0,1}([\|:] {0,}(?P<message>.*)){0,1}`)
 	str := "2018-04-02 02:02:10.928 | sh-datamining | INFO | http-nio-8080-exec-80 | com.pateo.qingcloud.gateway.core.zuul.filters.post.LogFilter | 74 | xxx"
 	submatchMap := map[string]string{}
-	if err := utils.RegexNamedSubMatch(reg, str, submatchMap); err != nil {
+	if err := RegexNamedSubMatch(reg, str, submatchMap); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
@@ -85,7 +84,7 @@ func ExampleFlattenMap() {
 			},
 		},
 	}
-	utils.FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
+	FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
 }
 
 func TestFlattenMap(t *testing.T) {
@@ -95,7 +94,7 @@ func TestFlattenMap(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	utils.FlattenMap(data, ".")
+	FlattenMap(data, ".")
 	if data["a"].(string) != "1" {
 		t.Fatalf("expect %v, got %v", "1", data["a"])
 	}
@@ -114,8 +113,8 @@ func TestFlattenMap(t *testing.T) {
 }
 
 func TestTriggerGC(t *testing.T) {
-	utils.TriggerGC()
-	utils.ForceGC()
+	TriggerGC()
+	ForceGC()
 }
 
 func TestTemplateWithMap(t *testing.T) {
@@ -126,7 +125,7 @@ func TestTemplateWithMap(t *testing.T) {
 		"k-3": 213.11,
 	}
 	want := `12341 + abc:213.11 22`
-	got := utils.TemplateWithMap(tpl, data)
+	got := TemplateWithMap(tpl, data)
 	if got != want {
 		t.Fatalf("want `%v`, got `%v`", want, got)
 	}
@@ -152,15 +151,19 @@ func TestURLMasking(t *testing.T) {
 			"https://12ijij:" + mask + "@123.1221.14/13",
 		},
 	} {
-		ret = utils.URLMasking(tc.input, mask)
+		ret = URLMasking(tc.input, mask)
 		if ret != tc.output {
 			t.Fatalf("expect %v, got %v", tc.output, ret)
 		}
 	}
 }
 
-func init() {
-	if err := utils.Logger.ChangeLevel("info"); err != nil {
-		utils.Logger.Panic("change level", zap.Error(err))
+func TestDirSize(t *testing.T) {
+	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
+	size, err := DirSize(".")
+	if err != nil {
+		t.Fatalf("%+v", err)
 	}
+	t.Logf("size: %v", size)
+	// t.Error()
 }

@@ -2,6 +2,8 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -65,25 +67,25 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 	}
 }
 
-// ForceGC force to run blocking manual gc.
-func ForceGC() {
+// ForceGCBlocking force to run blocking manual gc.
+func ForceGCBlocking() {
 	Logger.Info("force gc")
 	runtime.GC()
 	debug.FreeOSMemory()
 }
 
-// TriggerGC trigger GC unblocking
-func TriggerGC() {
+// ForceGCUnBlocking trigger GC unblocking
+func ForceGCUnBlocking() {
 	go func() {
 		ForceGC()
 	}()
 }
 
 var (
-	// ForceGCBlocking force to start gc blocking
-	ForceGCBlocking = ForceGC
-	// ForceGCUnBlocking force to start gc unblocking
-	ForceGCUnBlocking = TriggerGC
+	// ForceGC force to start gc blocking
+	ForceGC = ForceGCBlocking
+	// TriggerGC force to start gc unblocking
+	TriggerGC = ForceGCUnBlocking
 )
 
 var defaultTemplateWithMappReg = regexp.MustCompile(`(?sm)\$\{([^}]+)\}`)
@@ -127,4 +129,20 @@ var (
 // URLMasking masking password in url
 func URLMasking(url, mask string) string {
 	return urlMaskingRegexp.ReplaceAllString(url, `${1}`+mask+`${2}`)
+}
+
+// DirSize calculate directory size.
+// https://stackoverflow.com/a/32482941/2368737
+func DirSize(path string) (size int64, err error) {
+	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return err
+	})
+
+	return
 }

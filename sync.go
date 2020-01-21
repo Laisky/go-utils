@@ -86,10 +86,10 @@ func WithLaiskyRemoteLockTimeout(timeout time.Duration) LaiskyRemoteLockOptFunc 
 	}
 }
 
-type headerTransport struct {
-	base    http.RoundTripper
-	headers map[string]string
-}
+// type headerTransport struct {
+// 	base    http.RoundTripper
+// 	headers map[string]string
+// }
 
 // NewLaiskyRemoteLock create remote lock
 func NewLaiskyRemoteLock(api, token string, opts ...LaiskyRemoteLockOptFunc) (l *LaiskyRemoteLock, err error) {
@@ -224,6 +224,7 @@ func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMu
 			Logger.Error("renewal lock", zap.Error(err), zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
 			time.Sleep(1 * time.Second)
 			nRetry++
+			continue
 		}
 		nRetry = 0
 		Logger.Debug("success renewal lock", zap.String("lock_name", lockName))

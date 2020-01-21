@@ -27,8 +27,9 @@ var (
 	// IDFileNameReg journal id file name pattern
 	IDFileNameReg   = regexp.MustCompile(`^\d{8}_\d{8}\.ids(.gz)?$`)
 	fileGzSuffixReg = regexp.MustCompile(`\.gz$`)
-	layout          = "20060102"
-	layoutWithTZ    = "20060102-0700"
+
+	defaultFileNameTimeLayout       = "20060102"
+	defaultFileNameTimeLayoutWithTZ = "20060102-0700"
 )
 
 func isFileGZ(fname string) bool {
@@ -121,7 +122,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ 
 	// `latestxxxFName` means new buf file name now
 	now := utils.Clock.GetUTCNow()
 	if latestDataFName == "" {
-		latestDataFName = now.Format(layout) + "_00000001.buf"
+		latestDataFName = now.Format(defaultFileNameTimeLayout) + "_00000001.buf"
 		if isWithGZ {
 			latestDataFName += ".gz"
 		}
@@ -133,7 +134,7 @@ func PrepareNewBufFile(dirPath string, oldFsStat *BufFileStat, isScan, isWithGZ 
 
 	// generate new buf ids file name
 	if latestIDsFName == "" {
-		latestIDsFName = now.Format(layout) + "_00000001.ids"
+		latestIDsFName = now.Format(defaultFileNameTimeLayout) + "_00000001.ids"
 		if isWithGZ {
 			latestDataFName += ".gz"
 		}
@@ -181,18 +182,18 @@ func GenerateNewBufFName(now time.Time, oldFName string, isWithGZ bool) (string,
 	}
 	fts := finfo[0][:8]
 	fidx := finfo[0][9:]
-	fext := strings.TrimSuffix(finfo[1], ".gz")
-	if isWithGZ {
+	fext := finfo[1]
+	if isWithGZ && !strings.HasSuffix(fext, ".gz") {
 		fext += ".gz"
 	}
 
-	ft, err := time.Parse(layoutWithTZ, fts+"+0000")
+	ft, err := time.Parse(defaultFileNameTimeLayoutWithTZ, fts+"+0000")
 	if err != nil {
 		return oldFName, errors.Wrapf(err, "parse buf file name `%v` got error", oldFName)
 	}
 
 	if now.Sub(ft) > 24*time.Hour {
-		return now.Format(layout) + "_00000001." + fext, nil
+		return now.Format(defaultFileNameTimeLayout) + "_00000001." + fext, nil
 	}
 
 	idx, err := strconv.ParseInt(fidx, 10, 64)
