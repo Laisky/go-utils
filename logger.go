@@ -22,7 +22,7 @@ const (
 	SampleRateDenominator = 1000
 
 	defaultAlertPusherTimeout = 10 * time.Second
-	defaultAlertPusherBufSize = 1000
+	defaultAlertPusherBufSize = 20
 	defaultAlertHookLevel     = zapcore.ErrorLevel
 )
 
