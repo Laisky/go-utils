@@ -1,9 +1,13 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/Laisky/zap"
 )
@@ -165,5 +169,30 @@ func TestDirSize(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	t.Logf("size: %v", size)
+	// t.Error()
+}
+
+func TestAutoGC(t *testing.T) {
+	var err error
+	if err = Logger.ChangeLevel("debug"); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var fp *os.File
+	if fp, err = ioutil.TempFile("", "test-gc"); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	defer fp.Close()
+
+	if _, err = fp.WriteString("123456789"); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err = AutoGC(ctx, WithGCMemLimitFilePath(fp.Name())); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	<-ctx.Done()
 	// t.Error()
 }
