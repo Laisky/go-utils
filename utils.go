@@ -156,6 +156,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if memLimit, err = strconv.ParseUint(string(bytes.TrimSpace(memByte)), 10, 64); err != nil {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
+	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 
 	go func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Second)
