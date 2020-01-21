@@ -4,7 +4,7 @@ package utils
 import (
 	"bytes"
 	"context"
-	"github.com/coreos/etcd/pkg/fileutil"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/coreos/etcd/pkg/fileutil"
 
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
@@ -156,6 +158,9 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if memLimit, err = strconv.ParseUint(string(bytes.TrimSpace(memByte)), 10, 64); err != nil {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
+	if memLimit <= 0 {
+		return fmt.Errorf("mem limit should > 0, but got: %v", memLimit)
+	}
 	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 
 	go func(ctx context.Context) {
@@ -172,10 +177,11 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 				return
 			}
 			runtime.ReadMemStats(&m)
-			Logger.Debug("memory stat",
+			Logger.Debug("memo stat",
+				zap.Uint64("alloc", m.Alloc),
 				zap.Uint64("limit", memLimit),
 			)
-			if m.Alloc/m.TotalAlloc >= opt.memRatio {
+			if m.Alloc/memLimit >= opt.memRatio {
 				ForceGCBlocking()
 			}
 		}
