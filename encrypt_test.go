@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"fmt"
@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 )
 
 func TestGenerateToken(t *testing.T) {
-	j, err := utils.NewJWT([]byte("4738947328rh3ru23f32hf238f238fh28f"))
+	j, err := NewJWT([]byte("4738947328rh3ru23f32hf238f238fh28f"))
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -42,7 +41,7 @@ func (u *jwtUser) GetSecret() []byte {
 }
 
 func TestGenerateDivideToken(t *testing.T) {
-	j, err := utils.NewDivideJWT()
+	j, err := NewDivideJWT()
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -68,10 +67,10 @@ const (
 )
 
 func TestValidToken(t *testing.T) {
-	j, err := utils.NewJWT(
+	j, err := NewJWT(
 		[]byte("4738947328rh3ru23f32hf238f238fh28f"),
-		utils.WithJWTUserIDKey(defaultUserIDKey),
-		utils.WithJWTExpiresKey(defaultExpiresKey),
+		WithJWTUserIDKey(defaultUserIDKey),
+		WithJWTExpiresKey(defaultExpiresKey),
 	)
 	if err != nil {
 		t.Errorf("got error %+v", err)
@@ -151,9 +150,9 @@ func TestValidToken(t *testing.T) {
 }
 
 func TestValidDivideToken(t *testing.T) {
-	j, err := utils.NewDivideJWT(
-		utils.WithJWTUserIDKey(defaultUserIDKey),
-		utils.WithJWTExpiresKey(defaultExpiresKey),
+	j, err := NewDivideJWT(
+		WithJWTUserIDKey(defaultUserIDKey),
+		WithJWTExpiresKey(defaultExpiresKey),
 	)
 	if err != nil {
 		t.Errorf("got error %+v", err)
@@ -235,32 +234,32 @@ func TestValidDivideToken(t *testing.T) {
 
 func TestPassword(t *testing.T) {
 	password := []byte("1234567890")
-	hp, err := utils.GeneratePasswordHash(password)
+	hp, err := GeneratePasswordHash(password)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
 	t.Logf("got hashed password: %v", string(hp))
 
-	if !utils.ValidatePasswordHash(hp, password) {
+	if !ValidatePasswordHash(hp, password) {
 		t.Fatal("should be validate")
 	}
-	if utils.ValidatePasswordHash(hp, []byte("dj23fij2f32")) {
+	if ValidatePasswordHash(hp, []byte("dj23fij2f32")) {
 		t.Fatal("should not be validate")
 	}
 }
 
 func ExampleJWT() {
-	jwt, err := utils.NewJWT([]byte("your secret key"))
+	jwt, err := NewJWT([]byte("your secret key"))
 	if err != nil {
-		utils.Logger.Panic("try to init jwt got error", zap.Error(err))
+		Logger.Panic("try to init jwt got error", zap.Error(err))
 	}
 
 	// generate jwt token for user
 	// GenerateToken(userId string, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error)
 	token, err := jwt.GenerateToken("laisky", time.Now().Add(7*24*time.Hour), map[string]interface{}{"display_name": "Laisky"})
 	if err != nil {
-		utils.Logger.Error("try to generate jwt token got error", zap.Error(err))
+		Logger.Error("try to generate jwt token got error", zap.Error(err))
 		return
 	}
 	fmt.Println("got token:", token)
@@ -268,16 +267,16 @@ func ExampleJWT() {
 	// validate token
 	payload, err := jwt.Validate(token)
 	if err != nil {
-		utils.Logger.Error("token invalidate")
+		Logger.Error("token invalidate")
 		return
 	}
 	fmt.Printf("got payload from token: %+v\n", payload)
 }
 
 func ExampleDivideJWT() {
-	jwt, err := utils.NewDivideJWT()
+	jwt, err := NewDivideJWT()
 	if err != nil {
-		utils.Logger.Panic("try to init jwt got error", zap.Error(err))
+		Logger.Panic("try to init jwt got error", zap.Error(err))
 	}
 
 	// generate jwt token for user
@@ -285,7 +284,7 @@ func ExampleDivideJWT() {
 	u := &jwtUser{secret: []byte("secret for this user")}
 	token, err := jwt.GenerateToken(u, time.Now().Add(7*24*time.Hour), map[string]interface{}{"display_name": "Laisky"})
 	if err != nil {
-		utils.Logger.Error("try to generate jwt token got error", zap.Error(err))
+		Logger.Error("try to generate jwt token got error", zap.Error(err))
 		return
 	}
 	fmt.Println("got token:", token)
@@ -293,9 +292,9 @@ func ExampleDivideJWT() {
 	// validate token
 	payload, err := jwt.Validate(u, token)
 	if err != nil {
-		utils.Logger.Error("token invalidate")
+		Logger.Error("token invalidate")
 		// you can get the payload even the token is invalidate
-		utils.Logger.Info("got payload", zap.String("payload", fmt.Sprint(payload)))
+		Logger.Info("got payload", zap.String("payload", fmt.Sprint(payload)))
 		return
 	}
 	fmt.Printf("got payload from token: %+v\n", payload)
@@ -304,46 +303,87 @@ func ExampleDivideJWT() {
 func ExampleGeneratePasswordHash() {
 	// generate hashed password
 	rawPassword := []byte("1234567890")
-	hashedPassword, err := utils.GeneratePasswordHash(rawPassword)
+	hashedPassword, err := GeneratePasswordHash(rawPassword)
 	if err != nil {
-		utils.Logger.Error("try to generate password got error", zap.Error(err))
+		Logger.Error("try to generate password got error", zap.Error(err))
 		return
 	}
 	fmt.Printf("got new hashed pasword: %v\n", string(hashedPassword))
 
 	// validate passowrd
-	if !utils.ValidatePasswordHash(hashedPassword, rawPassword) {
-		utils.Logger.Error("password invalidate", zap.Error(err))
+	if !ValidatePasswordHash(hashedPassword, rawPassword) {
+		Logger.Error("password invalidate", zap.Error(err))
 		return
 	}
 }
 
 func BenchmarkGeneratePasswordHash(b *testing.B) {
 	pw := []byte("28jijf23f92of92o3jf23fjo2")
-	ph, err := utils.GeneratePasswordHash(pw)
+	ph, err := GeneratePasswordHash(pw)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
-	phw, err := utils.GeneratePasswordHash([]byte("j23foj9foj29fj23fj"))
+	phw, err := GeneratePasswordHash([]byte("j23foj9foj29fj23fj"))
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 
 	b.Run("generate", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err = utils.GeneratePasswordHash(pw); err != nil {
+			if _, err = GeneratePasswordHash(pw); err != nil {
 				b.Fatalf("got error: %+v", err)
 			}
 		}
 	})
 	b.Run("validate", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.ValidatePasswordHash(ph, pw)
+			ValidatePasswordHash(ph, pw)
 		}
 	})
 	b.Run("invalidate", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.ValidatePasswordHash(phw, pw)
+			ValidatePasswordHash(phw, pw)
 		}
 	})
+}
+
+func TestHashSHA128String(t *testing.T) {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashSHA128String(val)
+	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566da39a3ee5e6b4b0d3255bfef95601890afd80709" {
+		t.Fatalf("got: %v", got)
+	}
+}
+func ExampleHashSHA128String() {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashSHA128String(val)
+	Logger.Info("hash", zap.String("got", got))
+}
+
+func TestHashSHA256String(t *testing.T) {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashSHA256String(val)
+	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		t.Fatalf("got: %v", got)
+	}
+}
+
+func ExampleHashSHA256String() {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashSHA256String(val)
+	Logger.Info("hash", zap.String("got", got))
+}
+
+func TestHashXxhashString(t *testing.T) {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashXxhashString(val)
+	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566ef46db3751d8e999" {
+		t.Fatalf("got: %v", got)
+	}
+}
+
+func ExampleHashXxhashString() {
+	val := "dfij3ifj2jjl2jelkjdkwef"
+	got := HashXxhashString(val)
+	Logger.Info("hash", zap.String("got", got))
 }

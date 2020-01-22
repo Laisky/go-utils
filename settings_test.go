@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -19,17 +18,17 @@ func ExampleSettings() {
 	pflag.Parse()
 
 	// bind pflags to settings
-	if err := utils.Settings.BindPFlags(pflag.CommandLine); err != nil {
-		utils.Logger.Panic("parse command")
+	if err := Settings.BindPFlags(pflag.CommandLine); err != nil {
+		Logger.Panic("parse command")
 	}
 
 	// use
-	utils.Settings.Get("xxx")
-	utils.Settings.GetString("xxx")
-	utils.Settings.GetStringSlice("xxx")
-	utils.Settings.GetBool("xxx")
+	Settings.Get("xxx")
+	Settings.GetString("xxx")
+	Settings.GetStringSlice("xxx")
+	Settings.GetBool("xxx")
 
-	utils.Settings.Set("name", "val")
+	Settings.Set("name", "val")
 }
 
 func TestSettings(t *testing.T) {
@@ -65,7 +64,7 @@ key4:
 	}
 
 	t.Logf("load settings from: %v", dirName)
-	if err = utils.Settings.Setup(dirName); err != nil {
+	if err = Settings.Setup(dirName); err != nil {
 		t.Fatalf("setup settings got error: %+v", err)
 	}
 
@@ -87,13 +86,13 @@ key4:
 	}
 	var got string
 	for k, expect := range cases {
-		got = utils.Settings.GetString(k)
+		got = Settings.GetString(k)
 		if got != expect {
 			t.Errorf("load %v, expect %v, got %v", k, expect, got)
 		}
 	}
 
-	mr := utils.Settings.GetStringMapString("key4")
+	mr := Settings.GetStringMapString("key4")
 	if mr["k4.1"] != "12" ||
 		mr["k4.2"] != "qq" ||
 		mr["k4.3"] != "123 : 123" {
@@ -128,13 +127,13 @@ a:
 
 	// jb, err := json.Marshal(fakedata)
 	// if err != nil {
-	// 	utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	// 	Logger.Panic("try to marshal fake data got error", zap.Error(err))
 	// }
 	port := 24953
 	addr := fmt.Sprintf("http://localhost:%v", port)
 	go RunMockConfigSrv(port, fakedata)
 	time.Sleep(100 * time.Millisecond)
-	if err := utils.Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
+	if err := Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 	for k, vi := range map[string]interface{}{
@@ -145,23 +144,23 @@ a:
 	} {
 		switch val := vi.(type) {
 		case string:
-			if utils.Settings.GetString(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
+			if Settings.GetString(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
 			}
 		case int:
-			if utils.Settings.GetInt(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
+			if Settings.GetInt(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
 			}
 		case []string:
-			vs := utils.Settings.GetStringSlice(k)
+			vs := Settings.GetStringSlice(k)
 			if len(vs) != 2 ||
 				vs[0] != val[0] ||
 				vs[1] != val[1] {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
 			}
 		case bool:
-			if utils.Settings.GetBool(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, utils.Settings.Get(k))
+			if Settings.GetBool(k) != val {
+				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
 			}
 		default:
 			t.Fatal("unknown type")
@@ -172,12 +171,12 @@ a:
 func BenchmarkSettings(b *testing.B) {
 	b.Run("set", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Settings.Set(utils.RandomStringWithLength(20), utils.RandomStringWithLength(20))
+			Settings.Set(RandomStringWithLength(20), RandomStringWithLength(20))
 		}
 	})
 	b.Run("get", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Settings.Get(utils.RandomStringWithLength(20))
+			Settings.Get(RandomStringWithLength(20))
 		}
 	})
 }

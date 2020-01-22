@@ -9,6 +9,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 )
 
@@ -35,56 +36,66 @@ func NewMetricOption() *MetricOption {
 }
 
 // MetricsOptFunc option of metrics
-type MetricsOptFunc func(*MetricOption)
+type MetricsOptFunc func(*MetricOption) error
 
 // WithMetricAddr set option addr
 func WithMetricAddr(addr string) MetricsOptFunc {
-	return func(opt *MetricOption) {
+	return func(opt *MetricOption) error {
 		opt.addr = addr
+		return nil
 	}
 }
 
 // WithMetricGraceWait set wating time after graceful shutdown
 func WithMetricGraceWait(wait time.Duration) MetricsOptFunc {
-	return func(opt *MetricOption) {
+	return func(opt *MetricOption) error {
 		opt.graceWait = wait
+		return nil
 	}
 }
 
 // WithPprofPath set option pprofPath
 func WithPprofPath(path string) MetricsOptFunc {
-	return func(opt *MetricOption) {
+	return func(opt *MetricOption) error {
 		opt.pprofPath = path
+		return nil
 	}
 }
 
 // EnableMetric enable metrics for exsits gin server
-func EnableMetric(srv *gin.Engine, options ...MetricsOptFunc) {
+func EnableMetric(srv *gin.Engine, options ...MetricsOptFunc) (err error) {
 	opt := NewMetricOption()
 	for _, optf := range options {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return errors.Wrap(err, "set option")
+		}
 	}
+
 	pprof.Register(srv, opt.pprofPath)
 	BindPrometheus(srv)
+	return nil
 }
 
-// StartHTTPMetricSrv start new gin server with metrics api
-func StartHTTPMetricSrv(ctx context.Context, options ...MetricsOptFunc) {
+// GetHTTPMetricSrv start new gin server with metrics api
+func GetHTTPMetricSrv(ctx context.Context, options ...MetricsOptFunc) (srv *http.Server, err error) {
 	opt := NewMetricOption()
 	for _, optf := range options {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	srv := &http.Server{
+	srv = &http.Server{
 		Addr:    opt.addr,
 		Handler: router,
 	}
 
 	go func() {
 		<-ctx.Done()
+		utils.Logger.Info("got signal to shutdown metric server")
 		timingCtx, cancel := context.WithTimeout(context.Background(), opt.graceWait)
 		defer cancel()
 		if err := srv.Shutdown(timingCtx); err != nil {
@@ -92,9 +103,11 @@ func StartHTTPMetricSrv(ctx context.Context, options ...MetricsOptFunc) {
 		}
 	}()
 
-	EnableMetric(router, options...)
-	utils.Logger.Info("listening on http", zap.String("http-addr", opt.addr))
-	utils.Logger.Info("server exit", zap.Error(srv.ListenAndServe()))
+	if err = EnableMetric(router, options...); err != nil {
+		return nil, errors.Wrap(err, "enable metric")
+	}
+
+	return
 }
 
 // BindPrometheus bind prometheus endpoint.

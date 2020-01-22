@@ -80,7 +80,7 @@ func NewDataEncoder(fp *os.File, isCompress bool) (enc *DataEncoder, err error) 
 			fp,
 			utils.WithCompressBufSizeByte(BufSize),
 			utils.WithCompressLevel(gzip.BestSpeed),
-			// utils.WithPGzipNBlocks(defaultCompressNBlocks),
+			utils.WithPGzipNBlocks(defaultCompressNBlocks),
 		); err != nil {
 			return nil, err
 		}

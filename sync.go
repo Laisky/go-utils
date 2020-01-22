@@ -77,12 +77,13 @@ type LaiskyRemoteLock struct {
 }
 
 // LaiskyRemoteLockOptFunc laisky's lock option
-type LaiskyRemoteLockOptFunc func(*LaiskyRemoteLock)
+type LaiskyRemoteLockOptFunc func(*LaiskyRemoteLock) error
 
 // WithLaiskyRemoteLockTimeout set http client timeout
 func WithLaiskyRemoteLockTimeout(timeout time.Duration) LaiskyRemoteLockOptFunc {
-	return func(opt *LaiskyRemoteLock) {
+	return func(opt *LaiskyRemoteLock) error {
 		opt.timeout = timeout
+		return nil
 	}
 }
 
@@ -108,7 +109,9 @@ func NewLaiskyRemoteLock(api, token string, opts ...LaiskyRemoteLockOptFunc) (l 
 		return nil, fmt.Errorf("unknown typo of %v, should be string", defaultLaiskyRemoteLockTokenUserKey)
 	}
 	for _, optf := range opts {
-		optf(l)
+		if err = optf(l); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 
 	l.cli = graphql.NewClient(
@@ -134,42 +137,49 @@ type acquireLockOption struct {
 }
 
 // AcquireLockOptFunc options for acquire lock
-type AcquireLockOptFunc func(*acquireLockOption)
+type AcquireLockOptFunc func(*acquireLockOption) error
 
 // WithAcquireLockDuration set how long to extend lock
 func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
-	if duration <= 0 {
-		Logger.Panic("duration should greater than 0", zap.Duration("duration", duration))
-	}
-	return func(opt *acquireLockOption) {
+	return func(opt *acquireLockOption) error {
+		if duration <= 0 {
+			return fmt.Errorf("duration should greater than 0, got %v", duration)
+		}
+
 		opt.duration = duration
+		return nil
 	}
 }
 
 // WithAcquireLockRenewalInterval set how ofter to renewal lock
 func WithAcquireLockRenewalInterval(renewalInterval time.Duration) AcquireLockOptFunc {
-	if renewalInterval < 100*time.Millisecond {
-		Logger.Panic("renewalInterval must greater than 100ms", zap.Duration("renewalInterval", renewalInterval))
-	}
-	return func(opt *acquireLockOption) {
+	return func(opt *acquireLockOption) error {
+		if renewalInterval < 100*time.Millisecond {
+			return fmt.Errorf("renewalInterval must greater than 100ms, got %v", renewalInterval)
+		}
+
 		opt.renewalInterval = renewalInterval
+		return nil
 	}
 }
 
 // WithAcquireLockIsRenewal set whether to auto renewal lock
 func WithAcquireLockIsRenewal(isRenewal bool) AcquireLockOptFunc {
-	return func(opt *acquireLockOption) {
+	return func(opt *acquireLockOption) error {
 		opt.isRenewal = isRenewal
+		return nil
 	}
 }
 
 // WithAcquireLockMaxRetry set max retry to acquire lock
 func WithAcquireLockMaxRetry(maxRetry int) AcquireLockOptFunc {
-	if maxRetry < 0 {
-		Logger.Panic("maxRetry must greater than 0", zap.Int("maxRetry", maxRetry))
-	}
-	return func(opt *acquireLockOption) {
+	return func(opt *acquireLockOption) error {
+		if maxRetry < 0 {
+			return fmt.Errorf("maxRetry must greater than 0, got %v", maxRetry)
+		}
+
 		opt.maxRetry = maxRetry
+		return nil
 	}
 }
 
@@ -184,7 +194,9 @@ func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, opt
 		maxRetry:        defaultLaiskyRemoteLockMaxRetry,
 	}
 	for _, optf := range opts {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return ok, errors.Wrap(err, "set option")
+		}
 	}
 
 	var (

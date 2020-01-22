@@ -2,6 +2,10 @@
 package utils
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,12 +14,21 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/coreos/etcd/pkg/fileutil"
+
+	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+const (
+	defaultCgroupMemLimitPath = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+	defaultGCMemRatio         = uint64(85)
+)
 
 // CtxKeyT type of context key
 type CtxKeyT struct{}
@@ -79,6 +92,110 @@ func ForceGCUnBlocking() {
 	go func() {
 		ForceGC()
 	}()
+}
+
+type gcOption struct {
+	memRatio         uint64
+	memLimitFilePath string
+}
+
+// GcOptFunc option for GC utils
+type GcOptFunc func(*gcOption) error
+
+// WithGCMemRatio set mem ratio trigger for GC
+func WithGCMemRatio(ratio int) GcOptFunc {
+	return func(opt *gcOption) error {
+		if ratio <= 0 {
+			return fmt.Errorf("ratio must > 0, got %v", ratio)
+		}
+		if ratio > 100 {
+			return fmt.Errorf("ratio must <= 0, got %v", ratio)
+		}
+
+		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
+		opt.memRatio = uint64(ratio)
+		return nil
+	}
+}
+
+// WithGCMemLimitFilePath set memory limit file
+func WithGCMemLimitFilePath(path string) GcOptFunc {
+	return func(opt *gcOption) error {
+		if !fileutil.Exist(path) {
+			return fmt.Errorf("file path not exists, got %v", path)
+		}
+
+		Logger.Debug("set memLimitFilePath", zap.String("file", path))
+		opt.memLimitFilePath = path
+		return nil
+	}
+}
+
+// AutoGC auto trigger GC when memory usage exceeds the custom ration
+func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
+	opt := &gcOption{
+		memRatio:         defaultGCMemRatio,
+		memLimitFilePath: defaultCgroupMemLimitPath,
+	}
+	for _, optf := range opts {
+		if err = optf(opt); err != nil {
+			return errors.Wrap(err, "set option")
+		}
+	}
+
+	var (
+		fp       *os.File
+		memByte  []byte
+		memLimit uint64
+	)
+	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
+		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
+	}
+	defer fp.Close()
+	if memByte, err = ioutil.ReadAll(fp); err != nil {
+		return errors.Wrap(err, "read cgroup mem limit file")
+	}
+	if err = fp.Close(); err != nil {
+		Logger.Error("close cgroup mem limit file", zap.Error(err), zap.String("file", opt.memLimitFilePath))
+	}
+
+	if memLimit, err = strconv.ParseUint(string(bytes.TrimSpace(memByte)), 10, 64); err != nil {
+		return errors.Wrap(err, "parse cgroup memory limit")
+	}
+	if memLimit == 0 {
+		return fmt.Errorf("mem limit should > 0, but got: %v", memLimit)
+	}
+	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
+
+	go func(ctx context.Context) {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		var (
+			m     runtime.MemStats
+			ratio uint64
+		)
+		for {
+			select {
+			case <-ticker.C:
+			case <-ctx.Done():
+				return
+			}
+			runtime.ReadMemStats(&m)
+			ratio = (m.Alloc * 100) / memLimit
+			Logger.Debug("mem stat",
+				zap.Uint64("mem", m.Alloc),
+				zap.Uint64("limit_mem", memLimit),
+				zap.Uint64("ratio", ratio),
+				zap.Uint64("limit_ratio", opt.memRatio),
+			)
+			if ratio >= opt.memRatio {
+				ForceGCBlocking()
+			}
+		}
+	}(ctx)
+
+	return nil
 }
 
 var (

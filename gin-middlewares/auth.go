@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Laisky/zap"
@@ -25,15 +26,17 @@ const (
 )
 
 // AuthOptFunc auth option
-type AuthOptFunc func(*Auth)
+type AuthOptFunc func(*Auth) error
 
 // WithAuthCookieExpireDuration set auth cookie expiration
 func WithAuthCookieExpireDuration(d time.Duration) AuthOptFunc {
-	if d < 0 {
-		utils.Logger.Panic("duration should not less than 0", zap.Duration("duration", d))
-	}
-	return func(opt *Auth) {
+	return func(opt *Auth) error {
+		if d < 0 {
+			return fmt.Errorf("duration should not less than 0, got %v", d)
+		}
+
 		opt.jwtTokenExpireDuration = d
+		return nil
 	}
 }
 
@@ -56,7 +59,9 @@ func NewAuth(secret []byte, opts ...AuthOptFunc) (a *Auth, err error) {
 		jwt:                    j,
 	}
 	for _, optf := range opts {
-		optf(a)
+		if err = optf(a); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 	return a, nil
 }
@@ -92,47 +97,53 @@ type authCookieOption struct {
 }
 
 // AuthCookieOptFunc auth cookie options
-type AuthCookieOptFunc func(*authCookieOption)
+type AuthCookieOptFunc func(*authCookieOption) error
 
 // WithAuthCookieMaxAge set auth cookie's maxAge
 func WithAuthCookieMaxAge(maxAge int) AuthCookieOptFunc {
-	if maxAge < 0 {
-		utils.Logger.Panic("maxAge should not less than 0", zap.Int("maxAge", maxAge))
-	}
-	return func(opt *authCookieOption) {
+	return func(opt *authCookieOption) error {
+		if maxAge < 0 {
+			return fmt.Errorf("maxAge should not less than 0, got %v", maxAge)
+		}
+
 		opt.maxAge = maxAge
+		return nil
 	}
 }
 
 // WithAuthCookiePath set auth cookie's path
 func WithAuthCookiePath(path string) AuthCookieOptFunc {
 	utils.Logger.Debug("set auth cookie path", zap.String("path", path))
-	return func(opt *authCookieOption) {
+	return func(opt *authCookieOption) error {
 		opt.path = path
+		return nil
 	}
 }
 
 // WithAuthCookieSecure set auth cookie's secure
 func WithAuthCookieSecure(secure bool) AuthCookieOptFunc {
 	utils.Logger.Debug("set auth cookie secure", zap.Bool("secure", secure))
-	return func(opt *authCookieOption) {
+	return func(opt *authCookieOption) error {
 		opt.secure = secure
+		return nil
 	}
 }
 
 // WithAuthCookieHTTPOnly set auth cookie's HTTPOnly
 func WithAuthCookieHTTPOnly(httpOnly bool) AuthCookieOptFunc {
 	utils.Logger.Debug("set auth cookie httpOnly", zap.Bool("httpOnly", httpOnly))
-	return func(opt *authCookieOption) {
+	return func(opt *authCookieOption) error {
 		opt.httpOnly = httpOnly
+		return nil
 	}
 }
 
 // WithAuthCookieHost set auth cookie's host
 func WithAuthCookieHost(host string) AuthCookieOptFunc {
 	utils.Logger.Debug("set auth cookie host", zap.String("host", host))
-	return func(opt *authCookieOption) {
+	return func(opt *authCookieOption) error {
 		opt.host = host
+		return nil
 	}
 }
 
@@ -149,7 +160,9 @@ func (a *Auth) SetLoginCookie(ctx context.Context, user UserItf, opts ...AuthCoo
 		host:     ctx2.Request.Host,
 	}
 	for _, optf := range opts {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return errors.Wrap(err, "set option")
+		}
 	}
 
 	var token string
