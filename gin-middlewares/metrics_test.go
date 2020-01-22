@@ -1,14 +1,13 @@
-package middlewares_test
+package middlewares
 
 import (
 	"context"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-
-	middlewares "github.com/Laisky/go-utils/gin-middlewares"
 )
 
 type urlCase struct {
@@ -20,12 +19,24 @@ func TestMetricsSrv(t *testing.T) {
 	defer cancel()
 	addr := "127.0.0.1:48192"
 
-	go middlewares.StartHTTPMetricSrv(
+	srv, err := GetHTTPMetricSrv(
 		ctx,
-		middlewares.WithMetricAddr(addr),
-		middlewares.WithPprofPath("/pprof"),
-		middlewares.WithMetricGraceWait(1*time.Second),
+		WithMetricAddr(addr),
+		WithPprofPath("/pprof"),
+		WithMetricGraceWait(1*time.Second),
 	)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := srv.ListenAndServe(); err != nil {
+			t.Logf("%+v", err)
+		}
+	}()
 	time.Sleep(1 * time.Second) // wait server start
 
 	for _, tcase := range []*urlCase{
@@ -53,4 +64,6 @@ func TestMetricsSrv(t *testing.T) {
 		}
 	}
 
+	cancel()
+	wg.Wait()
 }

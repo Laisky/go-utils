@@ -100,32 +100,34 @@ type gcOption struct {
 }
 
 // GcOptFunc option for GC utils
-type GcOptFunc func(*gcOption)
+type GcOptFunc func(*gcOption) error
 
 // WithGCMemRatio set mem ratio trigger for GC
 func WithGCMemRatio(ratio int) GcOptFunc {
-	if ratio <= 0 {
-		Logger.Panic("ratio must > 0", zap.Int("ratio", ratio))
-	}
-	if ratio > 100 {
-		Logger.Panic("ratio must <= 0", zap.Int("ratio", ratio))
-	}
+	return func(opt *gcOption) error {
+		if ratio <= 0 {
+			return fmt.Errorf("ratio must > 0, got %v", ratio)
+		}
+		if ratio > 100 {
+			return fmt.Errorf("ratio must <= 0, got %v", ratio)
+		}
 
-	return func(opt *gcOption) {
 		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
 		opt.memRatio = uint64(ratio)
+		return nil
 	}
 }
 
 // WithGCMemLimitFilePath set memory limit file
 func WithGCMemLimitFilePath(path string) GcOptFunc {
-	if !fileutil.Exist(path) {
-		Logger.Panic("file path not exists", zap.String("file", path))
-	}
+	return func(opt *gcOption) error {
+		if !fileutil.Exist(path) {
+			return fmt.Errorf("file path not exists, got %v", path)
+		}
 
-	return func(opt *gcOption) {
 		Logger.Debug("set memLimitFilePath", zap.String("file", path))
 		opt.memLimitFilePath = path
+		return nil
 	}
 }
 
@@ -136,7 +138,9 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 		memLimitFilePath: defaultCgroupMemLimitPath,
 	}
 	for _, optf := range opts {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return errors.Wrap(err, "set option")
+		}
 	}
 
 	var (
@@ -158,7 +162,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if memLimit, err = strconv.ParseUint(string(bytes.TrimSpace(memByte)), 10, 64); err != nil {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
-	if memLimit <= 0 {
+	if memLimit == 0 {
 		return fmt.Errorf("mem limit should > 0, but got: %v", memLimit)
 	}
 	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))

@@ -21,6 +21,7 @@ package utils
 // ```
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	oj "encoding/json"
@@ -60,46 +61,52 @@ type jwtOption struct {
 }
 
 // JWTOptFunc jwt option
-type JWTOptFunc func(*jwtOption)
+type JWTOptFunc func(*jwtOption) error
 
 // WithJWTSignMethod set jwt sign method
 func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
-	if method == nil {
-		Logger.Panic("method should not be nil")
-	}
-	return func(opt *jwtOption) {
+	return func(opt *jwtOption) error {
+		if method == nil {
+			return fmt.Errorf("method should not be nil")
+		}
+
 		opt.signMethod = method
+		return nil
 	}
 }
 
 // WithJWTUserIDKey set jwt user id key in payload
 func WithJWTUserIDKey(userIDKey string) JWTOptFunc {
-	if userIDKey == "" {
-		Logger.Panic("userIDKey should not be empty")
-	}
-	return func(opt *jwtOption) {
+	return func(opt *jwtOption) error {
+		if userIDKey == "" {
+			return fmt.Errorf("userIDKey should not be empty")
+		}
+
 		opt.userIDKey = userIDKey
 		if opt.expiresKey == opt.userIDKey {
-			Logger.Panic("expiresKey should not equal to userIDKey")
+			return fmt.Errorf("expiresKey should not equal to userIDKey")
 		}
+		return nil
 	}
 }
 
 // WithJWTExpiresKey set jwt expires key in payload
 func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
-	if expiresKey == "" {
-		Logger.Panic("expiresKey should not be empty")
-	}
-	return func(opt *jwtOption) {
+	return func(opt *jwtOption) error {
+		if expiresKey == "" {
+			return fmt.Errorf("expiresKey should not be empty")
+		}
+
 		opt.expiresKey = expiresKey
 		if opt.expiresKey == opt.userIDKey {
-			Logger.Panic("expiresKey should not equal to userIDKey")
+			return fmt.Errorf("expiresKey should not equal to userIDKey")
 		}
+		return nil
 	}
 }
 
 // NewJWT create new JWT
-func NewJWT(secret []byte, opts ...JWTOptFunc) (*JWT, error) {
+func NewJWT(secret []byte, opts ...JWTOptFunc) (j *JWT, err error) {
 	if len(secret) == 0 {
 		return nil, errors.New("secret should not be empty")
 	}
@@ -109,14 +116,17 @@ func NewJWT(secret []byte, opts ...JWTOptFunc) (*JWT, error) {
 		expiresKey: defaultJWTExpiresKey,
 	}
 	for _, optf := range opts {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 
 	jwt.TimeFunc = Clock.GetUTCNow
-	return &JWT{
+	j = &JWT{
 		jwtOption: opt,
 		secret:    secret,
-	}, nil
+	}
+	return
 }
 
 // GetSignMethod get jwt sign method
@@ -248,20 +258,23 @@ type JWTUserItf interface {
 }
 
 // NewDivideJWT create new JWT
-func NewDivideJWT(opts ...JWTOptFunc) (*DivideJWT, error) {
+func NewDivideJWT(opts ...JWTOptFunc) (j *DivideJWT, err error) {
 	opt := &jwtOption{
 		signMethod: defaultJWTSignMethod,
 		userIDKey:  defaultJWTUserIDKey,
 		expiresKey: defaultJWTExpiresKey,
 	}
 	for _, optf := range opts {
-		optf(opt)
+		if err = optf(opt); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 
 	jwt.TimeFunc = Clock.GetUTCNow
-	return &DivideJWT{
+	j = &DivideJWT{
 		jwtOption: opt,
-	}, nil
+	}
+	return
 }
 
 // GetSignMethod get jwt sign method
@@ -356,8 +369,14 @@ func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapC
 
 var (
 	xxhasher     = xxhash.New()
+	sha128Hasher = sha1.New()
 	sha256Hasher = sha256.New()
 )
+
+// HashSHA128String calculate string's hash by sha256
+func HashSHA128String(val string) string {
+	return hex.EncodeToString(sha128Hasher.Sum([]byte(val)))
+}
 
 // HashSHA256String calculate string's hash by sha256
 func HashSHA256String(val string) string {

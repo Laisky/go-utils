@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"fmt"
@@ -8,12 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
-	jsoniter "github.com/json-iterator/go"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func ExampleConfigSrv() {
 	var (
@@ -23,7 +19,7 @@ func ExampleConfigSrv() {
 		label   = "master"
 	)
 
-	c := utils.NewConfigSrv(url, app, profile, label)
+	c := NewConfigSrv(url, app, profile, label)
 	c.Get("management.context-path")
 	c.GetString("management.context-path")
 	c.GetBool("endpoints.health.sensitive")
@@ -57,16 +53,16 @@ func RunMockConfigSrv(port int, fakadata interface{}) {
 
 	// run mock config-server
 	addr := fmt.Sprintf("localhost:%v", port)
-	utils.Logger.Debug("run config-server", zap.String("addr", addr))
+	Logger.Debug("run config-server", zap.String("addr", addr))
 	if err := httpsrv.Run(addr); err != nil {
-		utils.Logger.Panic("try to run server got error", zap.Error(err))
+		Logger.Panic("try to run server got error", zap.Error(err))
 	}
 }
 
 func TestConfigSrv(t *testing.T) {
 	// jb, err := json.Marshal(fakeConfigSrvData)
 	// if err != nil {
-	// 	utils.Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	// 	Logger.Panic("try to marshal fake data got error", zap.Error(err))
 	// }
 
 	port := 24951
@@ -81,7 +77,7 @@ func TestConfigSrv(t *testing.T) {
 		name    = "app"
 	)
 
-	c := utils.NewConfigSrv(addr, app, profile, label)
+	c := NewConfigSrv(addr, app, profile, label)
 	if err := c.Fetch(); err != nil {
 		t.Fatalf("init ConfigSrv got error: %+v", err)
 	}

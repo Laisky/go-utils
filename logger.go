@@ -231,6 +231,9 @@ func WithAlertHookLevel(level zapcore.Level) AlertHookOptFunc {
 		// hook with debug will cause infinite recursive
 		Logger.Panic("level should higher than debug")
 	}
+	if level.Enabled(zap.WarnLevel) {
+		Logger.Warn("level is better higher than warn")
+	}
 
 	return func(a *alertHookOption) {
 		a.level = level

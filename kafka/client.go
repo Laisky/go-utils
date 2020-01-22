@@ -26,26 +26,29 @@ type commitCheckOption struct {
 }
 
 // CommitFilterOptFunc option for CommitFilter
-type CommitFilterOptFunc func(*commitCheckOption)
+type CommitFilterOptFunc func(*commitCheckOption) error
 
 // WithCommitFilterCheckInterval set commit check interval
 func WithCommitFilterCheckInterval(interval time.Duration) CommitFilterOptFunc {
-	return func(opt *commitCheckOption) {
+	return func(opt *commitCheckOption) error {
 		opt.commitCheckInterval = interval
+		return nil
 	}
 }
 
 // WithCommitFilterCheckNum set commit check num
 func WithCommitFilterCheckNum(num int) CommitFilterOptFunc {
-	return func(opt *commitCheckOption) {
+	return func(opt *commitCheckOption) error {
 		opt.commitCheckNum = num
+		return nil
 	}
 }
 
 // WithCommitFilterCheckChanSize set commit check channel's size
 func WithCommitFilterCheckChanSize(size int) CommitFilterOptFunc {
-	return func(opt *commitCheckOption) {
+	return func(opt *commitCheckOption) error {
 		opt.commitCheckChanSize = size
+		return nil
 	}
 }
 
@@ -75,7 +78,7 @@ type KafkaCli struct {
 }
 
 // NewKafkaCliWithGroupID create new kafka consumer
-func NewKafkaCliWithGroupID(ctx context.Context, cfg *KafkaCliCfg, opts ...CommitFilterOptFunc) (*KafkaCli, error) {
+func NewKafkaCliWithGroupID(ctx context.Context, cfg *KafkaCliCfg, opts ...CommitFilterOptFunc) (k *KafkaCli, err error) {
 	utils.Logger.Debug("NewKafkaCliWithGroupID",
 		zap.Strings("brokers", cfg.Brokers),
 		zap.Strings("topics", cfg.Topics),
@@ -93,10 +96,13 @@ func NewKafkaCliWithGroupID(ctx context.Context, cfg *KafkaCliCfg, opts ...Commi
 	}
 
 	// new commit filter
-	cf := NewCommitFilter(ctx, cfg.KMsgPool, opts...)
+	var cf *CommitFilter
+	if cf, err = NewCommitFilter(ctx, cfg.KMsgPool, opts...); err != nil {
+		return nil, errors.Wrap(err, "new CommitFilter")
+	}
 
 	// new KafkaCli
-	k := &KafkaCli{
+	k = &KafkaCli{
 		KafkaCliCfg: cfg,
 		cli:         consumer,
 		stopChan:    make(chan struct{}),

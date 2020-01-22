@@ -3,9 +3,9 @@ package utils
 import (
 	"bufio"
 	"compress/gzip"
+	"fmt"
 	"io"
 
-	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
 	"github.com/pkg/errors"
 )
@@ -34,7 +34,7 @@ type compressOption struct {
 }
 
 // CompressOptFunc options for compressor
-type CompressOptFunc func(*compressOption)
+type CompressOptFunc func(*compressOption) error
 
 // GZCompressor compress by gz with buf
 type GZCompressor struct {
@@ -46,19 +46,21 @@ type GZCompressor struct {
 
 // WithCompressBufSizeByte set compressor buf size
 func WithCompressBufSizeByte(n int) CompressOptFunc {
-	if n < 0 {
-		Logger.Panic("`BufSizeByte` should great than or equal to 0")
-	}
+	return func(opt *compressOption) error {
+		if n < 0 {
+			return fmt.Errorf("`BufSizeByte` should great than or equal to 0")
+		}
 
-	return func(opt *compressOption) {
 		opt.bufSizeByte = n
+		return nil
 	}
 }
 
 // WithCompressLevel set compressor compress level
 func WithCompressLevel(n int) CompressOptFunc {
-	return func(opt *compressOption) {
+	return func(opt *compressOption) error {
 		opt.level = n
+		return nil
 	}
 }
 
@@ -69,7 +71,9 @@ func NewGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *GZCompressor
 		bufSizeByte: defaultCompressBufSizeByte,
 	}
 	for _, of := range opts {
-		of(opt)
+		if err = of(opt); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 	c = &GZCompressor{
 		writer:         writer,
@@ -124,21 +128,25 @@ type PGZCompressor struct {
 
 // WithPGzipNBlocks set compressor blocks
 func WithPGzipNBlocks(nBlock int) CompressOptFunc {
-	if nBlock < 0 {
-		Logger.Panic("nBlock size must greater than 0", zap.Int("nBlock", nBlock))
-	}
-	return func(opt *compressOption) {
+	return func(opt *compressOption) error {
+		if nBlock < 0 {
+			return fmt.Errorf("nBlock size must greater than 0, got %v", nBlock)
+		}
+
 		opt.nBlock = nBlock
+		return nil
 	}
 }
 
 // WithPGzipBlockSize set compressor blocks
 func WithPGzipBlockSize(bytes int) CompressOptFunc {
-	if bytes <= 0 {
-		Logger.Panic("block size must greater than 0", zap.Int("bytes", bytes))
-	}
-	return func(opt *compressOption) {
+	return func(opt *compressOption) error {
+		if bytes <= 0 {
+			return fmt.Errorf("block size must greater than 0, got %v", bytes)
+		}
+
 		opt.blockSizeByte = bytes
+		return nil
 	}
 }
 
@@ -151,7 +159,9 @@ func NewPGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *PGZCompress
 		blockSizeByte: defaultPgzCompressBlockSize,
 	}
 	for _, of := range opts {
-		of(opt)
+		if err = of(opt); err != nil {
+			return nil, errors.Wrap(err, "set option")
+		}
 	}
 	c = &PGZCompressor{
 		writer:         writer,

@@ -7,6 +7,7 @@ import (
 
 	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 )
 
 type msgRecord struct {
@@ -25,7 +26,7 @@ type CommitFilter struct {
 }
 
 // NewCommitFilter create new CommitFilter
-func NewCommitFilter(ctx context.Context, kMsgPool *sync.Pool, opts ...CommitFilterOptFunc) (f *CommitFilter) {
+func NewCommitFilter(ctx context.Context, kMsgPool *sync.Pool, opts ...CommitFilterOptFunc) (f *CommitFilter, err error) {
 	f = &CommitFilter{
 		kMsgPool: kMsgPool,
 		commitCheckOption: &commitCheckOption{
@@ -35,7 +36,9 @@ func NewCommitFilter(ctx context.Context, kMsgPool *sync.Pool, opts ...CommitFil
 		},
 	}
 	for _, optf := range opts {
-		optf(f.commitCheckOption)
+		if err = optf(f.commitCheckOption); err != nil {
+			return nil, errors.Wrap(err, "set commit check option")
+		}
 	}
 	utils.Logger.Info("NewCommitFilter",
 		zap.Int("chan_size", f.commitCheckChanSize),
@@ -45,7 +48,7 @@ func NewCommitFilter(ctx context.Context, kMsgPool *sync.Pool, opts ...CommitFil
 	f.beforeChan = make(chan *KafkaMsg, f.commitCheckChanSize)
 	f.afterChan = make(chan *KafkaMsg, f.commitCheckChanSize)
 	go f.runFilterBeforeChan(ctx)
-	return f
+	return f, nil
 }
 
 // GetBeforeChan get channel send message in CommitFilter

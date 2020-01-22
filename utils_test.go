@@ -12,24 +12,16 @@ import (
 	"github.com/Laisky/zap"
 )
 
-func ExampleFallBack() {
-	targetFunc := func() interface{} {
-		panic("someting wrong")
-	}
-
-	FallBack(targetFunc, 10) // got 10
-}
-
 func testFoo() {}
-
-func ExampleGetFuncName() {
-	GetFuncName(testFoo) // "github.com/Laisky/go-utils_test.testFoo"
-}
 
 func TestGetFuncName(t *testing.T) {
 	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils.testFoo" {
 		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
+}
+
+func ExampleGetFuncName() {
+	GetFuncName(testFoo) // "github.com/Laisky/go-utils_test.testFoo"
 }
 
 func TestFallBack(t *testing.T) {
@@ -43,15 +35,12 @@ func TestFallBack(t *testing.T) {
 	}
 }
 
-func ExampleRegexNamedSubMatch() {
-	reg := regexp.MustCompile(`(?P<key>\d+.*)`)
-	str := "12345abcde"
-	groups := map[string]string{}
-	if err := RegexNamedSubMatch(reg, str, groups); err != nil {
-		Logger.Error("try to group match got error", zap.Error(err))
+func ExampleFallBack() {
+	targetFunc := func() interface{} {
+		panic("someting wrong")
 	}
 
-	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
+	FallBack(targetFunc, 10) // got 10
 }
 
 func TestRegexNamedSubMatch(t *testing.T) {
@@ -78,17 +67,15 @@ func TestRegexNamedSubMatch(t *testing.T) {
 	}
 }
 
-func ExampleFlattenMap() {
-	data := map[string]interface{}{
-		"a": "1",
-		"b": map[string]interface{}{
-			"c": 2,
-			"d": map[string]interface{}{
-				"e": 3,
-			},
-		},
+func ExampleRegexNamedSubMatch() {
+	reg := regexp.MustCompile(`(?P<key>\d+.*)`)
+	str := "12345abcde"
+	groups := map[string]string{}
+	if err := RegexNamedSubMatch(reg, str, groups); err != nil {
+		Logger.Error("try to group match got error", zap.Error(err))
 	}
-	FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
+
+	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
 }
 
 func TestFlattenMap(t *testing.T) {
@@ -114,6 +101,19 @@ func TestFlattenMap(t *testing.T) {
 	if _, ok := data["g"]; ok {
 		t.Fatalf("g should not exists")
 	}
+}
+
+func ExampleFlattenMap() {
+	data := map[string]interface{}{
+		"a": "1",
+		"b": map[string]interface{}{
+			"c": 2,
+			"d": map[string]interface{}{
+				"e": 3,
+			},
+		},
+	}
+	FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
 }
 
 func TestTriggerGC(t *testing.T) {
@@ -162,6 +162,12 @@ func TestURLMasking(t *testing.T) {
 	}
 }
 
+func ExampleURLMasking() {
+	originURL := "http://12ijij:3j23irj@jfjlwef.ffe.com"
+	newURL := URLMasking(originURL, "*****")
+	fmt.Println(newURL) // http://12ijij:*****@jfjlwef.ffe.com
+}
+
 func TestDirSize(t *testing.T) {
 	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
 	size, err := DirSize(".")
@@ -170,6 +176,15 @@ func TestDirSize(t *testing.T) {
 	}
 	t.Logf("size: %v", size)
 	// t.Error()
+}
+
+func ExampleDirSize() {
+	dirPath := "."
+	size, err := DirSize(dirPath)
+	if err != nil {
+		Logger.Error("get dir size", zap.Error(err), zap.String("path", dirPath))
+	}
+	Logger.Info("got size", zap.Int64("size", size), zap.String("path", dirPath))
 }
 
 func TestAutoGC(t *testing.T) {
@@ -195,4 +210,32 @@ func TestAutoGC(t *testing.T) {
 	}
 	<-ctx.Done()
 	// t.Error()
+}
+
+func ExampleAutoGC() {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	if err := AutoGC(
+		ctx,
+		WithGCMemRatio(85), // default
+		WithGCMemLimitFilePath("/sys/fs/cgroup/memory/memory.limit_in_bytes"), // default
+	); err != nil {
+		Logger.Error("enable autogc", zap.Error(err))
+	}
+}
+
+func TestForceGCBlocking(t *testing.T) {
+	ForceGCBlocking()
+}
+
+func ExampleForceGCBlocking() {
+	ForceGCBlocking()
+}
+
+func ExampleForceGCUnBlocking() {
+	ForceGCUnBlocking()
+}
+
+func TestForceGCUnBlocking(t *testing.T) {
+	ForceGCUnBlocking()
 }
