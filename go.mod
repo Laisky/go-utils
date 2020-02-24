@@ -3,35 +3,23 @@ module github.com/Laisky/go-utils
 go 1.12
 
 require (
-	github.com/DataDog/zstd v1.3.8 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.4
 	github.com/Laisky/zap v1.12.2
-	github.com/RoaringBitmap/roaring v0.4.18
-	github.com/Shopify/sarama v1.22.1
-	github.com/bsm/sarama-cluster v2.1.16-0.20190423073834-d5779253526c+incompatible
 	github.com/cespare/xxhash v1.1.0
-	github.com/coreos/etcd v3.3.15+incompatible
+	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/gin-contrib/pprof v1.2.1
 	github.com/gin-gonic/gin v1.4.0
-	github.com/json-iterator/go v1.1.8
-	github.com/klauspost/compress v1.9.4 // indirect
+	github.com/json-iterator/go v1.1.9
+	github.com/klauspost/compress v1.9.8 // indirect
 	github.com/klauspost/pgzip v1.2.1
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
-	github.com/ncw/directio v1.0.5
-	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/pkg/errors v0.8.1
-	github.com/prometheus/client_golang v0.9.4 // indirect
-	github.com/prometheus/procfs v0.0.3 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.4.0
-	github.com/tinylib/msgp v1.1.0
-	github.com/ugorji/go/codec v1.1.5-pre
-	github.com/zsais/go-gin-prometheus v0.1.0
+	github.com/ugorji/go v1.1.5-pre // indirect
 	go.uber.org/atomic v1.5.1 // indirect
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
@@ -41,6 +29,5 @@ require (
 	golang.org/x/tools v0.0.0-20191109212701-97ad0ed33101 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
-	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
-	gopkg.in/yaml.v2 v2.2.7 // indirect
+	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
