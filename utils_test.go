@@ -277,7 +277,7 @@ func ExampleSetStructFieldsBySlice() {
 	}
 
 	fmt.Printf("%+v\n", ss)
-	//
+	// ss = []*ST{{A: "x0", B: "y0"}, {A: "x1", B: "y1"}}
 }
 
 func TestSetStructFieldsBySlice(t *testing.T) {
