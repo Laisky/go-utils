@@ -263,3 +263,53 @@ func DirSize(path string) (size int64, err error) {
 
 	return
 }
+
+// SetStructFieldsBySlice set field value of structs slice by values slice
+func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
+	sv := reflect.ValueOf(structs)
+	vv := reflect.ValueOf(vals)
+
+	typeCheck := func(name string, v *reflect.Value) error {
+		switch v.Kind() {
+		case reflect.Slice:
+		case reflect.Array:
+		default:
+			return fmt.Errorf(name + " must be array/slice")
+		}
+
+		return nil
+	}
+	if err = typeCheck("structs", &sv); err != nil {
+		return err
+	}
+	if err = typeCheck("vals", &vv); err != nil {
+		return err
+	}
+
+	var (
+		eachGrpValsV    reflect.Value
+		iField, nFields int
+	)
+	for i := 0; i < MinInt(sv.Len(), vv.Len()); i++ {
+		eachGrpValsV = vv.Index(i)
+		if err = typeCheck("vals."+strconv.FormatInt(int64(i), 10), &eachGrpValsV); err != nil {
+			return err
+		}
+		switch sv.Index(i).Kind() {
+		case reflect.Ptr:
+			nFields = sv.Index(i).Elem().NumField()
+		default:
+			nFields = sv.Index(i).NumField()
+		}
+		for iField = 0; iField < MinInt(eachGrpValsV.Len(), nFields); iField++ {
+			switch sv.Index(i).Kind() {
+			case reflect.Ptr:
+				sv.Index(i).Elem().Field(iField).Set(eachGrpValsV.Index(iField))
+			default:
+				sv.Index(i).Field(iField).Set(eachGrpValsV.Index(iField))
+			}
+		}
+	}
+
+	return
+}

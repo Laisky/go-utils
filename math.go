@@ -17,3 +17,17 @@ func Round(val float64, roundOn float64, places int) (newVal float64) {
 	newVal = round / pow
 	return
 }
+
+func MaxInt(a, b int) int {
+	if a >= b {
+		return a
+	}
+	return b
+}
+
+func MinInt(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}

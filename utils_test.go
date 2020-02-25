@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"regexp"
 	"testing"
 	"time"
@@ -238,4 +239,107 @@ func ExampleForceGCUnBlocking() {
 
 func TestForceGCUnBlocking(t *testing.T) {
 	ForceGCUnBlocking()
+}
+
+func TestReflectSet(t *testing.T) {
+	type st struct{ A, B string }
+	ss := []*st{{}, {}}
+	nFields := reflect.ValueOf(ss[0]).Elem().NumField()
+	vs := [][]string{{"x1", "y1"}, {"x2", "y2"}}
+
+	for i, s := range ss {
+		for j := 0; j < nFields; j++ {
+			// if reflect.ValueOf(s).Type() != reflect.Ptr {
+			// 	sp = &s
+			// }
+			reflect.ValueOf(s).Elem().Field(j).Set(reflect.ValueOf(vs[i][j]))
+		}
+	}
+
+	t.Logf("s0: %+v", ss[0])
+	t.Logf("s1: %+v", ss[1])
+	// t.Error()
+}
+
+func ExampleSetStructFieldsBySlice() {
+	type ST struct{ A, B string }
+	var (
+		err error
+		ss  = []*ST{{}, {}}
+		vs  = [][]string{
+			{"x0", "y0"},
+			{"x1", "y1"},
+		}
+	)
+	if err = SetStructFieldsBySlice(ss, vs); err != nil {
+		Logger.Error("set struct val", zap.Error(err))
+		return
+	}
+
+	fmt.Printf("%+v\n", ss)
+	//
+}
+
+func TestSetStructFieldsBySlice(t *testing.T) {
+	type ST struct{ A, B string }
+	var (
+		err error
+		ss  = []*ST{
+			{},
+			{},
+			{},
+			{},
+			{},
+			{},
+		}
+		vs = [][]string{
+			{"x0", "y0"},       // 0
+			{"x1", "y1"},       // 1
+			{},                 // 2
+			{"x3", "y3", "z3"}, // 3
+			{"x4"},             // 4
+		}
+	)
+	if err = SetStructFieldsBySlice(ss, vs); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	t.Logf("s0: %+v", ss[0])
+	t.Logf("s1: %+v", ss[1])
+	t.Logf("s2: %+v", ss[2])
+	t.Logf("s3: %+v", ss[3])
+	t.Logf("s4: %+v", ss[4])
+	t.Logf("s5: %+v", ss[5])
+
+	if ss[0].A != "x0" ||
+		ss[0].B != "y0" ||
+		ss[1].A != "x1" ||
+		ss[1].B != "y1" ||
+		ss[2].A != "" ||
+		ss[2].B != "" ||
+		ss[3].A != "x3" ||
+		ss[3].B != "y3" ||
+		ss[4].A != "x4" ||
+		ss[4].B != "" ||
+		ss[5].A != "" ||
+		ss[5].B != "" {
+		t.Fatalf("incorrect")
+	}
+
+	// non-pointer struct
+	ss2 := []ST{
+		{},
+		{},
+	}
+	if err = SetStructFieldsBySlice(ss2, vs); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("s0: %+v", ss2[0])
+	t.Logf("s1: %+v", ss2[1])
+	if ss2[0].A != "x0" ||
+		ss2[0].B != "y0" ||
+		ss2[1].A != "x1" ||
+		ss2[1].B != "y1" {
+		t.Fatalf("incorrect")
+	}
 }
