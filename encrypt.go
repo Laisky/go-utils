@@ -26,8 +26,9 @@ import (
 	"encoding/hex"
 	oj "encoding/json"
 	"fmt"
-	"github.com/cespare/xxhash"
 	"time"
+
+	"github.com/cespare/xxhash"
 
 	"github.com/Laisky/zap"
 
@@ -367,23 +368,20 @@ func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapC
 	return payload, err
 }
 
-var (
-	xxhasher     = xxhash.New()
-	sha128Hasher = sha1.New()
-	sha256Hasher = sha256.New()
-)
-
 // HashSHA128String calculate string's hash by sha256
 func HashSHA128String(val string) string {
-	return hex.EncodeToString(sha128Hasher.Sum([]byte(val)))
+	b := sha1.Sum([]byte(val))
+	return hex.EncodeToString(b[:])
 }
 
 // HashSHA256String calculate string's hash by sha256
 func HashSHA256String(val string) string {
-	return hex.EncodeToString(sha256Hasher.Sum([]byte(val)))
+	b := sha256.Sum256([]byte(val))
+	return hex.EncodeToString(b[:])
 }
 
 // HashXxhashString calculate string's hash by sha256
 func HashXxhashString(val string) string {
-	return hex.EncodeToString(xxhasher.Sum([]byte(val)))
+	b := xxhash.New().Sum([]byte(val))
+	return hex.EncodeToString(b)
 }
