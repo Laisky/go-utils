@@ -343,3 +343,22 @@ func TestSetStructFieldsBySlice(t *testing.T) {
 		t.Fatalf("incorrect")
 	}
 }
+
+func TestUniqueStrings(t *testing.T) {
+	orig := []string{}
+	for i := 0; i < 100000; i++ {
+		orig = append(orig, RandomStringWithLength(2))
+	}
+	t.Logf("generate length : %d", len(orig))
+	orig = UniqueStrings(orig)
+	t.Logf("after unique length : %d", len(orig))
+	m := map[string]bool{}
+	var ok bool
+	for _, v := range orig {
+		if _, ok = m[v]; ok {
+			t.Fatalf("duplicate: %v", v)
+		} else {
+			m[v] = ok
+		}
+	}
+}
