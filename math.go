@@ -18,6 +18,7 @@ func Round(val float64, roundOn float64, places int) (newVal float64) {
 	return
 }
 
+// MaxInt get the max int of two
 func MaxInt(a, b int) int {
 	if a >= b {
 		return a
@@ -25,6 +26,7 @@ func MaxInt(a, b int) int {
 	return b
 }
 
+// MinInt get the min int of two
 func MinInt(a, b int) int {
 	if a <= b {
 		return a

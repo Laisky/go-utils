@@ -313,3 +313,17 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 
 	return
 }
+
+// UniqueStrings remove duplicate string in slice
+func UniqueStrings(vs []string) (r []string) {
+	m := map[string]struct{}{}
+	var ok bool
+	for _, v := range vs {
+		if _, ok = m[v]; !ok {
+			m[v] = struct{}{}
+			r = append(r, v)
+		}
+	}
+
+	return
+}
