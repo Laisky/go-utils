@@ -1,12 +1,11 @@
-package utils_test
+package utils
 
 import (
-	"github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 )
 
 func ExampleMail() {
-	sender := utils.NewMail("smtp_host", 53)
+	sender := NewMail("smtp_host", 53)
 	if err := sender.Send(
 		"fromAddr",
 		"toAddr",
@@ -15,6 +14,6 @@ func ExampleMail() {
 		"Title",
 		"Content",
 	); err != nil {
-		utils.Logger.Error("try to send email got error", zap.Error(err))
+		Logger.Error("try to send email got error", zap.Error(err))
 	}
 }

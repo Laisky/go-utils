@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"bytes"
@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/Laisky/go-utils"
 )
 
 func TestRequestJSON(t *testing.T) {
-	data := utils.RequestData{
+	data := RequestData{
 		Data: map[string]string{
 			"hello": "world",
 		},
@@ -21,7 +19,7 @@ func TestRequestJSON(t *testing.T) {
 		JSON map[string]string `json:"json"`
 	}
 	want := "{map[hello:world]}"
-	if err := utils.RequestJSON("POST", "http://httpbin.org/post", &data, &resp); err != nil {
+	if err := RequestJSON("POST", "http://httpbin.org/post", &data, &resp); err != nil {
 		t.Fatalf("got: %v", resp)
 	}
 	if fmt.Sprintf("%v", resp) != want {
@@ -29,7 +27,7 @@ func TestRequestJSON(t *testing.T) {
 	}
 }
 func TestRequestJSONWithClient(t *testing.T) {
-	data := utils.RequestData{
+	data := RequestData{
 		Data: map[string]string{
 			"hello": "world",
 		},
@@ -39,7 +37,7 @@ func TestRequestJSONWithClient(t *testing.T) {
 	}
 	want := "{map[hello:world]}"
 	httpClient := &http.Client{}
-	if err := utils.RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp); err != nil {
+	if err := RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp); err != nil {
 		t.Fatalf("got: %v", resp)
 	}
 	if fmt.Sprintf("%v", resp) != want {
@@ -56,7 +54,7 @@ func TestCheckResp(t *testing.T) {
 		StatusCode: 500,
 		Body:       ioutil.NopCloser(bytes.NewBufferString(`some error message`)),
 	}
-	err = utils.CheckResp(resp)
+	err = CheckResp(resp)
 	if err == nil {
 		t.Error("missing error")
 	}

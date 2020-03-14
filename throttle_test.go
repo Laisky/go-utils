@@ -1,17 +1,15 @@
-package utils_test
+package utils
 
 import (
 	"context"
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/Laisky/go-utils"
 )
 
 func TestThrottle2(t *testing.T) {
 	ctx := context.Background()
-	throttle, err := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
+	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
@@ -47,12 +45,12 @@ func TestThrottle2(t *testing.T) {
 
 func ExampleThrottle() {
 	ctx := context.Background()
-	throttle, err := utils.NewThrottleWithCtx(ctx, &utils.ThrottleCfg{
+	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
 		NPerSec: 10,
 		Max:     100,
 	})
 	if err != nil {
-		utils.Logger.Panic("new throttle")
+		Logger.Panic("new throttle")
 	}
 	defer throttle.Close()
 

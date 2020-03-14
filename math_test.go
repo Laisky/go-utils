@@ -1,17 +1,15 @@
-package utils_test
+package utils
 
 import (
 	"testing"
-
-	"github.com/Laisky/go-utils"
 )
 
 func TestRound(t *testing.T) {
-	if r := utils.Round(123.555555, .5, 3); r != 123.556 {
+	if r := Round(123.555555, .5, 3); r != 123.556 {
 		t.Errorf("want 123.556, got %v", r)
 	}
 }
 
 func ExampleRound() {
-	utils.Round(123.555555, .5, 3) // got 123.556
+	Round(123.555555, .5, 3) // got 123.556
 }
