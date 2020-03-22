@@ -1,17 +1,16 @@
-package utils_test
+package utils
 
 import (
 	"context"
-	"github.com/Laisky/zap"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 )
 
 func TestMutex(t *testing.T) {
-	l := utils.NewMutex()
+	l := NewMutex()
 	if !l.TryLock() {
 		t.Fatal("should acquire lock")
 	}
@@ -47,9 +46,9 @@ func TestMutex(t *testing.T) {
 }
 
 func ExampleMutex() {
-	l := utils.NewMutex()
+	l := NewMutex()
 	if !l.TryLock() {
-		utils.Logger.Info("can not acquire lock")
+		Logger.Info("can not acquire lock")
 		return
 	}
 	defer l.ForceRelease()
@@ -57,7 +56,7 @@ func ExampleMutex() {
 }
 
 func BenchmarkMutex(b *testing.B) {
-	l := utils.NewMutex()
+	l := NewMutex()
 	// step := 1 * time.Millisecond
 	// timeoout := 1 * time.Second
 	b.Run("parallel", func(b *testing.B) {
@@ -80,8 +79,8 @@ func BenchmarkMutex(b *testing.B) {
 }
 
 func TestLaiskyRemoteLock(t *testing.T) {
-	// utils.Logger.ChangeLevel("debug")
-	cli, err := utils.NewLaiskyRemoteLock(
+	// Logger.ChangeLevel("debug")
+	cli, err := NewLaiskyRemoteLock(
 		"https://blog.laisky.com/graphql/query/",
 		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
 	)
@@ -93,8 +92,8 @@ func TestLaiskyRemoteLock(t *testing.T) {
 	if ok, err := cli.AcquireLock(
 		ctx,
 		"laisky.test",
-		utils.WithAcquireLockDuration(10*time.Second),
-		utils.WithAcquireLockIsRenewal(true),
+		WithAcquireLockDuration(10*time.Second),
+		WithAcquireLockIsRenewal(true),
 	); err != nil {
 		if !strings.Contains(err.Error(), "Token is expired") {
 			t.Fatalf("%+v", err)
@@ -108,12 +107,12 @@ func TestLaiskyRemoteLock(t *testing.T) {
 }
 
 func ExampleLaiskyRemoteLock() {
-	cli, err := utils.NewLaiskyRemoteLock(
+	cli, err := NewLaiskyRemoteLock(
 		"https://blog.laisky.com/graphql/query/",
 		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
 	)
 	if err != nil {
-		utils.Logger.Error("create laisky lock", zap.Error(err))
+		Logger.Error("create laisky lock", zap.Error(err))
 	}
 
 	var (
@@ -125,16 +124,16 @@ func ExampleLaiskyRemoteLock() {
 	if ok, err = cli.AcquireLock(
 		ctx,
 		lockName,
-		utils.WithAcquireLockDuration(10*time.Second),
-		utils.WithAcquireLockIsRenewal(true),
+		WithAcquireLockDuration(10*time.Second),
+		WithAcquireLockIsRenewal(true),
 	); err != nil {
-		utils.Logger.Error("acquire lock", zap.String("lock_name", lockName))
+		Logger.Error("acquire lock", zap.String("lock_name", lockName))
 	}
 
 	if ok {
-		utils.Logger.Info("success acquired lock")
+		Logger.Info("success acquired lock")
 	} else {
-		utils.Logger.Info("do not acquired lock")
+		Logger.Info("do not acquired lock")
 		return
 	}
 

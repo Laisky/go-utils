@@ -9,10 +9,11 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/coreos/etcd v3.3.18+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.9
 	github.com/klauspost/compress v1.9.8 // indirect
-	github.com/klauspost/pgzip v1.2.1
+	github.com/klauspost/pgzip v1.2.2
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/pkg/errors v0.8.1
@@ -24,7 +25,6 @@ require (
 	go.uber.org/multierr v1.4.0 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553 // indirect
-	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20191109212701-97ad0ed33101 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect

@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"fmt"
@@ -7,19 +7,18 @@ import (
 	"sync"
 	"testing"
 
-	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 )
 
 func ExampleCounter() {
-	counter := utils.NewCounter()
+	counter := NewCounter()
 	counter.Count()
 	counter.CountN(10)
 	counter.Get() // get current count
 }
 
 func ExampleRotateCounter() {
-	counter, err := utils.NewRotateCounter(10)
+	counter, err := NewRotateCounter(10)
 	if err != nil {
 		panic(err)
 	}
@@ -28,9 +27,9 @@ func ExampleRotateCounter() {
 	counter.CountN(10) // 1
 }
 
-func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, name string, store *sync.Map) {
+func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name string, store *sync.Map) {
 	defer wg.Done()
-	defer utils.Logger.Info("validator exit", zap.String("name", name))
+	defer Logger.Info("validator exit", zap.String("name", name))
 	var (
 		nParallel = 10
 		padding   = struct{}{}
@@ -43,7 +42,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, n
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer utils.Logger.Info("counter exit", zap.String("name", name))
+			defer Logger.Info("counter exit", zap.String("name", name))
 			var (
 				ok bool
 				n  int64
@@ -51,7 +50,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, n
 			for j := 0; j < N; j++ {
 				n = counter.Count()
 				if _, ok = store.LoadOrStore(n, padding); ok {
-					utils.Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
+					Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
 				}
 			}
 		}()
@@ -60,7 +59,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, n
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer utils.Logger.Info("multi counter exit", zap.String("name", name))
+			defer Logger.Info("multi counter exit", zap.String("name", name))
 			var (
 				ok      bool
 				step, n int64
@@ -69,7 +68,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter utils.Int64CounterItf, n
 				step = rand.Int63n(100) + 1
 				n = counter.CountN(step)
 				if _, ok = store.LoadOrStore(n, padding); ok {
-					utils.Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
+					Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
 				}
 			}
 		}()
@@ -81,15 +80,15 @@ func TestCounterValidation(t *testing.T) {
 		err error
 		wg  = &sync.WaitGroup{}
 	)
-	if err = utils.Logger.ChangeLevel("info"); err != nil {
+	if err = Logger.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
-	atomicCounter := utils.NewCounter()
-	rotateCounter, err := utils.NewRotateCounter(math.MaxInt64)
+	atomicCounter := NewCounter()
+	rotateCounter, err := NewRotateCounter(math.MaxInt64)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
-	parallelCounter, err := utils.NewParallelCounter(100, math.MaxInt64)
+	parallelCounter, err := NewParallelCounter(100, math.MaxInt64)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -110,8 +109,8 @@ func TestCounterValidation(t *testing.T) {
 }
 
 func TestCounter(t *testing.T) {
-	counter := utils.NewCounterFromN(0)
-	counter = utils.NewCounter()
+	counter := NewCounterFromN(0)
+	counter = NewCounter()
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < 10; i++ {
@@ -136,7 +135,7 @@ func TestCounter(t *testing.T) {
 }
 
 func TestUint32Counter(t *testing.T) {
-	counter := utils.NewUint32Counter()
+	counter := NewUint32Counter()
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < 10; i++ {
@@ -161,12 +160,12 @@ func TestUint32Counter(t *testing.T) {
 }
 
 func TestRotateCounter(t *testing.T) {
-	_, err := utils.NewRotateCounterFromN(100, 10)
+	_, err := NewRotateCounterFromN(100, 10)
 	if err == nil {
 		t.Fatal("should got error")
 	}
 
-	counter, err := utils.NewRotateCounter(10)
+	counter, err := NewRotateCounter(10)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -191,10 +190,10 @@ func TestRotateCounter(t *testing.T) {
 
 func TestParallelRotateCounter(t *testing.T) {
 	var err error
-	if err = utils.Logger.ChangeLevel("info"); err != nil {
+	if err = Logger.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
-	pcounter, err := utils.NewParallelCounter(10, 100)
+	pcounter, err := NewParallelCounter(10, 100)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -236,7 +235,7 @@ func TestParallelRotateCounter(t *testing.T) {
 	}
 
 	// test duplicate
-	if pcounter, err = utils.NewParallelCounter(0, 10000000); err != nil {
+	if pcounter, err = NewParallelCounter(0, 10000000); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 	counter1 := pcounter.GetChild()
@@ -293,7 +292,7 @@ func TestParallelRotateCounter(t *testing.T) {
 }
 
 func TestRotateCounterFromN(t *testing.T) {
-	counter, err := utils.NewRotateCounterFromN(2, 10)
+	counter, err := NewRotateCounterFromN(2, 10)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -314,7 +313,7 @@ func TestRotateCounterFromN(t *testing.T) {
 }
 
 func BenchmarkCounter(b *testing.B) {
-	counter := utils.NewCounter()
+	counter := NewCounter()
 
 	b.Run("count 1", func(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
@@ -361,7 +360,7 @@ func BenchmarkCounter(b *testing.B) {
 }
 
 func BenchmarkRotateCounter(b *testing.B) {
-	counter, err := utils.NewRotateCounter(1000000000)
+	counter, err := NewRotateCounter(1000000000)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
@@ -427,15 +426,15 @@ ok      github.com/Laisky/go-utils      82.997s
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()
 	var err error
-	if err = utils.Logger.ChangeLevel("info"); err != nil {
+	if err = Logger.ChangeLevel("info"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
-	atomicCounter := utils.NewCounter()
-	rotateCounter, err := utils.NewRotateCounter(100000000)
+	atomicCounter := NewCounter()
+	rotateCounter, err := NewRotateCounter(100000000)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
-	parallelCounter, err := utils.NewParallelCounter(100, 100000000)
+	parallelCounter, err := NewParallelCounter(100, 100000000)
 	if err != nil {
 		b.Fatalf("got error: %+v", err)
 	}

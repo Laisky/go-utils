@@ -1,239 +1,19 @@
 package utils
 
-// JWT payload should looks like:
-//
-// ```js
-// {
-// 	"k1": "v1",
-// 	"k2": "v2",
-// 	"k3": "v3",
-// 	"uid": "laisky"
-// }
-// ```
-//
-// and the payload would be looks like:
-//
-// ```js
-// {
-//     "uid": "laisky",
-// 	   "exp": 4701974400
-// }
-// ```
-
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
-	oj "encoding/json"
-	"fmt"
-	"time"
+	"encoding/pem"
+	"math/big"
 
 	"github.com/cespare/xxhash"
-
-	"github.com/Laisky/zap"
-
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
-
-	jwt "github.com/dgrijalva/jwt-go"
 )
-
-var (
-	// defaultJWTSignMethod default jwt signing method
-	defaultJWTSignMethod = jwt.SigningMethodHS512
-	// defaultJWTUserIDKey default key of user_id stores in token payload
-	defaultJWTUserIDKey = "uid"
-	// defaultJWTExpiresKey default key of expires_at stores in token payload
-	defaultJWTExpiresKey = "exp"
-)
-
-// JWT struct to generate and validate jwt tokens
-//
-// use a global uniform secret to signing all token.
-type JWT struct {
-	*jwtOption
-	secret []byte
-}
-
-type jwtOption struct {
-	signMethod *jwt.SigningMethodHMAC
-	userIDKey,
-	expiresKey string
-}
-
-// JWTOptFunc jwt option
-type JWTOptFunc func(*jwtOption) error
-
-// WithJWTSignMethod set jwt sign method
-func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if method == nil {
-			return fmt.Errorf("method should not be nil")
-		}
-
-		opt.signMethod = method
-		return nil
-	}
-}
-
-// WithJWTUserIDKey set jwt user id key in payload
-func WithJWTUserIDKey(userIDKey string) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if userIDKey == "" {
-			return fmt.Errorf("userIDKey should not be empty")
-		}
-
-		opt.userIDKey = userIDKey
-		if opt.expiresKey == opt.userIDKey {
-			return fmt.Errorf("expiresKey should not equal to userIDKey")
-		}
-		return nil
-	}
-}
-
-// WithJWTExpiresKey set jwt expires key in payload
-func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if expiresKey == "" {
-			return fmt.Errorf("expiresKey should not be empty")
-		}
-
-		opt.expiresKey = expiresKey
-		if opt.expiresKey == opt.userIDKey {
-			return fmt.Errorf("expiresKey should not equal to userIDKey")
-		}
-		return nil
-	}
-}
-
-// NewJWT create new JWT
-func NewJWT(secret []byte, opts ...JWTOptFunc) (j *JWT, err error) {
-	if len(secret) == 0 {
-		return nil, errors.New("secret should not be empty")
-	}
-	opt := &jwtOption{
-		signMethod: defaultJWTSignMethod,
-		userIDKey:  defaultJWTUserIDKey,
-		expiresKey: defaultJWTExpiresKey,
-	}
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return nil, errors.Wrap(err, "set option")
-		}
-	}
-
-	jwt.TimeFunc = Clock.GetUTCNow
-	j = &JWT{
-		jwtOption: opt,
-		secret:    secret,
-	}
-	return
-}
-
-// GetSignMethod get jwt sign method
-func (j *JWT) GetSignMethod() *jwt.SigningMethodHMAC {
-	return j.signMethod
-}
-
-// GetUserIDKey get jwt user id key
-func (j *JWT) GetUserIDKey() string {
-	return j.userIDKey
-}
-
-// GetExpiresKey get jwt expires key
-func (j *JWT) GetExpiresKey() string {
-	return j.expiresKey
-}
-
-// GenerateToken generate JWT token with userID(interface{})
-func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
-	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
-	}
-	jwtPayload[j.expiresKey] = expiresAt.Unix()
-	jwtPayload[j.userIDKey] = userID
-
-	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(j.secret); err != nil {
-		return "", errors.Wrap(err, "try to signed token got error")
-	}
-	return tokenStr, nil
-}
-
-// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
-func (j *JWT) VerifyAndReplaceExp(payload map[string]interface{}) (err error) {
-	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.expiresKey].(type) {
-	case float64:
-		if int64(exp) > now {
-			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	case oj.Number:
-		v, _ := exp.Int64()
-		if v > now {
-			payload[j.expiresKey] = time.Unix(v, 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	default:
-		err = fmt.Errorf("unknown expires format")
-	}
-
-	return err
-}
-
-// ParseJWTTokenWithoutValidate parse and get payload without validate jwt token
-func ParseJWTTokenWithoutValidate(token string) (payload jwt.MapClaims, err error) {
-	var jt *jwt.Token
-	if jt, err = jwt.Parse(token, func(_ *jwt.Token) (interface{}, error) {
-		return "", nil
-	}); jt == nil && err != nil {
-		return nil, errors.Wrap(err, "parse jwt token")
-	}
-
-	var ok bool
-	if payload, ok = jt.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
-	return payload, nil
-}
-
-// Validate validate the token and return the payload
-//
-// if token is invalidate, err will not be nil.
-func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
-	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
-			return nil, errors.New("JWT method not allowd")
-		}
-		return j.secret, nil
-	})
-	if err != nil || !token.Valid {
-		// return after got payload
-		err = errors.Wrap(err, "token method invalidate")
-	}
-
-	var ok bool
-	if payload, ok = token.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
-	if err != nil {
-		return payload, err
-	}
-
-	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token exp invalidate")
-	}
-	if _, ok = payload[j.userIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
-	}
-	return payload, err
-}
 
 // GeneratePasswordHash generate hashed password by origin password
 func GeneratePasswordHash(password []byte) ([]byte, error) {
@@ -243,129 +23,6 @@ func GeneratePasswordHash(password []byte) ([]byte, error) {
 // ValidatePasswordHash validate password is match with hashedPassword
 func ValidatePasswordHash(hashedPassword, password []byte) bool {
 	return bcrypt.CompareHashAndPassword(hashedPassword, password) == nil
-}
-
-// DivideJWT jwt utils to generate and validate token.
-//
-// use seperate secret for each token
-type DivideJWT struct {
-	*jwtOption
-}
-
-// JWTUserItf load secret by uid
-type JWTUserItf interface {
-	GetUID() interface{}
-	GetSecret() []byte
-}
-
-// NewDivideJWT create new JWT
-func NewDivideJWT(opts ...JWTOptFunc) (j *DivideJWT, err error) {
-	opt := &jwtOption{
-		signMethod: defaultJWTSignMethod,
-		userIDKey:  defaultJWTUserIDKey,
-		expiresKey: defaultJWTExpiresKey,
-	}
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return nil, errors.Wrap(err, "set option")
-		}
-	}
-
-	jwt.TimeFunc = Clock.GetUTCNow
-	j = &DivideJWT{
-		jwtOption: opt,
-	}
-	return
-}
-
-// GetSignMethod get jwt sign method
-func (j *DivideJWT) GetSignMethod() *jwt.SigningMethodHMAC {
-	return j.signMethod
-}
-
-// GetUserIDKey get jwt user id key
-func (j *DivideJWT) GetUserIDKey() string {
-	return j.userIDKey
-}
-
-// GetExpiresKey get jwt expires key
-func (j *DivideJWT) GetExpiresKey() string {
-	return j.expiresKey
-}
-
-// GenerateToken generate JWT token.
-// do not use `expires_at` & `uid` as keys.
-func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
-	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
-	}
-	jwtPayload[j.expiresKey] = expiresAt.Unix()
-	jwtPayload[j.userIDKey] = user.GetUID()
-
-	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(user.GetSecret()); err != nil {
-		return "", errors.Wrap(err, "try to signed token got error")
-	}
-	return tokenStr, nil
-}
-
-// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
-func (j *DivideJWT) VerifyAndReplaceExp(payload jwt.MapClaims) (err error) {
-	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.expiresKey].(type) {
-	case float64:
-		if int64(exp) > now {
-			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	case oj.Number:
-		v, _ := exp.Int64()
-		if v > now {
-			payload[j.expiresKey] = time.Unix(v, 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	default:
-		err = fmt.Errorf("unknown expires format")
-	}
-
-	return err
-}
-
-// Validate validate the token and return the payload
-//
-// if token is invalidate, err will not be nil.
-func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapClaims, err error) {
-	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
-			return nil, errors.New("JWT method not allowd")
-		}
-		return user.GetSecret(), nil
-	})
-	if err != nil || !token.Valid {
-		// return after got payload
-		err = errors.Wrap(err, "token invalidate")
-	}
-
-	var ok bool
-	if payload, ok = token.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
-	if err != nil {
-		return payload, err
-	}
-
-	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token invalidate")
-	}
-	if _, ok = payload[j.userIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
-	}
-	return payload, err
 }
 
 // HashSHA128String calculate string's hash by sha256
@@ -384,4 +41,56 @@ func HashSHA256String(val string) string {
 func HashXxhashString(val string) string {
 	b := xxhash.New().Sum([]byte(val))
 	return hex.EncodeToString(b)
+}
+
+// EncodeECDSAPrivateKey encode ecdsa private key to pem bytes
+func EncodeECDSAPrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
+	x509Encoded, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal private key")
+	}
+
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded}), nil
+}
+
+// EncodeECDSAPublicKey encode ecdsa public key to pem bytes
+func EncodeECDSAPublicKey(publicKey *ecdsa.PublicKey) ([]byte, error) {
+	x509EncodedPub, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal public key")
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub}), nil
+}
+
+// DecodeECDSAPrivateKey decode ecdsa private key from pem bytes
+func DecodeECDSAPrivateKey(pemEncoded []byte) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	privateKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse private key")
+	}
+	return privateKey, nil
+}
+
+// DecodeECDSAPrivateKey decode ecdsa public key from pem bytes
+func DecodeECDSAPublicKey(pemEncodedPub []byte) (*ecdsa.PublicKey, error) {
+	blockPub, _ := pem.Decode(pemEncodedPub)
+	genericPublicKey, err := x509.ParsePKIXPublicKey(blockPub.Bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse public key")
+	}
+
+	return genericPublicKey.(*ecdsa.PublicKey), nil
+}
+
+// SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
+func SignByECDSAWithSHA256(priKey *ecdsa.PrivateKey, content []byte) (r, s *big.Int, err error) {
+	hash := sha256.Sum256(content)
+	return ecdsa.Sign(rand.Reader, priKey, hash[:])
+}
+
+// VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
+func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.Int) bool {
+	hash := sha256.Sum256(content)
+	return ecdsa.Verify(pubKey, hash[:], r, s)
 }

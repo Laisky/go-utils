@@ -1,4 +1,4 @@
-package utils_test
+package utils
 
 import (
 	"context"
@@ -6,24 +6,23 @@ import (
 	"testing"
 	"time"
 
-	utils "github.com/Laisky/go-utils"
 	zap "github.com/Laisky/zap"
 	// zap "github.com/Laisky/zap"
 )
 
 func TestSetupLogger(t *testing.T) {
 	var err error
-	utils.Logger.Info("test", zap.String("arg", "111"))
-	if err = utils.Logger.ChangeLevel("info"); err != nil {
+	Logger.Info("test", zap.String("arg", "111"))
+	if err = Logger.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
-	utils.Logger.Info("test", zap.String("arg", "222"))
-	utils.Logger.Debug("test", zap.String("arg", "333"))
-	// if err := utils.Logger.Sync(); err != nil {
+	Logger.Info("test", zap.String("arg", "222"))
+	Logger.Debug("test", zap.String("arg", "333"))
+	// if err := Logger.Sync(); err != nil {
 	// 	t.Fatalf("%+v", err)
 	// }
 
-	logger := utils.Logger.With(zap.String("yo", "hello"))
+	logger := Logger.With(zap.String("yo", "hello"))
 	logger.Warn("test")
 	// t.Error()
 }
@@ -70,10 +69,10 @@ func TestSetupLogger(t *testing.T) {
 // }
 
 // func BenchmarkLogger(b *testing.B) {
-// 	utils.Logger.ChangeLevel("info")
+// 	Logger.ChangeLevel("info")
 // 	b.Run("origin zap", func(b *testing.B) {
 // 		for i := 0; i < b.N; i++ {
-// 			utils.Logger.Debug("yooo")
+// 			Logger.Debug("yooo")
 // 		}
 // 	})
 
@@ -87,39 +86,39 @@ func TestSetupLogger(t *testing.T) {
 
 func BenchmarkLogger(b *testing.B) {
 	var err error
-	if err = utils.Logger.ChangeLevel("error"); err != nil {
+	if err = Logger.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Logger.Debug("yooo")
+			Logger.Debug("yooo")
 		}
 	})
 
-	if err = utils.Logger.ChangeLevel("error"); err != nil {
+	if err = Logger.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	// b.Run("log", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
-	// 		utils.Logger.Info("yooo")
+	// 		Logger.Info("yooo")
 	// 	}
 	// })
 }
 
 func BenchmarkSampleLogger(b *testing.B) {
 	var err error
-	if err = utils.Logger.ChangeLevel("error"); err != nil {
+	if err = Logger.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.Logger.DebugSample(100, "yooo")
+			Logger.DebugSample(100, "yooo")
 		}
 	})
 }
 
 func TestAlertHook(t *testing.T) {
-	pusher, err := utils.NewAlertPusherWithAlertType(
+	pusher, err := NewAlertPusherWithAlertType(
 		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
@@ -129,7 +128,7 @@ func TestAlertHook(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	defer pusher.Close()
-	logger := utils.Logger.WithOptions(
+	logger := Logger.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
 		zap.HooksWithFields(pusher.GetZapHook()),
 	)
@@ -143,17 +142,17 @@ func TestAlertHook(t *testing.T) {
 	time.Sleep(5 * time.Second)
 }
 func ExampleAlertPusher() {
-	pusher, err := utils.NewAlertPusherWithAlertType(
+	pusher, err := NewAlertPusherWithAlertType(
 		context.Background(),
 		"https://blog.laisky.com/graphql/query/",
 		"hello",
 		"rwkpVuAgaBZQBASKndHK",
 	)
 	if err != nil {
-		utils.Logger.Panic("create alert pusher", zap.Error(err))
+		Logger.Panic("create alert pusher", zap.Error(err))
 	}
 	defer pusher.Close()
-	logger := utils.Logger.WithOptions(
+	logger := Logger.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
 		zap.HooksWithFields(pusher.GetZapHook()),
 	)
@@ -169,22 +168,22 @@ func ExampleAlertPusher() {
 // func TestPateoAlertPusher(t *testing.T) {
 // 	ctx := context.Background()
 
-// 	utils.Settings.SetupFromFile("/Users/laisky/repo/pateo/configs/go-fluentd/settings.yml")
+// 	Settings.SetupFromFile("/Users/laisky/repo/pateo/configs/go-fluentd/settings.yml")
 
-// 	alert, err := utils.NewPateoAlertPusher(
+// 	alert, err := NewPateoAlertPusher(
 // 		ctx,
-// 		utils.Settings.GetString("settings.pateo_logger.push_api"),
-// 		utils.Settings.GetString("settings.pateo_logger.token"),
+// 		Settings.GetString("settings.pateo_logger.push_api"),
+// 		Settings.GetString("settings.pateo_logger.token"),
 // 	)
 // 	if err != nil {
 // 		t.Fatalf("%+v", err)
 // 	}
 
-// 	// if err = alert.Send("test", "test content", utils.Clock.GetUTCNow()); err != nil {
+// 	// if err = alert.Send("test", "test content", Clock.GetUTCNow()); err != nil {
 // 	// 	t.Fatalf("%+v", err)
 // 	// }
 
-// 	logger := utils.Logger.WithOptions(zap.HooksWithFields(alert.GetZapHook("test")))
+// 	logger := Logger.WithOptions(zap.HooksWithFields(alert.GetZapHook("test")))
 // 	logger.Error("test content", zap.String("field", "value"))
 
 // 	time.Sleep(1 * time.Second)

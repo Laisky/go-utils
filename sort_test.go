@@ -1,9 +1,7 @@
-package utils_test
+package utils
 
 import (
 	"testing"
-
-	utils "github.com/Laisky/go-utils"
 )
 
 type Item struct {
@@ -20,7 +18,7 @@ func (i *Item) GetKey() interface{} {
 }
 
 func TestSortSmallest(t *testing.T) {
-	items := utils.PairList{
+	items := PairList{
 		&Item{k: "1", v: 1},
 		&Item{k: "99", v: 99},
 		&Item{k: "40992", v: 40992},
@@ -29,7 +27,7 @@ func TestSortSmallest(t *testing.T) {
 		&Item{k: "932", v: 932},
 	}
 
-	utils.SortSmallest(items)
+	SortSmallest(items)
 	if items[0].GetValue() != 1 {
 		t.Errorf("except 1, got %v", items[0].GetValue())
 	}
@@ -42,7 +40,7 @@ func TestSortSmallest(t *testing.T) {
 }
 
 func TestSortBiggest(t *testing.T) {
-	items := utils.PairList{
+	items := PairList{
 		&Item{k: "1", v: 1},
 		&Item{k: "99", v: 99},
 		&Item{k: "40992", v: 40992},
@@ -51,7 +49,7 @@ func TestSortBiggest(t *testing.T) {
 		&Item{k: "932", v: 932},
 	}
 
-	utils.SortBiggest(items)
+	SortBiggest(items)
 	if items[0].GetValue() != 40992 {
 		t.Errorf("except 40992, got %v", items[0].GetValue())
 	}

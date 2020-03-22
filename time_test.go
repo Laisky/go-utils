@@ -1,11 +1,9 @@
-package utils_test
+package utils
 
 import (
 	"context"
 	"testing"
 	"time"
-
-	utils "github.com/Laisky/go-utils"
 )
 
 func TestParseTs2String(t *testing.T) {
@@ -20,7 +18,7 @@ func TestParseTs2String(t *testing.T) {
 		100000000: "1973-03-03T09:46:40Z",
 	}
 	for ts, v := range cases {
-		if got = utils.ParseTs2String(ts, layout); got != v {
+		if got = ParseTs2String(ts, layout); got != v {
 			t.Errorf("expect %v, got %v", v, got)
 		}
 	}
@@ -28,13 +26,13 @@ func TestParseTs2String(t *testing.T) {
 
 func TestParseUnix2UTC(t *testing.T) {
 	ut := int64(1570845794)
-	ts := utils.ParseUnix2UTC(ut).Format(time.RFC3339)
+	ts := ParseUnix2UTC(ut).Format(time.RFC3339)
 	if ts != "2019-10-12T02:03:14Z" {
 		t.Fatalf("got %v", ts)
 	}
 
 	utnano := int64(1570848785196500001)
-	ts = utils.ParseUnixNano2UTC(utnano).Format(time.RFC3339Nano)
+	ts = ParseUnixNano2UTC(utnano).Format(time.RFC3339Nano)
 	if ts != "2019-10-12T02:53:05.196500001Z" {
 		t.Fatalf("got %v", ts)
 	}
@@ -42,7 +40,7 @@ func TestParseUnix2UTC(t *testing.T) {
 
 func TestParseHex2UTC(t *testing.T) {
 	hex := "5da140b4"
-	ts, err := utils.ParseHex2UTC(hex)
+	ts, err := ParseHex2UTC(hex)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -51,7 +49,7 @@ func TestParseHex2UTC(t *testing.T) {
 	}
 
 	hexnano := "15ccc6cbb2f54a48"
-	ts, err = utils.ParseHexNano2UTC(hexnano)
+	ts, err = ParseHexNano2UTC(hexnano)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -87,22 +85,22 @@ func TestParseHex2UTC(t *testing.T) {
 func ExampleClock() {
 	// use internal clock
 	// get utc now
-	utils.Clock.GetUTCNow()
+	Clock.GetUTCNow()
 
 	// get time string
-	utils.Clock.GetTimeInRFC3339Nano()
+	Clock.GetTimeInRFC3339Nano()
 
 	// change clock refresh step
-	utils.SetupClock(10 * time.Millisecond)
+	SetupClock(10 * time.Millisecond)
 
 	// create new clock
-	c := utils.NewClock(context.Background(), 1*time.Second)
+	c := NewClock(context.Background(), 1*time.Second)
 	c.GetUTCNow()
 }
 
 func TestClock2(t *testing.T) {
 	var (
-		c   = utils.NewClock2(context.Background(), 100*time.Millisecond)
+		c   = NewClock2(context.Background(), 100*time.Millisecond)
 		ts  = c.GetUTCNow()
 		err error
 	)
@@ -150,7 +148,7 @@ func TestClock2(t *testing.T) {
 
 	// test hex
 	timeStr = c.GetTimeInHex()
-	if ts, err = utils.ParseHex2UTC(timeStr); err != nil {
+	if ts, err = ParseHex2UTC(timeStr); err != nil {
 		t.Fatalf("try to parse timeStr got error: %+v", err)
 	}
 	if ts.Format(time.RFC3339) != c.GetUTCNow().Format(time.RFC3339) {
@@ -160,7 +158,7 @@ func TestClock2(t *testing.T) {
 	}
 
 	timeStr = c.GetNanoTimeInHex()
-	if ts, err = utils.ParseHexNano2UTC(timeStr); err != nil {
+	if ts, err = ParseHexNano2UTC(timeStr); err != nil {
 		t.Fatalf("try to parse timeStr got error: %+v", err)
 	}
 	if ts.Format(time.RFC3339Nano) != c.GetUTCNow().Format(time.RFC3339Nano) {
@@ -191,7 +189,7 @@ BenchmarkClock/clock2_time_with_10us#01-4       	167978643	         6.56 ns/op	 
 */
 func BenchmarkClock(b *testing.B) {
 	var err error
-	if err = utils.Logger.ChangeLevel("error"); err != nil {
+	if err = Logger.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	// clock 1
@@ -202,7 +200,7 @@ func BenchmarkClock(b *testing.B) {
 	})
 
 	// clock 2
-	clock2 := utils.NewClock2(context.Background(), 500*time.Millisecond)
+	clock2 := NewClock2(context.Background(), 500*time.Millisecond)
 	b.Run("clock2 time with 500ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()

@@ -22,7 +22,7 @@ func TestGetFuncName(t *testing.T) {
 }
 
 func ExampleGetFuncName() {
-	GetFuncName(testFoo) // "github.com/Laisky/go-utils_test.testFoo"
+	GetFuncName(testFoo) // "github.com/Laisky/go-utils.testFoo"
 }
 
 func TestFallBack(t *testing.T) {
