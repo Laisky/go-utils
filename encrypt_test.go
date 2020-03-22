@@ -14,7 +14,7 @@ import (
 func TestHashSHA128String(t *testing.T) {
 	val := "dfij3ifj2jjl2jelkjdkwef"
 	got := HashSHA128String(val)
-	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566da39a3ee5e6b4b0d3255bfef95601890afd80709" {
+	if got != "57dce855bbee0bef97b63527d473c807a424511d" {
 		t.Fatalf("got: %v", got)
 	}
 }
@@ -27,7 +27,7 @@ func ExampleHashSHA128String() {
 func TestHashSHA256String(t *testing.T) {
 	val := "dfij3ifj2jjl2jelkjdkwef"
 	got := HashSHA256String(val)
-	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+	if got != "fef14c65b3d411fee6b2dbcb791a9536cbf637b153bb1de0aae1b41e3834aebf" {
 		t.Fatalf("got: %v", got)
 	}
 }
