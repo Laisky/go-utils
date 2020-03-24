@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/Laisky/zap"
@@ -236,5 +237,45 @@ func ExampleSignByECDSAWithSHA256() {
 	}
 	if VerifyByECDSAWithSHA256(&priKey.PublicKey, cnt, r, s) {
 		Logger.Panic("should not verify")
+	}
+}
+
+func TestFormatBig2Hex(t *testing.T) {
+	b := new(big.Int)
+	b = b.SetInt64(490348974827092350)
+	hex := FormatBig2Hex(b)
+
+	t.Logf("%x, %v", b, hex)
+	if fmt.Sprintf("%x", b) != hex {
+		t.Fatal("not equal")
+	}
+	// t.Error()
+}
+
+func TestParseHex2Big(t *testing.T) {
+	hex := "6ce11cb6c8bb97e"
+	b, ok := ParseHex2Big(hex)
+	if !ok {
+		t.Fatal()
+	}
+
+	t.Logf("%x, %v", b, hex)
+	if fmt.Sprintf("%x", b) != hex {
+		t.Fatal("not equal")
+	}
+}
+
+func TestECDSASignFormatAndParse(t *testing.T) {
+	a := new(big.Int)
+	a = a.SetInt64(490348974827092350)
+	b := new(big.Int)
+	b = b.SetInt64(9482039480932482)
+	a2, b2, ok := ParseECDSASign(FormatECDSASign(a, b))
+	if !ok {
+		t.Fatal()
+	}
+
+	if a2.Cmp(a) != 0 || b2.Cmp(b) != 0 {
+		t.Fatalf("got %d, %d", a2, b2)
 	}
 }

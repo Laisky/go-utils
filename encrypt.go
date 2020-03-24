@@ -8,7 +8,9 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"io"
 	"math/big"
+	"strings"
 
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
@@ -93,4 +95,58 @@ func SignByECDSAWithSHA256(priKey *ecdsa.PrivateKey, content []byte) (r, s *big.
 func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.Int) bool {
 	hash := sha256.Sum256(content)
 	return ecdsa.Verify(pubKey, hash[:], r, s)
+}
+
+// SignReaderByECDSAWithSHA256 generate signature by ecdsa private key use sha256
+func SignReaderByECDSAWithSHA256(priKey *ecdsa.PrivateKey, reader io.Reader) (r, s *big.Int, err error) {
+	hasher := sha256.New()
+	if _, err = io.Copy(hasher, reader); err != nil {
+		return nil, nil, errors.Wrap(err, "read contetn")
+	}
+
+	return ecdsa.Sign(rand.Reader, priKey, hasher.Sum(nil))
+}
+
+// VerifyReaderByECDSAWithSHA256 verify signature by ecdsa public key use sha256
+func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r, s *big.Int) (bool, error) {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return false, errors.Wrap(err, "read contetn")
+	}
+
+	return ecdsa.Verify(pubKey, hasher.Sum(nil), r, s), nil
+}
+
+const ecdsaSignDelimiter = "."
+
+// FormatECDSASign format ecdsa sign to stirng
+func FormatECDSASign(a, b *big.Int) string {
+	return FormatBig2Hex(a) + ecdsaSignDelimiter + FormatBig2Hex(b)
+}
+
+// ParseECDSASign parse ecdsa sign string to two *big.Int
+func ParseECDSASign(sign string) (a, b *big.Int, ok bool) {
+	ss := strings.Split(sign, ecdsaSignDelimiter)
+	if len(ss) != 2 {
+		return nil, nil, false
+	}
+	if a, ok = ParseHex2Big(ss[0]); !ok {
+		return
+	}
+	if b, ok = ParseHex2Big(ss[1]); !ok {
+		return
+	}
+
+	return
+}
+
+// FormatBig2Hex format big to hex string
+func FormatBig2Hex(b *big.Int) string {
+	return b.Text(16)
+}
+
+// ParseHex2Big parse hex string to big
+func ParseHex2Big(hex string) (b *big.Int, ok bool) {
+	b = new(big.Int)
+	return b.SetString(hex, 16)
 }
