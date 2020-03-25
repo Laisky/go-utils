@@ -7,13 +7,13 @@ require (
 	github.com/Laisky/graphql v1.0.4
 	github.com/Laisky/zap v1.12.2
 	github.com/cespare/xxhash v1.1.0
-	github.com/coreos/etcd v3.3.18+incompatible
+	github.com/coreos/etcd v3.3.19+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gin-gonic/gin v1.4.0
 	github.com/json-iterator/go v1.1.9
 	github.com/klauspost/compress v1.9.8 // indirect
-	github.com/klauspost/pgzip v1.2.2
+	github.com/klauspost/pgzip v1.2.3
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/pkg/errors v0.8.1

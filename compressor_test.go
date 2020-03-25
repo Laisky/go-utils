@@ -4,11 +4,64 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Laisky/zap"
 )
+
+func TestUnzipAndZipFiles(t *testing.T) {
+	var err error
+	if err = Logger.ChangeLevel("debug"); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var dir string
+	if dir, err = ioutil.TempDir("", "compressor-test"); err != nil {
+		log.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	if err = os.Mkdir(filepath.Join(dir, "src"), os.ModePerm); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = os.Mkdir(filepath.Join(dir, "dst"), os.ModePerm); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	files := []string{
+		filepath.Join(dir, "src", "a.txt"),
+		filepath.Join(dir, "src", "b.txt"),
+		filepath.Join(dir, "src", "c.txt"),
+	}
+
+	var fp *os.File
+	for _, file := range files {
+		if fp, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm); err != nil {
+			t.Fatalf("%+v", err)
+		}
+		if _, err = fp.WriteString("yoo"); err != nil {
+			t.Fatalf("%+v", err)
+		}
+		if err = fp.Close(); err != nil {
+			t.Fatalf("%+v", err)
+		}
+	}
+
+	if err = ZipFiles(filepath.Join(dir, "src.zip"), files); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var dstFiles []string
+	if dstFiles, err = Unzip(filepath.Join(dir, "src.zip"), filepath.Join(dir, "dst")); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("unzip files: %+v", dstFiles)
+
+	// t.Error()
+}
 
 func TestGZCompressor(t *testing.T) {
 	originText := "fj2f32f9jp9wsif0weif20if320fi23if"

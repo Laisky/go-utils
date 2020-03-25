@@ -132,11 +132,11 @@ func TestECDSAKeySerializer(t *testing.T) {
 	if pubByte, err = EncodeECDSAPublicKey(&priKey.PublicKey); err != nil {
 		t.Fatalf("%+v", err)
 	}
-	t.Logf("pub: %+v", pubByte)
+	t.Logf("pub: %v", string(pubByte))
 	if priByte, err = EncodeECDSAPrivateKey(priKey); err != nil {
 		t.Fatalf("%+v", err)
 	}
-	t.Logf("pri: %+v", priByte)
+	t.Logf("pri: %v", string(priByte))
 
 	var (
 		priKey2 *ecdsa.PrivateKey
@@ -158,6 +158,8 @@ func TestECDSAKeySerializer(t *testing.T) {
 	if !ecdsa.Verify(&priKey.PublicKey, hash[:], r, s) {
 		t.Fatal("verify failed")
 	}
+
+	t.Error()
 }
 
 func TestECDSAVerify(t *testing.T) {
