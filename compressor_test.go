@@ -14,9 +14,9 @@ import (
 
 func TestUnzipAndZipFiles(t *testing.T) {
 	var err error
-	if err = Logger.ChangeLevel("debug"); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	// if err = Logger.ChangeLevel("debug"); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
 
 	var dir string
 	if dir, err = ioutil.TempDir("", "compressor-test"); err != nil {

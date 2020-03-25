@@ -159,7 +159,7 @@ func TestECDSAKeySerializer(t *testing.T) {
 		t.Fatal("verify failed")
 	}
 
-	t.Error()
+	// t.Error()
 }
 
 func TestECDSAVerify(t *testing.T) {
