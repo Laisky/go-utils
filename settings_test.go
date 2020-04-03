@@ -31,6 +31,32 @@ func ExampleSettings() {
 	Settings.Set("name", "val")
 }
 
+func ExampleSettings_cobra() {
+	/*
+
+		import {
+			"github.com/spf13/cobra"
+		}
+
+		// with cobra command
+		rootCmd := &cobra.Command{}
+		childCmd := &cobra.Command{
+			PreRun: func(cmd *cobra.Command, args []string) {
+				if err := Settings.BindPFlags(cmd.Flags()); err != nil {
+					Logger.Panic("parse args")
+				}
+			},
+		}
+
+		rootCmd.AddCommand(childCmd)
+		childCmd.Flags().BoolP("verbose", "v", false, "verbose")
+
+		fmt.Println(Settings.GetBool("verbose"))
+		// Output: false
+
+	*/
+}
+
 func TestSettings(t *testing.T) {
 	var (
 		err error
