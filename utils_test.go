@@ -13,6 +13,32 @@ import (
 	"github.com/Laisky/zap"
 )
 
+func TestJSON(t *testing.T) {
+	jb, err := JSON.Marshal("123")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	var v string
+	if err = JSON.Unmarshal(jb, &v); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if v != "123" {
+		t.Fatal()
+	}
+}
+
+func TestIsPtr(t *testing.T) {
+	vp := &struct{}{}
+	vt := struct{}{}
+
+	if !IsPtr(vp) {
+		t.Fatal()
+	}
+	if IsPtr(vt) {
+		t.Fatal()
+	}
+}
+
 func testFoo() {}
 
 func TestGetFuncName(t *testing.T) {

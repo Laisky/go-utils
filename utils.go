@@ -23,7 +23,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	// JSON effective json
+	JSON = json
+)
 
 const (
 	defaultCgroupMemLimitPath = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
@@ -326,4 +330,9 @@ func UniqueStrings(vs []string) (r []string) {
 	}
 
 	return
+}
+
+// IsPtr check if t is pointer
+func IsPtr(t interface{}) bool {
+	return reflect.TypeOf(t).Kind() == reflect.Ptr
 }

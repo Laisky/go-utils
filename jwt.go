@@ -1,183 +1,20 @@
 package utils
 
-// JWT payload should looks like:
-//
-// ```js
-// {
-// 	"k1": "v1",
-// 	"k2": "v2",
-// 	"k3": "v3",
-// 	"uid": "laisky"
-// }
-// ```
-//
-// and the payload would be looks like:
-//
-// ```js
-// {
-//     "uid": "laisky",
-// 	   "exp": 4701974400
-// }
-// ```
-
 import (
-	oj "encoding/json"
 	"fmt"
-	"time"
 
-	"github.com/Laisky/zap"
-
+	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
-
-	jwt "github.com/dgrijalva/jwt-go"
 )
 
 var (
-	// defaultJWTSignMethod default jwt signing method
-	defaultJWTSignMethod = jwt.SigningMethodHS512
-	// defaultJWTUserIDKey default key of user_id stores in token payload
-	defaultJWTUserIDKey = "uid"
-	// defaultJWTExpiresKey default key of expires_at stores in token payload
-	defaultJWTExpiresKey = "exp"
+	// SignMethodHS256 use HS256 for jwt
+	SignMethodHS256 = jwt.SigningMethodHS256
+	// SignMethodES256 use ES256 for jwt
+	SignMethodES256 = jwt.SigningMethodES256
+
+	defaultSignMethod = SignMethodHS256
 )
-
-// JWT struct to generate and validate jwt tokens
-//
-// use a global uniform secret to signing all token.
-type JWT struct {
-	*jwtOption
-	secret []byte
-}
-
-type jwtOption struct {
-	signMethod *jwt.SigningMethodHMAC
-	userIDKey,
-	expiresKey string
-}
-
-// JWTOptFunc jwt option
-type JWTOptFunc func(*jwtOption) error
-
-// WithJWTSignMethod set jwt sign method
-func WithJWTSignMethod(method *jwt.SigningMethodHMAC) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if method == nil {
-			return fmt.Errorf("method should not be nil")
-		}
-
-		opt.signMethod = method
-		return nil
-	}
-}
-
-// WithJWTUserIDKey set jwt user id key in payload
-func WithJWTUserIDKey(userIDKey string) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if userIDKey == "" {
-			return fmt.Errorf("userIDKey should not be empty")
-		}
-
-		opt.userIDKey = userIDKey
-		if opt.expiresKey == opt.userIDKey {
-			return fmt.Errorf("expiresKey should not equal to userIDKey")
-		}
-		return nil
-	}
-}
-
-// WithJWTExpiresKey set jwt expires key in payload
-func WithJWTExpiresKey(expiresKey string) JWTOptFunc {
-	return func(opt *jwtOption) error {
-		if expiresKey == "" {
-			return fmt.Errorf("expiresKey should not be empty")
-		}
-
-		opt.expiresKey = expiresKey
-		if opt.expiresKey == opt.userIDKey {
-			return fmt.Errorf("expiresKey should not equal to userIDKey")
-		}
-		return nil
-	}
-}
-
-// NewJWT create new JWT
-func NewJWT(secret []byte, opts ...JWTOptFunc) (j *JWT, err error) {
-	if len(secret) == 0 {
-		return nil, errors.New("secret should not be empty")
-	}
-	opt := &jwtOption{
-		signMethod: defaultJWTSignMethod,
-		userIDKey:  defaultJWTUserIDKey,
-		expiresKey: defaultJWTExpiresKey,
-	}
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return nil, errors.Wrap(err, "set option")
-		}
-	}
-
-	jwt.TimeFunc = Clock.GetUTCNow
-	j = &JWT{
-		jwtOption: opt,
-		secret:    secret,
-	}
-	return
-}
-
-// GetSignMethod get jwt sign method
-func (j *JWT) GetSignMethod() *jwt.SigningMethodHMAC {
-	return j.signMethod
-}
-
-// GetUserIDKey get jwt user id key
-func (j *JWT) GetUserIDKey() string {
-	return j.userIDKey
-}
-
-// GetExpiresKey get jwt expires key
-func (j *JWT) GetExpiresKey() string {
-	return j.expiresKey
-}
-
-// GenerateToken generate JWT token with userID(interface{})
-func (j *JWT) GenerateToken(userID interface{}, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
-	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
-	}
-	jwtPayload[j.expiresKey] = expiresAt.Unix()
-	jwtPayload[j.userIDKey] = userID
-
-	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(j.secret); err != nil {
-		return "", errors.Wrap(err, "try to signed token got error")
-	}
-	return tokenStr, nil
-}
-
-// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
-func (j *JWT) VerifyAndReplaceExp(payload map[string]interface{}) (err error) {
-	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.expiresKey].(type) {
-	case float64:
-		if int64(exp) > now {
-			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	case oj.Number:
-		v, _ := exp.Int64()
-		if v > now {
-			payload[j.expiresKey] = time.Unix(v, 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	default:
-		err = fmt.Errorf("unknown expires format")
-	}
-
-	return err
-}
 
 // ParseJWTTokenWithoutValidate parse and get payload without validate jwt token
 func ParseJWTTokenWithoutValidate(token string) (payload jwt.MapClaims, err error) {
@@ -192,162 +29,212 @@ func ParseJWTTokenWithoutValidate(token string) (payload jwt.MapClaims, err erro
 	if payload, ok = jt.Claims.(jwt.MapClaims); !ok {
 		return nil, errors.New("payload type not match `map[string]interface{}`")
 	}
+
 	return payload, nil
 }
 
-// Validate validate the token and return the payload
-//
-// if token is invalidate, err will not be nil.
-func (j *JWT) Validate(tokenStr string) (payload jwt.MapClaims, err error) {
-	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
-			return nil, errors.New("JWT method not allowd")
-		}
-		return j.secret, nil
-	})
-	if err != nil || !token.Valid {
-		// return after got payload
-		err = errors.Wrap(err, "token method invalidate")
-	}
-
-	var ok bool
-	if payload, ok = token.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
-	if err != nil {
-		return payload, err
-	}
-
-	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token exp invalidate")
-	}
-	if _, ok = payload[j.userIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
-	}
-	return payload, err
+// JWT is token utils that support HS256/ES256
+type JWT struct {
+	secret,
+	priKey, pubKey []byte
+	signingMethod jwt.SigningMethod
 }
 
-// DivideJWT jwt utils to generate and validate token.
-//
-// use seperate secret for each token
-type DivideJWT struct {
-	*jwtOption
-}
+// JWTOptFunc options to setup JWT
+type JWTOptFunc func(*JWT) error
 
-// JWTUserItf load secret by uid
-type JWTUserItf interface {
-	GetUID() interface{}
-	GetSecret() []byte
-}
-
-// NewDivideJWT create new JWT
-func NewDivideJWT(opts ...JWTOptFunc) (j *DivideJWT, err error) {
-	opt := &jwtOption{
-		signMethod: defaultJWTSignMethod,
-		userIDKey:  defaultJWTUserIDKey,
-		expiresKey: defaultJWTExpiresKey,
+// WithJWTSignMethod set jwt signing method
+func WithJWTSignMethod(method jwt.SigningMethod) JWTOptFunc {
+	return func(e *JWT) error {
+		e.signingMethod = method
+		return nil
 	}
+}
+
+// WithJWTSecretByte set jwt symmetric signning key
+func WithJWTSecretByte(secret []byte) JWTOptFunc {
+	return func(e *JWT) error {
+		e.secret = secret
+		return nil
+	}
+}
+
+// WithJWTPriKeyByte set jwt asymmetrical private key
+func WithJWTPriKeyByte(prikey []byte) JWTOptFunc {
+	return func(e *JWT) error {
+		e.priKey = prikey
+		return nil
+	}
+}
+
+// WithJWTPubKeyByte set jwt asymmetrical public key
+func WithJWTPubKeyByte(pubkey []byte) JWTOptFunc {
+	return func(e *JWT) error {
+		e.pubKey = pubkey
+		return nil
+	}
+}
+
+type jwtDivideOpt struct {
+	priKey, pubKey,
+	secret []byte
+}
+
+// JWTDiviceOptFunc options to use seperate secret for every user in parsing/signing
+type JWTDiviceOptFunc func(*jwtDivideOpt) error
+
+// WithJWTDivideSecret set symmetric key for each signning/verify
+func WithJWTDivideSecret(secret []byte) JWTDiviceOptFunc {
+	return func(opt *jwtDivideOpt) error {
+		opt.secret = secret
+		return nil
+	}
+}
+
+// WithJWTDividePriKey set asymmetrical private key for each signning/verify
+func WithJWTDividePriKey(priKey []byte) JWTDiviceOptFunc {
+	return func(opt *jwtDivideOpt) error {
+		opt.priKey = priKey
+		return nil
+	}
+}
+
+// WithJWTDividePubKey set asymmetrical public key for each signning/verify
+func WithJWTDividePubKey(pubKey []byte) JWTDiviceOptFunc {
+	return func(opt *jwtDivideOpt) error {
+		opt.pubKey = pubKey
+		return nil
+	}
+}
+
+// NewJWT create new JWT utils
+func NewJWT(opts ...JWTOptFunc) (e *JWT, err error) {
+	e = &JWT{
+		signingMethod: defaultSignMethod,
+	}
+
 	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return nil, errors.Wrap(err, "set option")
+		if err = optf(e); err != nil {
+			return nil, errors.Wrap(err, "apply option")
 		}
 	}
 
-	jwt.TimeFunc = Clock.GetUTCNow
-	j = &DivideJWT{
-		jwtOption: opt,
-	}
 	return
 }
 
-// GetSignMethod get jwt sign method
-func (j *DivideJWT) GetSignMethod() *jwt.SigningMethodHMAC {
-	return j.signMethod
-}
-
-// GetUserIDKey get jwt user id key
-func (j *DivideJWT) GetUserIDKey() string {
-	return j.userIDKey
-}
-
-// GetExpiresKey get jwt expires key
-func (j *DivideJWT) GetExpiresKey() string {
-	return j.expiresKey
-}
-
-// GenerateToken generate JWT token.
-// do not use `expires_at` & `uid` as keys.
-func (j *DivideJWT) GenerateToken(user JWTUserItf, expiresAt time.Time, payload map[string]interface{}) (tokenStr string, err error) {
-	jwtPayload := jwt.MapClaims{}
-	for k, v := range payload {
-		jwtPayload[k] = v
+// Sign sign claims to token
+func (e *JWT) Sign(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
+	switch e.signingMethod {
+	case SignMethodHS256:
+		return e.SignByHS256(claims, opts...)
+	case SignMethodES256:
+		return e.SignByES256(claims, opts...)
 	}
-	jwtPayload[j.expiresKey] = expiresAt.Unix()
-	jwtPayload[j.userIDKey] = user.GetUID()
 
-	token := jwt.NewWithClaims(j.signMethod, jwtPayload)
-	if tokenStr, err = token.SignedString(user.GetSecret()); err != nil {
-		return "", errors.Wrap(err, "try to signed token got error")
-	}
-	return tokenStr, nil
+	return "", fmt.Errorf("unknown signmethod `%s`", e.signingMethod)
 }
 
-// VerifyAndReplaceExp check expires and replace expires to time.Time if validated
-func (j *DivideJWT) VerifyAndReplaceExp(payload jwt.MapClaims) (err error) {
-	now := Clock.GetUTCNow().Unix()
-	switch exp := payload[j.expiresKey].(type) {
-	case float64:
-		if int64(exp) > now {
-			payload[j.expiresKey] = time.Unix(int64(exp), 0).UTC()
-			return nil
+// SignByHS256 signing claims by HS256
+func (e *JWT) SignByHS256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
+	opt := &jwtDivideOpt{
+		secret: e.secret,
+	}
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return "", errors.Wrap(err, "apply optf")
 		}
-		err = fmt.Errorf("token expired")
-	case oj.Number:
-		v, _ := exp.Int64()
-		if v > now {
-			payload[j.expiresKey] = time.Unix(v, 0).UTC()
-			return nil
-		}
-		err = fmt.Errorf("token expired")
-	default:
-		err = fmt.Errorf("unknown expires format")
 	}
 
-	return err
+	token := jwt.NewWithClaims(SignMethodHS256, claims)
+	return token.SignedString(opt.secret)
 }
 
-// Validate validate the token and return the payload
-//
-// if token is invalidate, err will not be nil.
-func (j *DivideJWT) Validate(user JWTUserItf, tokenStr string) (payload jwt.MapClaims, err error) {
-	Logger.Debug("Validate for token", zap.String("tokenStr", tokenStr))
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if method, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || method != j.signMethod {
-			return nil, errors.New("JWT method not allowd")
+// SignByES256 signing claims by ES256
+func (e *JWT) SignByES256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
+	opt := &jwtDivideOpt{
+		pubKey: e.pubKey,
+		priKey: e.priKey,
+	}
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return "", errors.Wrap(err, "apply optf")
 		}
-		return user.GetSecret(), nil
-	})
-	if err != nil || !token.Valid {
-		// return after got payload
-		err = errors.Wrap(err, "token invalidate")
 	}
 
-	var ok bool
-	if payload, ok = token.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
+	token := jwt.NewWithClaims(SignMethodES256, claims)
+	priKey, err := jwt.ParseECPrivateKeyFromPEM(opt.priKey)
 	if err != nil {
-		return payload, err
+		return "", errors.Wrap(err, "parse private key")
 	}
 
-	if err = j.VerifyAndReplaceExp(payload); err != nil { // exp must exists
-		return payload, errors.Wrap(err, "token invalidate")
+	return token.SignedString(priKey)
+}
+
+// ParseClaims parse token to claims
+func (e *JWT) ParseClaims(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
+	if !IsPtr(claimsPtr) {
+		return errors.New("claimsPtr must be a pointer")
 	}
-	if _, ok = payload[j.userIDKey]; !ok {
-		err = fmt.Errorf("token must contains `%v`", j.userIDKey)
+
+	switch e.signingMethod {
+	case SignMethodHS256:
+		return e.ParseClaimsByHS256(token, claimsPtr, opts...)
+	case SignMethodES256:
+		return e.ParseClaimsByES256(token, claimsPtr, opts...)
+	default:
+		return fmt.Errorf("unknown sign method `%s`", e.signingMethod)
 	}
-	return payload, err
+}
+
+// ParseClaimsByHS256 parse token to claims by HS256
+func (e *JWT) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
+	opt := &jwtDivideOpt{
+		secret: e.secret,
+	}
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return errors.Wrap(err, "apply optf")
+		}
+	}
+
+	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return opt.secret, nil
+	}); err != nil {
+		return errors.Wrap(err, "parse token by hs256")
+	}
+
+	return nil
+}
+
+// ParseClaimsByES256 parse token to claims by ES256
+func (e *JWT) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
+	opt := &jwtDivideOpt{
+		pubKey: e.pubKey,
+		priKey: e.priKey,
+	}
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return errors.Wrap(err, "apply optf")
+		}
+	}
+
+	pubKey, err := jwt.ParseECPublicKeyFromPEM(opt.pubKey)
+	if err != nil {
+		return errors.Wrap(err, "parse es256 public key")
+	}
+
+	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return pubKey, nil
+	}); err != nil {
+		return errors.Wrap(err, "parse token by es256")
+	}
+
+	return nil
 }
