@@ -13,6 +13,33 @@ import (
 	"github.com/Laisky/zap"
 )
 
+func TestValidateFileHash(t *testing.T) {
+	fp, err := ioutil.TempFile("", "go-utils-*")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	defer os.Remove(fp.Name())
+	defer fp.Close()
+
+	content := []byte("jijf32ijr923e890dsfuodsafjlj;f9o2ur9re")
+	if _, err = fp.Write(content); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if err = ValidateFileHash(fp.Name(), "sha256:123"); err == nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = ValidateFileHash(fp.Name(), "sha254:123"); err == nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = ValidateFileHash(fp.Name(), ""); err == nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = ValidateFileHash(fp.Name(), "sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67"); err != nil {
+		t.Fatalf("%+v", err)
+	}
+}
+
 func TestJSON(t *testing.T) {
 	jb, err := JSON.Marshal("123")
 	if err != nil {

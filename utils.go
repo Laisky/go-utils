@@ -4,7 +4,11 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,6 +40,39 @@ const (
 
 // CtxKeyT type of context key
 type CtxKeyT struct{}
+
+// ValidateFileHash validate file content with hashed string
+func ValidateFileHash(filepath string, hashed string) error {
+	hs := strings.Split(hashed, ":")
+	if len(hs) != 2 {
+		return fmt.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
+	}
+
+	var hasher hash.Hash
+	switch hs[0] {
+	case "sha256":
+		hasher = sha256.New()
+	default:
+		return fmt.Errorf("unknown hasher `%s`", hs[0])
+	}
+
+	fp, err := os.Open(filepath)
+	if err != nil {
+		return errors.Wrapf(err, "open file `%s`", filepath)
+	}
+	defer fp.Close()
+
+	if _, err = io.Copy(hasher, fp); err != nil {
+		return errors.Wrap(err, "read file content")
+	}
+
+	actualHash := hex.EncodeToString(hasher.Sum(nil))
+	if hs[1] != actualHash {
+		return fmt.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
+	}
+
+	return nil
+}
 
 // GetFuncName return the name of func
 func GetFuncName(f interface{}) string {
