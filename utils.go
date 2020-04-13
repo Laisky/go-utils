@@ -41,6 +41,40 @@ const (
 // CtxKeyT type of context key
 type CtxKeyT struct{}
 
+// IsHasField check is struct has field
+//
+// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+func IsHasField(st interface{}, fieldName string) bool {
+	valueIface := reflect.ValueOf(st)
+
+	// Check if the passed interface is a pointer
+	if valueIface.Type().Kind() != reflect.Ptr {
+		// Create a new type of Iface's Type, so we have a pointer to work with
+		valueIface = reflect.New(reflect.TypeOf(st))
+	}
+
+	// 'dereference' with Elem() and get the field by name
+	field := valueIface.Elem().FieldByName(fieldName)
+	return field.IsValid()
+}
+
+// IsHasMethod check is struct has method
+//
+// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+func IsHasMethod(st interface{}, methodName string) bool {
+	valueIface := reflect.ValueOf(st)
+
+	// Check if the passed interface is a pointer
+	if valueIface.Type().Kind() != reflect.Ptr {
+		// Create a new type of Iface, so we have a pointer to work with
+		valueIface = reflect.New(reflect.TypeOf(st))
+	}
+
+	// Get the method by name
+	method := valueIface.MethodByName(methodName)
+	return method.IsValid()
+}
+
 // ValidateFileHash validate file content with hashed string
 func ValidateFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")

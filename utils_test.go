@@ -13,6 +13,83 @@ import (
 	"github.com/Laisky/zap"
 )
 
+type testEmbeddedSt struct{}
+
+type testStCorrect1 struct {
+	testEmbeddedSt
+}
+type testStCorrect2 struct {
+	testEmbeddedSt string
+}
+type testStFail struct {
+}
+
+func (t *testStCorrect1) PointerMethod() {
+
+}
+func (t *testStCorrect1) Method() {
+
+}
+
+func TestIsHasMethod(t *testing.T) {
+	st1 := testStCorrect1{}
+	st1p := &testStCorrect1{}
+	st2 := testStFail{}
+	st2p := &testStFail{}
+
+	if !IsHasMethod(st1, "Method") {
+		t.Fatal()
+	}
+	if !IsHasMethod(st1, "PointerMethod") {
+		t.Fatal()
+	}
+	if !IsHasMethod(st1p, "Method") {
+		t.Fatal()
+	}
+	if !IsHasMethod(st1p, "PointerMethod") {
+		t.Fatal()
+	}
+	if IsHasMethod(st2, "Method") {
+		t.Fatal()
+	}
+	if IsHasMethod(st2, "PointerMethod") {
+		t.Fatal()
+	}
+	if IsHasMethod(st2p, "Method") {
+		t.Fatal()
+	}
+	if IsHasMethod(st2p, "PointerMethod") {
+		t.Fatal()
+	}
+}
+
+func TestIsHasField(t *testing.T) {
+	st1 := testStCorrect1{}
+	st1p := &testStCorrect1{}
+	st2 := testStCorrect2{}
+	st2p := &testStCorrect2{}
+	st3 := testStFail{}
+	st3p := &testStFail{}
+	if !IsHasField(st1, "testEmbeddedSt") {
+		t.Fatal()
+	}
+	if !IsHasField(st1p, "testEmbeddedSt") {
+		t.Fatal()
+	}
+	if !IsHasField(st2, "testEmbeddedSt") {
+		t.Fatal()
+	}
+	if !IsHasField(st2p, "testEmbeddedSt") {
+		t.Fatal()
+	}
+	if IsHasField(st3, "testEmbeddedSt") {
+		t.Fatal()
+	}
+	if IsHasField(st3p, "testEmbeddedSt") {
+		t.Fatal()
+	}
+}
+
 func TestValidateFileHash(t *testing.T) {
 	fp, err := ioutil.TempFile("", "go-utils-*")
 	if err != nil {
