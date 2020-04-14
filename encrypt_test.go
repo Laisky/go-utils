@@ -267,17 +267,43 @@ func TestParseHex2Big(t *testing.T) {
 	}
 }
 
-func TestECDSASignFormatAndParse(t *testing.T) {
+func TestECDSASignFormatAndParseByHex(t *testing.T) {
 	a := new(big.Int)
 	a = a.SetInt64(490348974827092350)
 	b := new(big.Int)
 	b = b.SetInt64(9482039480932482)
-	a2, b2, ok := ParseECDSASign(FormatECDSASign(a, b))
-	if !ok {
-		t.Fatal()
+
+	encoded := EncodeES256SignByHex(a, b)
+	t.Logf("encoded: %v", encoded)
+
+	a2, b2, err := DecodeES256SignByHex(encoded)
+	if err != nil {
+		t.Fatalf("%+v", err)
 	}
 
 	if a2.Cmp(a) != 0 || b2.Cmp(b) != 0 {
 		t.Fatalf("got %d, %d", a2, b2)
 	}
+	// t.Error()
+}
+
+func TestECDSASignFormatAndParseByBase64(t *testing.T) {
+	a := new(big.Int)
+	a = a.SetInt64(490348974827092350)
+	b := new(big.Int)
+	b = b.SetInt64(9482039480932482)
+
+	encoded := EncodeES256SignByBase64(a, b)
+	t.Logf("encoded: %v", encoded)
+
+	a2, b2, err := DecodeES256SignByBase64(encoded)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if a2.Cmp(a) != 0 || b2.Cmp(b) != 0 {
+		t.Fatalf("got %d, %d", a2, b2)
+	}
+
+	// t.Error()
 }
