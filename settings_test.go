@@ -126,6 +126,68 @@ key4:
 	}
 }
 
+func TestSettingsToml(t *testing.T) {
+	var (
+		err error
+		st  = []byte(`
+root = "root"
+
+[foo]
+	a = 1
+	b = "b"
+	c = true
+`)
+	)
+
+	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
+	if err != nil {
+		t.Fatalf("try to create tmp dir got error: %+v", err)
+	}
+	defer os.RemoveAll(dirName)
+
+	fp, err := os.Create(filepath.Join(dirName, "settings.toml"))
+	if err != nil {
+		t.Fatalf("try to create tmp file got error: %+v", err)
+	}
+	t.Logf("create file: %v", fp.Name())
+
+	if _, err = fp.Write(st); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = fp.Close(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	t.Logf("load settings from: %v", fp.Name())
+	if err = Settings.SetupFromFile(fp.Name()); err != nil {
+		t.Fatalf("setup settings got error: %+v", err)
+	}
+
+	t.Logf(">> key1: %+v", viper.Get("root"))
+	if fp, err = os.Open(fp.Name()); err != nil {
+		t.Fatalf("open: %+v", err)
+	}
+	defer fp.Close()
+	if b, err := ioutil.ReadAll(fp); err != nil {
+		t.Fatalf("try to read tmp file got error: %+v", err)
+	} else {
+		t.Logf("file content: %v", string(b))
+	}
+
+	if Settings.GetString("root") != "root" {
+		t.Fatal(Settings.GetString("root"))
+	}
+	if Settings.GetInt("foo.a") != 1 {
+		t.Fatal()
+	}
+	if Settings.GetString("foo.b") != "b" {
+		t.Fatal()
+	}
+	if !Settings.GetBool("foo.c") {
+		t.Fatal()
+	}
+}
+
 // depended on remote config-s  erver
 func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
 	fakedata := map[string]interface{}{
