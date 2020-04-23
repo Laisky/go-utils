@@ -6,8 +6,10 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -119,23 +121,66 @@ func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r,
 
 const ecdsaSignDelimiter = "."
 
-// FormatECDSASign format ecdsa sign to stirng
-func FormatECDSASign(a, b *big.Int) string {
+// FormatECDSASign(Deprecated)
+var FormatECDSASign = EncodeES256SignByHex
+
+// EncodeES256SignByHex format ecdsa sign to stirng
+func EncodeES256SignByHex(a, b *big.Int) string {
 	return FormatBig2Hex(a) + ecdsaSignDelimiter + FormatBig2Hex(b)
 }
 
-// ParseECDSASign parse ecdsa sign string to two *big.Int
+// ParseECDSASign(Deprecated)
 func ParseECDSASign(sign string) (a, b *big.Int, ok bool) {
-	ss := strings.Split(sign, ecdsaSignDelimiter)
-	if len(ss) != 2 {
+	var err error
+	if a, b, err = DecodeES256SignByHex(sign); err != nil {
 		return nil, nil, false
 	}
+
+	return a, b, true
+}
+
+// DecodeES256SignByHex parse ecdsa sign string to two *big.Int
+func DecodeES256SignByHex(sign string) (a, b *big.Int, err error) {
+	ss := strings.Split(sign, ecdsaSignDelimiter)
+	if len(ss) != 2 {
+		return nil, nil, fmt.Errorf("unknown format of signature `%s`, want `xxx.xxx`", sign)
+	}
+	var ok bool
 	if a, ok = ParseHex2Big(ss[0]); !ok {
-		return
+		return nil, nil, fmt.Errorf("invalidate hex `%s`", ss[0])
 	}
 	if b, ok = ParseHex2Big(ss[1]); !ok {
-		return
+		return nil, nil, fmt.Errorf("invalidate hex `%s`", ss[1])
 	}
+
+	return
+}
+
+// EncodeES256SignByBase64 format ecdsa sign to stirng
+func EncodeES256SignByBase64(a, b *big.Int) string {
+	return base64.StdEncoding.EncodeToString(a.Bytes()) + ecdsaSignDelimiter + base64.StdEncoding.EncodeToString(b.Bytes())
+}
+
+// DecodeES256SignByBase64 parse ecdsa sign string to two *big.Int
+func DecodeES256SignByBase64(sign string) (a, b *big.Int, err error) {
+	ss := strings.Split(sign, ecdsaSignDelimiter)
+	if len(ss) != 2 {
+		return nil, nil, errors.Wrapf(err, "unknown format of signature `%s`, expect is `xxxx.xxxx`", sign)
+	}
+
+	ab, err := base64.StdEncoding.DecodeString(ss[0])
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[0])
+	}
+	a = new(big.Int)
+	a = a.SetBytes(ab)
+
+	bb, err := base64.StdEncoding.DecodeString(ss[1])
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[1])
+	}
+	b = new(big.Int)
+	b = b.SetBytes(bb)
 
 	return
 }
