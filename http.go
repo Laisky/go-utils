@@ -75,7 +75,7 @@ func GetHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
 	}
 	for _, optf := range opts {
 		if err = optf(opt); err != nil {
-			return errors.Wrap(err, "set option")
+			return nil, errors.Wrap(err, "set option")
 		}
 	}
 
@@ -89,7 +89,7 @@ func GetHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
 		Timeout: opt.timeout,
 	}
 
-	return
+	return c, nil
 }
 
 // RequestData 发起请求的结构体

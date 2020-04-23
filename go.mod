@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/graphql v1.0.4
+	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.12.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/coreos/etcd v3.3.20+incompatible
