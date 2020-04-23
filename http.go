@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,14 +14,83 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	httpClient = &http.Client{ // default http client
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: 20,
-		},
-		Timeout: time.Duration(30) * time.Second,
-	}
+const (
+	defaultHTTPClientOptTimeout  = 30 * time.Second
+	defaultHTTPClientOptMaxConn  = 20
+	defaultHTTPClientOptInsecure = false
 )
+
+var (
+	httpClient, _         = GetHTTPClient()
+	httpClientInsecure, _ = GetHTTPClient(WithHTTPClientInsecure(true))
+)
+
+type httpClientOption struct {
+	timeout  time.Duration
+	maxConn  int
+	insecure bool
+}
+
+// HttpClientOptFunc http client options
+type HttpClientOptFunc func(*httpClientOption) error
+
+// WithHTTPClientTimeout set http client timeout
+func WithHTTPClientTimeout(timeout time.Duration) HttpClientOptFunc {
+	return func(opt *httpClientOption) error {
+		if timeout <= 0 {
+			return fmt.Errorf("timeout should greater than 0")
+		}
+
+		opt.timeout = timeout
+		return nil
+	}
+}
+
+// WithHTTPClientMaxConn set http client max connection
+func WithHTTPClientMaxConn(maxConn int) HttpClientOptFunc {
+	return func(opt *httpClientOption) error {
+		if maxConn <= 0 {
+			return fmt.Errorf("maxConn should greater than 0")
+		}
+
+		opt.maxConn = maxConn
+		return nil
+	}
+}
+
+// WithHTTPClientInsecure set http client igonre ssl issue
+func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
+	return func(opt *httpClientOption) error {
+		opt.insecure = insecure
+		return nil
+	}
+}
+
+// GetHTTPClient get default http client
+func GetHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
+	opt := &httpClientOption{
+		maxConn:  defaultHTTPClientOptMaxConn,
+		timeout:  defaultHTTPClientOptTimeout,
+		insecure: defaultHTTPClientOptInsecure,
+	}
+	for _, optf := range opts {
+		if err = optf(opt); err != nil {
+			return errors.Wrap(err, "set option")
+		}
+	}
+
+	c = &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConnsPerHost: opt.maxConn,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: opt.insecure,
+			},
+		},
+		Timeout: opt.timeout,
+	}
+
+	return
+}
 
 // RequestData 发起请求的结构体
 type RequestData struct {
