@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	httpClient, _         = GetHTTPClient()
-	httpClientInsecure, _ = GetHTTPClient(WithHTTPClientInsecure(true))
+	httpClient, _ = GetHTTPClient()
+	// httpClientInsecure, _ = GetHTTPClient(WithHTTPClientInsecure(true))
 )
 
 type httpClientOption struct {

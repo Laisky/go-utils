@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,13 +28,10 @@ const defaultConfigFileName = "settings.yml"
 // SettingsType type of project settings
 type SettingsType struct {
 	sync.RWMutex
-	YamlExt string
 }
 
 // Settings is the settings for this project
-var Settings = &SettingsType{
-	YamlExt: "yaml",
-}
+var Settings = &SettingsType{}
 
 // BindPFlags bind pflags to settings
 func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
@@ -143,12 +141,13 @@ func (s *SettingsType) SetupFromDir(dirPath string) error {
 // SetupFromFile load settings from file
 func (s *SettingsType) SetupFromFile(filePath string) error {
 	Logger.Info("Setup settings", zap.String("filePath", filePath))
-	viper.SetConfigType(Settings.YamlExt)
+	viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
 	fp, err := os.Open(filePath)
 	if err != nil {
 		return errors.Wrap(err, "try to open config file got error")
 	}
 	defer fp.Close()
+
 	if err = viper.ReadConfig(bufio.NewReader(fp)); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
 	}
@@ -195,7 +194,7 @@ func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label
 		return fmt.Errorf("can not load raw cfg with key `%v`", key)
 	}
 	Logger.Debug("load raw cfg", zap.String("raw", raw))
-	viper.SetConfigType(Settings.YamlExt)
+	viper.SetConfigType("yaml")
 	if err = viper.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
 	}
