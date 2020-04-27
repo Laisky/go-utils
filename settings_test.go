@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/net/context"
 )
 
 func ExampleSettings() {
@@ -190,6 +191,9 @@ root = "root"
 
 // depended on remote config-s  erver
 func TestSetupFromConfigServerWithRawYaml(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	fakedata := map[string]interface{}{
 		"name":     "app",
 		"profiles": []string{"profile"},
@@ -219,7 +223,7 @@ a:
 	// }
 	port := 24953
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go RunMockConfigSrv(port, fakedata)
+	go runMockHttpServer(ctx, port, "/app/profile/label",fakedata)
 	time.Sleep(100 * time.Millisecond)
 	if err := Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
 		t.Fatalf("got error: %+v", err)

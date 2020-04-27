@@ -1,12 +1,12 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/Laisky/zap"
 )
@@ -44,18 +44,36 @@ var fakeConfigSrvData = map[string]interface{}{
 	},
 }
 
-func RunMockConfigSrv(port int, fakadata interface{}) {
-	httpsrv := gin.New()
+func fakeHandler(data interface{}) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		d, err := json.Marshal(data)
+		if err != nil {
+			Logger.Panic("marashal fake config")
+		}
 
-	httpsrv.GET("/app/profile/label", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, fakadata)
-	})
+		if _, err := w.Write(d); err != nil {
+			Logger.Panic("write http response")
+		}
+	}
+}
 
-	// run mock config-server
-	addr := fmt.Sprintf("localhost:%v", port)
-	Logger.Debug("run config-server", zap.String("addr", addr))
-	if err := httpsrv.Run(addr); err != nil {
-		Logger.Panic("try to run server got error", zap.Error(err))
+func runMockHttpServer(ctx context.Context, port int, path string, fakadata interface{}) {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		Logger.Panic("listen", zap.Error(err))
+	}
+
+	go func() {
+		defer ln.Close()
+		<-ctx.Done()
+	}()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(path, fakeHandler(fakadata))
+
+	// srv.HandleFunc("/app/profile/label", fakeHandler func)
+	if err = http.Serve(ln, mux); err != nil {
+		Logger.Error("http server exit", zap.Error(err))
 	}
 }
 
@@ -65,9 +83,12 @@ func TestConfigSrv(t *testing.T) {
 	// 	Logger.Panic("try to marshal fake data got error", zap.Error(err))
 	// }
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	port := 24951
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go RunMockConfigSrv(port, fakeConfigSrvData)
+	go runMockHttpServer(ctx, port, "/app/profile/label", fakeConfigSrvData)
 	time.Sleep(100 * time.Millisecond)
 
 	var (
