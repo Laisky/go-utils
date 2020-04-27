@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/pkg/fileutil"
-
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
@@ -196,8 +194,8 @@ func WithGCMemRatio(ratio int) GcOptFunc {
 // WithGCMemLimitFilePath set memory limit file
 func WithGCMemLimitFilePath(path string) GcOptFunc {
 	return func(opt *gcOption) error {
-		if !fileutil.Exist(path) {
-			return fmt.Errorf("file path not exists, got %v", path)
+		if _, err := os.Open(path); err != nil {
+			return errors.Wrapf(err, "try open path `%s`", path)
 		}
 
 		Logger.Debug("set memLimitFilePath", zap.String("file", path))
