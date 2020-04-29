@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -19,8 +20,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/coreos/etcd/pkg/fileutil"
 
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
@@ -196,8 +195,8 @@ func WithGCMemRatio(ratio int) GcOptFunc {
 // WithGCMemLimitFilePath set memory limit file
 func WithGCMemLimitFilePath(path string) GcOptFunc {
 	return func(opt *gcOption) error {
-		if !fileutil.Exist(path) {
-			return fmt.Errorf("file path not exists, got %v", path)
+		if _, err := os.Open(path); err != nil {
+			return errors.Wrapf(err, "try open path `%s`", path)
 		}
 
 		Logger.Debug("set memLimitFilePath", zap.String("file", path))
@@ -406,4 +405,9 @@ func UniqueStrings(vs []string) (r []string) {
 // IsPtr check if t is pointer
 func IsPtr(t interface{}) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
+}
+
+// RunCMD run command script
+func RunCMD(app string, args ...string) (stdout []byte, err error) {
+	return exec.Command(app, args...).Output()
 }
