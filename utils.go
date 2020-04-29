@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -404,4 +405,9 @@ func UniqueStrings(vs []string) (r []string) {
 // IsPtr check if t is pointer
 func IsPtr(t interface{}) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
+}
+
+// RunCMD run command script
+func RunCMD(app string, args ...string) (stdout []byte, err error) {
+	return exec.Command(app, args...).Output()
 }
