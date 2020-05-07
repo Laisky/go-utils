@@ -222,6 +222,12 @@ func ExampleSignByECDSAWithSHA256() {
 		Logger.Panic("verify failed")
 	}
 
+	// generate string
+	encoded := EncodeES256SignByBase64(r, s)
+	if r, s, err = DecodeES256SignByBase64(encoded); err != nil {
+		Logger.Panic("encode and decode", zap.Error(err))
+	}
+
 	// case: incorrect cnt
 	cnt = []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
 	r, s, err = SignByECDSAWithSHA256(priKey, cnt)

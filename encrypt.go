@@ -121,7 +121,9 @@ func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r,
 
 const ecdsaSignDelimiter = "."
 
-// FormatECDSASign(Deprecated)
+// FormatECDSASign
+//
+// Deprecated: use EncodeES256SignByBase6e instead
 var FormatECDSASign = EncodeES256SignByHex
 
 // EncodeES256SignByHex format ecdsa sign to stirng
