@@ -158,7 +158,7 @@ func DecodeES256SignByHex(sign string) (a, b *big.Int, err error) {
 
 // EncodeES256SignByBase64 format ecdsa sign to stirng
 func EncodeES256SignByBase64(a, b *big.Int) string {
-	return base64.StdEncoding.EncodeToString(a.Bytes()) + ecdsaSignDelimiter + base64.StdEncoding.EncodeToString(b.Bytes())
+	return FormatBig2Base64(a) + ecdsaSignDelimiter + FormatBig2Base64(b)
 }
 
 // DecodeES256SignByBase64 parse ecdsa sign string to two *big.Int
@@ -168,19 +168,13 @@ func DecodeES256SignByBase64(sign string) (a, b *big.Int, err error) {
 		return nil, nil, errors.Wrapf(err, "unknown format of signature `%s`, expect is `xxxx.xxxx`", sign)
 	}
 
-	ab, err := base64.StdEncoding.DecodeString(ss[0])
-	if err != nil {
+	if a, err = ParseBase642Big(ss[0]); err != nil {
 		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[0])
 	}
-	a = new(big.Int)
-	a = a.SetBytes(ab)
 
-	bb, err := base64.StdEncoding.DecodeString(ss[1])
-	if err != nil {
+	if b, err = ParseBase642Big(ss[1]); err != nil {
 		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[1])
 	}
-	b = new(big.Int)
-	b = b.SetBytes(bb)
 
 	return
 }
@@ -194,4 +188,21 @@ func FormatBig2Hex(b *big.Int) string {
 func ParseHex2Big(hex string) (b *big.Int, ok bool) {
 	b = new(big.Int)
 	return b.SetString(hex, 16)
+}
+
+// FormatBig2Base64 format big to base64 string
+func FormatBig2Base64(b *big.Int) string {
+	return base64.URLEncoding.EncodeToString(b.Bytes())
+}
+
+// ParseBase642Big parse base64 string to big
+func ParseBase642Big(raw string) (*big.Int, error) {
+	bb, err := base64.URLEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	b := new(big.Int)
+	b.SetBytes(bb)
+	return b, nil
 }

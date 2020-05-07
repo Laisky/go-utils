@@ -494,6 +494,7 @@ func TestUniqueStrings(t *testing.T) {
 }
 
 func TestRunCMD(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 		app  string
 		args []string
@@ -509,7 +510,7 @@ func TestRunCMD(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotStdout, err := RunCMD(tt.args.app, tt.args.args...)
+			gotStdout, err := RunCMD(ctx, tt.args.app, tt.args.args...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RunCMD() error = %v, wantErr %v", err, tt.wantErr)
 				return
