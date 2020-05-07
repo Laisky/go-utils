@@ -251,6 +251,19 @@ func TestFormatBig2Hex(t *testing.T) {
 	if fmt.Sprintf("%x", b) != hex {
 		t.Fatal("not equal")
 	}
+
+	// t.Error()
+}
+
+func TestFormatBig2Base64(t *testing.T) {
+	b := new(big.Int)
+	b = b.SetInt64(490348974827092350)
+	r := FormatBig2Base64(b)
+	t.Log(r)
+	if r != "Bs4Ry2yLuX4=" {
+		t.Fatal()
+	}
+
 	// t.Error()
 }
 
@@ -265,6 +278,21 @@ func TestParseHex2Big(t *testing.T) {
 	if fmt.Sprintf("%x", b) != hex {
 		t.Fatal("not equal")
 	}
+}
+
+func TestParseBase642Big(t *testing.T) {
+	raw := "Bs4Ry2yLuX4="
+	b, err := ParseBase642Big(raw)
+	if err != nil {
+		t.Fatal()
+	}
+
+	t.Log(b.String())
+	if b.Int64() != 490348974827092350 {
+		t.Fatal()
+	}
+
+	// t.Error()
 }
 
 func TestECDSASignFormatAndParseByHex(t *testing.T) {
