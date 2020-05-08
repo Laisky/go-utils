@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -410,4 +411,9 @@ func IsPtr(t interface{}) bool {
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
 	return exec.CommandContext(ctx, app, args...).Output()
+}
+
+// Base64 encode bytes to string use base64
+func Base64(raw []byte) string {
+	return base64.URLEncoding.EncodeToString(raw)
 }

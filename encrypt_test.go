@@ -12,6 +12,27 @@ import (
 	"github.com/Laisky/zap"
 )
 
+func TestAes(t *testing.T) {
+	key := []byte(RandomStringWithLength(32))
+	cnt := []byte("hello, laisky")
+
+	cipher, err := EncryptByAES(key, cnt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("got cipher: %s", Base64(cipher))
+
+	cnt2, err := DecryptByAes(key, cipher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Base64(cnt2) != Base64(cnt) {
+		t.Fatalf("got: %s", Base64(cnt2))
+	}
+
+	// t.Error()
+}
+
 func TestHashSHA128String(t *testing.T) {
 	val := "dfij3ifj2jjl2jelkjdkwef"
 	got := HashSHA128String(val)
@@ -220,6 +241,12 @@ func ExampleSignByECDSAWithSHA256() {
 	}
 	if !VerifyByECDSAWithSHA256(&priKey.PublicKey, cnt, r, s) {
 		Logger.Panic("verify failed")
+	}
+
+	// generate string
+	encoded := EncodeES256SignByBase64(r, s)
+	if _, _, err = DecodeES256SignByBase64(encoded); err != nil {
+		Logger.Panic("encode and decode", zap.Error(err))
 	}
 
 	// case: incorrect cnt
