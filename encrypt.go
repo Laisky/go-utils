@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha1"
@@ -207,4 +209,71 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	b := new(big.Int)
 	b.SetBytes(bb)
 	return b, nil
+}
+
+// EncryptByAES encrypt bytes by aes with key
+//
+// inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+func EncryptByAES(secret []byte, cnt []byte) ([]byte, error) {
+	// generate a new aes cipher
+	c, err := aes.NewCipher(secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "new aes cipher")
+	}
+
+	// gcm or Galois/Counter Mode, is a mode of operation
+	// for symmetric key cryptographic block ciphers
+	// * https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "new gcm")
+	}
+
+	// creates a new byte array the size of the nonce
+	// which must be passed to Seal
+	nonce := make([]byte, gcm.NonceSize())
+	// populates our nonce with a cryptographically secure
+	// random sequence
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, errors.Wrap(err, "load nonce")
+	}
+
+	// here we encrypt our text using the Seal function
+	// Seal encrypts and authenticates plaintext, authenticates the
+	// additional data and appends the result to dst, returning the updated
+	// slice. The nonce must be NonceSize() bytes long and unique for all
+	// time, for a given key.
+	return gcm.Seal(nonce, nonce, cnt, nil), nil
+}
+
+// DecryptByAes encrypt bytes by aes with key
+//
+// inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
+	// generate a new aes cipher
+	c, err := aes.NewCipher(secret)
+	if err != nil {
+		return nil, errors.Wrap(err, "new aes cipher")
+	}
+
+	// gcm or Galois/Counter Mode, is a mode of operation
+	// for symmetric key cryptographic block ciphers
+	// * https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "new gcm")
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(encrypted) < nonceSize {
+		return nil, fmt.Errorf("encrypted too short")
+	}
+
+	nonce, encrypted := encrypted[:nonceSize], encrypted[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "gcm decrypt")
+	}
+
+	return plaintext, nil
 }
