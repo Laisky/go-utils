@@ -75,6 +75,7 @@ func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, e
 	}
 	cfg.EncoderConfig.MessageKey = "message"
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	// cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
 	zapLogger, err := cfg.Build(opts...)
 	if err != nil {
