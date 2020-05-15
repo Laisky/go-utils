@@ -66,7 +66,12 @@ func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
 	}
 }
 
-// NewHTTPClient get default http client
+// GetHTTPClient new http client
+//
+// Deprecated: use NewHTTPClient replaced
+var GetHTTPClient = NewHTTPClient
+
+// NewHTTPClient create http client
 func NewHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
 		maxConn:  defaultHTTPClientOptMaxConn,
