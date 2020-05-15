@@ -64,17 +64,30 @@ func NewLogger(level string, opts ...zap.Option) (l *LoggerType, err error) {
 
 // NewLoggerWithName create new logger with name
 func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+	return NewLoggerWithNameAndFormat(name, "json", level, opts...)
+}
+
+// NewConsoleLoggerWithName create new logger with name
+func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+	return NewLoggerWithNameAndFormat(name, "console", level, opts...)
+}
+
+// NewLoggerWithNameAndFormat create new logger
+func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	zl := zap.NewAtomicLevel()
 	cfg := zap.Config{
 		Level:            zl,
 		Development:      false,
-		Encoding:         "json",
+		Encoding:         format,
 		EncoderConfig:    zap.NewProductionEncoderConfig(),
 		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
 	cfg.EncoderConfig.MessageKey = "message"
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	if format == "console" {
+		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
 
 	zapLogger, err := cfg.Build(opts...)
 	if err != nil {

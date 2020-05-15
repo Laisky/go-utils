@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	httpClient, _ = GetHTTPClient()
-	// httpClientInsecure, _ = GetHTTPClient(WithHTTPClientInsecure(true))
+	httpClient, _ = NewHTTPClient()
+	// httpClientInsecure, _ = NewHTTPClient(WithHTTPClientInsecure(true))
 )
 
 type httpClientOption struct {
@@ -66,8 +66,13 @@ func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
 	}
 }
 
-// GetHTTPClient get default http client
-func GetHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
+// GetHTTPClient new http client
+//
+// Deprecated: use NewHTTPClient replaced
+var GetHTTPClient = NewHTTPClient
+
+// NewHTTPClient create http client
+func NewHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
 		maxConn:  defaultHTTPClientOptMaxConn,
 		timeout:  defaultHTTPClientOptTimeout,
