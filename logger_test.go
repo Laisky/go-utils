@@ -12,11 +12,16 @@ import (
 
 func TestSetupLogger(t *testing.T) {
 	var err error
+	Logger, err := NewConsoleLoggerWithName("test", "debug")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	Logger.Info("test", zap.String("arg", "111"))
 	if err = Logger.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
-	Logger.Info("test", zap.String("arg", "222"))
+	Logger.Info("test", zap.String("arg", "222"), zap.String("color", "\033[1;34m colored \033[0m"))
 	Logger.Debug("test", zap.String("arg", "333"))
 	// if err := Logger.Sync(); err != nil {
 	// 	t.Fatalf("%+v", err)
