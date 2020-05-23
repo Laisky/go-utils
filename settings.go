@@ -8,7 +8,6 @@ package utils
 // utils.Settings.Get("key")
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -148,7 +147,7 @@ func (s *SettingsType) SetupFromFile(filePath string) error {
 	}
 	defer fp.Close()
 
-	if err = viper.ReadConfig(bufio.NewReader(fp)); err != nil {
+	if err = viper.ReadConfig(fp); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
 	}
 

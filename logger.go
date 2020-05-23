@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/Laisky/zap/buffer"
-
 	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
+	"github.com/Laisky/zap/buffer"
 	"github.com/Laisky/zap/zapcore"
 	"github.com/pkg/errors"
 )
@@ -24,6 +24,11 @@ const (
 	defaultAlertPusherTimeout = 10 * time.Second
 	defaultAlertPusherBufSize = 20
 	defaultAlertHookLevel     = zapcore.ErrorLevel
+
+	LoggerLevelInfo  = "info"
+	LoggerLevelDebug = "debug"
+	LoggerLevelWarn  = "warn"
+	LoggerLevelError = "error"
 )
 
 var (
@@ -84,7 +89,7 @@ func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) 
 		ErrorOutputPaths: []string{"stderr"},
 	}
 	cfg.EncoderConfig.MessageKey = "message"
-	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
 	if format == "console" {
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
@@ -104,6 +109,7 @@ func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) 
 
 // ChangeLevel change logger level
 func (l *LoggerType) ChangeLevel(level string) (err error) {
+	level = strings.ToLower(strings.TrimSpace(level))
 	switch level {
 	case "debug":
 		l.level.SetLevel(zap.DebugLevel)
@@ -117,6 +123,7 @@ func (l *LoggerType) ChangeLevel(level string) (err error) {
 		return fmt.Errorf("log level only be debug/info/warn/error")
 	}
 
+	l.Debug("set lovel level", zap.String("level", level))
 	return
 }
 

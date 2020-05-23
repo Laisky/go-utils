@@ -1,11 +1,8 @@
 package utils
 
 import (
-	"context"
 	"testing"
 	"time"
-
-	"github.com/Laisky/zap"
 )
 
 func TestMutex(t *testing.T) {
@@ -105,36 +102,36 @@ func BenchmarkMutex(b *testing.B) {
 // 	// t.Error("done")
 // }
 
-func ExampleLaiskyRemoteLock() {
-	cli, err := NewLaiskyRemoteLock(
-		"https://blog.laisky.com/graphql/query/",
-		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
-	)
-	if err != nil {
-		Logger.Error("create laisky lock", zap.Error(err))
-	}
+// func ExampleLaiskyRemoteLock() {
+// 	cli, err := NewLaiskyRemoteLock(
+// 		"https://blog.laisky.com/graphql/query/",
+// 		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
+// 	)
+// 	if err != nil {
+// 		Logger.Error("create laisky lock", zap.Error(err))
+// 	}
 
-	var (
-		ok          bool
-		lockName    = "laisky.test"
-		ctx, cancel = context.WithCancel(context.Background())
-	)
-	defer cancel()
-	if ok, err = cli.AcquireLock(
-		ctx,
-		lockName,
-		WithAcquireLockDuration(10*time.Second),
-		WithAcquireLockIsRenewal(true),
-	); err != nil {
-		Logger.Error("acquire lock", zap.String("lock_name", lockName))
-	}
+// 	var (
+// 		ok          bool
+// 		lockName    = "laisky.test"
+// 		ctx, cancel = context.WithCancel(context.Background())
+// 	)
+// 	defer cancel()
+// 	if ok, err = cli.AcquireLock(
+// 		ctx,
+// 		lockName,
+// 		WithAcquireLockDuration(10*time.Second),
+// 		WithAcquireLockIsRenewal(true),
+// 	); err != nil {
+// 		Logger.Error("acquire lock", zap.String("lock_name", lockName))
+// 	}
 
-	if ok {
-		Logger.Info("success acquired lock")
-	} else {
-		Logger.Info("do not acquired lock")
-		return
-	}
+// 	if ok {
+// 		Logger.Info("success acquired lock")
+// 	} else {
+// 		Logger.Info("do not acquired lock")
+// 		return
+// 	}
 
-	time.Sleep(3 * time.Second) // will auto renewal lock in background
-}
+// 	time.Sleep(3 * time.Second) // will auto renewal lock in background
+// }
