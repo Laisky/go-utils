@@ -186,7 +186,8 @@ func (l *LegacyLoader) LoadMaxId() (maxId int64, err error) {
 			)
 			continue
 		}
-		if id < maxId {
+
+		if id > maxId {
 			maxId = id
 		}
 	}

@@ -183,7 +183,7 @@ func GenerateNewBufFName(now time.Time, oldFName string, isWithGZ bool) (string,
 	fts := finfo[0][:8]
 	fidx := finfo[0][9:]
 	fext := finfo[1]
-	if isWithGZ && !strings.HasSuffix(fext, ".gz") {
+	if isWithGZ && !strings.HasSuffix(strings.ToLower(oldFName), ".gz") {
 		fext += ".gz"
 	}
 
