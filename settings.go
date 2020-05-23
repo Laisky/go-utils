@@ -8,7 +8,6 @@ package utils
 // utils.Settings.Get("key")
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
