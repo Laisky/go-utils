@@ -52,22 +52,28 @@ func (t *Throttle) Allow() bool {
 func (t *Throttle) runWithCtx(ctx context.Context) {
 	go func() {
 		defer Logger.Info("throttle exit")
+
+		for i := 0; i < t.NPerSec; i++ {
+			t.tokensChan <- t.token
+		}
+
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
+	TOKEN_LOOP:
 		for {
-			for i := 0; i < t.NPerSec; i++ {
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.stopChan:
-					return
-				case t.tokensChan <- t.token:
-				default:
-				}
-			}
-
 			select {
 			case <-ticker.C:
+				for i := 0; i < t.NPerSec; i++ {
+					select {
+					case <-ctx.Done():
+						return
+					case <-t.stopChan:
+						return
+					case t.tokensChan <- t.token:
+					default:
+						continue TOKEN_LOOP
+					}
+				}
 			case <-ctx.Done():
 				return
 			case <-t.stopChan:
@@ -83,6 +89,8 @@ func (t *Throttle) Close() {
 }
 
 // Stop stop throttle
+//
+// Deprecated: use Close instead
 func (t *Throttle) Stop() {
 	t.Close()
 }
