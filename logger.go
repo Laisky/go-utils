@@ -396,6 +396,7 @@ type pateoAlertMsg struct {
 // PateoAlertPusher alert pusher for pateo wechat service
 type PateoAlertPusher struct {
 	*alertHookOption
+	limiter    *Throttle
 	cli        *http.Client
 	api, token string
 
@@ -416,6 +417,13 @@ func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHo
 		cli: &http.Client{
 			Timeout: opt.timeout,
 		},
+	}
+
+	if p.limiter, err = NewThrottleWithCtx(ctx, &ThrottleCfg{
+		Max:     5,
+		NPerSec: 1,
+	}); err != nil {
+		return nil, errors.Wrap(err, "new throttle")
 	}
 
 	p.senderBufChan = make(chan *pateoAlertMsg, defaultAlertPusherBufSize)
@@ -440,6 +448,10 @@ func (p *PateoAlertPusher) runSender(ctx context.Context) {
 		case msg, ok = <-p.senderBufChan:
 			if !ok {
 				return
+			}
+
+			if !p.limiter.Allow() {
+				continue
 			}
 		}
 

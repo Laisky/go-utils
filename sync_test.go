@@ -2,12 +2,11 @@ package utils_test
 
 import (
 	"context"
-	"github.com/Laisky/zap"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Laisky/go-utils"
+	"github.com/Laisky/zap"
 )
 
 func TestMutex(t *testing.T) {
@@ -79,33 +78,33 @@ func BenchmarkMutex(b *testing.B) {
 	})
 }
 
-func TestLaiskyRemoteLock(t *testing.T) {
-	// utils.Logger.ChangeLevel("debug")
-	cli, err := utils.NewLaiskyRemoteLock(
-		"https://blog.laisky.com/graphql/query/",
-		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
-	)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+// func TestLaiskyRemoteLock(t *testing.T) {
+// 	// utils.Logger.ChangeLevel("debug")
+// 	cli, err := utils.NewLaiskyRemoteLock(
+// 		"https://blog.laisky.com/graphql/query/",
+// 		"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1NzYxMzQxMDAsInVpZCI6ImxhaXNreSJ9.r9YTtrU7RO0qMDKA8rAYXI0bzya9JYGam1l-dFxnHOAYD9qXhYXfubUfi_yo5LgDBBOON9XSkl2kIGrqqQWlyA",
+// 	)
+// 	if err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
 
-	ctx := context.Background()
-	if ok, err := cli.AcquireLock(
-		ctx,
-		"laisky.test",
-		utils.WithAcquireLockDuration(10*time.Second),
-		utils.WithAcquireLockIsRenewal(true),
-	); err != nil {
-		if !strings.Contains(err.Error(), "Token is expired") {
-			t.Fatalf("%+v", err)
-		}
-	} else if !ok {
-		t.Logf("not ok")
-	}
+// 	ctx := context.Background()
+// 	if ok, err := cli.AcquireLock(
+// 		ctx,
+// 		"laisky.test",
+// 		utils.WithAcquireLockDuration(10*time.Second),
+// 		utils.WithAcquireLockIsRenewal(true),
+// 	); err != nil {
+// 		if !strings.Contains(err.Error(), "Token is expired") {
+// 			t.Fatalf("%+v", err)
+// 		}
+// 	} else if !ok {
+// 		t.Logf("not ok")
+// 	}
 
-	time.Sleep(3 * time.Second)
-	// t.Error("done")
-}
+// 	time.Sleep(3 * time.Second)
+// 	// t.Error("done")
+// }
 
 func ExampleLaiskyRemoteLock() {
 	cli, err := utils.NewLaiskyRemoteLock(
