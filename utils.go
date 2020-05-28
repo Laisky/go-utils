@@ -181,10 +181,10 @@ type GcOptFunc func(*gcOption) error
 func WithGCMemRatio(ratio int) GcOptFunc {
 	return func(opt *gcOption) error {
 		if ratio <= 0 {
-			return fmt.Errorf("ratio must > 0, got %v", ratio)
+			return fmt.Errorf("ratio must > 0, got %d", ratio)
 		}
 		if ratio > 100 {
-			return fmt.Errorf("ratio must <= 0, got %v", ratio)
+			return fmt.Errorf("ratio must <= 0, got %d", ratio)
 		}
 
 		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
@@ -238,7 +238,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
 	if memLimit == 0 {
-		return fmt.Errorf("mem limit should > 0, but got: %v", memLimit)
+		return fmt.Errorf("mem limit should > 0, but got: %d", memLimit)
 	}
 	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 

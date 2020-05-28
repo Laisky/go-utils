@@ -192,7 +192,7 @@ func (l *LoggerType) WithOptions(opts ...zap.Option) *LoggerType {
 
 func init() {
 	var err error
-	if Logger, err = NewLogger("info"); err != nil {
+	if Logger, err = NewConsoleLoggerWithName("go-utils", "info"); err != nil {
 		panic(fmt.Sprintf("create logger: %+v", err))
 	}
 

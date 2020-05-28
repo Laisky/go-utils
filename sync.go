@@ -106,7 +106,7 @@ func NewLaiskyRemoteLock(api, token string, opts ...LaiskyRemoteLockOptFunc) (l 
 	}
 	var ok bool
 	if l.userID, ok = payload[defaultLaiskyRemoteLockTokenUserKey].(string); !ok {
-		return nil, fmt.Errorf("unknown typo of %v, should be string", defaultLaiskyRemoteLockTokenUserKey)
+		return nil, fmt.Errorf("unknown typo of %s, should be string", defaultLaiskyRemoteLockTokenUserKey)
 	}
 	for _, optf := range opts {
 		if err = optf(l); err != nil {
@@ -143,7 +143,7 @@ type AcquireLockOptFunc func(*acquireLockOption) error
 func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
 	return func(opt *acquireLockOption) error {
 		if duration <= 0 {
-			return fmt.Errorf("duration should greater than 0, got %v", duration)
+			return fmt.Errorf("duration should greater than 0, got %d", duration)
 		}
 
 		opt.duration = duration
@@ -155,7 +155,7 @@ func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
 func WithAcquireLockRenewalInterval(renewalInterval time.Duration) AcquireLockOptFunc {
 	return func(opt *acquireLockOption) error {
 		if renewalInterval < 100*time.Millisecond {
-			return fmt.Errorf("renewalInterval must greater than 100ms, got %v", renewalInterval)
+			return fmt.Errorf("renewalInterval must greater than 100ms, got %d", renewalInterval)
 		}
 
 		opt.renewalInterval = renewalInterval
@@ -175,7 +175,7 @@ func WithAcquireLockIsRenewal(isRenewal bool) AcquireLockOptFunc {
 func WithAcquireLockMaxRetry(maxRetry int) AcquireLockOptFunc {
 	return func(opt *acquireLockOption) error {
 		if maxRetry < 0 {
-			return fmt.Errorf("maxRetry must greater than 0, got %v", maxRetry)
+			return fmt.Errorf("maxRetry must greater than 0, got %d", maxRetry)
 		}
 
 		opt.maxRetry = maxRetry
