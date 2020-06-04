@@ -90,7 +90,7 @@ func (t *Throttle) Close() {
 
 // Stop stop throttle
 //
-// Deprecated: use Close instead
+// Deprecated: replaced by Close
 func (t *Throttle) Stop() {
 	t.Close()
 }

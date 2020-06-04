@@ -68,7 +68,7 @@ func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
 
 // GetHTTPClient new http client
 //
-// Deprecated: use NewHTTPClient replaced
+// Deprecated: replaced by NewHTTPClient
 var GetHTTPClient = NewHTTPClient
 
 // NewHTTPClient create http client
