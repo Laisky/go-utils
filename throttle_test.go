@@ -43,6 +43,27 @@ func TestThrottle2(t *testing.T) {
 	}
 }
 
+// BenchmarkThrottle-4	       6605460	       320 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkThrottle(b *testing.B) {
+	ctx := context.Background()
+	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+		NPerSec: 10,
+		Max:     100,
+	})
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+	defer throttle.Close()
+
+	for i := 0; i < 4; i++ {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				throttle.Allow()
+			}
+		})
+	}
+}
+
 func ExampleThrottle() {
 	ctx := context.Background()
 	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{

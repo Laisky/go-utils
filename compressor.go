@@ -135,7 +135,7 @@ type PGZCompressor struct {
 func WithPGzipNBlocks(nBlock int) CompressOptFunc {
 	return func(opt *compressOption) error {
 		if nBlock < 0 {
-			return fmt.Errorf("nBlock size must greater than 0, got %v", nBlock)
+			return fmt.Errorf("nBlock size must greater than 0, got %d", nBlock)
 		}
 
 		opt.nBlock = nBlock
@@ -147,7 +147,7 @@ func WithPGzipNBlocks(nBlock int) CompressOptFunc {
 func WithPGzipBlockSize(bytes int) CompressOptFunc {
 	return func(opt *compressOption) error {
 		if bytes <= 0 {
-			return fmt.Errorf("block size must greater than 0, got %v", bytes)
+			return fmt.Errorf("block size must greater than 0, got %d", bytes)
 		}
 
 		opt.blockSizeByte = bytes
@@ -291,7 +291,7 @@ func ZipFiles(filename string, files []string) (err error) {
 	// Add files to zip
 	for _, file := range files {
 		if err = AddFileToZip(zipWriter, file); err != nil {
-			return errors.Wrapf(err, "AddFileToZip: %v", file)
+			return errors.Wrapf(err, "AddFileToZip: %s", file)
 		}
 		Logger.Debug("add file to zip", zap.String("file", file))
 	}

@@ -223,7 +223,7 @@ a:
 	// }
 	port := 24953
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go runMockHttpServer(ctx, port, "/app/profile/label", fakedata)
+	go runMockHTTPServer(ctx, port, "/app/profile/label", fakedata)
 	time.Sleep(100 * time.Millisecond)
 	if err := Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
 		t.Fatalf("got error: %+v", err)

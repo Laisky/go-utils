@@ -104,13 +104,13 @@ func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
 // NewRotateCounterFromNWithCtx create new RotateCounter with threshold from N
 func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %v", rotatePoint)
+		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %d", rotatePoint)
 	}
 	if n < 0 {
-		return nil, fmt.Errorf("n should bigger than 0, but got %v", n)
+		return nil, fmt.Errorf("n should bigger than 0, but got %d", n)
 	}
 	if n >= rotatePoint {
-		return nil, fmt.Errorf("n should less than rotatePoint, got n %v, rotatePoint %v", n, rotatePoint)
+		return nil, fmt.Errorf("n should less than rotatePoint, got n %d, rotatePoint %d", n, rotatePoint)
 	}
 	c := &RotateCounter{
 		n:           n,

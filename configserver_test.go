@@ -57,7 +57,7 @@ func fakeHandler(data interface{}) func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-func runMockHttpServer(ctx context.Context, port int, path string, fakadata interface{}) {
+func runMockHTTPServer(ctx context.Context, port int, path string, fakadata interface{}) {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		Logger.Panic("listen", zap.Error(err))
@@ -88,7 +88,7 @@ func TestConfigSrv(t *testing.T) {
 
 	port := 24951
 	addr := fmt.Sprintf("http://localhost:%v", port)
-	go runMockHttpServer(ctx, port, "/app/profile/label", fakeConfigSrvData)
+	go runMockHTTPServer(ctx, port, "/app/profile/label", fakeConfigSrvData)
 	time.Sleep(100 * time.Millisecond)
 
 	var (

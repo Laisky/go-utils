@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
@@ -53,7 +55,7 @@ func HashXxhashString(val string) string {
 func EncodeECDSAPrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	x509Encoded, err := x509.MarshalECPrivateKey(privateKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal private key")
+		return nil, errors.Wrap(err, "marshal ecdsa private key")
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded}), nil
@@ -63,7 +65,7 @@ func EncodeECDSAPrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 func EncodeECDSAPublicKey(publicKey *ecdsa.PublicKey) ([]byte, error) {
 	x509EncodedPub, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal public key")
+		return nil, errors.Wrap(err, "marshal ecdsa public key")
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub}), nil
 }
@@ -73,20 +75,55 @@ func DecodeECDSAPrivateKey(pemEncoded []byte) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemEncoded)
 	privateKey, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse private key")
+		return nil, errors.Wrap(err, "parse ecdsa private key")
 	}
+
 	return privateKey, nil
 }
 
-// DecodeECDSAPrivateKey decode ecdsa public key from pem bytes
+// DecodeECDSAPublicKey decode ecdsa public key from pem bytes
 func DecodeECDSAPublicKey(pemEncodedPub []byte) (*ecdsa.PublicKey, error) {
 	blockPub, _ := pem.Decode(pemEncodedPub)
 	genericPublicKey, err := x509.ParsePKIXPublicKey(blockPub.Bytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse public key")
+		return nil, errors.Wrap(err, "parse ecdsa public key")
 	}
 
 	return genericPublicKey.(*ecdsa.PublicKey), nil
+}
+
+// EncodeRSAPrivateKey encode rsa private key to pem bytes
+func EncodeRSAPrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
+	x509Encoded := x509.MarshalPKCS1PrivateKey(privateKey)
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded}), nil
+}
+
+// EncodeRSAPublicKey encode rsa public key to pem bytes
+func EncodeRSAPublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
+	x509EncodedPub := x509.MarshalPKCS1PublicKey(publicKey)
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub}), nil
+}
+
+// DecodeRSAPrivateKey decode rsa private key from pem bytes
+func DecodeRSAPrivateKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse rsa private key")
+	}
+
+	return privateKey, nil
+}
+
+// DecodeRSAPublicKey decode rsa public key from pem bytes
+func DecodeRSAPublicKey(pemEncodedPub []byte) (*rsa.PublicKey, error) {
+	blockPub, _ := pem.Decode(pemEncodedPub)
+	pubkey, err := x509.ParsePKCS1PublicKey(blockPub.Bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse rsa public key")
+	}
+
+	return pubkey, nil
 }
 
 // SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
@@ -105,7 +142,7 @@ func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.
 func SignReaderByECDSAWithSHA256(priKey *ecdsa.PrivateKey, reader io.Reader) (r, s *big.Int, err error) {
 	hasher := sha256.New()
 	if _, err = io.Copy(hasher, reader); err != nil {
-		return nil, nil, errors.Wrap(err, "read contetn")
+		return nil, nil, errors.Wrap(err, "read content")
 	}
 
 	return ecdsa.Sign(rand.Reader, priKey, hasher.Sum(nil))
@@ -115,17 +152,49 @@ func SignReaderByECDSAWithSHA256(priKey *ecdsa.PrivateKey, reader io.Reader) (r,
 func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r, s *big.Int) (bool, error) {
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, reader); err != nil {
-		return false, errors.Wrap(err, "read contetn")
+		return false, errors.Wrap(err, "read content")
 	}
 
 	return ecdsa.Verify(pubKey, hasher.Sum(nil), r, s), nil
 }
 
+// SignByRSAWithSHA256 generate signature by rsa private key use sha256
+func SignByRSAWithSHA256(priKey *rsa.PrivateKey, content []byte) ([]byte, error) {
+	hashed := sha256.Sum256(content)
+	return rsa.SignPKCS1v15(rand.Reader, priKey, crypto.SHA256, hashed[:])
+}
+
+// VerifyByRSAWithSHA256 verify signature by rsa public key use sha256
+func VerifyByRSAWithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
+	hash := sha256.Sum256(content)
+	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig)
+}
+
+// SignReaderByRSAWithSHA256 generate signature by rsa private key use sha256
+func SignReaderByRSAWithSHA256(priKey *rsa.PrivateKey, reader io.Reader) (sig []byte, err error) {
+	hasher := sha256.New()
+	if _, err = io.Copy(hasher, reader); err != nil {
+		return nil, errors.Wrap(err, "read content")
+	}
+
+	return rsa.SignPKCS1v15(rand.Reader, priKey, crypto.SHA256, hasher.Sum(nil))
+}
+
+// VerifyReaderByRSAWithSHA256 verify signature by rsa public key use sha256
+func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []byte) error {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return errors.Wrap(err, "read content")
+	}
+
+	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hasher.Sum(nil), sig)
+}
+
 const ecdsaSignDelimiter = "."
 
-// FormatECDSASign
+// FormatECDSASign encode es256 signature by hex
 //
-// Deprecated: use EncodeES256SignByBase6e instead
+// Deprecated: replaced by EncodeES256SignByBase6e
 var FormatECDSASign = EncodeES256SignByHex
 
 // EncodeES256SignByHex format ecdsa sign to stirng
@@ -133,7 +202,9 @@ func EncodeES256SignByHex(a, b *big.Int) string {
 	return FormatBig2Hex(a) + ecdsaSignDelimiter + FormatBig2Hex(b)
 }
 
-// ParseECDSASign(Deprecated)
+// ParseECDSASign encode es256 signature by base64
+//
+// Deprecated: replaced by EncodeES256SignByBase64
 func ParseECDSASign(sign string) (a, b *big.Int, ok bool) {
 	var err error
 	if a, b, err = DecodeES256SignByHex(sign); err != nil {
@@ -143,7 +214,7 @@ func ParseECDSASign(sign string) (a, b *big.Int, ok bool) {
 	return a, b, true
 }
 
-// DecodeES256SignByHex parse ecdsa sign string to two *big.Int
+// DecodeES256SignByHex parse ecdsa signature string to two *big.Int
 func DecodeES256SignByHex(sign string) (a, b *big.Int, err error) {
 	ss := strings.Split(sign, ecdsaSignDelimiter)
 	if len(ss) != 2 {
@@ -160,12 +231,12 @@ func DecodeES256SignByHex(sign string) (a, b *big.Int, err error) {
 	return
 }
 
-// EncodeES256SignByBase64 format ecdsa sign to stirng
+// EncodeES256SignByBase64 format ecdsa signature to stirng
 func EncodeES256SignByBase64(a, b *big.Int) string {
 	return FormatBig2Base64(a) + ecdsaSignDelimiter + FormatBig2Base64(b)
 }
 
-// DecodeES256SignByBase64 parse ecdsa sign string to two *big.Int
+// DecodeES256SignByBase64 parse ecdsa signature string to two *big.Int
 func DecodeES256SignByBase64(sign string) (a, b *big.Int, err error) {
 	ss := strings.Split(sign, ecdsaSignDelimiter)
 	if len(ss) != 2 {

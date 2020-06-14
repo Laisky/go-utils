@@ -190,7 +190,7 @@ func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label
 	}
 	raw, ok := srv.GetString(key)
 	if !ok {
-		return fmt.Errorf("can not load raw cfg with key `%v`", key)
+		return fmt.Errorf("can not load raw cfg with key `%s`", key)
 	}
 	Logger.Debug("load raw cfg", zap.String("raw", raw))
 	viper.SetConfigType("yaml")

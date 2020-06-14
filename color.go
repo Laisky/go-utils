@@ -1,8 +1,13 @@
+// =====================================
+// Colorfy string by ANSI color
+//
+// inspired by github.com/fatih/color
+// =====================================
+
 package utils
 
 import "fmt"
 
-// inspired by github.com/fatih/color
 const ANSIColorEscape = "\x1b"
 
 // Base attributes
