@@ -31,11 +31,11 @@ type httpClientOption struct {
 	insecure bool
 }
 
-// HttpClientOptFunc http client options
-type HttpClientOptFunc func(*httpClientOption) error
+// HTTPClientOptFunc http client options
+type HTTPClientOptFunc func(*httpClientOption) error
 
 // WithHTTPClientTimeout set http client timeout
-func WithHTTPClientTimeout(timeout time.Duration) HttpClientOptFunc {
+func WithHTTPClientTimeout(timeout time.Duration) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if timeout <= 0 {
 			return fmt.Errorf("timeout should greater than 0")
@@ -47,7 +47,7 @@ func WithHTTPClientTimeout(timeout time.Duration) HttpClientOptFunc {
 }
 
 // WithHTTPClientMaxConn set http client max connection
-func WithHTTPClientMaxConn(maxConn int) HttpClientOptFunc {
+func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if maxConn <= 0 {
 			return fmt.Errorf("maxConn should greater than 0")
@@ -59,7 +59,7 @@ func WithHTTPClientMaxConn(maxConn int) HttpClientOptFunc {
 }
 
 // WithHTTPClientInsecure set http client igonre ssl issue
-func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
+func WithHTTPClientInsecure(insecure bool) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		opt.insecure = insecure
 		return nil
@@ -72,7 +72,7 @@ func WithHTTPClientInsecure(insecure bool) HttpClientOptFunc {
 var GetHTTPClient = NewHTTPClient
 
 // NewHTTPClient create http client
-func NewHTTPClient(opts ...HttpClientOptFunc) (c *http.Client, err error) {
+func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
 		maxConn:  defaultHTTPClientOptMaxConn,
 		timeout:  defaultHTTPClientOptTimeout,

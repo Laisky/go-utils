@@ -37,6 +37,9 @@ func TestIsHasMethod(t *testing.T) {
 	st2 := testStFail{}
 	st2p := &testStFail{}
 
+	_ = st1.testEmbeddedSt
+	_ = st1p.testEmbeddedSt
+
 	if !IsHasMethod(st1, "Method") {
 		t.Fatal()
 	}
@@ -70,6 +73,9 @@ func TestIsHasField(t *testing.T) {
 	st2p := &testStCorrect2{}
 	st3 := testStFail{}
 	st3p := &testStFail{}
+
+	_ = st2.testEmbeddedSt
+
 	if !IsHasField(st1, "testEmbeddedSt") {
 		t.Fatal()
 	}

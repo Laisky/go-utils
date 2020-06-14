@@ -413,7 +413,12 @@ func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err
 	return exec.CommandContext(ctx, app, args...).Output()
 }
 
-// Base64 encode bytes to string use base64
-func Base64(raw []byte) string {
+// Base64Encode encode bytes to string use base64
+func Base64Encode(raw []byte) string {
 	return base64.URLEncoding.EncodeToString(raw)
+}
+
+// Base64Decode decode string to bytes use base64
+func Base64Decode(encoded string) ([]byte, error) {
+	return base64.URLEncoding.DecodeString(encoded)
 }

@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
 	"math/big"
@@ -20,14 +22,14 @@ func TestAes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("got cipher: %s", Base64(cipher))
+	t.Logf("got cipher: %s", Base64Encode(cipher))
 
 	cnt2, err := DecryptByAes(key, cipher)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if Base64(cnt2) != Base64(cnt) {
-		t.Fatalf("got: %s", Base64(cnt2))
+	if Base64Encode(cnt2) != Base64Encode(cnt) {
+		t.Fatalf("got: %s", Base64Encode(cnt2))
 	}
 
 	// t.Error()
@@ -183,6 +185,52 @@ func TestECDSAKeySerializer(t *testing.T) {
 	// t.Error()
 }
 
+func TestRSAKeySerializer(t *testing.T) {
+	var (
+		err    error
+		priKey *rsa.PrivateKey
+	)
+	if priKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	var (
+		priByte, pubByte []byte
+	)
+	if pubByte, err = EncodeRSAPublicKey(&priKey.PublicKey); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("pub: %v", string(pubByte))
+	if priByte, err = EncodeRSAPrivateKey(priKey); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("pri: %v", string(priByte))
+
+	var (
+		priKey2 *rsa.PrivateKey
+		// pubKey2 *rsa.PublicKey
+	)
+	if _, err = DecodeRSAPublicKey(pubByte); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if priKey2, err = DecodeRSAPrivateKey(priByte); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	hash := sha256.Sum256([]byte("hello, world"))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, priKey2, crypto.SHA256, hash[:])
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	t.Logf("generate signature: %x", sig)
+	if err = rsa.VerifyPKCS1v15(&priKey.PublicKey, crypto.SHA256, hash[:], sig); err != nil {
+		t.Fatalf("verify failed: %v", err)
+	}
+
+	// t.Error()
+}
+
 func TestECDSAVerify(t *testing.T) {
 	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -219,6 +267,51 @@ func TestECDSAVerify(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	if VerifyByECDSAWithSHA256(&priKey.PublicKey, cnt, r, s) {
+		t.Fatalf("should not verify")
+	}
+}
+
+func TestRSAVerify(t *testing.T) {
+	var (
+		err             error
+		priKey, priKey2 *rsa.PrivateKey
+	)
+	if priKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if priKey2, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	// case: correct key
+	cnt := []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
+	sig, err := SignByRSAWithSHA256(priKey, cnt)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, cnt, sig); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	// case: incorrect cnt
+	cnt = []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
+	sig, err = SignByRSAWithSHA256(priKey, cnt)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, append(cnt, '2'), sig); err == nil {
+		t.Fatalf("should not verify")
+	}
+
+	// case: incorrect key
+	sig, err = SignByRSAWithSHA256(priKey2, cnt)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, cnt, sig); err == nil {
 		t.Fatalf("should not verify")
 	}
 }
