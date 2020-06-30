@@ -88,6 +88,7 @@ func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) 
 		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
+	cfg.EncoderConfig.EncodeCaller = zapcore.FullCallerEncoder
 	cfg.EncoderConfig.MessageKey = "message"
 	cfg.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
 	if format == "console" {
