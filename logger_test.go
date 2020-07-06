@@ -29,6 +29,11 @@ func TestSetupLogger(t *testing.T) {
 
 	logger := Logger.With(zap.String("yo", "hello"))
 	logger.Warn("test")
+
+	// if err = logger.Sync(); err != nil {
+	// 	t.Fatal(err)
+	// }
+
 	// t.Error()
 }
 
