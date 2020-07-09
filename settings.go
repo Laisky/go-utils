@@ -1,12 +1,5 @@
 package utils
 
-// import (
-// 	"github.com/Laisky/go-utils"
-// )
-//
-// utils.Settings.Setup("/etc/go-ramjet/settings")  // load /etc/go-ramjet/settings.yml
-// utils.Settings.Get("key")
-
 import (
 	"bytes"
 	"fmt"
@@ -126,37 +119,123 @@ func (s *SettingsType) GetStringMapString(key string) map[string]string {
 }
 
 // Setup load config file settings.yml
+//
+// Deprecated: use LoadFromDir instead
 func (s *SettingsType) Setup(configPath string) error {
-	return s.SetupFromDir(configPath)
+	return s.LoadFromDir(configPath)
 }
 
 // SetupFromDir load settings from dir, default fname is `settings.yml`
+//
+// Deprecated: use LoadFromDir instead
 func (s *SettingsType) SetupFromDir(dirPath string) error {
+	return s.LoadFromDir(dirPath)
+}
+
+// LoadFromDir load settings from dir, default fname is `settings.yml`
+func (s *SettingsType) LoadFromDir(dirPath string) error {
 	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
 	fpath := filepath.Join(dirPath, defaultConfigFileName)
 	return s.SetupFromFile(fpath)
 }
 
 // SetupFromFile load settings from file
+//
+// Deprecated: use LoadFromFile instead
 func (s *SettingsType) SetupFromFile(filePath string) error {
-	Logger.Info("Setup settings", zap.String("filePath", filePath))
-	viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
-	fp, err := os.Open(filePath)
-	if err != nil {
-		return errors.Wrap(err, "try to open config file got error")
-	}
-	defer fp.Close()
+	return s.LoadFromFile(filePath)
+}
 
-	if err = viper.ReadConfig(fp); err != nil {
-		return errors.Wrap(err, "try to load config file got error")
+type settingsOpt struct {
+	enableInclude bool
+}
+
+// SettingsOptFunc opt for settings
+type SettingsOptFunc func(*settingsOpt) error
+
+// WithSettingsInclude enable `include` in config file
+func WithSettingsInclude(enableInclude bool) SettingsOptFunc {
+	return func(opt *settingsOpt) error {
+		opt.enableInclude = enableInclude
+		return nil
+	}
+}
+
+const settingsIncludeKey = "include"
+
+// LoadFromFile load settings from file
+func (s *SettingsType) LoadFromFile(filePath string, opts ...SettingsOptFunc) (err error) {
+	opt := &settingsOpt{}
+	for _, optf := range opts {
+		if err = optf(opt); err != nil {
+			return err
+		}
 	}
 
+	logger := Logger.With(
+		zap.String("file", filePath),
+		zap.Bool("include", opt.enableInclude),
+	)
+	cfgDir := filepath.Dir(filePath)
+	cfgFiles := []string{filePath}
+	var fp *os.File
+
+RECUR_INCLUDE_LOOP:
+	for {
+		if fp, err = os.Open(filePath); err != nil {
+			return errors.Wrapf(err, "open config file `%s`", filePath)
+		}
+		defer fp.Close()
+
+		viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
+		if err = viper.ReadConfig(fp); err != nil {
+			return errors.Wrapf(err, "load config from file `%s`", filePath)
+		}
+
+		if filePath = viper.GetString(settingsIncludeKey); filePath == "" {
+			break
+		}
+
+		filePath = filepath.Join(cfgDir, filePath)
+		for _, f := range cfgFiles {
+			if f == filePath {
+				break RECUR_INCLUDE_LOOP
+			}
+		}
+
+		cfgFiles = append(cfgFiles, filePath)
+	}
+
+	for i := len(cfgFiles) - 1; i == 0; i-- {
+		filePath = cfgFiles[i]
+		if fp, err = os.Open(filePath); err != nil {
+			return errors.Wrapf(err, "open config file `%s`", filePath)
+		}
+		defer fp.Close()
+
+		if err = viper.MergeConfig(fp); err != nil {
+			return errors.Wrapf(err, "merge config file `%s`", filePath)
+		}
+		if err = fp.Close(); err != nil {
+			return errors.Wrapf(err, "close file `%s`", filePath)
+		}
+	}
+
+	logger.Info("load configs", zap.Strings("config_files", cfgFiles))
 	return nil
 }
 
 // SetupFromConfigServer load configs from config-server,
-// endpoint `{url}/{app}/{profile}/{label}`
+//
+// Deprecated: use LoadFromConfigServer instead
 func (s *SettingsType) SetupFromConfigServer(url, app, profile, label string) (err error) {
+	return s.LoadFromConfigServer(url, app, profile, label)
+}
+
+// LoadFromConfigServer load configs from config-server,
+//
+// endpoint `{url}/{app}/{profile}/{label}`
+func (s *SettingsType) LoadFromConfigServer(url, app, profile, label string) (err error) {
 	Logger.Info("load settings from remote",
 		zap.String("url", url),
 		zap.String("profile", profile),
@@ -174,10 +253,17 @@ func (s *SettingsType) SetupFromConfigServer(url, app, profile, label string) (e
 
 // SetupFromConfigServerWithRawYaml load configs from config-server
 //
+// Deprecated: use LoadFromConfigServer instead
+func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
+	return s.LoadFromConfigServerWithRawYaml(url, app, profile, label, key)
+}
+
+// LoadFromConfigServerWithRawYaml load configs from config-server
+//
 // endpoint `{url}/{app}/{profile}/{label}`
 //
 // load raw yaml content and parse.
-func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
+func (s *SettingsType) LoadFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
 	Logger.Info("load settings from remote",
 		zap.String("url", url),
 		zap.String("profile", profile),
