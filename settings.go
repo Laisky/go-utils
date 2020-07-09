@@ -196,13 +196,14 @@ RECUR_INCLUDE_LOOP:
 			break
 		}
 
+		filePath = filepath.Join(cfgDir, filePath)
 		for _, f := range cfgFiles {
 			if f == filePath {
 				break RECUR_INCLUDE_LOOP
 			}
 		}
 
-		cfgFiles = append(cfgFiles, filepath.Join(cfgDir, filePath))
+		cfgFiles = append(cfgFiles, filePath)
 	}
 
 	for i := len(cfgFiles) - 1; i == 0; i-- {
