@@ -206,7 +206,7 @@ RECUR_INCLUDE_LOOP:
 		cfgFiles = append(cfgFiles, filePath)
 	}
 
-	for i := len(cfgFiles) - 1; i == 0; i-- {
+	for i := len(cfgFiles) - 1; i >= 0; i-- {
 		filePath = cfgFiles[i]
 		if fp, err = os.Open(filePath); err != nil {
 			return errors.Wrapf(err, "open config file `%s`", filePath)
