@@ -80,7 +80,7 @@ type jwtDivideOpt struct {
 	secret []byte
 }
 
-// JWTDiviceOptFunc options to use seperate secret for every user in parsing/signing
+// JWTDiviceOptFunc options to use separate secret for every user in parsing/signing
 type JWTDiviceOptFunc func(*jwtDivideOpt) error
 
 // WithJWTDivideSecret set symmetric key for each signning/verify

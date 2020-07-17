@@ -35,21 +35,25 @@ func TestAes(t *testing.T) {
 	// t.Error()
 }
 
+const (
+	testhashraw = "dfij3ifj2jjl2jelkjdkwef"
+)
+
 func TestHashSHA128String(t *testing.T) {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashSHA128String(val)
 	if got != "57dce855bbee0bef97b63527d473c807a424511d" {
 		t.Fatalf("got: %v", got)
 	}
 }
 func ExampleHashSHA128String() {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashSHA128String(val)
 	Logger.Info("hash", zap.String("got", got))
 }
 
 func TestHashSHA256String(t *testing.T) {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashSHA256String(val)
 	if got != "fef14c65b3d411fee6b2dbcb791a9536cbf637b153bb1de0aae1b41e3834aebf" {
 		t.Fatalf("got: %v", got)
@@ -57,13 +61,13 @@ func TestHashSHA256String(t *testing.T) {
 }
 
 func ExampleHashSHA256String() {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashSHA256String(val)
 	Logger.Info("hash", zap.String("got", got))
 }
 
 func TestHashXxhashString(t *testing.T) {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashXxhashString(val)
 	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566ef46db3751d8e999" {
 		t.Fatalf("got: %v", got)
@@ -71,7 +75,7 @@ func TestHashXxhashString(t *testing.T) {
 }
 
 func ExampleHashXxhashString() {
-	val := "dfij3ifj2jjl2jelkjdkwef"
+	val := testhashraw
 	got := HashXxhashString(val)
 	Logger.Info("hash", zap.String("got", got))
 }
