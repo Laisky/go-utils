@@ -84,31 +84,27 @@ func Color(color int, s string) string {
 	return fmt.Sprintf("\033[1;%dm%s\033[0m", color, s)
 }
 
-type gormItf interface {
-	LogFormatter(...interface{}) []interface{}
-}
-
 type gormLoggerItf interface {
 	Debug(string, ...zap.Field)
 }
 
 // GormLogger colored logger for gorm
 type GormLogger struct {
-	logger gormLoggerItf
-	gorm   gormItf
+	logger    gormLoggerItf
+	formatter func(...interface{}) []interface{}
 }
 
 // NewGormLogger new gorm sql logger
-func NewGormLogger(gorm gormItf, logger gormLoggerItf) *GormLogger {
+func NewGormLogger(formatter func(...interface{}) []interface{}, logger gormLoggerItf) *GormLogger {
 	return &GormLogger{
-		logger: logger,
-		gorm:   gorm,
+		logger:    logger,
+		formatter: formatter,
 	}
 }
 
 // Print print sql logger
 func (l *GormLogger) Print(vs ...interface{}) {
-	fvs := l.gorm.LogFormatter(vs...)
+	fvs := l.formatter(vs...)
 	var fields []zapcore.Field
 	for i, v := range vs {
 		switch i {
