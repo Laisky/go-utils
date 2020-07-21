@@ -15,6 +15,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/big"
 	"strings"
 
@@ -282,12 +283,31 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	return b, nil
 }
 
-// EncryptByAES encrypt bytes by aes with key
+func expandAesSecret(secret []byte) []byte {
+	var n int
+	if len(secret) <= 16 {
+		n = 16 - len(secret)
+	} else if len(secret) <= 24 {
+		n = 24 - len(secret)
+	} else if len(secret) <= 32 {
+		n = 32 - len(secret)
+	} else {
+		return secret[:32]
+	}
+
+	return append(secret, make([]byte, n)...)
+}
+
+// EncryptByAes encrypt bytes by aes with key
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
-func EncryptByAES(secret []byte, cnt []byte) ([]byte, error) {
+func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
+	if len(secret) == 0 {
+		return nil, fmt.Errorf("secret is empty")
+	}
+
 	// generate a new aes cipher
-	c, err := aes.NewCipher(secret)
+	c, err := aes.NewCipher(expandAesSecret(secret))
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}
@@ -321,8 +341,12 @@ func EncryptByAES(secret []byte, cnt []byte) ([]byte, error) {
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
+	if len(secret) == 0 {
+		return nil, fmt.Errorf("secret is empty")
+	}
+
 	// generate a new aes cipher
-	c, err := aes.NewCipher(secret)
+	c, err := aes.NewCipher(expandAesSecret(secret))
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}
@@ -347,4 +371,41 @@ func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+// AesReaderWrapper used to decrypt encrypted reader
+type AesReaderWrapper struct {
+	cnt []byte
+	idx int
+}
+
+// NewAesReaderWrapper wrap reader by aes
+func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
+	cipher, err := ioutil.ReadAll(in)
+	if err != nil {
+		return nil, errors.Wrap(err, "read reader")
+	}
+
+	w := new(AesReaderWrapper)
+	if w.cnt, err = DecryptByAes(key, cipher); err != nil {
+		return nil, errors.Wrap(err, "decrypt")
+	}
+
+	return w, nil
+}
+
+func (w *AesReaderWrapper) Read(p []byte) (n int, err error) {
+	if w.idx == len(w.cnt) {
+		return 0, io.EOF
+	}
+
+	for n = range p {
+		p[n] = w.cnt[w.idx]
+		w.idx++
+		if w.idx == len(w.cnt) {
+			break
+		}
+	}
+
+	return n + 1, nil
 }

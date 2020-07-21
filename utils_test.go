@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"testing"
@@ -218,7 +220,7 @@ func ExampleRegexNamedSubMatch() {
 func TestFlattenMap(t *testing.T) {
 	data := map[string]interface{}{}
 	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
-	if err := json.Unmarshal(j, &data); err != nil {
+	if err := JSON.Unmarshal(j, &data); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 
@@ -525,5 +527,103 @@ func TestRunCMD(t *testing.T) {
 				t.Errorf("RunCMD() = %v, want %v", gotStdout, tt.wantStdout)
 			}
 		})
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "TestCopyFile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	if err = Logger.ChangeLevel(LoggerLevelDebug); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
+	src := filepath.Join(dir, "src")
+	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srcFp.Close()
+
+	if _, err = srcFp.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "dst")
+	if err = CopyFile(src, dst); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = srcFp.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ioutil.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(raw, got) {
+		t.Fatalf("got %s", string(got))
+	}
+
+	if got, err = ioutil.ReadFile(src); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(raw, got) {
+		t.Fatalf("got %s", string(got))
+	}
+}
+
+func TestMoveFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "TestMoveFile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	if err = Logger.ChangeLevel(LoggerLevelDebug); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
+	src := filepath.Join(dir, "src")
+	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srcFp.Close()
+
+	if _, err = srcFp.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(dir, "dst")
+	if err = MoveFile(src, dst); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = srcFp.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ioutil.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(raw, got) {
+		t.Fatalf("got %s", string(got))
+	}
+
+	if _, err = os.Stat(src); !os.IsNotExist(err) {
+		t.Fatal(err)
 	}
 }

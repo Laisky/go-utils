@@ -25,9 +25,13 @@ const (
 	defaultAlertPusherBufSize = 20
 	defaultAlertHookLevel     = zapcore.ErrorLevel
 
-	LoggerLevelInfo  = "info"
+	// LoggerLevelInfo Logger level info
+	LoggerLevelInfo = "info"
+	// LoggerLevelDebug Logger level debug
 	LoggerLevelDebug = "debug"
-	LoggerLevelWarn  = "warn"
+	// LoggerLevelWarn Logger level warn
+	LoggerLevelWarn = "warn"
+	// LoggerLevelError Logger level error
 	LoggerLevelError = "error"
 )
 

@@ -15,6 +15,7 @@ import (
 	"github.com/Laisky/zap/zapcore"
 )
 
+// ANSIColorEscape escape string for ANSI color
 const ANSIColorEscape = "\x1b"
 
 // Base attributes
