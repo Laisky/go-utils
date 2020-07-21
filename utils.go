@@ -422,3 +422,60 @@ func Base64Encode(raw []byte) string {
 func Base64Decode(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
 }
+
+// CopyFile copy file content from src to dst
+func CopyFile(src, dst string) (err error) {
+	if err = os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
+		return errors.Wrapf(err, "create dir `%s`", dst)
+	}
+
+	srcFp, err := os.Open(src)
+	if err != nil {
+		return errors.Wrapf(err, "open file `%s`", src)
+	}
+
+	dstFp, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return errors.Wrapf(err, "open file `%s`", dst)
+	}
+
+	var n int64
+	if n, err = io.Copy(dstFp, srcFp); err != nil {
+		return errors.Wrap(err, "copy file")
+	}
+	Logger.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
+
+	return nil
+}
+
+// MoveFile move file from src to dst by copy
+//
+// sometimes move file by `rename` not work.
+// for example, you can not move file between docker volumes by `rename`.
+func MoveFile(src, dst string) (err error) {
+	if err = CopyFile(src, dst); err != nil {
+		return err
+	}
+
+	if err = os.Remove(src); err != nil {
+		return errors.Wrapf(err, "remove file `%s`", src)
+	}
+
+	return nil
+}
+
+// IsDir is path exists as dir
+func IsDir(path string) (bool, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	return st.IsDir(), nil
+}
+
+// IsFile is path exists as file
+func IsFile(path string) (bool, error) {
+	isdir, err := IsDir(path)
+	return !isdir, err
+}

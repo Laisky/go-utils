@@ -63,8 +63,12 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	// t.Error()
 }
 
+const (
+	testCompressraw = "fj2f32f9jp9wsif0weif20if320fi23if"
+)
+
 func TestGZCompressor(t *testing.T) {
-	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
+	originText := testCompressraw
 	writer := &bytes.Buffer{}
 	c, err := NewGZCompressor(writer)
 	if err != nil {
@@ -93,7 +97,7 @@ func TestGZCompressor(t *testing.T) {
 }
 
 func ExampleGZCompressor() {
-	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
+	originText := testCompressraw
 	writer := &bytes.Buffer{}
 
 	var err error
@@ -139,7 +143,7 @@ func ExampleGZCompressor() {
 }
 
 func TestPGZCompressor(t *testing.T) {
-	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
+	originText := testCompressraw
 	writer := &bytes.Buffer{}
 	c, err := NewPGZCompressor(
 		writer,
@@ -175,7 +179,7 @@ func TestPGZCompressor(t *testing.T) {
 }
 
 func ExamplePGZCompressor() {
-	originText := "fj2f32f9jp9wsif0weif20if320fi23if"
+	originText := testCompressraw
 	writer := &bytes.Buffer{}
 
 	var err error

@@ -115,7 +115,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	var (
 		jsonBytes []byte
 	)
-	jsonBytes, err = json.Marshal(request.Data)
+	jsonBytes, err = JSON.Marshal(request.Data)
 	if err != nil {
 		return errors.Wrap(err, "marshal request data error")
 	}
@@ -146,7 +146,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 		return errors.Wrap(err, "try to read response data error")
 	}
 	Logger.Debug("got resp", zap.ByteString("resp", respBytes))
-	err = json.Unmarshal(respBytes, resp)
+	err = JSON.Unmarshal(respBytes, resp)
 	if err != nil {
 		return errors.Wrapf(err, "unmarshal response `%s`", string(respBytes[:]))
 	}
