@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -8,6 +9,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"testing"
 
@@ -18,7 +20,7 @@ func TestAes(t *testing.T) {
 	key := []byte(RandomStringWithLength(32))
 	cnt := []byte("hello, laisky")
 
-	cipher, err := EncryptByAES(key, cnt)
+	cipher, err := EncryptByAes(key, cnt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,4 +460,59 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 	}
 
 	// t.Error()
+}
+
+func TestNewAesReaderWrapper(t *testing.T) {
+	raw := []byte("fjlf2fjjefjwijf93r23f")
+	secret := []byte("fjefil2j3i2lfj32fl")
+	cipher, err := EncryptByAes(secret, raw)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	reader := bytes.NewReader(cipher)
+	readerWraper, err := NewAesReaderWrapper(reader, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ioutil.ReadAll(readerWraper)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(got, raw) {
+		t.Fatalf("got: %s", string(got))
+	}
+}
+
+func Test_expandAesSecret(t *testing.T) {
+	type args struct {
+		secret []byte
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{"0", args{[]byte("")}, 16},
+		{"1", args{[]byte("1")}, 16},
+		{"2", args{[]byte("12")}, 16},
+		{"3", args{[]byte("14124")}, 16},
+		{"4", args{[]byte("1535435535")}, 16},
+		{"5", args{[]byte("   43242341")}, 16},
+		{"6", args{[]byte("1111111111111111")}, 16},
+		{"7", args{[]byte("11111111111111111")}, 24},
+		{"8", args{[]byte("11111111111111111   ")}, 24},
+		{"9", args{[]byte("11111111111111111   23423 4324   ")}, 32},
+		{"10", args{[]byte("11111111111111111   23423 4324   111")}, 32},
+		{"11", args{[]byte("11111111111111111   23423 4324   111414124")}, 32},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := expandAesSecret(tt.args.secret); len(got) != tt.want {
+				t.Errorf("expandAesSecret() = (%d)%v, want %v", len(got), got, tt.want)
+			}
+		})
+	}
 }

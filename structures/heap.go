@@ -24,7 +24,8 @@ func (it *itemType) GetPriority() int {
 	return it.priority
 }
 
-// PriorityQ lower structure used by heap.
+// PriorityQ lower structure used by heap
+//
 // do not use this structure directly
 type PriorityQ struct {
 	isMaxTop bool
@@ -109,11 +110,10 @@ func GetSmallestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, e
 	return GetTopKItems(inputChan, topN, true)
 }
 
-/*GetTopKItems calculate topN by heap
-
-* use min-heap to calculates topN Highest items.
-* use max-heap to calculates topN Lowest items.
- */
+// GetTopKItems calculate topN by heap
+//
+//   * use min-heap to calculates topN Highest items.
+//   * use max-heap to calculates topN Lowest items.
 func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]HeapItemItf, error) {
 	utils.Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
