@@ -19,6 +19,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/Laisky/zap"
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -295,7 +296,9 @@ func expandAesSecret(secret []byte) []byte {
 		return secret[:32]
 	}
 
-	return append(secret, make([]byte, n)...)
+	Logger.Debug("expand secuet", zap.Int("raw", len(secret)), zap.Int("expand", n))
+	newSec := secret[:len(secret):len(secret)]
+	return append(newSec, make([]byte, n)...)
 }
 
 // EncryptByAes encrypt bytes by aes with key

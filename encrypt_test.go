@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Laisky/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestAes(t *testing.T) {
@@ -514,5 +515,19 @@ func Test_expandAesSecret(t *testing.T) {
 				t.Errorf("expandAesSecret() = (%d)%v, want %v", len(got), got, tt.want)
 			}
 		})
+	}
+
+	// race
+	var pool errgroup.Group
+	secret := make([]byte, 5, 10)
+	for i := 0; i < 17; i++ {
+		pool.Go(func() error {
+			expandAesSecret(secret)
+			return nil
+		})
+	}
+
+	if err := pool.Wait(); err != nil {
+		t.Fatalf("%+v", err)
 	}
 }
