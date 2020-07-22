@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -271,4 +272,45 @@ func BenchmarkSettings(b *testing.B) {
 			Settings.Get(RandomStringWithLength(20))
 		}
 	})
+}
+
+func TestAESEncryptFilesInDir(t *testing.T) {
+	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
+	if err != nil {
+		t.Fatalf("try to create tmp dir got error: %+v", err)
+	}
+	defer os.RemoveAll(dirName)
+
+	cnt := []byte("12345")
+	if err = ioutil.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err = ioutil.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	secret := []byte("laisky")
+	if err = AESEncryptFilesInDir(dirName, secret); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, fname := range []string{"test1.enc.toml", "test2.enc.toml", "test3.enc.toml"} {
+		fname = filepath.Join(dirName, fname)
+		cipher, err := ioutil.ReadFile(fname)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := DecryptByAes(secret, cipher)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(got, cnt) {
+			t.Fatalf("got: %s", string(got))
+		}
+	}
 }

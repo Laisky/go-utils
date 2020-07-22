@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 )
 
 const defaultConfigFileName = "settings.yml"
@@ -149,6 +151,7 @@ func (s *SettingsType) SetupFromFile(filePath string) error {
 type settingsOpt struct {
 	enableInclude bool
 	aesKey        []byte
+	encryptedMark string
 }
 
 // SettingsOptFunc opt for settings
@@ -174,11 +177,34 @@ func WithSettingsAesEncrypt(key []byte) SettingsOptFunc {
 	}
 }
 
+// WithSettingsEncryptedFileContain only decrypt files with `mark`
+func WithSettingsEncryptedFileContain(mark string) SettingsOptFunc {
+	return func(opt *settingsOpt) error {
+		opt.encryptedMark = mark
+		return nil
+	}
+}
+
 const settingsIncludeKey = "include"
+
+func isSettingsFileEncrypted(opt *settingsOpt, fname string) bool {
+	if opt.aesKey == nil {
+		return false
+	}
+
+	if opt.encryptedMark != "" &&
+		strings.Contains(fname, opt.encryptedMark) {
+		return true
+	}
+
+	return false
+}
 
 // LoadFromFile load settings from file
 func (s *SettingsType) LoadFromFile(filePath string, opts ...SettingsOptFunc) (err error) {
-	opt := &settingsOpt{}
+	opt := &settingsOpt{
+		encryptedMark: ".enc.",
+	}
 	for _, optf := range opts {
 		if err = optf(opt); err != nil {
 			return err
@@ -201,14 +227,14 @@ RECUR_INCLUDE_LOOP:
 		defer fp.Close()
 
 		viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
-		if opt.aesKey != nil {
+		if isSettingsFileEncrypted(opt, filePath) {
 			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
 				return err
 			}
 
 			if err = viper.ReadConfig(encryptedFp); err != nil {
-				return errors.Wrapf(err, "load config from file `%s`", filePath)
+				return errors.Wrapf(err, "load encrypted config from file `%s`", filePath)
 			}
 		} else {
 			if err = viper.ReadConfig(fp); err != nil {
@@ -251,20 +277,19 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 		}
 		defer fp.Close()
 
-		if opt.aesKey != nil {
+		if isSettingsFileEncrypted(opt, filePath) {
 			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
 				return err
 			}
 
 			if err = viper.MergeConfig(encryptedFp); err != nil {
-				return errors.Wrapf(err, "merge config file `%s`", filePath)
+				return errors.Wrapf(err, "merge encrypted config file `%s`", filePath)
 			}
 		} else {
 			if err = viper.MergeConfig(fp); err != nil {
 				return errors.Wrapf(err, "merge config file `%s`", filePath)
 			}
-
 		}
 
 		if err = fp.Close(); err != nil {
@@ -346,4 +371,89 @@ func (s *SettingsType) LoadSettings() {
 	if err != nil {             // Handle errors reading the config file
 		panic(fmt.Errorf("Fatal error config file: %s", err))
 	}
+}
+
+type settingsAESEncryptOpt struct {
+	ext    string
+	append string
+}
+
+// SettingsEncryptOptf options to encrypt files in dir
+type SettingsEncryptOptf func(*settingsAESEncryptOpt) error
+
+// AESEncryptFilesInDirFileExt only encrypt files with specific ext
+func AESEncryptFilesInDirFileExt(ext string) SettingsEncryptOptf {
+	return func(opt *settingsAESEncryptOpt) error {
+		if !strings.HasPrefix(ext, ".") {
+			return fmt.Errorf("ext should start with `.`")
+		}
+
+		opt.ext = ext
+		return nil
+	}
+}
+
+// AESEncryptFilesInDirFileAppend only encrypt files with specific ext
+func AESEncryptFilesInDirFileAppend(append string) SettingsEncryptOptf {
+	return func(opt *settingsAESEncryptOpt) error {
+		if !strings.HasPrefix(append, ".") {
+			return fmt.Errorf("append should start with `.`")
+		}
+
+		opt.append = append
+		return nil
+	}
+}
+
+// AESEncryptFilesInDir encrypt files in dir
+func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
+	opt := &settingsAESEncryptOpt{
+		ext:    ".toml",
+		append: ".enc",
+	}
+	for _, optf := range opts {
+		if err = optf(opt); err != nil {
+			return err
+		}
+	}
+	logger := Logger.With(
+		zap.String("append", opt.append),
+		zap.String("ext", opt.ext))
+
+	fs, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return errors.Wrapf(err, "read dir `%s`", dir)
+	}
+
+	var pool errgroup.Group
+	for _, f := range fs {
+		fname := filepath.Join(dir, f.Name())
+		if !strings.HasSuffix(fname, opt.ext) ||
+			strings.HasSuffix(fname, opt.append+opt.ext) {
+			continue
+		}
+
+		pool.Go(func() (err error) {
+			raw, err := ioutil.ReadFile(fname)
+			if err != nil {
+				return errors.Wrapf(err, "read file `%s`", fname)
+			}
+
+			cipher, err := EncryptByAes(secret, raw)
+			if err != nil {
+				return errors.Wrapf(err, "encrypt")
+			}
+
+			ext := filepath.Ext(fname)
+			out := strings.TrimSuffix(fname, ext) + opt.append + ext
+			if err = ioutil.WriteFile(out, cipher, os.ModePerm); err != nil {
+				return errors.Wrapf(err, "write file `%s`", out)
+			}
+
+			logger.Info("encrypt file", zap.String("src", fname), zap.String("out", out))
+			return nil
+		})
+	}
+
+	return pool.Wait()
 }
