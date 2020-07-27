@@ -132,27 +132,34 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		}
 	}
 
-	if len(fvs) >= 4 {
-		switch fvs[3].(type) {
-		case string:
-			s := strings.TrimSpace(strings.ToLower(fvs[3].(string)))
-			if strings.HasPrefix(s, "delete") || strings.HasPrefix(s, "drop") {
-				l.logger.Info(Color(ANSIColorFgMagenta, s), fields...)
-			} else if strings.HasPrefix(s, "insert") {
-				l.logger.Info(Color(ANSIColorFgGreen, s), fields...)
-			} else if strings.HasPrefix(s, "update") {
-				l.logger.Info(Color(ANSIColorFgYellow, s), fields...)
-			} else if strings.HasPrefix(s, "select") {
-				l.logger.Debug(Color(ANSIColorFgCyan, s), fields...)
-			} else if strings.HasPrefix(s, "error") {
-				l.logger.Error(Color(ANSIColorFgHiRed, s), fields...)
-			} else {
-				l.logger.Debug(Color(ANSIColorFgBlue, s), fields...)
-			}
-		default:
-			l.logger.Debug(Color(ANSIColorFgBlue, fmt.Sprint(fvs[3])), fields...)
-		}
-	} else {
+	if len(fvs) < 4 {
 		l.logger.Debug("", fields...)
+		return
+	}
+
+	var sqlType string
+	switch fvs[3].(type) {
+	case string:
+		sqlType = fvs[3].(string)
+	case []byte:
+		sqlType = string(fvs[3].([]byte))
+	default:
+		l.logger.Debug(Color(ANSIColorFgBlue, fmt.Sprint(fvs[3])), fields...)
+	}
+
+	sqlType = strings.TrimSpace(strings.ToLower(strings.SplitN(sqlType, " ", 2)[0]))
+	switch sqlType {
+	case "drop", "delete":
+		l.logger.Info(Color(ANSIColorFgMagenta, sqlType), fields...)
+	case "insert":
+		l.logger.Info(Color(ANSIColorFgGreen, sqlType), fields...)
+	case "update":
+		l.logger.Info(Color(ANSIColorFgYellow, sqlType), fields...)
+	case "select":
+		l.logger.Debug(Color(ANSIColorFgCyan, sqlType), fields...)
+	case "error":
+		l.logger.Error(Color(ANSIColorFgHiRed, sqlType), fields...)
+	default:
+		l.logger.Debug(Color(ANSIColorFgBlue, sqlType), fields...)
 	}
 }
