@@ -136,7 +136,7 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		switch fvs[3].(type) {
 		case string:
 			s := strings.TrimSpace(strings.ToLower(fvs[3].(string)))
-			if strings.HasPrefix(s, "delete") {
+			if strings.HasPrefix(s, "delete") || strings.HasPrefix(s, "drop") {
 				l.logger.Info(Color(ANSIColorFgMagenta, s), fields...)
 			} else if strings.HasPrefix(s, "insert") {
 				l.logger.Info(Color(ANSIColorFgGreen, s), fields...)
@@ -144,7 +144,7 @@ func (l *GormLogger) Print(vs ...interface{}) {
 				l.logger.Info(Color(ANSIColorFgYellow, s), fields...)
 			} else if strings.HasPrefix(s, "select") {
 				l.logger.Debug(Color(ANSIColorFgCyan, s), fields...)
-			} else if strings.HasPrefix(s, "Error") {
+			} else if strings.HasPrefix(s, "error") {
 				l.logger.Error(Color(ANSIColorFgHiRed, s), fields...)
 			} else {
 				l.logger.Debug(Color(ANSIColorFgBlue, s), fields...)
