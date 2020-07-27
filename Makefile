@@ -7,4 +7,4 @@ lint:
 	# goimports -local github.com/Laisky -w .
 	gofmt -s -w .
 	go mod tidy
-	golangci-lint run -E depguard,gocognit,goconst,gofmt,misspell
+	golangci-lint run -E depguard,gocognit,goconst,gofmt,misspell,golint,gomnd

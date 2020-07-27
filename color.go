@@ -87,6 +87,8 @@ func Color(color int, s string) string {
 
 type gormLoggerItf interface {
 	Debug(string, ...zap.Field)
+	Info(string, ...zap.Field)
+	Error(string, ...zap.Field)
 }
 
 // GormLogger colored logger for gorm
@@ -135,13 +137,15 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		case string:
 			s := strings.TrimSpace(strings.ToLower(fvs[3].(string)))
 			if strings.HasPrefix(s, "delete") {
-				l.logger.Debug(Color(ANSIColorFgRed, s), fields...)
+				l.logger.Info(Color(ANSIColorFgRed, s), fields...)
 			} else if strings.HasPrefix(s, "insert") {
-				l.logger.Debug(Color(ANSIColorFgGreen, s), fields...)
+				l.logger.Info(Color(ANSIColorFgGreen, s), fields...)
 			} else if strings.HasPrefix(s, "update") {
-				l.logger.Debug(Color(ANSIColorFgYellow, s), fields...)
+				l.logger.Info(Color(ANSIColorFgYellow, s), fields...)
 			} else if strings.HasPrefix(s, "select") {
 				l.logger.Debug(Color(ANSIColorFgCyan, s), fields...)
+			} else if strings.HasPrefix(s, "Error") {
+				l.logger.Error(Color(ANSIColorFgCyan, s), fields...)
 			} else {
 				l.logger.Debug(Color(ANSIColorFgBlue, s), fields...)
 			}
