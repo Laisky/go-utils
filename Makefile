@@ -8,3 +8,6 @@ lint:
 	gofmt -s -w .
 	go mod tidy
 	golangci-lint run -E depguard,gocognit,goconst,gofmt,misspell,golint,gomnd
+
+changelog:
+	./.scripts/generate_changelog.sh
