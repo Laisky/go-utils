@@ -75,6 +75,10 @@ func IsHasMethod(st interface{}, methodName string) bool {
 }
 
 // ValidateFileHash validate file content with hashed string
+//
+// Args:
+//   * filepath: file path to check
+//   * hashed: hashed string, like `sha256: xxxx`
 func ValidateFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")
 	if len(hs) != 2 {

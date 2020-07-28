@@ -87,6 +87,8 @@ func Color(color int, s string) string {
 
 type gormLoggerItf interface {
 	Debug(string, ...zap.Field)
+	Info(string, ...zap.Field)
+	Error(string, ...zap.Field)
 }
 
 // GormLogger colored logger for gorm
@@ -130,25 +132,33 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		}
 	}
 
-	if len(fvs) >= 4 {
-		switch fvs[3].(type) {
-		case string:
-			s := strings.TrimSpace(strings.ToLower(fvs[3].(string)))
-			if strings.HasPrefix(s, "delete") {
-				l.logger.Debug(Color(ANSIColorFgRed, s), fields...)
-			} else if strings.HasPrefix(s, "insert") {
-				l.logger.Debug(Color(ANSIColorFgGreen, s), fields...)
-			} else if strings.HasPrefix(s, "update") {
-				l.logger.Debug(Color(ANSIColorFgYellow, s), fields...)
-			} else if strings.HasPrefix(s, "select") {
-				l.logger.Debug(Color(ANSIColorFgCyan, s), fields...)
-			} else {
-				l.logger.Debug(Color(ANSIColorFgBlue, s), fields...)
-			}
-		default:
-			l.logger.Debug(Color(ANSIColorFgBlue, fmt.Sprint(fvs[3])), fields...)
-		}
-	} else {
+	if len(fvs) < 4 {
 		l.logger.Debug("", fields...)
+		return
+	}
+
+	var msg string
+	switch fvs[3].(type) {
+	case string:
+		msg = fvs[3].(string)
+	case []byte:
+		msg = string(fvs[3].([]byte))
+	default:
+		msg = fmt.Sprint(fvs[3])
+	}
+
+	switch strings.TrimSpace(strings.ToLower(strings.SplitN(msg, " ", 2)[0])) {
+	case "drop", "delete":
+		l.logger.Info(Color(ANSIColorFgMagenta, msg), fields...)
+	case "insert":
+		l.logger.Info(Color(ANSIColorFgGreen, msg), fields...)
+	case "update":
+		l.logger.Info(Color(ANSIColorFgYellow, msg), fields...)
+	case "select":
+		l.logger.Debug(Color(ANSIColorFgCyan, msg), fields...)
+	case "error":
+		l.logger.Error(Color(ANSIColorFgHiRed, msg), fields...)
+	default:
+		l.logger.Debug(Color(ANSIColorFgBlue, msg), fields...)
 	}
 }
