@@ -137,29 +137,28 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		return
 	}
 
-	var sqlType string
+	var msg string
 	switch fvs[3].(type) {
 	case string:
-		sqlType = fvs[3].(string)
+		msg = fvs[3].(string)
 	case []byte:
-		sqlType = string(fvs[3].([]byte))
+		msg = string(fvs[3].([]byte))
 	default:
-		l.logger.Debug(Color(ANSIColorFgBlue, fmt.Sprint(fvs[3])), fields...)
+		msg = fmt.Sprint(fvs[3])
 	}
 
-	sqlType = strings.TrimSpace(strings.ToLower(strings.SplitN(sqlType, " ", 2)[0]))
-	switch sqlType {
+	switch strings.TrimSpace(strings.ToLower(strings.SplitN(msg, " ", 2)[0])) {
 	case "drop", "delete":
-		l.logger.Info(Color(ANSIColorFgMagenta, sqlType), fields...)
+		l.logger.Info(Color(ANSIColorFgMagenta, msg), fields...)
 	case "insert":
-		l.logger.Info(Color(ANSIColorFgGreen, sqlType), fields...)
+		l.logger.Info(Color(ANSIColorFgGreen, msg), fields...)
 	case "update":
-		l.logger.Info(Color(ANSIColorFgYellow, sqlType), fields...)
+		l.logger.Info(Color(ANSIColorFgYellow, msg), fields...)
 	case "select":
-		l.logger.Debug(Color(ANSIColorFgCyan, sqlType), fields...)
+		l.logger.Debug(Color(ANSIColorFgCyan, msg), fields...)
 	case "error":
-		l.logger.Error(Color(ANSIColorFgHiRed, sqlType), fields...)
+		l.logger.Error(Color(ANSIColorFgHiRed, msg), fields...)
 	default:
-		l.logger.Debug(Color(ANSIColorFgBlue, sqlType), fields...)
+		l.logger.Debug(Color(ANSIColorFgBlue, msg), fields...)
 	}
 }
