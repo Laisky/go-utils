@@ -126,3 +126,30 @@ func TestMoveFile(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestIsDirWritable(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	dirWritable := filepath.Join(dir, "writable")
+	if err = os.Mkdir(dirWritable, os.ModePerm|os.ModeDir); err != nil {
+		t.Fatalf("mkdir %+v", err)
+	}
+
+	dirNotWritable := filepath.Join(dir, "notwritable")
+	if err = os.Mkdir(dirNotWritable, os.FileMode(0444)|os.ModeDir); err != nil {
+		t.Fatalf("mkdir %+v", err)
+	}
+
+	if err := IsDirWritable(dirWritable); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if err := IsDirWritable(dirNotWritable); err == nil {
+		t.Fatal()
+	}
+}

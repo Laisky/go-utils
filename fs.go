@@ -36,6 +36,20 @@ func IsDir(path string) (bool, error) {
 	return st.IsDir(), nil
 }
 
+// IsDirWritable if dir is writable
+func IsDirWritable(dir string) (err error) {
+	f := filepath.Join(dir, ".touch")
+	if err = ioutil.WriteFile(f, []byte(""), os.ModePerm); err != nil {
+		return err
+	}
+
+	if err = os.Remove(f); err != nil {
+		return errors.Wrapf(err, "remove file `%s`", f)
+	}
+
+	return nil
+}
+
 // IsFile is path exists as file
 func IsFile(path string) (bool, error) {
 	isdir, err := IsDir(path)
