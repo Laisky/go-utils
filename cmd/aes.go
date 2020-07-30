@@ -23,6 +23,7 @@ import (
 var EncryptCMD = &cobra.Command{
 	Use:  "encrypt",
 	Long: `encrypt file`,
+	Args: NoExtraArgs,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		return setupEncryptArgs(cmd)
 	},

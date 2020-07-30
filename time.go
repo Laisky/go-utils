@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+const (
+	// TimeFormatDate "2006-01-02"
+	TimeFormatDate = "2006-01-02"
+	// Nano2Sec 1e9
+	Nano2Sec = 1e9
+	// BitSize64 64
+	BitSize64 = 64
+	// BaseHex 16
+	BaseHex = 16
+)
+
 // UTCNow 获取当前 UTC 时间
 func UTCNow() time.Time {
 	return time.Now().UTC()
@@ -32,13 +43,13 @@ var (
 
 // ParseUnixNano2UTC convert unixnano to UTC time
 func ParseUnixNano2UTC(ts int64) time.Time {
-	return time.Unix(ts/1e9, ts%1e9).UTC()
+	return time.Unix(ts/Nano2Sec, ts%Nano2Sec).UTC()
 }
 
 // ParseHex2UTC parse hex to UTC time
 func ParseHex2UTC(ts string) (t time.Time, err error) {
 	var ut int64
-	if ut, err = strconv.ParseInt(ts, 16, 64); err != nil {
+	if ut, err = strconv.ParseInt(ts, BaseHex, BitSize64); err != nil {
 		return
 	}
 
@@ -48,7 +59,7 @@ func ParseHex2UTC(ts string) (t time.Time, err error) {
 // ParseHexNano2UTC parse hex contains nano to UTC time
 func ParseHexNano2UTC(ts string) (t time.Time, err error) {
 	var ut int64
-	if ut, err = strconv.ParseInt(ts, 16, 64); err != nil {
+	if ut, err = strconv.ParseInt(ts, BaseHex, BitSize64); err != nil {
 		return
 	}
 
@@ -146,8 +157,13 @@ func (c *ClockType) runRefresh(ctx context.Context) {
 }
 
 // GetUTCNow return Clock current time.Time
-func (c *ClockType) GetUTCNow() (t time.Time) {
+func (c *ClockType) GetUTCNow() time.Time {
 	return UnixNano2UTC(atomic.LoadInt64(&c.now))
+}
+
+// GetDate return "yyyy-mm-dd"
+func (c *ClockType) GetDate() (time.Time, error) {
+	return time.Parse(TimeFormatDate, c.GetUTCNow().Format(TimeFormatDate))
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
@@ -165,10 +181,10 @@ func (c *ClockType) SetupInterval(interval time.Duration) {
 
 // GetTimeInHex return current time in hex
 func (c *ClockType) GetTimeInHex() string {
-	return strconv.FormatInt(c.GetUTCNow().Unix(), 16)
+	return strconv.FormatInt(c.GetUTCNow().Unix(), BaseHex)
 }
 
 // GetNanoTimeInHex return current time with nano in hex
 func (c *ClockType) GetNanoTimeInHex() string {
-	return strconv.FormatInt(c.GetUTCNow().UnixNano(), 16)
+	return strconv.FormatInt(c.GetUTCNow().UnixNano(), BaseHex)
 }

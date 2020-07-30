@@ -35,7 +35,7 @@ import (
 var GenTLS = &cobra.Command{
 	Use:   "gentls",
 	Short: "generate tls cert",
-	Long:  ``,
+	Args:  NoExtraArgs,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		return setupTLSArgs(cmd, args)
 	},

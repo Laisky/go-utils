@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -13,6 +14,7 @@ var rootCmd = &cobra.Command{
 	Use:   "go-utils",
 	Short: "go-utils",
 	Long:  `go-utils`,
+	Args:  NoExtraArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 
 	},
@@ -44,4 +46,15 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().Bool("debug", false, "debug")
+}
+
+// NoExtraArgs make sure every args has been processed
+//
+// do not allow any un processed args
+func NoExtraArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("unknown args `%v`", args)
+	}
+
+	return nil
 }
