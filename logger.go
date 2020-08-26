@@ -476,7 +476,7 @@ func (p *PateoAlertPusher) runSender(ctx context.Context) {
 			Logger.Debug("make pateo alert request", zap.Error(err))
 			continue
 		}
-		req.Header.Add(HTTPJSONHeader, HTTPJSONHeaderVal)
+		req.Header.Add(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
 		req.Header.Add("Authorization", "Bearer "+p.token)
 		if resp, err = p.cli.Do(req); err != nil {
 			Logger.Debug("http post pateo alert server", zap.Error(err))
