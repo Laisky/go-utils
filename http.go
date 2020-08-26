@@ -18,6 +18,12 @@ const (
 	defaultHTTPClientOptTimeout  = 30 * time.Second
 	defaultHTTPClientOptMaxConn  = 20
 	defaultHTTPClientOptInsecure = false
+
+	HTTPHeaderHost        = "Host"
+	HTTPHeaderReferer     = "Referer"
+	HTTPHeaderContentType = "Content-Type"
+
+	HTTPHeaderContentTypeValJSON = "application/json"
 )
 
 var (
