@@ -18,6 +18,12 @@ const (
 	defaultHTTPClientOptTimeout  = 30 * time.Second
 	defaultHTTPClientOptMaxConn  = 20
 	defaultHTTPClientOptInsecure = false
+
+	HTTPHeaderHost        = "Host"
+	HTTPHeaderReferer     = "Referer"
+	HTTPHeaderContentType = "Content-Type"
+
+	HTTPHeaderContentTypeValJSON = "application/json"
 )
 
 var (
@@ -122,7 +128,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	Logger.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
 	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
-	req.Header.Set(HTTPJSONHeader, HTTPJSONHeaderVal)
+	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
 	for k, v := range request.Headers {
 		req.Header.Set(k, v)
 	}
