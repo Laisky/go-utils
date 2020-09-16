@@ -14,12 +14,15 @@ type ThrottleCfg struct {
 // Throttle current limitor
 type Throttle struct {
 	*ThrottleCfg
+
 	token      struct{}
 	tokensChan chan struct{}
 	stopChan   chan struct{}
 }
 
 // NewThrottleWithCtx create new Throttle
+//
+//  90x faster than `rate.NewLimiter`
 func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err error) {
 	if cfg.NPerSec <= 0 {
 		return nil, fmt.Errorf("NPerSec should greater than 0")
@@ -51,7 +54,7 @@ func (t *Throttle) Allow() bool {
 // runWithCtx start throttle with context
 func (t *Throttle) runWithCtx(ctx context.Context) {
 	go func() {
-		defer Logger.Info("throttle exit")
+		defer Logger.Debug("throttle exit")
 
 		for i := 0; i < t.NPerSec; i++ {
 			t.tokensChan <- t.token
