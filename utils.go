@@ -413,6 +413,23 @@ func TrimEleSpaceAndRemoveEmpty(vs []string) (r []string) {
 	return
 }
 
+// InArray if collection contains ele
+func InArray(collection interface{}, ele interface{}) bool {
+	targetValue := reflect.ValueOf(collection)
+	switch reflect.TypeOf(collection).Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < targetValue.Len(); i++ {
+			if targetValue.Index(i).Interface() == ele {
+				return true
+			}
+		}
+	default:
+		Logger.Panic("unsupport type", zap.String("type", reflect.TypeOf(collection).Kind().String()))
+	}
+
+	return false
+}
+
 // IsPtr check if t is pointer
 func IsPtr(t interface{}) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
