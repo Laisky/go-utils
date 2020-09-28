@@ -508,3 +508,55 @@ func TestRunCMD(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveEmpty(t *testing.T) {
+	type args struct {
+		vs []string
+	}
+	tests := []struct {
+		name  string
+		args  args
+		wantR []string
+	}{
+		// TODO: Add test cases.
+		{"", args{[]string{"1"}}, []string{"1"}},
+		{"", args{[]string{"1", ""}}, []string{"1"}},
+		{"", args{[]string{"1", "", "  "}}, []string{"1"}},
+		{"", args{[]string{"1", "", "  ", "2", ""}}, []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotR := RemoveEmpty(tt.args.vs); !reflect.DeepEqual(gotR, tt.wantR) {
+				t.Errorf("RemoveEmpty() = %v, want %v", gotR, tt.wantR)
+			}
+		})
+	}
+}
+
+func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
+	type args struct {
+		vs []string
+	}
+	tests := []struct {
+		name  string
+		args  args
+		wantR []string
+	}{
+		// TODO: Add test cases.
+		{"", args{[]string{"1"}}, []string{"1"}},
+		{"", args{[]string{"1", ""}}, []string{"1"}},
+		{"", args{[]string{"1", "", "  "}}, []string{"1"}},
+		{"", args{[]string{"1", "", "  ", "2", ""}}, []string{"1", "2"}},
+		{"", args{[]string{"1", "", "  ", "2   ", ""}}, []string{"1", "2"}},
+		{"", args{[]string{"1", "", "  ", "   2   ", ""}}, []string{"1", "2"}},
+		{"", args{[]string{"1", "", "  ", "   2", ""}}, []string{"1", "2"}},
+		{"", args{[]string{"   1", "", "  ", "   2", ""}}, []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotR := TrimEleSpaceAndRemoveEmpty(tt.args.vs); !reflect.DeepEqual(gotR, tt.wantR) {
+				t.Errorf("TrimEleSpaceAndRemoveEmpty() = %v, want %v", gotR, tt.wantR)
+			}
+		})
+	}
+}

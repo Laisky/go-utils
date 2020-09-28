@@ -390,6 +390,29 @@ func UniqueStrings(vs []string) (r []string) {
 	return
 }
 
+// RemoveEmpty remove duplicate string in slice
+func RemoveEmpty(vs []string) (r []string) {
+	for _, v := range vs {
+		if strings.TrimSpace(v) != "" {
+			r = append(r, v)
+		}
+	}
+
+	return
+}
+
+// TrimEleSpaceAndRemoveEmpty remove duplicate string in slice
+func TrimEleSpaceAndRemoveEmpty(vs []string) (r []string) {
+	for _, v := range vs {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			r = append(r, v)
+		}
+	}
+
+	return
+}
+
 // IsPtr check if t is pointer
 func IsPtr(t interface{}) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
