@@ -312,6 +312,12 @@ func TestRotateCounterFromN(t *testing.T) {
 	}
 }
 
+// BenchmarkCounter/count_1-8         	 1369930	       920 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkCounter/get_speed-8       	  620430	      2278 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkCounter/count_1_parallel_4-8         	  212336	      5285 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkCounter/count_5-8                    	18502207	        64.3 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkCounter/count_500-8                  	18213850	        64.1 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkCounter/count_500_parallel_4-8       	  239703	      5315 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkCounter(b *testing.B) {
 	counter := NewCounter()
 

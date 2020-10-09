@@ -508,3 +508,83 @@ func TestRunCMD(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveEmpty(t *testing.T) {
+	type args struct {
+		vs []string
+	}
+	tests := []struct {
+		name  string
+		args  args
+		wantR []string
+	}{
+		// TODO: Add test cases.
+		{"0", args{[]string{"1"}}, []string{"1"}},
+		{"1", args{[]string{"1", ""}}, []string{"1"}},
+		{"2", args{[]string{"1", "", "  "}}, []string{"1"}},
+		{"3", args{[]string{"1", "", "  ", "2", ""}}, []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotR := RemoveEmpty(tt.args.vs); !reflect.DeepEqual(gotR, tt.wantR) {
+				t.Errorf("RemoveEmpty() = %v, want %v", gotR, tt.wantR)
+			}
+		})
+	}
+}
+
+func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
+	type args struct {
+		vs []string
+	}
+	tests := []struct {
+		name  string
+		args  args
+		wantR []string
+	}{
+		// TODO: Add test cases.
+		{"0", args{[]string{"1"}}, []string{"1"}},
+		{"1", args{[]string{"1", ""}}, []string{"1"}},
+		{"2", args{[]string{"1", "", "  "}}, []string{"1"}},
+		{"3", args{[]string{"1", "", "  ", "2", ""}}, []string{"1", "2"}},
+		{"4", args{[]string{"1", "", "  ", "2   ", ""}}, []string{"1", "2"}},
+		{"5", args{[]string{"1", "", "  ", "   2   ", ""}}, []string{"1", "2"}},
+		{"6", args{[]string{"1", "", "  ", "   2", ""}}, []string{"1", "2"}},
+		{"7", args{[]string{"   1", "", "  ", "   2", ""}}, []string{"1", "2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotR := TrimEleSpaceAndRemoveEmpty(tt.args.vs); !reflect.DeepEqual(gotR, tt.wantR) {
+				t.Errorf("TrimEleSpaceAndRemoveEmpty() = %v, want %v", gotR, tt.wantR)
+			}
+		})
+	}
+}
+
+func TestInArray(t *testing.T) {
+	type args struct {
+		collection interface{}
+		ele        interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		// TODO: Add test cases.
+		{"", args{[]string{"1", "2"}, "2"}, true},
+		{"", args{[]string{"1", "2"}, "1"}, true},
+		{"", args{[]string{"1", "2"}, "3"}, false},
+		{"", args{[]uint{1, 2}, 3}, false},
+		{"", args{[]uint{1, 2}, 2}, false},
+		{"", args{[...]uint{1, 2}, 3}, false},
+		{"", args{[...]uint{1, 2}, 2}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InArray(tt.args.collection, tt.args.ele); got != tt.want {
+				t.Errorf("InArray() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

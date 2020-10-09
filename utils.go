@@ -390,6 +390,46 @@ func UniqueStrings(vs []string) (r []string) {
 	return
 }
 
+// RemoveEmpty remove duplicate string in slice
+func RemoveEmpty(vs []string) (r []string) {
+	for _, v := range vs {
+		if strings.TrimSpace(v) != "" {
+			r = append(r, v)
+		}
+	}
+
+	return
+}
+
+// TrimEleSpaceAndRemoveEmpty remove duplicate string in slice
+func TrimEleSpaceAndRemoveEmpty(vs []string) (r []string) {
+	for _, v := range vs {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			r = append(r, v)
+		}
+	}
+
+	return
+}
+
+// InArray if collection contains ele
+func InArray(collection interface{}, ele interface{}) bool {
+	targetValue := reflect.ValueOf(collection)
+	switch reflect.TypeOf(collection).Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < targetValue.Len(); i++ {
+			if targetValue.Index(i).Interface() == ele {
+				return true
+			}
+		}
+	default:
+		Logger.Panic("unsupport type", zap.String("type", reflect.TypeOf(collection).Kind().String()))
+	}
+
+	return false
+}
+
 // IsPtr check if t is pointer
 func IsPtr(t interface{}) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr

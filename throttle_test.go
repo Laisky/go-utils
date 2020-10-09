@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 func TestThrottle2(t *testing.T) {
@@ -43,25 +45,39 @@ func TestThrottle2(t *testing.T) {
 	}
 }
 
-// BenchmarkThrottle-4	       6605460	       320 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkThrottle/throttle-8         	13897974	        85.3 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkThrottle/rate.Limiter-8     	  148858	      7344 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkThrottle(b *testing.B) {
 	ctx := context.Background()
-	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
-		NPerSec: 10,
-		Max:     100,
-	})
-	if err != nil {
-		b.Fatalf("%+v", err)
-	}
-	defer throttle.Close()
-
-	for i := 0; i < 4; i++ {
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				throttle.Allow()
-			}
+	b.Run("throttle", func(b *testing.B) {
+		throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+			NPerSec: 10,
+			Max:     100,
 		})
-	}
+		if err != nil {
+			b.Fatalf("%+v", err)
+		}
+		defer throttle.Close()
+
+		for i := 0; i < 10; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					throttle.Allow()
+				}
+			})
+		}
+	})
+
+	b.Run("rate.Limiter", func(b *testing.B) {
+		limiter := rate.NewLimiter(rate.Limit(10), 100)
+		for i := 0; i < 10; i++ {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					limiter.Allow()
+				}
+			})
+		}
+	})
 }
 
 func ExampleThrottle() {
