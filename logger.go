@@ -112,6 +112,11 @@ func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) 
 	return l, l.ChangeLevel(level)
 }
 
+// Level get current level of logger
+func (l *LoggerType) Level() string {
+	return l.level.String()
+}
+
 // ChangeLevel change logger level
 func (l *LoggerType) ChangeLevel(level string) (err error) {
 	level = strings.ToLower(strings.TrimSpace(level))
