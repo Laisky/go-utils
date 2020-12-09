@@ -588,3 +588,20 @@ func TestInArray(t *testing.T) {
 		})
 	}
 }
+
+func TestExpCache_Store(t *testing.T) {
+	cm := NewExpCache(100 * time.Millisecond)
+	key := "key"
+	val := "val"
+	cm.Store(key, val)
+	if vali, ok := cm.Load(key); !ok {
+		t.Fatal("should ok")
+	} else if vali.(string) != val {
+		t.Fatalf("got: %+v", vali)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	if _, ok := cm.Load(key); ok {
+		t.Fatal("should not ok")
+	}
+}

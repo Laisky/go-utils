@@ -2,6 +2,20 @@
 *CURRENT*
 ---
     
+* 2020-12-08 (Laisky.Cai) feat: cache -> [view commit](https://github.com/Laisky/go-utils/commit/5b5c2430dfa40930352348ab8eefcd053a95feed)
+* 2020-11-12 (Laisky.Cai) feat: add logger.Level -> [view commit](https://github.com/Laisky/go-utils/commit/e7235a0bcb6f92ac68b7e0adcbedb6d12efb7a4f)
+* 2020-10-21 (Laisky.Cai) fix: gorm logger use info -> [view commit](https://github.com/Laisky/go-utils/commit/65102663c4b5cbf5f17b61b6dc5033456f0d0781)
+* 2020-09-28 (Laisky.Cai) feat: add `InArray` -> [view commit](https://github.com/Laisky/go-utils/commit/bf0b048f6c5aacb9bf0499515be2dc2cec2fa7eb)
+* 2020-09-28 (Laisky.Cai) feat: add `RemoveEmpty` & `TrimEleSpaceAndRemoveEmpty` -> [view commit](https://github.com/Laisky/go-utils/commit/6bc01c59fc6fcc238d5bcd7ee51625ec3770d019)
+* 2020-09-18 (Laisky.Cai) fix: improve throttle -> [view commit](https://github.com/Laisky/go-utils/commit/14358788145679a72b9611cb4b4e60b27071bb66)
+* 2020-09-16 (Laisky.Cai) fix: add benchmark with rate.Limiter -> [view commit](https://github.com/Laisky/go-utils/commit/ec3f3076e72db84cd647e663b69e3897a66bfe58)
+* 2020-09-15 (Laisky.Cai) fix: use short caller -> [view commit](https://github.com/Laisky/go-utils/commit/ba9bb4a69037a0ad604e216cf5f519e39436a3df)
+* 2020-09-11 (Laisky.Cai) fix: gorm logger use debug -> [view commit](https://github.com/Laisky/go-utils/commit/517f2d8f742469768d3565beaf7ad20ba000cdc0)
+* 2020-08-26 (Laisky.Cai) fix: go mod -> [view commit](https://github.com/Laisky/go-utils/commit/da019ff9180732f45a3955aeaacfa3b0ebcb31f9)
+* 2020-08-26 (Laisky.Cai) feat: add http header consts -> [view commit](https://github.com/Laisky/go-utils/commit/36b7f9cbad69577ceaf087fc0942fa62c84128b9)
+* 2020-07-30 (Laisky.Cai) feat: add `IsDirWritable` -> [view commit](https://github.com/Laisky/go-utils/commit/dfdd76a53d4b344276e8db13623fb5d9cb8e3518)
+* 2020-07-30 (Laisky.Cai) feat: add `NoExtraArgs` -> [view commit](https://github.com/Laisky/go-utils/commit/15c0f5aad40cb3ad2dcffcaf43672cb98d4a8f35)
+* 2020-07-28 (Laisky.Cai) feat: ad GetDate -> [view commit](https://github.com/Laisky/go-utils/commit/e0d12191fcbf64c8454c67a27f5055cdb662029b)
 * 2020-07-28 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/d93d866a524742170ce163681ad7e21125519645)
 * 2020-07-27 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/c1231581e47845c1eee1814f54e0afdde68be24a)
 * 2020-07-27 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/005d920cd6d646ee727c6bff06ce858c9892b699)
@@ -734,6 +748,20 @@
     
     
        
+*v1.13.9*
+---
+    
+* 2020-09-11 (Laisky.Cai) fix: gorm logger use debug -> [view commit](https://github.com/Laisky/go-utils/commit/517f2d8f742469768d3565beaf7ad20ba000cdc0)
+* 2020-08-26 (Laisky.Cai) fix: go mod -> [view commit](https://github.com/Laisky/go-utils/commit/da019ff9180732f45a3955aeaacfa3b0ebcb31f9)
+* 2020-08-26 (Laisky.Cai) feat: add http header consts -> [view commit](https://github.com/Laisky/go-utils/commit/36b7f9cbad69577ceaf087fc0942fa62c84128b9)
+* 2020-07-30 (Laisky.Cai) feat: add `IsDirWritable` -> [view commit](https://github.com/Laisky/go-utils/commit/dfdd76a53d4b344276e8db13623fb5d9cb8e3518)    
+       
+*v1.13.8*
+---
+    
+* 2020-07-30 (Laisky.Cai) feat: add `NoExtraArgs` -> [view commit](https://github.com/Laisky/go-utils/commit/15c0f5aad40cb3ad2dcffcaf43672cb98d4a8f35)
+* 2020-07-28 (Laisky.Cai) feat: ad GetDate -> [view commit](https://github.com/Laisky/go-utils/commit/e0d12191fcbf64c8454c67a27f5055cdb662029b)    
+       
 *v1.13.7*
 ---
     
@@ -770,6 +798,35 @@
 *v1.13.2*
 ---
     
+    
+       
+*v1.13.10*
+---
+    
+* 2020-09-28 (Laisky.Cai) feat: add `InArray` -> [view commit](https://github.com/Laisky/go-utils/commit/bf0b048f6c5aacb9bf0499515be2dc2cec2fa7eb)
+* 2020-09-28 (Laisky.Cai) feat: add `RemoveEmpty` & `TrimEleSpaceAndRemoveEmpty` -> [view commit](https://github.com/Laisky/go-utils/commit/6bc01c59fc6fcc238d5bcd7ee51625ec3770d019)
+* 2020-09-18 (Laisky.Cai) fix: improve throttle -> [view commit](https://github.com/Laisky/go-utils/commit/14358788145679a72b9611cb4b4e60b27071bb66)
+* 2020-09-16 (Laisky.Cai) fix: add benchmark with rate.Limiter -> [view commit](https://github.com/Laisky/go-utils/commit/ec3f3076e72db84cd647e663b69e3897a66bfe58)
+* 2020-09-15 (Laisky.Cai) fix: use short caller -> [view commit](https://github.com/Laisky/go-utils/commit/ba9bb4a69037a0ad604e216cf5f519e39436a3df)
+* 2020-09-11 (Laisky.Cai) fix: gorm logger use debug -> [view commit](https://github.com/Laisky/go-utils/commit/517f2d8f742469768d3565beaf7ad20ba000cdc0)
+* 2020-08-26 (Laisky.Cai) fix: go mod -> [view commit](https://github.com/Laisky/go-utils/commit/da019ff9180732f45a3955aeaacfa3b0ebcb31f9)
+* 2020-08-26 (Laisky.Cai) feat: add http header consts -> [view commit](https://github.com/Laisky/go-utils/commit/36b7f9cbad69577ceaf087fc0942fa62c84128b9)
+* 2020-07-30 (Laisky.Cai) feat: add `IsDirWritable` -> [view commit](https://github.com/Laisky/go-utils/commit/dfdd76a53d4b344276e8db13623fb5d9cb8e3518)
+* 2020-07-30 (Laisky.Cai) feat: add `NoExtraArgs` -> [view commit](https://github.com/Laisky/go-utils/commit/15c0f5aad40cb3ad2dcffcaf43672cb98d4a8f35)
+* 2020-07-28 (Laisky.Cai) feat: ad GetDate -> [view commit](https://github.com/Laisky/go-utils/commit/e0d12191fcbf64c8454c67a27f5055cdb662029b)
+* 2020-07-28 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/d93d866a524742170ce163681ad7e21125519645)
+* 2020-07-27 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/c1231581e47845c1eee1814f54e0afdde68be24a)
+* 2020-07-27 (Laisky.Cai) fix: gorm log color -> [view commit](https://github.com/Laisky/go-utils/commit/005d920cd6d646ee727c6bff06ce858c9892b699)
+* 2020-07-27 (Laisky.Cai) fix: change gorm delete color -> [view commit](https://github.com/Laisky/go-utils/commit/2b320db863e7354cbce01702cbfcd51a877b1777)
+* 2020-07-27 (Laisky.Cai) fix: color logger add info/error -> [view commit](https://github.com/Laisky/go-utils/commit/8d6819e0a6e5d661dca72baf1c17996b07c7df7e)
+* 2020-07-22 (Laisky.Cai) feat: add `gentls` -> [view commit](https://github.com/Laisky/go-utils/commit/047baf6fba28b8ba2d94020af5f172782680fe1f)
+* 2020-07-22 (Laisky.Cai) fix: expand secret race -> [view commit](https://github.com/Laisky/go-utils/commit/bf4619bebba14266c23fbda04860aa1b4ac8c352)
+* 2020-07-22 (Laisky.Cai) feat: add `AESEncryptFilesInDir` -> [view commit](https://github.com/Laisky/go-utils/commit/7c26f0c35070046348434776055066485b4edaf4)
+* 2020-07-21 (Laisky.Cai) chore: mod -> [view commit](https://github.com/Laisky/go-utils/commit/4489f0bc95030642cf7177f5f24d66f8f9bbd8f6)
+* 2020-07-21 (Laisky.Cai) feat: support aes encrypted config file -> [view commit](https://github.com/Laisky/go-utils/commit/e892560eb697fc363aea8fbc4eaedc50c3e1eb90)
+* 2020-07-20 (Laisky.Cai) fix: gorm log formatter -> [view commit](https://github.com/Laisky/go-utils/commit/bb244b21175bf6de939dc74212f2c025e0fa3412)
+* 2020-07-17 (Laisky.Cai) feat: add `GormLogger` -> [view commit](https://github.com/Laisky/go-utils/commit/03206b15222902e7de4a73b3532fdcedd1af1325)
+* 2020-07-10 (Laisky.Cai) fix: settings merge error -> [view commit](https://github.com/Laisky/go-utils/commit/7ad8337a5f5684bf49814bcd4119d33aa25a04b5)
 * 2020-07-09 (Laisky.Cai) fix: settings bug -> [view commit](https://github.com/Laisky/go-utils/commit/e66c815a70a830a2b42bd13de18920cc8326839e)
 * 2020-07-09 (Laisky.Cai) feat: config file support `include` -> [view commit](https://github.com/Laisky/go-utils/commit/95a5d664fae78b5933d51beec426a7db3d4ff240)    
        

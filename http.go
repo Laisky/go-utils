@@ -19,10 +19,14 @@ const (
 	defaultHTTPClientOptMaxConn  = 20
 	defaultHTTPClientOptInsecure = false
 
-	HTTPHeaderHost        = "Host"
-	HTTPHeaderReferer     = "Referer"
+	// HTTPHeaderHost HTTP header name
+	HTTPHeaderHost = "Host"
+	// HTTPHeaderReferer HTTP header name
+	HTTPHeaderReferer = "Referer"
+	// HTTPHeaderContentType HTTP header name
 	HTTPHeaderContentType = "Content-Type"
 
+	// HTTPHeaderContentTypeValJSON HTTP header value
 	HTTPHeaderContentTypeValJSON = "application/json"
 )
 
@@ -103,7 +107,7 @@ func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	return c, nil
 }
 
-// RequestData 发起请求的结构体
+// RequestData http request
 type RequestData struct {
 	Headers map[string]string
 	Data    interface{}

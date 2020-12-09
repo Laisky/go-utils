@@ -149,16 +149,16 @@ func (l *GormLogger) Print(vs ...interface{}) {
 
 	switch strings.TrimSpace(strings.ToLower(strings.SplitN(msg, " ", 2)[0])) {
 	case "drop", "delete":
-		l.logger.Debug(Color(ANSIColorFgMagenta, msg), fields...)
+		l.logger.Info(Color(ANSIColorFgMagenta, msg), fields...)
 	case "insert":
-		l.logger.Debug(Color(ANSIColorFgGreen, msg), fields...)
+		l.logger.Info(Color(ANSIColorFgGreen, msg), fields...)
 	case "update":
-		l.logger.Debug(Color(ANSIColorFgYellow, msg), fields...)
+		l.logger.Info(Color(ANSIColorFgYellow, msg), fields...)
 	case "select":
 		l.logger.Debug(Color(ANSIColorFgCyan, msg), fields...)
 	case "error":
 		l.logger.Error(Color(ANSIColorFgHiRed, msg), fields...)
 	default:
-		l.logger.Debug(Color(ANSIColorFgBlue, msg), fields...)
+		l.logger.Info(Color(ANSIColorFgBlue, msg), fields...)
 	}
 }
