@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Laisky/zap"
@@ -448,4 +449,43 @@ func Base64Encode(raw []byte) string {
 // Base64Decode decode string to bytes use base64
 func Base64Decode(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
+}
+
+// ExpCache cache with expires
+type ExpCache struct {
+	data sync.Map
+	exp  time.Duration
+}
+
+type expCacheItem struct {
+	exp  time.Time
+	data interface{}
+}
+
+// NewExpCache new cache manager
+func NewExpCache(exp time.Duration) *ExpCache {
+	return &ExpCache{
+		exp: exp,
+	}
+}
+
+// Store store new key and val into cache
+func (c *ExpCache) Store(key, val interface{}) {
+	c.data.Store(key, &expCacheItem{
+		data: val,
+		exp:  Clock.GetUTCNow().Add(c.exp),
+	})
+}
+
+// Load load val from cache
+func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
+	now := Clock.GetUTCNow()
+	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
+		fmt.Println(now)
+		return data.(*expCacheItem).data, ok
+	} else if ok {
+		c.data.Delete(key)
+	}
+
+	return nil, false
 }
