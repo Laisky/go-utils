@@ -2,6 +2,7 @@
 *CURRENT*
 ---
     
+* 2020-12-09 (Laisky.Cai) docs: update changelog -> [view commit](https://github.com/Laisky/go-utils/commit/06b4c9451491e387ee075832b8d395ba7323ec4b)
 * 2020-12-08 (Laisky.Cai) feat: cache -> [view commit](https://github.com/Laisky/go-utils/commit/5b5c2430dfa40930352348ab8eefcd053a95feed)
 * 2020-11-12 (Laisky.Cai) feat: add logger.Level -> [view commit](https://github.com/Laisky/go-utils/commit/e7235a0bcb6f92ac68b7e0adcbedb6d12efb7a4f)
 * 2020-10-21 (Laisky.Cai) fix: gorm logger use info -> [view commit](https://github.com/Laisky/go-utils/commit/65102663c4b5cbf5f17b61b6dc5033456f0d0781)
@@ -799,6 +800,14 @@
 ---
     
     
+       
+*v1.13.11*
+---
+    
+* 2020-12-09 (Laisky.Cai) docs: update changelog -> [view commit](https://github.com/Laisky/go-utils/commit/06b4c9451491e387ee075832b8d395ba7323ec4b)
+* 2020-12-08 (Laisky.Cai) feat: cache -> [view commit](https://github.com/Laisky/go-utils/commit/5b5c2430dfa40930352348ab8eefcd053a95feed)
+* 2020-11-12 (Laisky.Cai) feat: add logger.Level -> [view commit](https://github.com/Laisky/go-utils/commit/e7235a0bcb6f92ac68b7e0adcbedb6d12efb7a4f)
+* 2020-10-21 (Laisky.Cai) fix: gorm logger use info -> [view commit](https://github.com/Laisky/go-utils/commit/65102663c4b5cbf5f17b61b6dc5033456f0d0781)    
        
 *v1.13.10*
 ---

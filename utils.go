@@ -479,9 +479,7 @@ func (c *ExpCache) Store(key, val interface{}) {
 
 // Load load val from cache
 func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
-	now := Clock.GetUTCNow()
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
-		fmt.Println(now)
 		return data.(*expCacheItem).data, ok
 	} else if ok {
 		c.data.Delete(key)
