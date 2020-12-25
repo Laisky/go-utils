@@ -13,15 +13,15 @@ import (
 	"github.com/Laisky/zap"
 )
 
-func TestZipDir(t *testing.T) {
-	err := ZipFiles(
-		"/home/laisky/test/test.zip",
-		[]string{"/home/laisky/test/zip"},
-	)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-}
+// func TestZipDir(t *testing.T) {
+// 	err := ZipFiles(
+// 		"/home/laisky/test/test.zip",
+// 		[]string{"/home/laisky/test/zip"},
+// 	)
+// 	if err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// }
 
 func TestUnzipAndZipFiles(t *testing.T) {
 	var err error
