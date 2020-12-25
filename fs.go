@@ -98,13 +98,12 @@ func DirSize(path string) (size int64, err error) {
 }
 
 // ListFilesInDir list files in dir
-func ListFilesInDir(dir string) ([]string, error) {
+func ListFilesInDir(dir string) (files []string, err error) {
 	fs, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir `%s`", dir)
 	}
 
-	var files []string
 	for _, f := range fs {
 		if f.IsDir() {
 			continue
@@ -113,5 +112,5 @@ func ListFilesInDir(dir string) ([]string, error) {
 		files = append(files, filepath.Join(dir, f.Name()))
 	}
 
-	return files, nil
+	return
 }

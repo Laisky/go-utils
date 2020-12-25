@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -239,10 +240,10 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 		if f.FileInfo().IsDir() {
 			// Make Folder
 			if err = os.MkdirAll(fpath, os.ModePerm); err != nil {
-				return nil, errors.Wrapf(err, "create dir: %s", fpath)
+				return nil, errors.Wrapf(err, "create basedir: %s", fpath)
 			}
 
-			Logger.Debug("create dir", zap.String("path", fpath))
+			Logger.Debug("create basedir", zap.String("path", fpath))
 			continue
 		}
 
@@ -250,7 +251,7 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
 			return nil, errors.Wrapf(err, "mkdir: %s", fpath)
 		}
-		Logger.Debug("create dir", zap.String("path", filepath.Dir(fpath)))
+		Logger.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
 
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
@@ -274,13 +275,16 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 }
 
 // ZipFiles compresses one or many files into a single zip archive file.
-// Param 1: filename is the output zip file's name.
-// Param 2: files is a list of files to add to the zip.
+//
+// Args:
+//   * output: is the output zip file's name.
+//   * files: is a list of files to add to the zip.
+//            files can be directory.
 //
 // https://golangcode.com/create-zip-files-in-go/
-func ZipFiles(filename string, files []string) (err error) {
+func ZipFiles(output string, files []string) (err error) {
 	var newZipFile *os.File
-	if newZipFile, err = os.Create(filename); err != nil {
+	if newZipFile, err = os.Create(output); err != nil {
 		return err
 	}
 	defer newZipFile.Close()
@@ -290,10 +294,9 @@ func ZipFiles(filename string, files []string) (err error) {
 
 	// Add files to zip
 	for _, file := range files {
-		if err = AddFileToZip(zipWriter, file); err != nil {
+		if err = AddFileToZip(zipWriter, file, ""); err != nil {
 			return errors.Wrapf(err, "AddFileToZip: %s", file)
 		}
-		Logger.Debug("add file to zip", zap.String("file", file))
 	}
 
 	return nil
@@ -302,27 +305,44 @@ func ZipFiles(filename string, files []string) (err error) {
 // AddFileToZip add file tp zip.Writer
 //
 // https://golangcode.com/create-zip-files-in-go/
-func AddFileToZip(zipWriter *zip.Writer, filename string) (err error) {
-	var fileToZip *os.File
-	if fileToZip, err = os.Open(filename); err != nil {
+func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
+	finfo, err := os.Stat(filename)
+	if err != nil {
+		return errors.Wrapf(err, "get file stat: %s", filename)
+	}
+
+	if finfo.IsDir() {
+		fs, err := ioutil.ReadDir(filename)
+		if err != nil {
+			return errors.Wrapf(err, "list files in `%s`", filename)
+		}
+
+		for _, finfoInDir := range fs {
+			_, childDir := filepath.Split(finfoInDir.Name())
+			if err = AddFileToZip(zipWriter, filepath.Join(filename, finfoInDir.Name()), filepath.Join(basedir, finfo.Name())); err != nil {
+				return errors.Wrapf(err, "zip sub basedir `%s`", childDir)
+			}
+		}
+
+		return nil
+	}
+
+	fileToZip, err := os.Open(filename)
+	if err != nil {
 		return errors.Wrapf(err, "open file: %s", filename)
 	}
 	defer fileToZip.Close()
 
-	// Get the file information
-	var info os.FileInfo
-	if info, err = fileToZip.Stat(); err != nil {
-		return errors.Wrapf(err, "get file stat: %s", filename)
-	}
-
 	var header *zip.FileHeader
-	if header, err = zip.FileInfoHeader(info); err != nil {
+	if header, err = zip.FileInfoHeader(finfo); err != nil {
 		return errors.Wrap(err, "get file header")
 	}
 
 	// Using FileInfoHeader() above only uses the basename of the file. If we want
 	// to preserve the folder structure we can overwrite this with the full path.
-	// header.Name = filename
+	if basedir != "" {
+		header.Name = filepath.Join(basedir, finfo.Name())
+	}
 
 	// Change to deflate to gain better compression
 	// see http://golang.org/pkg/archive/zip/#pkg-constants
@@ -337,5 +357,6 @@ func AddFileToZip(zipWriter *zip.Writer, filename string) (err error) {
 		return errors.Wrap(err, "copy data")
 	}
 
-	return
+	Logger.Debug("add file to zip", zap.String("file", filename))
+	return nil
 }
