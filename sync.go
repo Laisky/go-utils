@@ -3,10 +3,12 @@ package utils
 import (
 	"context"
 	"fmt"
-	"github.com/Laisky/zap"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Laisky/zap"
 
 	"github.com/Laisky/graphql"
 	"github.com/dgrijalva/jwt-go"
@@ -241,4 +243,24 @@ func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMu
 		nRetry = 0
 		Logger.Debug("success renewal lock", zap.String("lock_name", lockName))
 	}
+}
+
+// ExpiredRLock Lock with expire time
+type ExpiredRLock struct {
+	m *ExpiredMap
+}
+
+// NewExpiredRLock new ExpiredRLock
+func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, err error) {
+	el = &ExpiredRLock{}
+	el.m, err = NewExpiredMap(ctx, exp, func() interface{} {
+		return &sync.RWMutex{}
+	})
+	err = errors.Wrap(err, "new expired rlock")
+	return
+}
+
+// GetLock get lock
+func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
+	return e.m.Get(key).(*sync.RWMutex)
 }

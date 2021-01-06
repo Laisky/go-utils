@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -135,3 +136,23 @@ func BenchmarkMutex(b *testing.B) {
 
 // 	time.Sleep(3 * time.Second) // will auto renewal lock in background
 // }
+
+func TestNewExpiredRLock(t *testing.T) {
+	lm, err := NewExpiredRLock(context.Background(), time.Second)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	k := "yo"
+	l := lm.GetLock(k)
+
+	l.RLock()
+	l.RLock()
+	go func() {
+		l.Lock()
+	}()
+
+	time.Sleep(time.Millisecond)
+	l.RUnlock()
+	l.RUnlock()
+}
