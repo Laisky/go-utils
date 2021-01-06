@@ -189,7 +189,7 @@ func (e *EventEngine) run(ctx context.Context, nfork int) {
 // Register register new handler to event store
 func (e *EventEngine) Register(topic, handlerName string, handler EventHandler) {
 	hs := &evtHandlers{
-		hs: []evtHandler{evtHandler{
+		hs: []evtHandler{{
 			name: handlerName,
 			h:    handler,
 		}},
