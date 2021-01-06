@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestNewEventStore(t *testing.T) {
-	evtstore, err := NewEventStore(context.Background())
+func TestNewEventEngine(t *testing.T) {
+	evtstore, err := NewEventEngine(context.Background())
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -37,8 +37,8 @@ func TestNewEventStore(t *testing.T) {
 	// t.Error()
 }
 
-func BenchmarkNewEventStore(b *testing.B) {
-	evtstore, err := NewEventStore(context.Background())
+func BenchmarkNewEventEngine(b *testing.B) {
+	evtstore, err := NewEventEngine(context.Background())
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}

@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	defaultEventStoreNFork         int = 2
-	defaultEventStoreMsgBufferSize int = 1
+	defaultEventEngineNFork         int = 2
+	defaultEventEngineMsgBufferSize int = 1
 )
 
 // Event evt
@@ -59,8 +59,8 @@ func (e *evtHandlers) Clone() (handlers []evtHandler) {
 	return append(handlers, e.hs...)
 }
 
-// EventStore type of event store
-type EventStore struct {
+// EventEngine type of event store
+type EventEngine struct {
 	*LoggerType
 	q chan *Event
 
@@ -74,11 +74,11 @@ type eventStoreManagerOpt struct {
 	logger        *LoggerType
 }
 
-// EventStoreOptFunc options for EventStore
-type EventStoreOptFunc func(*eventStoreManagerOpt) error
+// EventEngineOptFunc options for EventEngine
+type EventEngineOptFunc func(*eventStoreManagerOpt) error
 
-// WithEventStoreNFork set nfork of event store
-func WithEventStoreNFork(nfork int) EventStoreOptFunc {
+// WithEventEngineNFork set nfork of event store
+func WithEventEngineNFork(nfork int) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if nfork <= 0 {
 			return errors.Errorf("nfork must > 0")
@@ -89,20 +89,20 @@ func WithEventStoreNFork(nfork int) EventStoreOptFunc {
 	}
 }
 
-// WithEventStoreChanBuffer set msg buffer size of event store
-func WithEventStoreChanBuffer(msgBufferSize int) EventStoreOptFunc {
+// WithEventEngineChanBuffer set msg buffer size of event store
+func WithEventEngineChanBuffer(msgBufferSize int) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if msgBufferSize < 0 {
 			return errors.Errorf("msgBufferSize must >= 0")
 		}
 
-		opt.msgBufferSize = defaultEventStoreMsgBufferSize
+		opt.msgBufferSize = defaultEventEngineMsgBufferSize
 		return nil
 	}
 }
 
-// WithEventStoreLogger set event store's logger
-func WithEventStoreLogger(logger *LoggerType) EventStoreOptFunc {
+// WithEventEngineLogger set event store's logger
+func WithEventEngineLogger(logger *LoggerType) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if logger == nil {
 			return errors.Errorf("logger is nil")
@@ -113,11 +113,11 @@ func WithEventStoreLogger(logger *LoggerType) EventStoreOptFunc {
 	}
 }
 
-// NewEventStore new event store manager
-func NewEventStore(ctx context.Context, opts ...EventStoreOptFunc) (e *EventStore, err error) {
+// NewEventEngine new event store manager
+func NewEventEngine(ctx context.Context, opts ...EventEngineOptFunc) (e *EventEngine, err error) {
 	opt := &eventStoreManagerOpt{
-		msgBufferSize: defaultEventStoreMsgBufferSize,
-		nfork:         defaultEventStoreNFork,
+		msgBufferSize: defaultEventEngineMsgBufferSize,
+		nfork:         defaultEventEngineNFork,
 		logger:        Logger.Named("evt-store-" + RandomStringWithLength(6)),
 	}
 	for _, optf := range opts {
@@ -126,7 +126,7 @@ func NewEventStore(ctx context.Context, opts ...EventStoreOptFunc) (e *EventStor
 		}
 	}
 
-	e = &EventStore{
+	e = &EventEngine{
 		LoggerType: opt.logger,
 		q:          make(chan *Event, opt.msgBufferSize),
 		topic2hs:   &sync.Map{},
@@ -150,8 +150,8 @@ func runHandlerWithoutPanic(h evtHandler, evt *Event) (err error) {
 	return nil
 }
 
-// Run start EventStore
-func (e *EventStore) run(ctx context.Context, nfork int) {
+// Run start EventEngine
+func (e *EventEngine) run(ctx context.Context, nfork int) {
 	for i := 0; i < nfork; i++ {
 		logger := e.Logger.Named(strconv.Itoa(i))
 		go func() {
@@ -187,7 +187,7 @@ func (e *EventStore) run(ctx context.Context, nfork int) {
 }
 
 // Register register new handler to event store
-func (e *EventStore) Register(topic, handlerName string, handler EventHandler) {
+func (e *EventEngine) Register(topic, handlerName string, handler EventHandler) {
 	hs := &evtHandlers{
 		hs: []evtHandler{evtHandler{
 			name: handlerName,
@@ -202,7 +202,7 @@ func (e *EventStore) Register(topic, handlerName string, handler EventHandler) {
 }
 
 // UnRegister delete handler in event store
-func (e *EventStore) UnRegister(topic, handlerName string) {
+func (e *EventEngine) UnRegister(topic, handlerName string) {
 	if hsi, ok := e.topic2hs.Load(topic); ok {
 		hsi.(*evtHandlers).Lock()
 		hsi.(*evtHandlers).Remove(handlerName)
@@ -215,6 +215,6 @@ func (e *EventStore) UnRegister(topic, handlerName string) {
 }
 
 // Publish publish new event
-func (e *EventStore) Publish(evt *Event) {
+func (e *EventEngine) Publish(evt *Event) {
 	e.q <- evt
 }

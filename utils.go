@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Laisky/zap"
@@ -486,4 +487,89 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 	}
 
 	return nil, false
+}
+
+type expiredMapItem struct {
+	data interface{}
+	t    *int64
+}
+
+func (e *expiredMapItem) GetTime() time.Time {
+	return ParseUnix2UTC(atomic.LoadInt64(e.t))
+}
+
+func (e *expiredMapItem) RefreshTime() {
+	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
+}
+
+// ExpiredMap map with expire time
+type ExpiredMap struct {
+	m   sync.Map
+	mu  sync.Mutex
+	exp time.Duration
+	new func() interface{}
+}
+
+// NewExpiredMap new ExpiredMap
+func NewExpiredMap(ctx context.Context, exp time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
+	el = &ExpiredMap{
+		exp: exp,
+		new: new,
+	}
+
+	go el.clean(ctx)
+	return el, nil
+}
+
+func (e *ExpiredMap) clean(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		e.m.Range(func(k, v interface{}) bool {
+			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
+				return true
+			}
+
+			// lock is expired
+			e.mu.Lock()
+			defer e.mu.Unlock()
+
+			v, _ = e.m.LoadAndDelete(k)
+			if v == nil {
+				return true
+			}
+
+			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
+				e.m.Store(k, v)
+			}
+
+			return true
+		})
+
+		time.Sleep(e.exp / 2)
+	}
+}
+
+// Get get item
+func (e *ExpiredMap) Get(key string) interface{} {
+	l, _ := e.m.Load(key)
+	if l == nil {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+
+		t := Clock.GetUTCNow().Unix()
+		l, _ = e.m.LoadOrStore(key, &expiredMapItem{
+			t:    &t,
+			data: e.new(),
+		})
+	}
+
+	l.(*expiredMapItem).RefreshTime()
+	e.m.Store(key, l)
+
+	return l.(*expiredMapItem).data
 }
