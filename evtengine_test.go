@@ -17,13 +17,13 @@ func TestNewEventEngine(t *testing.T) {
 	)
 	evt1 := &Event{
 		Topic: topic1,
-		Meta: map[MetaKey]interface{}{
+		Meta: EventMeta{
 			"name": "yo",
 		},
 	}
 	evt2 := &Event{
 		Topic: topic2,
-		Meta: map[MetaKey]interface{}{
+		Meta: EventMeta{
 			"name": "yo2",
 		},
 	}
@@ -55,13 +55,13 @@ func BenchmarkNewEventEngine(b *testing.B) {
 	)
 	evt1 := &Event{
 		Topic: topic1,
-		Meta: map[MetaKey]interface{}{
+		Meta: EventMeta{
 			"name": "yo",
 		},
 	}
 	evt2 := &Event{
 		Topic: topic2,
-		Meta: map[MetaKey]interface{}{
+		Meta: EventMeta{
 			"name": "yo2",
 		},
 	}
