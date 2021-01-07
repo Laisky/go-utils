@@ -7,16 +7,27 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Laisky/zap"
 )
 
+// func TestZipDir(t *testing.T) {
+// 	err := ZipFiles(
+// 		"/home/laisky/test/test.zip",
+// 		[]string{"/home/laisky/test/zip"},
+// 	)
+// 	if err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// }
+
 func TestUnzipAndZipFiles(t *testing.T) {
 	var err error
-	// if err = Logger.ChangeLevel("debug"); err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
+	if err = Logger.ChangeLevel("debug"); err != nil {
+		t.Fatalf("%+v", err)
+	}
 
 	var dir string
 	if dir, err = ioutil.TempDir("", "compressor-test"); err != nil {
@@ -28,12 +39,15 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	if err = os.Mkdir(filepath.Join(dir, "src"), os.ModePerm); err != nil {
 		t.Fatalf("%+v", err)
 	}
+	if err = os.Mkdir(filepath.Join(dir, "src/child"), os.ModePerm); err != nil {
+		t.Fatalf("%+v", err)
+	}
 	if err = os.Mkdir(filepath.Join(dir, "dst"), os.ModePerm); err != nil {
 		t.Fatalf("%+v", err)
 	}
 	files := []string{
 		filepath.Join(dir, "src", "a.txt"),
-		filepath.Join(dir, "src", "b.txt"),
+		filepath.Join(dir, "src", "child", "b.txt"),
 		filepath.Join(dir, "src", "c.txt"),
 	}
 
@@ -48,17 +62,45 @@ func TestUnzipAndZipFiles(t *testing.T) {
 		if err = fp.Close(); err != nil {
 			t.Fatalf("%+v", err)
 		}
+
+		t.Logf("create file `%s`", fp.Name())
 	}
 
-	if err = ZipFiles(filepath.Join(dir, "src.zip"), files); err != nil {
+	// 压缩文件
+	// if err = ZipFiles(filepath.Join(dir, "src.zip"), files); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
+
+	// 压缩文件夹
+	if err = ZipFiles(filepath.Join(dir, "src.zip"), []string{filepath.Join(dir, "src")}); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	var dstFiles []string
-	if dstFiles, err = Unzip(filepath.Join(dir, "src.zip"), filepath.Join(dir, "dst")); err != nil {
+	dstDir := filepath.Join(dir, "dst")
+	if dstFiles, err = Unzip(filepath.Join(dir, "src.zip"), dstDir); err != nil {
 		t.Fatalf("%+v", err)
 	}
 	t.Logf("unzip files: %+v", dstFiles)
+
+	for _, fname := range dstFiles {
+		ok := false
+		for _, expect := range []string{"a.txt", "child/b.txt", "c.txt"} {
+			if strings.HasSuffix(fname, expect) {
+				ok = true
+			}
+		}
+
+		if !ok {
+			t.Fatalf("unknown file: %s", fname)
+		}
+
+		if cnt, err := ioutil.ReadFile(fname); err != nil {
+			t.Fatalf("unknown file: %s", fname)
+		} else if string(cnt) != "yoo" {
+			t.Fatalf("unknown content for file `%s`: %s", fname, string(cnt))
+		}
+	}
 
 	// t.Error()
 }

@@ -2,6 +2,13 @@
 *CURRENT*
 ---
     
+* 2021-01-06 (Laisky) feat: add `time` in Event -> [view commit](https://github.com/Laisky/go-utils/commit/0d0f967153ba43733c819b05d1a0aa935487cb4c)
+* 2021-01-06 (Laisky) chore: update gomod -> [view commit](https://github.com/Laisky/go-utils/commit/0dc25fd6c50db34e2d546dfbe5a7757e13448f49)
+* 2021-01-06 (Laisky.Cai) feat: add `ExpiredRLock` -> [view commit](https://github.com/Laisky/go-utils/commit/eeccfdfa305642e0dd87d52ac70d0363b0e4db03)
+* 2021-01-05 (Laisky.Cai) feat: add `EventStore` -> [view commit](https://github.com/Laisky/go-utils/commit/9ceb7db3d573048456c9dd8205d938269c2479c1)
+* 2020-12-25 (Laisky.Cai) test: remove some test -> [view commit](https://github.com/Laisky/go-utils/commit/d6da9ac697b2498a611170d84b033e8d24d162f7)
+* 2020-12-25 (Laisky.Cai) feat: ZipFiles support directory -> [view commit](https://github.com/Laisky/go-utils/commit/26b0737fdace1c4c7b42dae85c9e102aa1e17d5d)
+* 2020-12-15 (Laisky.Cai) docs: remove print -> [view commit](https://github.com/Laisky/go-utils/commit/81ccfe7505263ba8abff85673482c29370981d2a)
 * 2020-12-09 (Laisky.Cai) docs: update changelog -> [view commit](https://github.com/Laisky/go-utils/commit/06b4c9451491e387ee075832b8d395ba7323ec4b)
 * 2020-12-08 (Laisky.Cai) feat: cache -> [view commit](https://github.com/Laisky/go-utils/commit/5b5c2430dfa40930352348ab8eefcd053a95feed)
 * 2020-11-12 (Laisky.Cai) feat: add logger.Level -> [view commit](https://github.com/Laisky/go-utils/commit/e7235a0bcb6f92ac68b7e0adcbedb6d12efb7a4f)
@@ -800,6 +807,11 @@
 ---
     
     
+       
+*v1.13.12*
+---
+    
+* 2020-12-15 (Laisky.Cai) docs: remove print -> [view commit](https://github.com/Laisky/go-utils/commit/81ccfe7505263ba8abff85673482c29370981d2a)    
        
 *v1.13.11*
 ---

@@ -335,7 +335,7 @@ func ExampleAutoGC() {
 	defer cancel()
 	if err := AutoGC(
 		ctx,
-		WithGCMemRatio(85), // default
+		WithGCMemRatio(85),                                                    // default
 		WithGCMemLimitFilePath("/sys/fs/cgroup/memory/memory.limit_in_bytes"), // default
 	); err != nil {
 		Logger.Error("enable autogc", zap.Error(err))
