@@ -25,48 +25,48 @@ type Event struct {
 // EventHandler function to handle event
 type EventHandler func(*Event)
 
-type evtHandlerItem struct {
-	h    EventHandler
-	name string
-}
+// type evtHandlerItem struct {
+// 	h    EventHandler
+// 	name string
+// }
 
-type evtHandlers struct {
-	sync.RWMutex
-	hs []evtHandlerItem
-}
+// type evtHandlers struct {
+// 	sync.RWMutex
+// 	hs []evtHandlerItem
+// }
 
-func (e *evtHandlers) Append(handlers ...evtHandlerItem) *evtHandlers {
-	e.hs = append(e.hs, handlers...)
+// func (e *evtHandlers) Append(handlers ...evtHandlerItem) *evtHandlers {
+// 	e.hs = append(e.hs, handlers...)
 
-	return e
-}
+// 	return e
+// }
 
-func (e *evtHandlers) Remove(name string) *evtHandlers {
-	var hs []evtHandlerItem
-	for _, h := range e.hs {
-		if h.name != name {
-			hs = append(hs, h)
-		}
-	}
+// func (e *evtHandlers) Remove(name string) *evtHandlers {
+// 	var hs []evtHandlerItem
+// 	for _, h := range e.hs {
+// 		if h.name != name {
+// 			hs = append(hs, h)
+// 		}
+// 	}
 
-	e.hs = hs
-	return e
-}
+// 	e.hs = hs
+// 	return e
+// }
 
-func (e *evtHandlers) Len() int {
-	return len(e.hs)
-}
+// func (e *evtHandlers) Len() int {
+// 	return len(e.hs)
+// }
 
-func (e *evtHandlers) Clone() (handlers []evtHandlerItem) {
-	return append(handlers, e.hs...)
-}
+// func (e *evtHandlers) Clone() (handlers []evtHandlerItem) {
+// 	return append(handlers, e.hs...)
+// }
 
 // EventEngine type of event store
 type EventEngine struct {
 	*eventStoreManagerOpt
 	q chan *Event
 
-	// topic2hs map[topic][]evtHandlerItem
+	// topic2hs map[topic]*sync.Map[handlerID]handler
 	topic2hs *sync.Map
 }
 
@@ -152,19 +152,20 @@ func NewEventEngine(ctx context.Context, opts ...EventEngineOptFunc) (e *EventEn
 	return e, nil
 }
 
-func runHandlerWithoutPanic(h evtHandlerItem, evt *Event) (err error) {
+func runHandlerWithoutPanic(h EventHandler, evt *Event) (err error) {
 	defer func() {
 		if erri := recover(); erri != nil {
-			err = errors.Errorf("run event handler `%s` with evt `%s`: %+v", h.name, evt.Topic, erri)
+			err = errors.Errorf("run event handler with evt `%s`: %+v", evt.Topic, erri)
 		}
 	}()
 
-	h.h(evt)
+	h(evt)
 	return nil
 }
 
 type eventRunChanItem struct {
-	h   evtHandlerItem
+	h   EventHandler
+	hid string
 	evt *Event
 }
 
@@ -179,14 +180,16 @@ func (e *EventEngine) startRunner(ctx context.Context, nfork int, taskChan chan 
 				case t := <-taskChan:
 					logger.Debug("trigger handler",
 						zap.String("evt", t.evt.Topic),
-						zap.String("handler", t.h.name))
+						zap.String("handler", t.hid))
 
 					if e.suppressPanic {
 						if err := runHandlerWithoutPanic(t.h, t.evt); err != nil {
-							logger.Error("panic", zap.Error(err))
+							logger.Error("handler panic",
+								zap.String("handler", t.hid),
+								zap.Error(err))
 						}
 					} else {
-						t.h.h(t.evt)
+						t.h(t.evt)
 					}
 				}
 			}
@@ -207,55 +210,40 @@ func (e *EventEngine) run(ctx context.Context, taskChan chan *eventRunChanItem) 
 					continue
 				}
 
-				hsi.(*evtHandlers).RLock()
-				hs := hsi.(*evtHandlers).Clone()
-				hsi.(*evtHandlers).RUnlock()
-
-				for _, h := range hs {
+				hsi.(*sync.Map).Range(func(hid, h interface{}) bool {
 					taskChan <- &eventRunChanItem{
-						h:   h,
+						h:   h.(EventHandler),
+						hid: hid.(string),
 						evt: evt,
 					}
-				}
+
+					return true
+				})
 			}
 		}
 	}()
 }
 
 // Register register new handler to event store
-func (e *EventEngine) Register(topic, handlerName string, handler EventHandler) {
-	hs := &evtHandlers{
-		hs: []evtHandlerItem{{
-			name: handlerName,
-			h:    handler,
-		}},
-	}
-	if actual, loaded := e.topic2hs.LoadOrStore(topic, hs); loaded {
-		actual.(*evtHandlers).Lock()
-		actual.(*evtHandlers).Append(hs.hs...)
-		actual.(*evtHandlers).Unlock()
-	}
+func (e *EventEngine) Register(topic, handlerID string, handler EventHandler) {
+	hs := &sync.Map{}
+	actual, _ := e.topic2hs.LoadOrStore(topic, hs)
+	actual.(*sync.Map).Store(handlerID, handler)
 
 	e.logger.Info("register handler",
 		zap.String("topic", topic),
-		zap.String("handler", handlerName))
+		zap.String("handler", handlerID))
 }
 
 // UnRegister delete handler in event store
-func (e *EventEngine) UnRegister(topic, handlerName string) {
-	if hsi, ok := e.topic2hs.Load(topic); ok {
-		hsi.(*evtHandlers).Lock()
-		hsi.(*evtHandlers).Remove(handlerName)
-		if hsi.(*evtHandlers).Len() == 0 {
-			e.topic2hs.Delete(topic)
-		}
-
-		hsi.(*evtHandlers).Unlock()
+func (e *EventEngine) UnRegister(topic, handlerID string) {
+	if hsi, _ := e.topic2hs.Load(topic); hsi != nil {
+		hsi.(*sync.Map).Delete(handlerID)
 	}
 
 	e.logger.Info("unregister handler",
 		zap.String("topic", topic),
-		zap.String("handler", handlerName))
+		zap.String("handler", handlerID))
 }
 
 // Publish publish new event
