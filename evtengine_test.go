@@ -34,6 +34,10 @@ func TestNewEventEngine(t *testing.T) {
 	evtstore.Publish(evt1)
 	evtstore.Publish(evt2)
 
+	evtstore.UnRegister(topic1, "handler")
+	evtstore.Publish(evt1)
+	evtstore.Publish(evt2)
+
 	// t.Error()
 }
 
