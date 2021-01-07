@@ -15,51 +15,39 @@ const (
 	defaultEventEngineMsgBufferSize int = 1
 )
 
+// EventTopic topic of event
+type EventTopic string
+
+func (h EventTopic) String() string {
+	return string(h)
+}
+
+// HandlerID id(name) of event handler
+type HandlerID string
+
+func (h HandlerID) String() string {
+	return string(h)
+}
+
+// MetaKey key of event's meta
+type MetaKey string
+
+func (h MetaKey) String() string {
+	return string(h)
+}
+
+// EventMeta event meta
+type EventMeta map[MetaKey]interface{}
+
 // Event evt
 type Event struct {
-	Topic string
+	Topic EventTopic
 	Time  time.Time
-	Meta  map[string]interface{}
+	Meta  EventMeta
 }
 
 // EventHandler function to handle event
 type EventHandler func(*Event)
-
-// type evtHandlerItem struct {
-// 	h    EventHandler
-// 	name string
-// }
-
-// type evtHandlers struct {
-// 	sync.RWMutex
-// 	hs []evtHandlerItem
-// }
-
-// func (e *evtHandlers) Append(handlers ...evtHandlerItem) *evtHandlers {
-// 	e.hs = append(e.hs, handlers...)
-
-// 	return e
-// }
-
-// func (e *evtHandlers) Remove(name string) *evtHandlers {
-// 	var hs []evtHandlerItem
-// 	for _, h := range e.hs {
-// 		if h.name != name {
-// 			hs = append(hs, h)
-// 		}
-// 	}
-
-// 	e.hs = hs
-// 	return e
-// }
-
-// func (e *evtHandlers) Len() int {
-// 	return len(e.hs)
-// }
-
-// func (e *evtHandlers) Clone() (handlers []evtHandlerItem) {
-// 	return append(handlers, e.hs...)
-// }
 
 // EventEngine type of event store
 type EventEngine struct {
@@ -165,7 +153,7 @@ func runHandlerWithoutPanic(h EventHandler, evt *Event) (err error) {
 
 type eventRunChanItem struct {
 	h   EventHandler
-	hid string
+	hid HandlerID
 	evt *Event
 }
 
@@ -179,13 +167,13 @@ func (e *EventEngine) startRunner(ctx context.Context, nfork int, taskChan chan 
 					return
 				case t := <-taskChan:
 					logger.Debug("trigger handler",
-						zap.String("evt", t.evt.Topic),
-						zap.String("handler", t.hid))
+						zap.String("evt", t.evt.Topic.String()),
+						zap.String("handler", t.hid.String()))
 
 					if e.suppressPanic {
 						if err := runHandlerWithoutPanic(t.h, t.evt); err != nil {
 							logger.Error("handler panic",
-								zap.String("handler", t.hid),
+								zap.String("handler", t.hid.String()),
 								zap.Error(err))
 						}
 					} else {
@@ -213,7 +201,7 @@ func (e *EventEngine) run(ctx context.Context, taskChan chan *eventRunChanItem) 
 				hsi.(*sync.Map).Range(func(hid, h interface{}) bool {
 					taskChan <- &eventRunChanItem{
 						h:   h.(EventHandler),
-						hid: hid.(string),
+						hid: hid.(HandlerID),
 						evt: evt,
 					}
 
@@ -225,30 +213,30 @@ func (e *EventEngine) run(ctx context.Context, taskChan chan *eventRunChanItem) 
 }
 
 // Register register new handler to event store
-func (e *EventEngine) Register(topic, handlerID string, handler EventHandler) {
+func (e *EventEngine) Register(topic EventTopic, handlerID HandlerID, handler EventHandler) {
 	hs := &sync.Map{}
 	actual, _ := e.topic2hs.LoadOrStore(topic, hs)
 	actual.(*sync.Map).Store(handlerID, handler)
 
 	e.logger.Info("register handler",
-		zap.String("topic", topic),
-		zap.String("handler", handlerID))
+		zap.String("topic", topic.String()),
+		zap.String("handler", handlerID.String()))
 }
 
 // UnRegister delete handler in event store
-func (e *EventEngine) UnRegister(topic, handlerID string) {
+func (e *EventEngine) UnRegister(topic EventTopic, handlerID HandlerID) {
 	if hsi, _ := e.topic2hs.Load(topic); hsi != nil {
 		hsi.(*sync.Map).Delete(handlerID)
 	}
 
 	e.logger.Info("unregister handler",
-		zap.String("topic", topic),
-		zap.String("handler", handlerID))
+		zap.String("topic", topic.String()),
+		zap.String("handler", handlerID.String()))
 }
 
 // Publish publish new event
 func (e *EventEngine) Publish(evt *Event) {
 	evt.Time = Clock.GetUTCNow()
 	e.q <- evt
-	e.logger.Debug("publish event", zap.String("event", evt.Topic))
+	e.logger.Debug("publish event", zap.String("event", evt.Topic.String()))
 }

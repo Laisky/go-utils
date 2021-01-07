@@ -11,17 +11,19 @@ func TestNewEventEngine(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	topic1 := "t1"
-	topic2 := "t2"
+	var (
+		topic1 EventTopic = "t1"
+		topic2 EventTopic = "t2"
+	)
 	evt1 := &Event{
 		Topic: topic1,
-		Meta: map[string]interface{}{
+		Meta: map[MetaKey]interface{}{
 			"name": "yo",
 		},
 	}
 	evt2 := &Event{
 		Topic: topic2,
-		Meta: map[string]interface{}{
+		Meta: map[MetaKey]interface{}{
 			"name": "yo2",
 		},
 	}
@@ -47,17 +49,19 @@ func BenchmarkNewEventEngine(b *testing.B) {
 		b.Fatalf("%+v", err)
 	}
 
-	topic1 := "t1"
-	topic2 := "t2"
+	var (
+		topic1 EventTopic = "t1"
+		topic2 EventTopic = "t2"
+	)
 	evt1 := &Event{
 		Topic: topic1,
-		Meta: map[string]interface{}{
+		Meta: map[MetaKey]interface{}{
 			"name": "yo",
 		},
 	}
 	evt2 := &Event{
 		Topic: topic2,
-		Meta: map[string]interface{}{
+		Meta: map[MetaKey]interface{}{
 			"name": "yo2",
 		},
 	}
