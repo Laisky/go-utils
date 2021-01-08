@@ -24,6 +24,8 @@ func (it *itemType) GetPriority() int {
 	return it.priority
 }
 
+type HeapSlice []HeapItemItf
+
 // PriorityQ lower structure used by heap
 //
 // do not use this structure directly
