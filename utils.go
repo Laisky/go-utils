@@ -591,10 +591,11 @@ func (e *ExpiredMap) Get(key string) interface{} {
 			data: e.new(),
 		})
 	} else {
-		l.(*expiredMapItem).RLock()
-		l.(*expiredMapItem).refreshTime()
-		e.m.LoadOrStore(key, l)
-		l.(*expiredMapItem).RUnlock()
+		ol := l.(*expiredMapItem)
+		ol.RLock()
+		ol.refreshTime()
+		l, _ = e.m.LoadOrStore(key, ol)
+		ol.RUnlock()
 	}
 
 	return l.(*expiredMapItem).data
