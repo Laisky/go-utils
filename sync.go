@@ -8,9 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Laisky/zap"
-
 	"github.com/Laisky/graphql"
+	"github.com/Laisky/zap"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 )

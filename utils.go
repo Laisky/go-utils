@@ -464,9 +464,36 @@ type expCacheItem struct {
 }
 
 // NewExpCache new cache manager
-func NewExpCache(exp time.Duration) *ExpCache {
-	return &ExpCache{
+func NewExpCache(ctx context.Context, exp time.Duration) *ExpCache {
+	c := &ExpCache{
 		exp: exp,
+	}
+	go c.runClean(ctx)
+	return c
+}
+
+func (c *ExpCache) runClean(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		c.data.Range(func(k, v interface{}) bool {
+			if v.(*expCacheItem).exp.After(Clock.GetUTCNow()) {
+				// expired
+				//
+				// if new expCacheItem stored just before delete,
+				// may delete item that not expired.
+				// but this condition is rare, so may just add a little cose.
+				c.data.Delete(k)
+			}
+
+			return true
+		})
+
+		time.Sleep(c.exp)
 	}
 }
 
@@ -483,6 +510,7 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
 		return data.(*expCacheItem).data, ok
 	} else if ok {
+		// delete expired
 		c.data.Delete(key)
 	}
 
@@ -490,22 +518,24 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 }
 
 type expiredMapItem struct {
+	sync.RWMutex
 	data interface{}
 	t    *int64
 }
 
-func (e *expiredMapItem) GetTime() time.Time {
+func (e *expiredMapItem) getTime() time.Time {
 	return ParseUnix2UTC(atomic.LoadInt64(e.t))
 }
 
-func (e *expiredMapItem) RefreshTime() {
+func (e *expiredMapItem) refreshTime() {
 	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
 }
 
-// ExpiredMap map with expire time
+// ExpiredMap map with expire time, auto delete expired item.
+//
+// `Get` will auto refresh item's expires.
 type ExpiredMap struct {
 	m   sync.Map
-	mu  sync.Mutex
 	exp time.Duration
 	new func() interface{}
 }
@@ -530,21 +560,17 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 		}
 
 		e.m.Range(func(k, v interface{}) bool {
-			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem).getTime().Add(e.exp).After(Clock.GetUTCNow()) {
 				return true
 			}
 
 			// lock is expired
-			e.mu.Lock()
-			defer e.mu.Unlock()
+			v.(*expiredMapItem).Lock()
+			defer v.(*expiredMapItem).Unlock()
 
-			v, _ = e.m.LoadAndDelete(k)
-			if v == nil {
-				return true
-			}
-
-			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
-				e.m.Store(k, v)
+			if v.(*expiredMapItem).getTime().Add(e.exp).Before(Clock.GetUTCNow()) {
+				// lock still expired
+				e.m.Delete(k)
 			}
 
 			return true
@@ -555,21 +581,21 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 }
 
 // Get get item
+//
 func (e *ExpiredMap) Get(key string) interface{} {
 	l, _ := e.m.Load(key)
 	if l == nil {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
 		t := Clock.GetUTCNow().Unix()
 		l, _ = e.m.LoadOrStore(key, &expiredMapItem{
 			t:    &t,
 			data: e.new(),
 		})
+	} else {
+		l.(*expiredMapItem).RLock()
+		l.(*expiredMapItem).refreshTime()
+		e.m.LoadOrStore(key, l)
+		l.(*expiredMapItem).RUnlock()
 	}
-
-	l.(*expiredMapItem).RefreshTime()
-	e.m.Store(key, l)
 
 	return l.(*expiredMapItem).data
 }

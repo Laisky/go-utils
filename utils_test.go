@@ -590,7 +590,7 @@ func TestInArray(t *testing.T) {
 }
 
 func TestExpCache_Store(t *testing.T) {
-	cm := NewExpCache(100 * time.Millisecond)
+	cm := NewExpCache(context.Background(), 100*time.Millisecond)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
@@ -604,4 +604,25 @@ func TestExpCache_Store(t *testing.T) {
 	if _, ok := cm.Load(key); ok {
 		t.Fatal("should not ok")
 	}
+}
+
+func BenchmarkExpMap(b *testing.B) {
+	cm, err := NewExpiredMap(context.Background(),
+		10*time.Millisecond,
+		func() interface{} { return 1 },
+	)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			cm.Get(RandomStringWithLength(1))
+		}
+	})
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			cm.Get(RandomStringWithLength(1))
+		}
+	})
 }
