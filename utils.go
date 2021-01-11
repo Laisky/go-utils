@@ -4,6 +4,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -91,6 +92,8 @@ func ValidateFileHash(filepath string, hashed string) error {
 	switch hs[0] {
 	case "sha256":
 		hasher = sha256.New()
+	case "md5":
+		hasher = md5.New()
 	default:
 		return fmt.Errorf("unknown hasher `%s`", hs[0])
 	}
@@ -455,7 +458,7 @@ func Base64Decode(encoded string) ([]byte, error) {
 // ExpCache cache with expires
 type ExpCache struct {
 	data sync.Map
-	exp  time.Duration
+	ttl  time.Duration
 }
 
 type expCacheItem struct {
@@ -464,9 +467,9 @@ type expCacheItem struct {
 }
 
 // NewExpCache new cache manager
-func NewExpCache(ctx context.Context, exp time.Duration) *ExpCache {
+func NewExpCache(ctx context.Context, ttl time.Duration) *ExpCache {
 	c := &ExpCache{
-		exp: exp,
+		ttl: ttl,
 	}
 	go c.runClean(ctx)
 	return c
@@ -493,7 +496,7 @@ func (c *ExpCache) runClean(ctx context.Context) {
 			return true
 		})
 
-		time.Sleep(c.exp)
+		time.Sleep(c.ttl)
 	}
 }
 
@@ -501,7 +504,7 @@ func (c *ExpCache) runClean(ctx context.Context) {
 func (c *ExpCache) Store(key, val interface{}) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
-		exp:  Clock.GetUTCNow().Add(c.exp),
+		exp:  Clock.GetUTCNow().Add(c.ttl),
 	})
 }
 

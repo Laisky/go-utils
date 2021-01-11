@@ -212,7 +212,9 @@ func ExampleRegexNamedSubMatch() {
 		Logger.Error("try to group match got error", zap.Error(err))
 	}
 
-	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
+	fmt.Printf("got: %+v", groups)
+	// Output: map[string]string{"key": 12345}
+
 }
 
 func TestFlattenMap(t *testing.T) {
@@ -250,7 +252,8 @@ func ExampleFlattenMap() {
 			},
 		},
 	}
-	FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
+	FlattenMap(data, "__")
+	// Output: {"a": "1", "b__c": 2, "b__d__e": 3}
 }
 
 func TestTriggerGC(t *testing.T) {

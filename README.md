@@ -23,4 +23,4 @@ import (
 )
 ```
 
-Read the [document](https://godoc.org/github.com/Laisky/go-utils) or test file to get more details.
+Read the [document](https://laisky.github.io/go-utils/) or test file to get more details.
