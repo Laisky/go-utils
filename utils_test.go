@@ -589,15 +589,31 @@ func TestInArray(t *testing.T) {
 	}
 }
 
+func ExampleExpCache() {
+	cc := NewExpCache(context.Background(), 100*time.Millisecond)
+	cc.Store("key", "val")
+	cc.Load("key") // return "val"
+
+	// data expired
+	time.Sleep(200 * time.Millisecond)
+	data, ok := cc.Load("key")
+	fmt.Println(data)
+	// Output: nil
+	fmt.Println(ok)
+	// Output: false
+}
+
 func TestExpCache_Store(t *testing.T) {
 	cm := NewExpCache(context.Background(), 100*time.Millisecond)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
-	if vali, ok := cm.Load(key); !ok {
-		t.Fatal("should ok")
-	} else if vali.(string) != val {
-		t.Fatalf("got: %+v", vali)
+	for i := 0; i < 5; i++ {
+		if vali, ok := cm.Load(key); !ok {
+			t.Fatal("should ok")
+		} else if vali.(string) != val {
+			t.Fatalf("got: %+v", vali)
+		}
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -606,6 +622,12 @@ func TestExpCache_Store(t *testing.T) {
 	}
 }
 
+// goos: linux
+// goarch: amd64
+// pkg: github.com/Laisky/go-utils
+// BenchmarkExpMap-8   	  141680	     10275 ns/op	      54 B/op	       6 allocs/op
+// PASS
+// ok  	github.com/Laisky/go-utils	1.573s
 func BenchmarkExpMap(b *testing.B) {
 	cm, err := NewExpiredMap(context.Background(),
 		10*time.Millisecond,

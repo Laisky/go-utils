@@ -536,14 +536,14 @@ func (e *expiredMapItem) refreshTime() {
 // `Get` will auto refresh item's expires.
 type ExpiredMap struct {
 	m   sync.Map
-	exp time.Duration
+	ttl time.Duration
 	new func() interface{}
 }
 
 // NewExpiredMap new ExpiredMap
-func NewExpiredMap(ctx context.Context, exp time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
+func NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
 	el = &ExpiredMap{
-		exp: exp,
+		ttl: ttl,
 		new: new,
 	}
 
@@ -560,7 +560,7 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 		}
 
 		e.m.Range(func(k, v interface{}) bool {
-			if v.(*expiredMapItem).getTime().Add(e.exp).After(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
 				return true
 			}
 
@@ -568,7 +568,7 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 			v.(*expiredMapItem).Lock()
 			defer v.(*expiredMapItem).Unlock()
 
-			if v.(*expiredMapItem).getTime().Add(e.exp).Before(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem).getTime().Add(e.ttl).Before(Clock.GetUTCNow()) {
 				// lock still expired
 				e.m.Delete(k)
 			}
@@ -576,7 +576,7 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 			return true
 		})
 
-		time.Sleep(e.exp / 2)
+		time.Sleep(e.ttl / 2)
 	}
 }
 
