@@ -645,9 +645,4 @@ func BenchmarkExpMap(b *testing.B) {
 			cm.Get(RandomStringWithLength(1))
 		}
 	})
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			cm.Get(RandomStringWithLength(1))
-		}
-	})
 }

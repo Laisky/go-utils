@@ -60,13 +60,14 @@ func BenchmarkMutex(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				l.TryLock()
-			}
-		})
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
 				l.TryRelease()
 			}
 		})
+		// b.RunParallel(func(pb *testing.PB) {
+		// 	for pb.Next() {
+		// 		l.TryRelease()
+		// 	}
+		// })
 		// b.RunParallel(func(pb *testing.PB) {
 		// 	for pb.Next() {
 		// 		l.SpinLock(step, timeoout)
