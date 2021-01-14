@@ -646,3 +646,48 @@ func BenchmarkExpMap(b *testing.B) {
 		}
 	})
 }
+
+func TestGetStructFieldByName(t *testing.T) {
+	type foo struct {
+		A string
+		B *string
+		C int
+		E *string
+	}
+
+	s := "2"
+
+	f := foo{"1", &s, 2, nil}
+	if v := GetStructFieldByName(f, "A"); v.(string) != "1" {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "B"); v.(*string) != &s {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "C"); v.(int) != 2 {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "D"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "E"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+
+	fi := &foo{"1", &s, 2, nil}
+	if v := GetStructFieldByName(fi, "A"); v.(string) != "1" {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "B"); v.(*string) != &s {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "C"); v.(int) != 2 {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "D"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "E"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+}

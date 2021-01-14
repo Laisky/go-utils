@@ -77,6 +77,34 @@ func IsHasMethod(st interface{}, methodName string) bool {
 	return method.IsValid()
 }
 
+// GetStructFieldByName get struct field by name
+func GetStructFieldByName(st interface{}, fieldName string) interface{} {
+	stv := reflect.ValueOf(st)
+	if IsPtr(st) {
+		stv = stv.Elem()
+	}
+
+	v := stv.FieldByName(fieldName)
+	if !v.IsValid() {
+		return nil
+	}
+
+	switch v.Kind() {
+	case reflect.Chan,
+		reflect.Func,
+		reflect.Slice,
+		reflect.Array,
+		reflect.Interface,
+		reflect.Ptr,
+		reflect.Map:
+		if v.IsNil() {
+			return nil
+		}
+	}
+
+	return v.Interface()
+}
+
 // ValidateFileHash validate file content with hashed string
 //
 // Args:
