@@ -22,5 +22,5 @@ func TestCheckUDPPort(t *testing.T) {
 	}
 
 	_ = pool.Wait()
-	t.Error()
+	// t.Error()
 }
