@@ -8,10 +8,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-// IsRemoteUDPPortOpen check is remote udp port open
+// IsRemoteUDPPortOpen check is remote udp port open.
+// return err if remote port is not open.
 //
 // Args:
-//   addr: ""
+//   addr: "scanme.nmap.org:53"
 func IsRemoteUDPPortOpen(addr string) error {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
