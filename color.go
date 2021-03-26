@@ -147,6 +147,11 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		msg = fmt.Sprint(fvs[3])
 	}
 
+	// ignore some logs
+	if strings.Contains(msg, "/*disable_log*/") {
+		return
+	}
+
 	switch strings.TrimSpace(strings.ToLower(strings.SplitN(msg, " ", 2)[0])) {
 	case "drop", "delete":
 		l.logger.Info(Color(ANSIColorFgMagenta, msg), fields...)

@@ -9,10 +9,10 @@ import (
 
 func TestCheckUDPPort(t *testing.T) {
 	var pool errgroup.Group
-	for port := 1; port < 100; port++ {
+	for port := 1; port < 10; port++ {
 		port := port
 		pool.Go(func() error {
-			if err := IsRemoteUDPPortOpen(fmt.Sprintf("scanme.nmap.org:%d", port)); err != nil {
+			if err := IsRemoteUDPPortOpen(fmt.Sprintf("1.2.3.4:%d", port)); err != nil {
 				return err
 			}
 
