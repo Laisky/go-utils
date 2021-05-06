@@ -118,7 +118,10 @@ func TestValidateFileHash(t *testing.T) {
 	if err = ValidateFileHash(fp.Name(), ""); err == nil {
 		t.Fatalf("%+v", err)
 	}
-	if err = ValidateFileHash(fp.Name(), "sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67"); err != nil {
+	if err = ValidateFileHash(
+		fp.Name(),
+		"sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67",
+	); err != nil {
 		t.Fatalf("%+v", err)
 	}
 }

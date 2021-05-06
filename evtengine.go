@@ -104,7 +104,7 @@ func WithEventEngineLogger(logger *LoggerType) EventEngineOptFunc {
 	}
 }
 
-// WithEventEngineSuppressPanic set whether supress event handler's panic
+// WithEventEngineSuppressPanic set whether suppress event handler's panic
 func WithEventEngineSuppressPanic(suppressPanic bool) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		opt.suppressPanic = suppressPanic
