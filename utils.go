@@ -483,7 +483,58 @@ func Base64Decode(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
 }
 
+// SimpleExpCache single item with expires
+type SimpleExpCache struct {
+	expiredAt time.Time
+	ttl       time.Duration
+	data      interface{}
+	mu        sync.RWMutex
+}
+
+// NewSimpleExpCache new expcache contains single data
+func NewSimpleExpCache(ttl time.Duration) *SimpleExpCache {
+	return &SimpleExpCache{
+		ttl: ttl,
+	}
+}
+
+// Set set data and refresh expires
+func (c *SimpleExpCache) Set(data interface{}) {
+	c.mu.Lock()
+	c.data = data
+	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
+	c.mu.Unlock()
+}
+
+// Get get data
+//
+// if data is expired, ok=false
+func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
+	c.mu.RLock()
+	data = c.data
+	ok = Clock.GetUTCNow().Before(c.expiredAt)
+	c.mu.RUnlock()
+
+	return
+}
+
+// GetString same as Get, but return string
+func (c *SimpleExpCache) GetString() (data string, ok bool) {
+	var itf interface{}
+	itf, ok = c.Get()
+	return itf.(string), ok
+}
+
+// GetUintSlice same as Get, but return []uint
+func (c *SimpleExpCache) GetUintSlice() (data []uint, ok bool) {
+	var itf interface{}
+	itf, ok = c.Get()
+	return itf.([]uint), ok
+}
+
 // ExpCache cache with expires
+//
+// can Store/Load like map
 type ExpCache struct {
 	data sync.Map
 	ttl  time.Duration
@@ -613,6 +664,7 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 
 // Get get item
 //
+// will auto refresh key's ttl
 func (e *ExpiredMap) Get(key string) interface{} {
 	l, _ := e.m.Load(key)
 	if l == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"reflect"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 type testEmbeddedSt struct{}
@@ -693,4 +695,40 @@ func TestGetStructFieldByName(t *testing.T) {
 	if v := GetStructFieldByName(fi, "E"); v != nil {
 		t.Fatalf("got %+v", v)
 	}
+}
+
+func Benchmark_NewSimpleExpCache(b *testing.B) {
+	c := NewSimpleExpCache(time.Millisecond)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if rand.Intn(10) < 5 {
+				c.Set(RandomStringWithLength(rand.Intn(100)))
+			} else {
+				c.Get()
+			}
+		}
+	})
+}
+
+func TestNewSimpleExpCache(t *testing.T) {
+	c := NewSimpleExpCache(10 * time.Millisecond)
+	Clock.SetInterval(time.Millisecond)
+
+	_, ok := c.Get()
+	require.False(t, ok)
+
+	data := "yo"
+	c.Set(data)
+	itf, ok := c.Get()
+	require.True(t, ok)
+	require.Equal(t, data, itf.(string))
+
+	ret, ok := c.GetString()
+	require.True(t, ok)
+	require.Equal(t, data, ret)
+
+	time.Sleep(10 * time.Millisecond)
+	itf, ok = c.Get()
+	require.False(t, ok)
+	require.Equal(t, data, itf.(string))
 }

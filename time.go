@@ -85,7 +85,7 @@ type ClockItf interface {
 	Close()
 }
 
-const defaultClockInterval = 100 * time.Millisecond
+const defaultClockInterval = 10 * time.Millisecond
 
 // SetupClock setup internal Clock with step
 func SetupClock(refreshInterval time.Duration) {
@@ -172,7 +172,14 @@ func (c *ClockType) GetTimeInRFC3339Nano() string {
 }
 
 // SetupInterval setup update interval
+//
+// Deprecated: use SetInterval instead
 func (c *ClockType) SetupInterval(interval time.Duration) {
+	c.SetInterval(interval)
+}
+
+// SetInterval setup update interval
+func (c *ClockType) SetInterval(interval time.Duration) {
 	c.Lock()
 	defer c.Unlock()
 
