@@ -521,15 +521,21 @@ func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
 // GetString same as Get, but return string
 func (c *SimpleExpCache) GetString() (data string, ok bool) {
 	var itf interface{}
-	itf, ok = c.Get()
-	return itf.(string), ok
+	if itf, ok = c.Get(); !ok {
+		return "", false
+	}
+
+	return itf.(string), true
 }
 
 // GetUintSlice same as Get, but return []uint
 func (c *SimpleExpCache) GetUintSlice() (data []uint, ok bool) {
 	var itf interface{}
-	itf, ok = c.Get()
-	return itf.([]uint), ok
+	if itf, ok = c.Get(); !ok {
+		return nil, false
+	}
+
+	return itf.([]uint), true
 }
 
 // ExpCache cache with expires

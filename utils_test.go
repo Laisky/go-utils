@@ -716,6 +716,10 @@ func TestNewSimpleExpCache(t *testing.T) {
 
 	_, ok := c.Get()
 	require.False(t, ok)
+	_, ok = c.GetString()
+	require.False(t, ok)
+	_, ok = c.GetUintSlice()
+	require.False(t, ok)
 
 	data := "yo"
 	c.Set(data)
