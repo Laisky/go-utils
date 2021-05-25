@@ -217,8 +217,8 @@ func ExampleRegexNamedSubMatch() {
 		Logger.Error("try to group match got error", zap.Error(err))
 	}
 
-	fmt.Printf("got: %+v", groups)
-	// Output: map[string]string{"key": 12345}
+	fmt.Println(groups)
+	// Output: map[key:12345abcde]
 
 }
 
@@ -258,7 +258,8 @@ func ExampleFlattenMap() {
 		},
 	}
 	FlattenMap(data, "__")
-	// Output: {"a": "1", "b__c": 2, "b__d__e": 3}
+	fmt.Println(data)
+	// Output: map[a:1 b__c:2 b__d__e:3]
 }
 
 func TestTriggerGC(t *testing.T) {
@@ -606,9 +607,10 @@ func ExampleExpCache() {
 	time.Sleep(200 * time.Millisecond)
 	data, ok := cc.Load("key")
 	fmt.Println(data)
-	// Output: nil
 	fmt.Println(ok)
-	// Output: false
+
+	// Output: <nil>
+	// false
 }
 
 func TestExpCache_Store(t *testing.T) {
@@ -735,4 +737,14 @@ func TestNewSimpleExpCache(t *testing.T) {
 	itf, ok = c.Get()
 	require.False(t, ok)
 	require.Equal(t, data, itf.(string))
+}
+
+func TestNewExpiredMap(t *testing.T) {
+	ctx := context.Background()
+	m, err := NewExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
+	require.NoError(t, err)
+
+	const key = "key"
+	v := m.Get(key)
+	require.Equal(t, 666, v)
 }

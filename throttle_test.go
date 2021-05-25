@@ -9,6 +9,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// FIXME: sometime failed
 func TestThrottle2(t *testing.T) {
 	ctx := context.Background()
 	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
