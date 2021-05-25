@@ -117,7 +117,10 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		case 1:
 			fields = append(fields, zap.Any("caller", v))
 		case 2:
-			fields = append(fields, zap.Int("ms", int(v.(time.Duration)/time.Millisecond)))
+			switch v := v.(type) {
+			case time.Duration:
+				fields = append(fields, zap.Int("ms", int(v/time.Millisecond)))
+			}
 		case 3:
 			if len(fvs) < 4 {
 				fields = append(fields, zap.Any("sql", v))
