@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
@@ -116,7 +117,10 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		case 1:
 			fields = append(fields, zap.Any("caller", v))
 		case 2:
-			fields = append(fields, zap.Any("ms", v))
+			switch v := v.(type) {
+			case time.Duration:
+				fields = append(fields, zap.Int("ms", int(v/time.Millisecond)))
+			}
 		case 3:
 			if len(fvs) < 4 {
 				fields = append(fields, zap.Any("sql", v))
@@ -145,6 +149,11 @@ func (l *GormLogger) Print(vs ...interface{}) {
 		msg = string(fvs[3].([]byte))
 	default:
 		msg = fmt.Sprint(fvs[3])
+	}
+
+	// ignore some logs
+	if strings.Contains(msg, "/*disable_log*/") {
+		return
 	}
 
 	switch strings.TrimSpace(strings.ToLower(strings.SplitN(msg, " ", 2)[0])) {

@@ -4,6 +4,7 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -76,6 +77,34 @@ func IsHasMethod(st interface{}, methodName string) bool {
 	return method.IsValid()
 }
 
+// GetStructFieldByName get struct field by name
+func GetStructFieldByName(st interface{}, fieldName string) interface{} {
+	stv := reflect.ValueOf(st)
+	if IsPtr(st) {
+		stv = stv.Elem()
+	}
+
+	v := stv.FieldByName(fieldName)
+	if !v.IsValid() {
+		return nil
+	}
+
+	switch v.Kind() {
+	case reflect.Chan,
+		reflect.Func,
+		reflect.Slice,
+		reflect.Array,
+		reflect.Interface,
+		reflect.Ptr,
+		reflect.Map:
+		if v.IsNil() {
+			return nil
+		}
+	}
+
+	return v.Interface()
+}
+
 // ValidateFileHash validate file content with hashed string
 //
 // Args:
@@ -91,6 +120,8 @@ func ValidateFileHash(filepath string, hashed string) error {
 	switch hs[0] {
 	case "sha256":
 		hasher = sha256.New()
+	case "md5":
+		hasher = md5.New()
 	default:
 		return fmt.Errorf("unknown hasher `%s`", hs[0])
 	}
@@ -452,10 +483,67 @@ func Base64Decode(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
 }
 
+// SimpleExpCache single item with expires
+type SimpleExpCache struct {
+	expiredAt time.Time
+	ttl       time.Duration
+	data      interface{}
+	mu        sync.RWMutex
+}
+
+// NewSimpleExpCache new expcache contains single data
+func NewSimpleExpCache(ttl time.Duration) *SimpleExpCache {
+	return &SimpleExpCache{
+		ttl: ttl,
+	}
+}
+
+// Set set data and refresh expires
+func (c *SimpleExpCache) Set(data interface{}) {
+	c.mu.Lock()
+	c.data = data
+	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
+	c.mu.Unlock()
+}
+
+// Get get data
+//
+// if data is expired, ok=false
+func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
+	c.mu.RLock()
+	data = c.data
+	ok = Clock.GetUTCNow().Before(c.expiredAt)
+	c.mu.RUnlock()
+
+	return
+}
+
+// GetString same as Get, but return string
+func (c *SimpleExpCache) GetString() (data string, ok bool) {
+	var itf interface{}
+	if itf, ok = c.Get(); !ok {
+		return "", false
+	}
+
+	return itf.(string), true
+}
+
+// GetUintSlice same as Get, but return []uint
+func (c *SimpleExpCache) GetUintSlice() (data []uint, ok bool) {
+	var itf interface{}
+	if itf, ok = c.Get(); !ok {
+		return nil, false
+	}
+
+	return itf.([]uint), true
+}
+
 // ExpCache cache with expires
+//
+// can Store/Load like map
 type ExpCache struct {
 	data sync.Map
-	exp  time.Duration
+	ttl  time.Duration
 }
 
 type expCacheItem struct {
@@ -464,9 +552,36 @@ type expCacheItem struct {
 }
 
 // NewExpCache new cache manager
-func NewExpCache(exp time.Duration) *ExpCache {
-	return &ExpCache{
-		exp: exp,
+func NewExpCache(ctx context.Context, ttl time.Duration) *ExpCache {
+	c := &ExpCache{
+		ttl: ttl,
+	}
+	go c.runClean(ctx)
+	return c
+}
+
+func (c *ExpCache) runClean(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		c.data.Range(func(k, v interface{}) bool {
+			if v.(*expCacheItem).exp.After(Clock.GetUTCNow()) {
+				// expired
+				//
+				// if new expCacheItem stored just before delete,
+				// may delete item that not expired.
+				// but this condition is rare, so may just add a little cose.
+				c.data.Delete(k)
+			}
+
+			return true
+		})
+
+		time.Sleep(c.ttl)
 	}
 }
 
@@ -474,7 +589,7 @@ func NewExpCache(exp time.Duration) *ExpCache {
 func (c *ExpCache) Store(key, val interface{}) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
-		exp:  Clock.GetUTCNow().Add(c.exp),
+		exp:  Clock.GetUTCNow().Add(c.ttl),
 	})
 }
 
@@ -483,6 +598,7 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
 		return data.(*expCacheItem).data, ok
 	} else if ok {
+		// delete expired
 		c.data.Delete(key)
 	}
 
@@ -490,30 +606,32 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 }
 
 type expiredMapItem struct {
+	sync.RWMutex
 	data interface{}
 	t    *int64
 }
 
-func (e *expiredMapItem) GetTime() time.Time {
+func (e *expiredMapItem) getTime() time.Time {
 	return ParseUnix2UTC(atomic.LoadInt64(e.t))
 }
 
-func (e *expiredMapItem) RefreshTime() {
+func (e *expiredMapItem) refreshTime() {
 	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
 }
 
-// ExpiredMap map with expire time
+// ExpiredMap map with expire time, auto delete expired item.
+//
+// `Get` will auto refresh item's expires.
 type ExpiredMap struct {
 	m   sync.Map
-	mu  sync.Mutex
-	exp time.Duration
+	ttl time.Duration
 	new func() interface{}
 }
 
 // NewExpiredMap new ExpiredMap
-func NewExpiredMap(ctx context.Context, exp time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
+func NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
 	el = &ExpiredMap{
-		exp: exp,
+		ttl: ttl,
 		new: new,
 	}
 
@@ -530,46 +648,44 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 		}
 
 		e.m.Range(func(k, v interface{}) bool {
-			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
 				return true
 			}
 
 			// lock is expired
-			e.mu.Lock()
-			defer e.mu.Unlock()
+			v.(*expiredMapItem).Lock()
+			defer v.(*expiredMapItem).Unlock()
 
-			v, _ = e.m.LoadAndDelete(k)
-			if v == nil {
-				return true
-			}
-
-			if v.(*expiredMapItem).GetTime().Add(e.exp).After(Clock.GetUTCNow()) {
-				e.m.Store(k, v)
+			if v.(*expiredMapItem).getTime().Add(e.ttl).Before(Clock.GetUTCNow()) {
+				// lock still expired
+				e.m.Delete(k)
 			}
 
 			return true
 		})
 
-		time.Sleep(e.exp / 2)
+		time.Sleep(e.ttl / 2)
 	}
 }
 
 // Get get item
+//
+// will auto refresh key's ttl
 func (e *ExpiredMap) Get(key string) interface{} {
 	l, _ := e.m.Load(key)
 	if l == nil {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
 		t := Clock.GetUTCNow().Unix()
 		l, _ = e.m.LoadOrStore(key, &expiredMapItem{
 			t:    &t,
 			data: e.new(),
 		})
+	} else {
+		ol := l.(*expiredMapItem)
+		ol.RLock()
+		ol.refreshTime()
+		l, _ = e.m.LoadOrStore(key, ol)
+		ol.RUnlock()
 	}
-
-	l.(*expiredMapItem).RefreshTime()
-	e.m.Store(key, l)
 
 	return l.(*expiredMapItem).data
 }

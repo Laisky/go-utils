@@ -1,0 +1,6 @@
+site_name: Go-Utils
+nav:
+  - Home: index.md
+  - CN:
+    - Index: cn/index.md
+    - Utils: cn/utils.md

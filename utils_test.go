@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"reflect"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 type testEmbeddedSt struct{}
@@ -118,7 +120,10 @@ func TestValidateFileHash(t *testing.T) {
 	if err = ValidateFileHash(fp.Name(), ""); err == nil {
 		t.Fatalf("%+v", err)
 	}
-	if err = ValidateFileHash(fp.Name(), "sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67"); err != nil {
+	if err = ValidateFileHash(
+		fp.Name(),
+		"sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67",
+	); err != nil {
 		t.Fatalf("%+v", err)
 	}
 }
@@ -212,7 +217,9 @@ func ExampleRegexNamedSubMatch() {
 		Logger.Error("try to group match got error", zap.Error(err))
 	}
 
-	fmt.Printf("got: %+v", groups) // map[string]string{"key": 12345}
+	fmt.Println(groups)
+	// Output: map[key:12345abcde]
+
 }
 
 func TestFlattenMap(t *testing.T) {
@@ -250,7 +257,9 @@ func ExampleFlattenMap() {
 			},
 		},
 	}
-	FlattenMap(data, "__") // {"a": "1", "b__c": 2, "b__d__e": 3}
+	FlattenMap(data, "__")
+	fmt.Println(data)
+	// Output: map[a:1 b__c:2 b__d__e:3]
 }
 
 func TestTriggerGC(t *testing.T) {
@@ -335,7 +344,7 @@ func ExampleAutoGC() {
 	defer cancel()
 	if err := AutoGC(
 		ctx,
-		WithGCMemRatio(85),                                                    // default
+		WithGCMemRatio(85), // default
 		WithGCMemLimitFilePath("/sys/fs/cgroup/memory/memory.limit_in_bytes"), // default
 	); err != nil {
 		Logger.Error("enable autogc", zap.Error(err))
@@ -589,19 +598,153 @@ func TestInArray(t *testing.T) {
 	}
 }
 
+func ExampleExpCache() {
+	cc := NewExpCache(context.Background(), 100*time.Millisecond)
+	cc.Store("key", "val")
+	cc.Load("key") // return "val"
+
+	// data expired
+	time.Sleep(200 * time.Millisecond)
+	data, ok := cc.Load("key")
+	fmt.Println(data)
+	fmt.Println(ok)
+
+	// Output: <nil>
+	// false
+}
+
 func TestExpCache_Store(t *testing.T) {
-	cm := NewExpCache(100 * time.Millisecond)
+	cm := NewExpCache(context.Background(), 100*time.Millisecond)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
-	if vali, ok := cm.Load(key); !ok {
-		t.Fatal("should ok")
-	} else if vali.(string) != val {
-		t.Fatalf("got: %+v", vali)
+	for i := 0; i < 5; i++ {
+		if vali, ok := cm.Load(key); !ok {
+			t.Fatal("should ok")
+		} else if vali.(string) != val {
+			t.Fatalf("got: %+v", vali)
+		}
 	}
 
 	time.Sleep(200 * time.Millisecond)
 	if _, ok := cm.Load(key); ok {
 		t.Fatal("should not ok")
 	}
+}
+
+// goos: linux
+// goarch: amd64
+// pkg: github.com/Laisky/go-utils
+// BenchmarkExpMap-8   	  141680	     10275 ns/op	      54 B/op	       6 allocs/op
+// PASS
+// ok  	github.com/Laisky/go-utils	1.573s
+func BenchmarkExpMap(b *testing.B) {
+	cm, err := NewExpiredMap(context.Background(),
+		10*time.Millisecond,
+		func() interface{} { return 1 },
+	)
+	if err != nil {
+		b.Fatalf("%+v", err)
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			cm.Get(RandomStringWithLength(1))
+		}
+	})
+}
+
+func TestGetStructFieldByName(t *testing.T) {
+	type foo struct {
+		A string
+		B *string
+		C int
+		E *string
+	}
+
+	s := "2"
+
+	f := foo{"1", &s, 2, nil}
+	if v := GetStructFieldByName(f, "A"); v.(string) != "1" {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "B"); v.(*string) != &s {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "C"); v.(int) != 2 {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "D"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(f, "E"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+
+	fi := &foo{"1", &s, 2, nil}
+	if v := GetStructFieldByName(fi, "A"); v.(string) != "1" {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "B"); v.(*string) != &s {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "C"); v.(int) != 2 {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "D"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+	if v := GetStructFieldByName(fi, "E"); v != nil {
+		t.Fatalf("got %+v", v)
+	}
+}
+
+func Benchmark_NewSimpleExpCache(b *testing.B) {
+	c := NewSimpleExpCache(time.Millisecond)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if rand.Intn(10) < 5 {
+				c.Set(RandomStringWithLength(rand.Intn(100)))
+			} else {
+				c.Get()
+			}
+		}
+	})
+}
+
+func TestNewSimpleExpCache(t *testing.T) {
+	c := NewSimpleExpCache(10 * time.Millisecond)
+	Clock.SetInterval(time.Millisecond)
+
+	_, ok := c.Get()
+	require.False(t, ok)
+	_, ok = c.GetString()
+	require.False(t, ok)
+	_, ok = c.GetUintSlice()
+	require.False(t, ok)
+
+	data := "yo"
+	c.Set(data)
+	itf, ok := c.Get()
+	require.True(t, ok)
+	require.Equal(t, data, itf.(string))
+
+	ret, ok := c.GetString()
+	require.True(t, ok)
+	require.Equal(t, data, ret)
+
+	time.Sleep(10 * time.Millisecond)
+	itf, ok = c.Get()
+	require.False(t, ok)
+	require.Equal(t, data, itf.(string))
+}
+
+func TestNewExpiredMap(t *testing.T) {
+	ctx := context.Background()
+	m, err := NewExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
+	require.NoError(t, err)
+
+	const key = "key"
+	v := m.Get(key)
+	require.Equal(t, 666, v)
 }

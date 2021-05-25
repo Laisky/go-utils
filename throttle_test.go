@@ -9,6 +9,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// FIXME: sometime failed
 func TestThrottle2(t *testing.T) {
 	ctx := context.Background()
 	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
@@ -59,24 +60,20 @@ func BenchmarkThrottle(b *testing.B) {
 		}
 		defer throttle.Close()
 
-		for i := 0; i < 10; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					throttle.Allow()
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				throttle.Allow()
+			}
+		})
 	})
 
 	b.Run("rate.Limiter", func(b *testing.B) {
 		limiter := rate.NewLimiter(rate.Limit(10), 100)
-		for i := 0; i < 10; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					limiter.Allow()
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				limiter.Allow()
+			}
+		})
 	})
 }
 

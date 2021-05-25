@@ -1,56 +1,52 @@
-package structures_test
+package structures
 
 import (
 	"container/heap"
 	"fmt"
 	"math/rand"
 	"testing"
-
-	"github.com/Laisky/go-utils/structures"
 )
 
-type HeapItemQ []structures.HeapItemItf
-
-// Item item that need to sort
-type Item struct {
+// heapItem item that need to sort
+type heapItem struct {
 	p int
 	k interface{}
 }
 
 // GetKey get key of item
-func (it *Item) GetKey() interface{} {
+func (it *heapItem) GetKey() interface{} {
 	return it.k
 }
 
 // GetPriority get priority of item
-func (it *Item) GetPriority() int {
+func (it *heapItem) GetPriority() int {
 	return it.p
 }
 
 var (
-	itemsWaitToSort = HeapItemQ{
-		&Item{p: 1},
-		&Item{p: 3},
-		&Item{p: 55},
-		&Item{p: 2},
-		&Item{p: 4441},
-		&Item{p: 15555},
-		&Item{p: 122},
+	itemsWaitToSort = HeapSlice{
+		&heapItem{p: 1},
+		&heapItem{p: 3},
+		&heapItem{p: 55},
+		&heapItem{p: 2},
+		&heapItem{p: 4441},
+		&heapItem{p: 15555},
+		&heapItem{p: 122},
 	}
 )
 
 func ExampleGetLargestNItems() {
 	var (
-		itemsWaitToSort = HeapItemQ{
-			&Item{p: 1},
-			&Item{p: 3},
-			&Item{p: 55},
-			&Item{p: 2},
-			&Item{p: 4441},
-			&Item{p: 15555},
-			&Item{p: 122},
+		itemsWaitToSort = HeapSlice{
+			&heapItem{p: 1},
+			&heapItem{p: 3},
+			&heapItem{p: 55},
+			&heapItem{p: 2},
+			&heapItem{p: 4441},
+			&heapItem{p: 15555},
+			&heapItem{p: 122},
 		}
-		itemChan = make(chan structures.HeapItemItf)
+		itemChan = make(chan HeapItemItf)
 	)
 
 	go func() {
@@ -61,7 +57,7 @@ func ExampleGetLargestNItems() {
 		close(itemChan)
 	}()
 
-	items, err := structures.GetLargestNItems(itemChan, 3)
+	items, err := GetLargestNItems(itemChan, 3)
 	if err != nil {
 		panic(err)
 	}
@@ -76,16 +72,16 @@ func ExampleGetLargestNItems() {
 
 func ExampleGetSmallestNItems() {
 	var (
-		itemsWaitToSort = HeapItemQ{
-			&Item{p: 1},
-			&Item{p: 3},
-			&Item{p: 55},
-			&Item{p: 2},
-			&Item{p: 4441},
-			&Item{p: 15555},
-			&Item{p: 122},
+		itemsWaitToSort = HeapSlice{
+			&heapItem{p: 1},
+			&heapItem{p: 3},
+			&heapItem{p: 55},
+			&heapItem{p: 2},
+			&heapItem{p: 4441},
+			&heapItem{p: 15555},
+			&heapItem{p: 122},
 		}
-		itemChan = make(chan structures.HeapItemItf)
+		itemChan = make(chan HeapItemItf)
 	)
 
 	go func() {
@@ -96,7 +92,7 @@ func ExampleGetSmallestNItems() {
 		close(itemChan)
 	}()
 
-	items, err := structures.GetSmallestNItems(itemChan, 3)
+	items, err := GetSmallestNItems(itemChan, 3)
 	if err != nil {
 		panic(err)
 	}
@@ -111,7 +107,7 @@ func ExampleGetSmallestNItems() {
 
 func TestGetTopKItems(t *testing.T) {
 	// defer utils.Logger.Sync()
-	generate := func(itemChan chan structures.HeapItemItf) {
+	generate := func(itemChan chan HeapItemItf) {
 		for _, item := range itemsWaitToSort {
 			itemChan <- item
 		}
@@ -120,15 +116,15 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	var (
-		items    HeapItemQ
+		items    HeapSlice
 		err      error
-		itemChan chan structures.HeapItemItf
+		itemChan chan HeapItemItf
 	)
 
 	// test highest
-	itemChan = make(chan structures.HeapItemItf)
+	itemChan = make(chan HeapItemItf)
 	go generate(itemChan)
-	items, err = structures.GetTopKItems(itemChan, 3, true)
+	items, err = GetTopKItems(itemChan, 3, true)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
@@ -144,9 +140,9 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	// test lowest
-	itemChan = make(chan structures.HeapItemItf)
+	itemChan = make(chan HeapItemItf)
 	go generate(itemChan)
-	items, err = structures.GetTopKItems(itemChan, 3, false)
+	items, err = GetTopKItems(itemChan, 3, false)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
@@ -164,7 +160,7 @@ func TestGetTopKItems(t *testing.T) {
 
 func TestPriorityQ(t *testing.T) {
 	for _, isMaxTop := range []bool{true, false} {
-		q := structures.NewPriorityQ(isMaxTop)
+		q := NewPriorityQ(isMaxTop)
 		heap.Init(q)
 		var (
 			v, n int
@@ -173,13 +169,13 @@ func TestPriorityQ(t *testing.T) {
 			n = rand.Intn(100)
 			if n < 50 {
 				v = rand.Intn(1000)
-				heap.Push(q, &Item{
+				heap.Push(q, &heapItem{
 					p: v,
 					k: v,
 				})
 			} else if n < 75 {
 				v = rand.Intn(1000)
-				q.Remove(&Item{
+				q.Remove(&heapItem{
 					p: v,
 					k: v,
 				})
@@ -191,11 +187,11 @@ func TestPriorityQ(t *testing.T) {
 			}
 		}
 
-		heap.Push(q, &Item{
+		heap.Push(q, &heapItem{
 			p: 0,
 			k: 0,
 		})
-		heap.Push(q, &Item{
+		heap.Push(q, &heapItem{
 			p: 1000,
 			k: 1000,
 		})
@@ -206,7 +202,7 @@ func TestPriorityQ(t *testing.T) {
 			if q.Len() == 0 {
 				break
 			}
-			curP = heap.Pop(q).(*Item).GetPriority()
+			curP = heap.Pop(q).(*heapItem).GetPriority()
 			if lastP != 0 {
 				if isMaxTop && curP > lastP {
 					t.Errorf("%v should <= %v", curP, lastP)
@@ -224,18 +220,18 @@ func TestPriorityQ(t *testing.T) {
 }
 
 func TestLimitSizeHeap(t *testing.T) {
-	heap, err := structures.NewLimitSizeHeap(5, true)
+	heap, err := NewLimitSizeHeap(5, true)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
 
 	var (
-		it structures.HeapItemItf
+		it HeapItemItf
 		n  int
 	)
 	for i := 0; i < 100; i++ {
 		n = rand.Intn(1000)
-		it = heap.Push(&Item{
+		it = heap.Push(&heapItem{
 			p: n,
 			k: n,
 		})
@@ -246,7 +242,7 @@ func TestLimitSizeHeap(t *testing.T) {
 		}
 	}
 
-	var oldit structures.HeapItemItf
+	var oldit HeapItemItf
 	results := []int{}
 	for {
 		if it = heap.Pop(); it == nil {
@@ -266,15 +262,15 @@ func TestLimitSizeHeap(t *testing.T) {
 }
 
 func BenchmarkLimitSizeHeap(b *testing.B) {
-	heap5, err := structures.NewLimitSizeHeap(5, true)
+	heap5, err := NewLimitSizeHeap(5, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	heap50, err := structures.NewLimitSizeHeap(50, true)
+	heap50, err := NewLimitSizeHeap(50, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	heap500, err := structures.NewLimitSizeHeap(500, true)
+	heap500, err := NewLimitSizeHeap(500, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
@@ -283,7 +279,7 @@ func BenchmarkLimitSizeHeap(b *testing.B) {
 	b.Run("heap 5", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n = rand.Intn(1000)
-			heap5.Push(&Item{
+			heap5.Push(&heapItem{
 				p: n,
 				k: n,
 			})
@@ -292,7 +288,7 @@ func BenchmarkLimitSizeHeap(b *testing.B) {
 	b.Run("heap 50", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n = rand.Intn(1000)
-			heap50.Push(&Item{
+			heap50.Push(&heapItem{
 				p: n,
 				k: n,
 			})
@@ -301,7 +297,7 @@ func BenchmarkLimitSizeHeap(b *testing.B) {
 	b.Run("heap 500", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			n = rand.Intn(1000)
-			heap500.Push(&Item{
+			heap500.Push(&heapItem{
 				p: n,
 				k: n,
 			})

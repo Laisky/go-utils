@@ -336,13 +336,11 @@ func BenchmarkCounter(b *testing.B) {
 		})
 	})
 	b.Run("count 1 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.Count()
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.Count()
+			}
+		})
 	})
 	b.Run("count 5", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -355,13 +353,11 @@ func BenchmarkCounter(b *testing.B) {
 		}
 	})
 	b.Run("count 500 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.CountN(500)
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.CountN(500)
+			}
+		})
 	})
 }
 
@@ -378,13 +374,11 @@ func BenchmarkRotateCounter(b *testing.B) {
 		})
 	})
 	b.Run("count 1 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.Count()
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.Count()
+			}
+		})
 	})
 	b.Run("count 5", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -397,13 +391,11 @@ func BenchmarkRotateCounter(b *testing.B) {
 		}
 	})
 	b.Run("count 500 parallel 4", func(b *testing.B) {
-		for i := 0; i < 4; i++ {
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					counter.CountN(500)
-				}
-			})
-		}
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				counter.CountN(500)
+			}
+		})
 	})
 }
 
