@@ -44,6 +44,7 @@ type Event struct {
 	Topic EventTopic
 	Time  time.Time
 	Meta  EventMeta
+	Stack string
 }
 
 // EventHandler function to handle event
@@ -87,7 +88,7 @@ func WithEventEngineChanBuffer(msgBufferSize int) EventEngineOptFunc {
 			return errors.Errorf("msgBufferSize must >= 0")
 		}
 
-		opt.msgBufferSize = defaultEventEngineMsgBufferSize
+		opt.msgBufferSize = msgBufferSize
 		return nil
 	}
 }
@@ -174,6 +175,7 @@ func (e *EventEngine) startRunner(ctx context.Context, nfork int, taskChan chan 
 						if err := runHandlerWithoutPanic(t.h, t.evt); err != nil {
 							logger.Error("handler panic",
 								zap.String("handler", t.hid.String()),
+								zap.String("stack", t.evt.Stack),
 								zap.Error(err))
 						}
 					} else {
