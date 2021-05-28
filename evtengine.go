@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -239,6 +240,7 @@ func (e *EventEngine) UnRegister(topic EventTopic, handlerID HandlerID) {
 // Publish publish new event
 func (e *EventEngine) Publish(evt *Event) {
 	evt.Time = Clock.GetUTCNow()
+	evt.Stack = string(debug.Stack())
 	e.q <- evt
 	e.logger.Debug("publish event", zap.String("event", evt.Topic.String()))
 }
