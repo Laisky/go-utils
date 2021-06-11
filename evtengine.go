@@ -49,7 +49,7 @@ type Event struct {
 }
 
 // EventHandler function to handle event
-type EventHandler func(*Event)
+type EventHandler func(*Event) error
 
 // EventEngine type of event store
 type EventEngine struct {
@@ -149,8 +149,8 @@ func runHandlerWithoutPanic(h EventHandler, evt *Event) (err error) {
 		}
 	}()
 
-	h(evt)
-	return nil
+	err = h(evt)
+	return err
 }
 
 type eventRunChanItem struct {
@@ -163,6 +163,7 @@ func (e *EventEngine) startRunner(ctx context.Context, nfork int, taskChan chan 
 	for i := 0; i < nfork; i++ {
 		logger := e.logger.Named(strconv.Itoa(i))
 		go func() {
+			var err error
 			for {
 				select {
 				case <-ctx.Done():
@@ -170,17 +171,21 @@ func (e *EventEngine) startRunner(ctx context.Context, nfork int, taskChan chan 
 				case t := <-taskChan:
 					logger.Debug("trigger handler",
 						zap.String("evt", t.evt.Topic.String()),
+						zap.String("source", t.evt.Stack),
 						zap.String("handler", t.hid.String()))
 
 					if e.suppressPanic {
-						if err := runHandlerWithoutPanic(t.h, t.evt); err != nil {
-							logger.Error("handler panic",
-								zap.String("handler", t.hid.String()),
-								zap.String("stack", t.evt.Stack),
-								zap.Error(err))
-						}
+						err = runHandlerWithoutPanic(t.h, t.evt)
 					} else {
-						t.h(t.evt)
+						err = t.h(t.evt)
+					}
+
+					if err != nil {
+						logger.Error("run evnet handler",
+							zap.String("evt", t.evt.Topic.String()),
+							zap.String("handler", t.hid.String()),
+							zap.String("source", t.evt.Stack),
+							zap.Error(err))
 					}
 				}
 			}

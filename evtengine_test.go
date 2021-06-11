@@ -28,8 +28,9 @@ func TestNewEventEngine(t *testing.T) {
 		},
 	}
 
-	handler := func(evt *Event) {
+	handler := func(evt *Event) error {
 		t.Logf("got event %s: %+v", evt.Topic, evt.Meta)
+		return nil
 	}
 
 	evtstore.Register(topic1, "handler", handler)
@@ -66,8 +67,9 @@ func BenchmarkNewEventEngine(b *testing.B) {
 		},
 	}
 
-	handler := func(evt *Event) {
+	handler := func(evt *Event) error {
 		b.Logf("got event %s: %+v", evt.Topic, evt.Meta)
+		return nil
 	}
 
 	evtstore.Register(topic1, "handler", handler)
