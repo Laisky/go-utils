@@ -149,8 +149,8 @@ func runHandlerWithoutPanic(h EventHandler, evt *Event) (err error) {
 		}
 	}()
 
-	h(evt)
-	return nil
+	err = h(evt)
+	return err
 }
 
 type eventRunChanItem struct {

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"testing"
@@ -518,6 +519,29 @@ func TestRunCMD(t *testing.T) {
 	}
 }
 
+// linux pipe has 16MB default buffer
+func TestRunCMDForHugeFile(t *testing.T) {
+	dir, err := os.MkdirTemp("", "run_cmd-*")
+	require.NoError(t, err)
+	defer os.Remove(dir)
+
+	fpath := filepath.Join(dir, "test.txt")
+	fp, err := os.OpenFile(fpath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0664)
+	require.NoError(t, err)
+
+	for i := 0; i < 1024*18; i++ {
+		_, err = fp.Write([]byte(RandomStringWithLength(1024)))
+		require.NoError(t, err)
+	}
+	err = fp.Close()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	out, err := RunCMD(ctx, "cat", fpath)
+	require.NoError(t, err)
+	require.Equal(t, len(out), 18*1024*1024)
+}
+
 func TestRemoveEmpty(t *testing.T) {
 	type args struct {
 		vs []string
@@ -747,4 +771,37 @@ func TestNewExpiredMap(t *testing.T) {
 	const key = "key"
 	v := m.Get(key)
 	require.Equal(t, 666, v)
+}
+
+/*
+cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
+Benchmark_Str2Bytes/normal_str2bytes-8         	  868298	      1156 ns/op	    1024 B/op	       1 allocs/op
+Benchmark_Str2Bytes/normal_bytes2str-8         	 1000000	      1216 ns/op	    1024 B/op	       1 allocs/op
+Benchmark_Str2Bytes/unsafe_str2bytes-8         	11335250	        92.66 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Str2Bytes/unsafe_bytes2str-8         	11320952	       106.2 ns/op	       0 B/op	       0 allocs/op
+PASS
+*/
+func Benchmark_Str2Bytes(b *testing.B) {
+	rawStr := RandomStringWithLength(1024)
+	rawBytes := []byte(rawStr)
+	b.Run("normal_str2bytes", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = []byte(rawStr)
+		}
+	})
+	b.Run("normal_bytes2str", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = string(rawBytes)
+		}
+	})
+	b.Run("unsafe_str2bytes", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = Str2Bytes(rawStr)
+		}
+	})
+	b.Run("unsafe_bytes2str", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = Bytes2Str(rawBytes)
+		}
+	})
 }
