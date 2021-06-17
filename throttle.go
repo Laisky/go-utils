@@ -25,10 +25,10 @@ type Throttle struct {
 // 90x faster than `rate.NewLimiter`
 func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err error) {
 	if cfg.NPerSec <= 0 {
-		return nil, fmt.Errorf("NPerSec should greater than 0")
+		return nil, fmt.Errorf("npersec should greater than 0")
 	}
 	if cfg.Max < cfg.NPerSec {
-		return nil, fmt.Errorf("Max should greater than NPerSec")
+		return nil, fmt.Errorf("max should greater than npersec")
 	}
 
 	t = &Throttle{
@@ -37,6 +37,11 @@ func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err
 		stopChan:    make(chan struct{}),
 	}
 	t.tokensChan = make(chan struct{}, t.Max)
+
+	for i := 0; i < t.NPerSec; i++ {
+		t.tokensChan <- t.token
+	}
+
 	go t.runWithCtx(ctx)
 	return t, nil
 }
@@ -54,10 +59,6 @@ func (t *Throttle) Allow() bool {
 // runWithCtx start throttle with context
 func (t *Throttle) runWithCtx(ctx context.Context) {
 	defer Logger.Debug("throttle exit")
-
-	for i := 0; i < t.NPerSec; i++ {
-		t.tokensChan <- t.token
-	}
 
 	var nBatch float64 = 10
 	nPerBatch := float64(t.NPerSec) / nBatch

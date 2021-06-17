@@ -158,7 +158,7 @@ func (c *ClockType) runRefresh(ctx context.Context) {
 
 // GetUTCNow return Clock current time.Time
 func (c *ClockType) GetUTCNow() time.Time {
-	return UnixNano2UTC(atomic.LoadInt64(&c.now))
+	return ParseUnixNano2UTC(atomic.LoadInt64(&c.now))
 }
 
 // GetDate return "yyyy-mm-dd"

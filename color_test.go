@@ -12,7 +12,6 @@ func TestColor(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
 		{"fg-red", args{ANSIColorFgRed, "yo"}, "\033[1;31myo\033[0m"},
 	}
 	for _, tt := range tests {

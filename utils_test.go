@@ -551,7 +551,6 @@ func TestRemoveEmpty(t *testing.T) {
 		args  args
 		wantR []string
 	}{
-		// TODO: Add test cases.
 		{"0", args{[]string{"1"}}, []string{"1"}},
 		{"1", args{[]string{"1", ""}}, []string{"1"}},
 		{"2", args{[]string{"1", "", "  "}}, []string{"1"}},
@@ -575,7 +574,6 @@ func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 		args  args
 		wantR []string
 	}{
-		// TODO: Add test cases.
 		{"0", args{[]string{"1"}}, []string{"1"}},
 		{"1", args{[]string{"1", ""}}, []string{"1"}},
 		{"2", args{[]string{"1", "", "  "}}, []string{"1"}},
@@ -604,7 +602,6 @@ func TestInArray(t *testing.T) {
 		args args
 		want bool
 	}{
-		// TODO: Add test cases.
 		{"", args{[]string{"1", "2"}, "2"}, true},
 		{"", args{[]string{"1", "2"}, "1"}, true},
 		{"", args{[]string{"1", "2"}, "3"}, false},
