@@ -802,3 +802,60 @@ func Benchmark_Str2Bytes(b *testing.B) {
 		}
 	})
 }
+
+// func Test_ConvertMap(t *testing.T) {
+// 	{
+// 		input := map[interface{}]string{"123": "23"}
+// 		got := ConvertMap(input)
+// 		t.Log(got)
+// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": "23"}, got))
+// 	}
+
+// 	{
+// 		input := map[interface{}]int{"123": 23}
+// 		got := ConvertMap(input)
+// 		t.Log(got)
+// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 	}
+
+// 	{
+// 		input := map[interface{}]uint{"123": 23}
+// 		got := ConvertMap(input)
+// 		t.Log(got)
+// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": uint(23)}, got))
+// 	}
+
+// 	{
+// 		input := map[string]int{"123": 23}
+// 		got := ConvertMap(input)
+// 		t.Log(got)
+// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 	}
+
+// }
+
+func TestConvert2Map(t *testing.T) {
+	type args struct {
+		inputMap interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want map[string]interface{}
+	}{
+		{"0", args{map[interface{}]string{"123": "23"}}, map[string]interface{}{"123": "23"}},
+		{"1", args{map[interface{}]int{"123": 23}}, map[string]interface{}{"123": 23}},
+		{"2", args{map[interface{}]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
+		{"3", args{map[string]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
+		{"4", args{map[int]uint{123: 23}}, map[string]interface{}{"123": uint(23)}},
+		{"5", args{map[float32]string{float32(123): "23"}}, map[string]interface{}{"123": "23"}},
+		{"6", args{map[float32]int{float32(123): 23}}, map[string]interface{}{"123": 23}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Convert2Map(tt.args.inputMap); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ConvertMap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

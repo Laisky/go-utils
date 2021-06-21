@@ -704,3 +704,22 @@ func Bytes2Str(b []byte) string {
 	sp := [2]uintptr{bp[0], bp[1]}
 	return *(*string)(unsafe.Pointer(&sp))
 }
+
+func Convert2Map(inputMap interface{}) map[string]interface{} {
+	v := reflect.ValueOf(inputMap)
+	if v.Kind() != reflect.Map {
+		return nil
+	}
+
+	m2 := map[string]interface{}{}
+	ks := v.MapKeys()
+	for _, k := range ks {
+		if k.Kind() == reflect.Interface {
+			m2[k.Elem().String()] = v.MapIndex(k).Interface()
+		} else {
+			m2[fmt.Sprint(k)] = v.MapIndex(k).Interface()
+		}
+	}
+
+	return m2
+}
