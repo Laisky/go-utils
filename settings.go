@@ -104,6 +104,23 @@ func (s *SettingsType) IsSet(key string) bool {
 	return viper.IsSet(key)
 }
 
+// Unmarshal unmarshals the config into a Struct. Make sure that the tags
+// on the fields of the structure are properly set.
+func (s *SettingsType) Unmarshal(obj interface{}) error {
+	s.RLock()
+	defer s.RUnlock()
+
+	return viper.Unmarshal(obj)
+}
+
+// UnmarshalKey takes a single key and unmarshals it into a Struct.
+func (s *SettingsType) UnmarshalKey(key string, obj interface{}) error {
+	s.RLock()
+	defer s.RUnlock()
+
+	return viper.UnmarshalKey(key, obj)
+}
+
 // GetStringMap return map contains interface
 func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
 	s.RLock()

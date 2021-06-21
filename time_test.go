@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -169,6 +170,40 @@ func TestClock2(t *testing.T) {
 
 }
 
+func Benchmark_time(b *testing.B) {
+	b.Run("normal time", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			time.Now()
+		}
+	})
+
+	b.Run("normal time with UTC", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			time.Now().UTC()
+		}
+	})
+
+	b.Run("parse unix", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			time.Unix(1623892878, 0)
+		}
+	})
+
+	b.Run("parse unix with utc", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			time.Unix(1623892878, 0).UTC()
+		}
+	})
+
+	var n int64 = 1623892878
+	b.Run("parse unix with utc & load", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			time.Unix(atomic.LoadInt64(&n), 0).UTC()
+		}
+	})
+
+}
+
 // func TestLoop(t *testing.T) {
 // 	for {
 // 		time.Sleep(1 * time.Millisecond)
@@ -176,17 +211,20 @@ func TestClock2(t *testing.T) {
 // }
 
 /*
-BenchmarkClock/normal_time-4         	10745672	       105 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_500ms-4         	208522263	         5.61 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_100ms-4         	217223018	         5.65 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_10ms-4          	206468820	         5.75 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_1ms-4           	212732216	         5.58 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_500us-4         	206800707	         5.56 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_100us-4         	214629580	         5.97 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_10us-4          	196311190	         6.42 ns/op	       0 B/op	       0 allocs/op
-BenchmarkClock/clock2_time_with_10us#01-4       	167978643	         6.56 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/Laisky/go-utils
+cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
 
-*/
+BenchmarkClock/normal_time-8            26779118                42.67 ns/op            0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_500ms-8                 294967054                4.130 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_100ms-8                 294066337                4.153 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_10ms-8                  295792012                4.044 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_1ms-8                   284931848                4.160 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_500us-8                 293249996                4.167 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_100us-8                 291018960                4.230 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_10us-8                  294948268                4.302 ns/op           0 B/op          0 allocs/op
+BenchmarkClock/clock2_time_with_10us#01-8               270614050                4.442 ns/op           0 B/op          0 allocs/op*/
 func BenchmarkClock(b *testing.B) {
 	var err error
 	if err = Logger.ChangeLevel("error"); err != nil {
@@ -198,6 +236,12 @@ func BenchmarkClock(b *testing.B) {
 			time.Now().UTC()
 		}
 	})
+
+	// b.Run("demo", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		time.Unix(8742374732483, 0).UTC()
+	// 	}
+	// })
 
 	// clock 2
 	clock2 := NewClock2(context.Background(), 500*time.Millisecond)

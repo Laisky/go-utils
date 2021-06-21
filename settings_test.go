@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
 
@@ -259,6 +260,21 @@ a:
 			t.Fatal("unknown type")
 		}
 	}
+
+	type cfgStruct struct {
+		A struct {
+			B uint   `mapstructure:"b"`
+			C string `mapstructure:"c"`
+			D []int  `mapstructure:"d"`
+			E bool   `mapstructure:"e"`
+		}
+	}
+	cfg := &cfgStruct{}
+	err := Settings.Unmarshal(cfg)
+	require.NoError(t, err)
+	require.Equal(t, uint(123), cfg.A.B)
+	require.Equal(t, "abc", cfg.A.C)
+	require.True(t, cfg.A.E)
 }
 
 func BenchmarkSettings(b *testing.B) {
