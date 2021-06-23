@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,7 @@ func (c *Counter) Get() int64 {
 // GetSpeed return increasing speed from lastest invoke `GetSpeed`
 func (c *Counter) GetSpeed() (r float64) {
 	c.Lock()
-	r = Round(float64(c.Get()-c.lastN)/UTCNow().Sub(c.lastT).Seconds(), .5, 2)
+	r = math.Round(float64(c.Get()-c.lastN)/UTCNow().Sub(c.lastT).Seconds()*100) / 100
 	c.lastT = UTCNow()
 	c.lastN = c.Get()
 	c.Unlock()
