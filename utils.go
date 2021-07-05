@@ -698,14 +698,15 @@ func Str2Bytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&bp))
 }
 
-// Str2Bytes unsafe convert bytes to str
+// Bytes2Str unsafe convert bytes to str
 func Bytes2Str(b []byte) string {
 	bp := (*[3]uintptr)(unsafe.Pointer(&b))
 	sp := [2]uintptr{bp[0], bp[1]}
 	return *(*string)(unsafe.Pointer(&sp))
 }
 
-func Convert2Map(inputMap interface{}) map[string]interface{} {
+// ConvertMap2StringKey convert any map to `map[string]interface{}`
+func ConvertMap2StringKey(inputMap interface{}) map[string]interface{} {
 	v := reflect.ValueOf(inputMap)
 	if v.Kind() != reflect.Map {
 		return nil
