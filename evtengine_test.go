@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"log"
 	"testing"
 
 	"github.com/Laisky/zap"
@@ -34,7 +33,7 @@ func ExampleEventEngine() {
 	}
 
 	handler := func(evt *Event) error {
-		fmt.Println("got event %s: %+v", evt.Topic, evt.Meta)
+		fmt.Printf("got event %s: %v\n", evt.Topic, evt.Meta)
 		return nil
 	}
 
