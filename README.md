@@ -24,3 +24,10 @@ import (
 ```
 
 Read the [document](https://laisky.github.io/go-utils/) or test file to get more details.
+
+
+# Thanks
+
+Thanks to JetBrain support OpenSource License.
+
+<https://www.jetbrains.com/community/opensource/#support>
