@@ -723,3 +723,7 @@ func Convert2Map(inputMap interface{}) map[string]interface{} {
 
 	return m2
 }
+
+// func CalculateCRC(cnt []byte) {
+// 	cw := crc64.New(crc64.MakeTable(crc64.ISO))
+// }

@@ -9,7 +9,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/json-iterator/go v1.1.10
-	github.com/klauspost/compress v1.11.4 // indirect
+	github.com/klauspost/compress v1.13.1 // indirect
 	github.com/klauspost/pgzip v1.2.5
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.0.0
