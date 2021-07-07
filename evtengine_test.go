@@ -15,6 +15,11 @@ func ExampleEventEngine() {
 		Logger.Panic("new evt engine", zap.Error(err))
 	}
 
+	evtstore = evtstore.SetEventEngineChanBuffer(1).
+		SetEventEngineLogger(Logger.Named("evt_engine")).
+		SetEventEngineNFork(2).
+		SetEventEngineSuppressPanic(false)
+
 	var (
 		topic1 EventTopic = "t1"
 		topic2 EventTopic = "t2"
@@ -55,17 +60,21 @@ func TestNewEventEngine(t *testing.T) {
 		topic1 EventTopic = "t1"
 		topic2 EventTopic = "t2"
 	)
-	evt1 := &Event{
-		Topic: topic1,
-		Meta: EventMeta{
-			"name": "yo",
-		},
+	newEvt1 := func() *Event {
+		return &Event{
+			Topic: topic1,
+			Meta: EventMeta{
+				"name": "yo",
+			},
+		}
 	}
-	evt2 := &Event{
-		Topic: topic2,
-		Meta: EventMeta{
-			"name": "yo2",
-		},
+	newEvt2 := func() *Event {
+		return &Event{
+			Topic: topic2,
+			Meta: EventMeta{
+				"name": "yo2",
+			},
+		}
 	}
 
 	handler := func(evt *Event) error {
@@ -74,12 +83,12 @@ func TestNewEventEngine(t *testing.T) {
 	}
 
 	evtstore.Register(topic1, "handler", handler)
-	evtstore.Publish(evt1)
-	evtstore.Publish(evt2)
+	evtstore.Publish(newEvt1())
+	evtstore.Publish(newEvt2())
 
 	evtstore.UnRegister(topic1, "handler")
-	evtstore.Publish(evt1)
-	evtstore.Publish(evt2)
+	evtstore.Publish(newEvt1())
+	evtstore.Publish(newEvt2())
 
 	// t.Error()
 }

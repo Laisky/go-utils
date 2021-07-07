@@ -77,6 +77,50 @@ type eventStoreManagerOpt struct {
 	suppressPanic bool
 }
 
+// SetEventEngineNFork set nfork of event store
+//
+// default to 2
+func (e *EventEngine) SetEventEngineNFork(nfork int) *EventEngine {
+	if nfork <= 0 {
+		panic("nfork must > 0")
+	}
+
+	e.nfork = nfork
+	return e
+}
+
+// SetEventEngineChanBuffer set msg buffer size of event store
+//
+// default to 1
+func (e *EventEngine) SetEventEngineChanBuffer(msgBufferSize int) *EventEngine {
+	if msgBufferSize < 0 {
+		panic("msgBufferSize must >= 0")
+	}
+
+	e.msgBufferSize = msgBufferSize
+	return e
+}
+
+// SetEventEngineLogger set event store's logger
+//
+// default to gutils' internal logger
+func (e *EventEngine) SetEventEngineLogger(logger *LoggerType) *EventEngine {
+	if logger == nil {
+		panic("logger is nil")
+	}
+
+	e.logger = logger
+	return e
+}
+
+// SetEventEngineSuppressPanic set whether suppress event handler's panic
+//
+// default to false
+func (e *EventEngine) SetEventEngineSuppressPanic(suppressPanic bool) *EventEngine {
+	e.suppressPanic = suppressPanic
+	return e
+}
+
 // EventEngineOptFunc options for EventEngine
 type EventEngineOptFunc func(*eventStoreManagerOpt) error
 
