@@ -452,6 +452,14 @@ func InArray(collection interface{}, ele interface{}) bool {
 	targetValue := reflect.ValueOf(collection)
 	switch reflect.TypeOf(collection).Kind() {
 	case reflect.Slice, reflect.Array:
+		if reflect.TypeOf(collection).Elem().Kind() != reflect.TypeOf(ele).Kind() {
+			panic(fmt.Sprintf(
+				"collection(%v) and ele(%v) must in same type",
+				reflect.TypeOf(collection).Elem().Kind().String(),
+				reflect.TypeOf(ele).Kind().String(),
+			))
+		}
+
 		for i := 0; i < targetValue.Len(); i++ {
 			if targetValue.Index(i).Interface() == ele {
 				return true
@@ -728,3 +736,15 @@ func ConvertMap2StringKey(inputMap interface{}) map[string]interface{} {
 // func CalculateCRC(cnt []byte) {
 // 	cw := crc64.New(crc64.MakeTable(crc64.ISO))
 // }
+
+// IsPanic is `f()` throw panic
+func IsPanic(f func()) (isPanic bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			isPanic = true
+		}
+	}()
+
+	f()
+	return false
+}
