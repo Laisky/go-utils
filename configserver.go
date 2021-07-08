@@ -85,9 +85,8 @@ func (c *ConfigSrv) GetString(name string) (string, bool) {
 // GetInt get `int` from the localcache of config-server
 func (c *ConfigSrv) GetInt(name string) (val int, ok bool) {
 	var (
-		itf   interface{}
-		val64 int64
-		err   error
+		itf interface{}
+		err error
 	)
 	if itf, ok = c.Get(name); ok {
 		switch v := itf.(type) {
@@ -96,13 +95,12 @@ func (c *ConfigSrv) GetInt(name string) (val int, ok bool) {
 		case int64:
 			val = int(v)
 		case string:
-			if val64, err = strconv.ParseInt(v, 10, 64); err != nil {
+			if val, err = strconv.Atoi(v); err != nil {
 				Logger.Error("cannot parse string to int64",
 					zap.String("name", name),
 					zap.String("val", fmt.Sprint(v)))
 				return val, false
 			}
-			val = int(val64)
 		default:
 			Logger.Error("unknown type",
 				zap.String("name", name),

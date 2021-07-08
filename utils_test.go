@@ -602,13 +602,13 @@ func TestInArray(t *testing.T) {
 		args args
 		want bool
 	}{
-		{"", args{[]string{"1", "2"}, "2"}, true},
-		{"", args{[]string{"1", "2"}, "1"}, true},
-		{"", args{[]string{"1", "2"}, "3"}, false},
-		{"", args{[]uint{1, 2}, 3}, false},
-		{"", args{[]uint{1, 2}, 2}, false},
-		{"", args{[...]uint{1, 2}, 3}, false},
-		{"", args{[...]uint{1, 2}, 2}, false},
+		{"0", args{[]string{"1", "2"}, "2"}, true},
+		{"1", args{[]string{"1", "2"}, "1"}, true},
+		{"2", args{[]string{"1", "2"}, "3"}, false},
+		{"3", args{[]int{1, 2}, 3}, false},
+		{"4", args{[]int{1, 2}, 2}, true},
+		{"5", args{[...]int{1, 2}, 3}, false},
+		{"6", args{[...]int{1, 2}, 2}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -617,6 +617,16 @@ func TestInArray(t *testing.T) {
 			}
 		})
 	}
+
+	isPanic := IsPanic(func() {
+		InArray([]uint{1, 2}, 1)
+	})
+	require.True(t, isPanic)
+
+	isPanic = IsPanic(func() {
+		InArray([]int{1, 2}, "1")
+	})
+	require.True(t, isPanic)
 }
 
 func ExampleExpCache() {
@@ -853,7 +863,7 @@ func TestConvert2Map(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Convert2Map(tt.args.inputMap); !reflect.DeepEqual(got, tt.want) {
+			if got := ConvertMap2StringKey(tt.args.inputMap); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConvertMap() = %v, want %v", got, tt.want)
 			}
 		})

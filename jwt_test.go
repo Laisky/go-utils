@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/form3tech-oss/jwt-go"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -58,7 +59,6 @@ func ExampleJWT() {
 	if err := j.ParseClaims(token, claims); err != nil {
 		Logger.Panic("sign jwt", zap.Error(err))
 	}
-
 }
 
 func TestJWTSignAndVerify(t *testing.T) {
@@ -87,7 +87,7 @@ func TestJWTSignAndVerify(t *testing.T) {
 		claims := &testJWTClaims{
 			StandardClaims: jwt.StandardClaims{
 				Subject:  "laisky",
-				Audience: "dune",
+				Audience: []string{"dune"},
 			},
 		}
 
@@ -103,10 +103,10 @@ func TestJWTSignAndVerify(t *testing.T) {
 
 		claims = &testJWTClaims{}
 		if err = j.ParseClaims(token, claims); err != nil {
-			t.Fatalf("%+v", err)
+			require.NoError(t, err, "%+v", err)
 		}
 		if claims.Subject != "laisky" ||
-			claims.Audience != "dune" {
+			claims.Audience[0] != "dune" {
 			t.Fatal()
 		}
 
@@ -121,14 +121,14 @@ func TestJWTSignAndVerify(t *testing.T) {
 		}
 		claims.ExpiresAt = expired.Unix()
 		if token, err = j.Sign(claims); err != nil {
-			t.Fatalf("generate token error %+v", err)
+			require.NoError(t, err, "generate token error %+v", err)
 		}
 		if err = j.ParseClaims(token, claims); err != nil {
 			if !strings.Contains(err.Error(), "token is expired") {
-				t.Fatalf("must expired, got: %s", err.Error())
+				require.NoError(t, err, "must expired, got: %s", err.Error())
 			}
 		} else {
-			t.Fatalf("must expired")
+			require.NoError(t, err, "must expired")
 		}
 
 		// test issuerAt
@@ -139,14 +139,14 @@ func TestJWTSignAndVerify(t *testing.T) {
 		}
 		claims.ExpiresAt = expired.Unix()
 		if token, err = j.Sign(claims); err != nil {
-			t.Fatalf("generate token error %+v", err)
+			require.NoError(t, err, "generate token error %+v", err)
 		}
 		if err = j.ParseClaims(token, claims); err != nil {
 			if !strings.Contains(err.Error(), "used before issued") {
-				t.Fatalf("must invalid, got: %s", err.Error())
+				require.NoError(t, err, "must invalid, got: %s", err.Error())
 			}
 		} else {
-			t.Fatalf("must invalid")
+			require.NoError(t, err, "must invalid")
 		}
 	}
 }
@@ -154,11 +154,52 @@ func TestJWTSignAndVerify(t *testing.T) {
 func TestParseJWTTokenWithoutValidate(t *testing.T) {
 	token := "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkdW5lIiwic3ViIjoibGFpc2t5In0.UtcJn1th7rvZNr0HLl6h5G8XE-sJLVSqyc96LYAFG42-p0ZAJJeDeE_9a5sp770hEaIXMtZSvVeeBQre90oTLA"
 	claims, err := ParseJWTTokenWithoutValidate(token)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	require.NoError(t, err)
+
 	if claims["sub"] != "laisky" ||
 		claims["aud"] != "dune" {
 		t.Fatal()
+	}
+}
+
+// https://snyk.io/vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515?utm_medium=Partner&utm_source=RedHat&utm_campaign=Code-Ready-Analytics-2020&utm_content=vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515
+// https://github.com/dgrijalva/jwt-go/issues/422
+func TestJWTAudValunerable(t *testing.T) {
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYXVkIjpbImR1bmUiLCJsYWlza3kiXSwiaWF0IjoxNTE2MjM5MDIyfQ.lmil648BC0ZqwPZQDctuTvu-R6w4mDWnvsmWsqEtxv4"
+
+	// case: v3 的 aud 是 stirng，应该无法解析 []string
+	{
+		j, err := NewJWT(
+			WithJWTSignMethod(SignMethodHS256),
+			WithJWTSecretByte(secret),
+		)
+		require.NoError(t, err)
+		claims := new(jwt.StandardClaims)
+		err = j.ParseClaims(token, claims)
+		require.NoError(t, err)
+
+		ok := claims.VerifyAudience("laisky", false)
+		require.True(t, ok)
+
+		ok = claims.VerifyAudience("dune", false)
+		require.True(t, ok)
+
+		ok = claims.VerifyAudience("", false)
+		require.False(t, ok)
+	}
+
+	// bug: slice aud will bypass verify
+	{
+		claims, err := ParseJWTTokenWithoutValidate(token)
+		require.NoError(t, err)
+
+		ok := claims.VerifyAudience("laisky", false)
+		require.True(t, ok)
+
+		ok = claims.VerifyAudience("dune", false)
+		require.True(t, ok)
+
+		ok = claims.VerifyAudience("", false)
+		require.False(t, ok)
 	}
 }

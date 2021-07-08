@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Laisky/go-utils"
+	gutils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -32,7 +32,7 @@ var EncryptCMD = &cobra.Command{
 }
 
 func setupEncryptArgs(cmd *cobra.Command) error {
-	return utils.Settings.BindPFlags(cmd.Flags())
+	return gutils.Settings.BindPFlags(cmd.Flags())
 }
 
 func init() {
@@ -54,45 +54,45 @@ var EncryptAESCMD = &cobra.Command{
 		return setupEncryptAESArgs(cmd)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		fs, err := os.Stat(utils.Settings.GetString("inputfile"))
+		fs, err := os.Stat(gutils.Settings.GetString("inputfile"))
 		if err != nil {
-			utils.Logger.Panic("read path", zap.Error(err))
+			gutils.Logger.Panic("read path", zap.Error(err))
 		}
 
 		if fs.IsDir() {
 			if err = encryptDirFileByAes(); err != nil {
-				utils.Logger.Panic("encrypt files in dir", zap.Error(err))
+				gutils.Logger.Panic("encrypt files in dir", zap.Error(err))
 			}
 		} else {
 			if err = encryptFileByAes(); err != nil {
-				utils.Logger.Panic("encrypt file", zap.Error(err))
+				gutils.Logger.Panic("encrypt file", zap.Error(err))
 			}
 		}
 	},
 }
 
 func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
-	if err = utils.Settings.BindPFlags(cmd.Flags()); err != nil {
+	if err = gutils.Settings.BindPFlags(cmd.Flags()); err != nil {
 		return err
 	}
 
-	if utils.Settings.GetString("inputfile") == "" &&
-		utils.Settings.GetString("inputdir") == "" {
+	if gutils.Settings.GetString("inputfile") == "" &&
+		gutils.Settings.GetString("inputdir") == "" {
 		return fmt.Errorf("inputfile & inputdir cannot both be empty")
 	}
 
-	if utils.Settings.GetString("outputfile") == "" &&
-		utils.Settings.GetString("inputfile") != "" {
-		out := utils.Settings.GetString("inputfile")
+	if gutils.Settings.GetString("outputfile") == "" &&
+		gutils.Settings.GetString("inputfile") != "" {
+		out := gutils.Settings.GetString("inputfile")
 		ext := filepath.Ext(out)
-		utils.Settings.Set("outputfile", strings.TrimSuffix(out, ext)+".enc"+ext)
+		gutils.Settings.Set("outputfile", strings.TrimSuffix(out, ext)+".enc"+ext)
 	}
 
-	if utils.Settings.GetString("outputdir") == "" {
-		utils.Settings.Set("outputdir", utils.Settings.GetString("inputdir"))
+	if gutils.Settings.GetString("outputdir") == "" {
+		gutils.Settings.Set("outputdir", gutils.Settings.GetString("inputdir"))
 	}
 
-	if utils.Settings.GetString("secret") == "" {
+	if gutils.Settings.GetString("secret") == "" {
 		return fmt.Errorf("secret cannot be empty")
 	}
 
@@ -100,23 +100,23 @@ func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
 }
 
 func encryptDirFileByAes() error {
-	in := utils.Settings.GetString("inputfile")
-	out := utils.Settings.GetString("outputfile")
-	secret := []byte(utils.Settings.GetString("secret"))
-	logger := utils.Logger.With(
+	in := gutils.Settings.GetString("inputfile")
+	out := gutils.Settings.GetString("outputfile")
+	secret := []byte(gutils.Settings.GetString("secret"))
+	logger := gutils.Logger.With(
 		zap.String("in", in),
 		zap.String("out", out),
 	)
 	logger.Info("encrypt files in dir")
 
-	return utils.AESEncryptFilesInDir(in, secret)
+	return gutils.AESEncryptFilesInDir(in, secret)
 }
 
 func encryptFileByAes() error {
-	in := utils.Settings.GetString("inputfile")
-	out := utils.Settings.GetString("outputfile")
-	secret := []byte(utils.Settings.GetString("secret"))
-	logger := utils.Logger.With(
+	in := gutils.Settings.GetString("inputfile")
+	out := gutils.Settings.GetString("outputfile")
+	secret := []byte(gutils.Settings.GetString("secret"))
+	logger := gutils.Logger.With(
 		zap.String("in", in),
 		zap.String("out", out),
 	)
@@ -127,7 +127,7 @@ func encryptFileByAes() error {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
 
-	cipher, err := utils.EncryptByAes(secret, cnt)
+	cipher, err := gutils.EncryptByAes(secret, cnt)
 	if err != nil {
 		return errors.Wrap(err, "encrypt")
 	}

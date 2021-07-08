@@ -10,7 +10,7 @@ import (
 
 	"github.com/Laisky/graphql"
 	"github.com/Laisky/zap"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/form3tech-oss/jwt-go"
 	"github.com/pkg/errors"
 )
 

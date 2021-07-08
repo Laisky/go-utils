@@ -2,6 +2,8 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -51,7 +53,15 @@ type Event struct {
 // EventHandler function to handle event
 type EventHandler func(*Event) error
 
-// EventEngine type of event store
+// EventEngine event driven engine
+//
+// Usage
+//
+// you -> produce event -> trigger multiply handlers
+//
+//   1. create an engine by `NewEventEngine`
+//   2. register handlers with specified event type by `engine.Register`
+//   3. produce event to trigger handlers by `engine.Publish`
 type EventEngine struct {
 	*eventStoreManagerOpt
 	q chan *Event
@@ -67,10 +77,56 @@ type eventStoreManagerOpt struct {
 	suppressPanic bool
 }
 
+// SetEventEngineNFork set nfork of event store
+//
+// default to 2
+func (e *EventEngine) SetEventEngineNFork(nfork int) *EventEngine {
+	if nfork <= 0 {
+		panic("nfork must > 0")
+	}
+
+	e.nfork = nfork
+	return e
+}
+
+// SetEventEngineChanBuffer set msg buffer size of event store
+//
+// default to 1
+func (e *EventEngine) SetEventEngineChanBuffer(msgBufferSize int) *EventEngine {
+	if msgBufferSize < 0 {
+		panic("msgBufferSize must >= 0")
+	}
+
+	e.msgBufferSize = msgBufferSize
+	return e
+}
+
+// SetEventEngineLogger set event store's logger
+//
+// default to gutils' internal logger
+func (e *EventEngine) SetEventEngineLogger(logger *LoggerType) *EventEngine {
+	if logger == nil {
+		panic("logger is nil")
+	}
+
+	e.logger = logger
+	return e
+}
+
+// SetEventEngineSuppressPanic set whether suppress event handler's panic
+//
+// default to false
+func (e *EventEngine) SetEventEngineSuppressPanic(suppressPanic bool) *EventEngine {
+	e.suppressPanic = suppressPanic
+	return e
+}
+
 // EventEngineOptFunc options for EventEngine
 type EventEngineOptFunc func(*eventStoreManagerOpt) error
 
 // WithEventEngineNFork set nfork of event store
+//
+// default to 2
 func WithEventEngineNFork(nfork int) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if nfork <= 0 {
@@ -83,6 +139,8 @@ func WithEventEngineNFork(nfork int) EventEngineOptFunc {
 }
 
 // WithEventEngineChanBuffer set msg buffer size of event store
+//
+// default to 1
 func WithEventEngineChanBuffer(msgBufferSize int) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if msgBufferSize < 0 {
@@ -95,6 +153,8 @@ func WithEventEngineChanBuffer(msgBufferSize int) EventEngineOptFunc {
 }
 
 // WithEventEngineLogger set event store's logger
+//
+// default to gutils' internal logger
 func WithEventEngineLogger(logger *LoggerType) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		if logger == nil {
@@ -107,6 +167,8 @@ func WithEventEngineLogger(logger *LoggerType) EventEngineOptFunc {
 }
 
 // WithEventEngineSuppressPanic set whether suppress event handler's panic
+//
+// default to false
 func WithEventEngineSuppressPanic(suppressPanic bool) EventEngineOptFunc {
 	return func(opt *eventStoreManagerOpt) error {
 		opt.suppressPanic = suppressPanic
@@ -115,6 +177,13 @@ func WithEventEngineSuppressPanic(suppressPanic bool) EventEngineOptFunc {
 }
 
 // NewEventEngine new event store manager
+//
+// Args:
+//   * ctx:
+//   * WithEventEngineNFork: n goroutines to run handlers in parallel
+//   * WithEventEngineChanBuffer: length of channel to receive published event
+//   * WithEventEngineLogger: internal logger in event engine
+//   * WithEventEngineSuppressPanic: if is true, will not raise panic when running handler
 func NewEventEngine(ctx context.Context, opts ...EventEngineOptFunc) (e *EventEngine, err error) {
 	opt := &eventStoreManagerOpt{
 		msgBufferSize: defaultEventEngineMsgBufferSize,
@@ -221,6 +290,12 @@ func (e *EventEngine) run(ctx context.Context, taskChan chan *eventRunChanItem) 
 }
 
 // Register register new handler to event store
+//
+// Args:
+//   * topic: specific the topic that will trigger the handler
+//   * handlerID: the unique ID of the handler, you can unregister the handler by it's id
+//                you can use `gutils.GetHandlerID(handler)` to generate handler's id
+//   * handler: the func that used to process event
 func (e *EventEngine) Register(topic EventTopic, handlerID HandlerID, handler EventHandler) {
 	hs := &sync.Map{}
 	actual, _ := e.topic2hs.LoadOrStore(topic, hs)
@@ -231,7 +306,7 @@ func (e *EventEngine) Register(topic EventTopic, handlerID HandlerID, handler Ev
 		zap.String("handler", handlerID.String()))
 }
 
-// UnRegister delete handler in event store
+// UnRegister remove handler by id
 func (e *EventEngine) UnRegister(topic EventTopic, handlerID HandlerID) {
 	if hsi, _ := e.topic2hs.Load(topic); hsi != nil {
 		hsi.(*sync.Map).Delete(handlerID)
@@ -242,10 +317,39 @@ func (e *EventEngine) UnRegister(topic EventTopic, handlerID HandlerID) {
 		zap.String("handler", handlerID.String()))
 }
 
+// RegisterWithHandler register handler
+//
+// like `Register`, but can calculate handlerID automatically.
+func (e *EventEngine) RegisterWithHandler(topic EventTopic, handler EventHandler) {
+	e.Register(topic, GetHandlerID(handler), handler)
+}
+
+// UnRegisterWithHandler unregister handler
+//
+// like `UnRegister`, but can calculate handlerID automatically.
+func (e *EventEngine) UnRegisterWithHandler(topic EventTopic, handler EventHandler) {
+	e.UnRegister(topic, GetHandlerID(handler))
+}
+
 // Publish publish new event
 func (e *EventEngine) Publish(evt *Event) {
 	evt.Time = Clock.GetUTCNow()
 	evt.Stack = string(debug.Stack())
 	e.q <- evt
 	e.logger.Debug("publish event", zap.String("event", evt.Topic.String()))
+}
+
+// GetHandlerID calculate handler func's address as id
+func GetHandlerID(handler EventHandler) HandlerID {
+	return HandlerID(GetFuncAddress(handler))
+}
+
+// GetFuncAddress get address of func
+func GetFuncAddress(v interface{}) string {
+	ele := reflect.ValueOf(v)
+	if ele.Kind() != reflect.Func {
+		panic("only accept func")
+	}
+
+	return fmt.Sprintf("%x", ele.Pointer())
 }
