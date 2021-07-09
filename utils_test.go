@@ -312,7 +312,8 @@ func TestURLMasking(t *testing.T) {
 func ExampleURLMasking() {
 	originURL := "http://12ijij:3j23irj@jfjlwef.ffe.com"
 	newURL := URLMasking(originURL, "*****")
-	fmt.Println(newURL) // http://12ijij:*****@jfjlwef.ffe.com
+	fmt.Println(newURL)
+	// Output: http://12ijij:*****@jfjlwef.ffe.com
 }
 
 func TestAutoGC(t *testing.T) {

@@ -1,4 +1,10 @@
-// Package utils 一些常用工具
+// Package utils some useful tools fo Golang
+//
+//
+//
+// Logger
+//
+//
 package utils
 
 import (

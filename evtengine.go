@@ -184,6 +184,8 @@ func WithEventEngineSuppressPanic(suppressPanic bool) EventEngineOptFunc {
 //   * WithEventEngineChanBuffer: length of channel to receive published event
 //   * WithEventEngineLogger: internal logger in event engine
 //   * WithEventEngineSuppressPanic: if is true, will not raise panic when running handler
+//
+// TODO: add MQ support(kafka/redis/mysql)
 func NewEventEngine(ctx context.Context, opts ...EventEngineOptFunc) (e *EventEngine, err error) {
 	opt := &eventStoreManagerOpt{
 		msgBufferSize: defaultEventEngineMsgBufferSize,

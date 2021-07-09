@@ -19,7 +19,7 @@ const (
 	BaseHex = 16
 )
 
-// UTCNow 获取当前 UTC 时间
+// UTCNow get current time in utc
 func UTCNow() time.Time {
 	return time.Now().UTC()
 }
