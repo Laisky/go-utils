@@ -522,7 +522,7 @@ func TestRunCMD(t *testing.T) {
 
 // linux pipe has 16MB default buffer
 func TestRunCMDForHugeFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "run_cmd-*")
+	dir, err := ioutil.TempDir("", "run_cmd-*")
 	require.NoError(t, err)
 	defer os.Remove(dir)
 
