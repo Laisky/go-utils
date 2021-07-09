@@ -1,6 +1,6 @@
 module github.com/Laisky/go-utils
 
-go 1.12
+go 1.13
 
 require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
