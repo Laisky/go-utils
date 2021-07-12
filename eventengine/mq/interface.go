@@ -14,5 +14,5 @@ var (
 type Interface interface {
 	Put(ctx context.Context, evt *gutils.Event) error
 	Commit(ctx context.Context, evt *gutils.Event) error
-	Get(ctx context.Context, evt *gutils.Event, err error)
+	Get(ctx context.Context) (evt *gutils.Event, err error)
 }
