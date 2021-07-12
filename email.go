@@ -1,4 +1,4 @@
-package utils
+package gutils
 
 import (
 	zap "github.com/Laisky/zap"

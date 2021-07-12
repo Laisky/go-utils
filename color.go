@@ -4,7 +4,7 @@
 // inspired by github.com/fatih/color
 // =====================================
 
-package utils
+package gutils
 
 import (
 	"fmt"

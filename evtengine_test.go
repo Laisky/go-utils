@@ -1,4 +1,4 @@
-package utils
+package gutils
 
 import (
 	"context"
@@ -15,10 +15,10 @@ func ExampleEventEngine() {
 		Logger.Panic("new evt engine", zap.Error(err))
 	}
 
-	evtstore = evtstore.SetEventEngineChanBuffer(1).
-		SetEventEngineLogger(Logger.Named("evt_engine")).
-		SetEventEngineNFork(2).
-		SetEventEngineSuppressPanic(false)
+	// evtstore = evtstore.SetEventEngineChanBuffer(1).
+	// 	SetEventEngineLogger(Logger.Named("evt_engine")).
+	// 	SetEventEngineNFork(2).
+	// 	SetEventEngineSuppressPanic(false)
 
 	var (
 		topic1 EventTopic = "t1"
