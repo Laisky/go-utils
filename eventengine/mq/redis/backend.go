@@ -3,9 +3,9 @@ package redis
 import (
 	"context"
 
-	"eventengine/internal/consts"
 	gredis "github.com/Laisky/go-redis"
 	gutils "github.com/Laisky/go-utils"
+	"github.com/Laisky/go-utils/eventengine/internal/consts"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 )

@@ -1,4 +1,4 @@
-module eventengine
+module github.com/Laisky/go-utils/eventengine
 
 go 1.13
 

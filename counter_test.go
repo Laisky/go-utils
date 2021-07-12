@@ -1,4 +1,4 @@
-package gutils
+package utils
 
 import (
 	"fmt"

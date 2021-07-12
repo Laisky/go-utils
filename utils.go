@@ -5,7 +5,7 @@
 // Logger
 //
 //
-package gutils
+package utils
 
 import (
 	"bytes"

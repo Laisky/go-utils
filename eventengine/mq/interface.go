@@ -2,9 +2,9 @@ package mq
 
 import (
 	"context"
-	"eventengine/mq/redis"
 
 	gutils "github.com/Laisky/go-utils"
+	"github.com/Laisky/go-utils/eventengine/mq/redis"
 )
 
 var (

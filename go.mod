@@ -1,11 +1,10 @@
-module gutils
+module github.com/Laisky/go-utils
 
 go 1.13
 
 require (
 	eventengine v0.0.0-00010101000000-000000000000
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/go-utils v1.14.8-0.20210709081137-7a0d1974eb14
 	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.12.2
 	github.com/cespare/xxhash v1.1.0

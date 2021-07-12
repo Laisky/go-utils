@@ -6,7 +6,6 @@ github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be/go.mod h1:1mdza
 github.com/Laisky/go-redis v1.0.3-0.20210604064737-621f740ad2fd h1:0v7VJxD2JTyLa592HggTeRv1Rh0vsf2ojFw4nvvaxvE=
 github.com/Laisky/go-redis v1.0.3-0.20210604064737-621f740ad2fd/go.mod h1:ZzL9qODTh/E0Mxbu84St08ziJCW7J1A69E+xdXncOqU=
 github.com/Laisky/go-utils v1.13.10/go.mod h1:L+rwdpclYsfCxqK3KlJKSI5Zrrygs1GyC1GBb+HLKig=
-github.com/Laisky/go-utils v1.14.8-0.20210709081137-7a0d1974eb14 h1:Ia431eScW5+JudJZF5ltUnLGGK8FeAcVnp9cs/tTzbs=
 github.com/Laisky/go-utils v1.14.8-0.20210709081137-7a0d1974eb14/go.mod h1:I85dilt75eahjM8N8bp8cJc/Zt5cN5LzwH0eSosVrTw=
 github.com/Laisky/graphql v1.0.5 h1:8eJ7mrXKVkKxZ+Nw1HPs3iQPVNxXGctysqTEY0lNBlc=
 github.com/Laisky/graphql v1.0.5/go.mod h1:ITUrUa/tkyD3MezVt4FKGGIGZokhG13kP8sImV86I1o=
