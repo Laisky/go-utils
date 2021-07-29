@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"syscall"
 	"testing"
 	"time"
 
@@ -869,4 +870,19 @@ func TestConvert2Map(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStopSignal(t *testing.T) {
+	stopCh := StopSignal()
+	select {
+	case <-stopCh:
+		t.Fatal("should not be closed")
+	default:
+	}
+
+	err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+	require.NoError(t, err)
+
+	_, ok := <-stopCh
+	require.False(t, ok)
 }

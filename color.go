@@ -1,9 +1,3 @@
-// =====================================
-// Colorfy string by ANSI color
-//
-// inspired by github.com/fatih/color
-// =====================================
-
 package utils
 
 import (
@@ -82,6 +76,8 @@ const (
 )
 
 // Color wrap with ANSI color
+//
+// inspired by github.com/fatih/color
 func Color(color int, s string) string {
 	return fmt.Sprintf("\033[1;%dm%s\033[0m", color, s)
 }
