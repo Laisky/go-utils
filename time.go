@@ -82,6 +82,7 @@ type ClockItf interface {
 	GetTimeInRFC3339Nano() string
 	GetUTCNow() time.Time
 	SetupInterval(time.Duration)
+	Interval() time.Duration
 	Close()
 }
 
@@ -205,4 +206,12 @@ func (c *ClockType) GetTimeInHex() string {
 // GetNanoTimeInHex return current time with nano in hex
 func (c *ClockType) GetNanoTimeInHex() string {
 	return strconv.FormatInt(c.GetUTCNow().UnixNano(), BaseHex)
+}
+
+// Interval get current interval
+func (c *ClockType) Interval() time.Duration {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.interval
 }

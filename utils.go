@@ -526,6 +526,10 @@ func (c *SimpleExpCache) Set(data interface{}) {
 func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
 	c.mu.RLock()
 	data = c.data
+
+	fmt.Println("c.expiredAt", c.expiredAt)
+	fmt.Println("Clock.GetUTCNow()", Clock.GetUTCNow())
+
 	ok = Clock.GetUTCNow().Before(c.expiredAt)
 	c.mu.RUnlock()
 

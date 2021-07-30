@@ -768,8 +768,13 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 }
 
 func TestNewSimpleExpCache(t *testing.T) {
-	c := NewSimpleExpCache(10 * time.Millisecond)
-	Clock.SetInterval(time.Millisecond)
+	// another test may change the clock's interval.
+	// default interval is 10ms, so we need to set interval bigger than 10ms.
+	//
+	// time.clock's test set interval to 100ms.
+	fmt.Println("interval", Clock.Interval())
+	Clock.SetInterval(1 * time.Microsecond)
+	c := NewSimpleExpCache(200 * time.Millisecond)
 
 	_, ok := c.Get()
 	require.False(t, ok)
@@ -788,7 +793,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, data, ret)
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	itf, ok = c.Get()
 	require.False(t, ok)
 	require.Equal(t, data, itf.(string))
