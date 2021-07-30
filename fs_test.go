@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDirSize(t *testing.T) {
@@ -88,9 +89,8 @@ func TestMoveFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	if err = Logger.ChangeLevel(LoggerLevelDebug); err != nil {
-		t.Fatal(err)
-	}
+	err = Logger.ChangeLevel(LoggerLevelDebug)
+	require.NoError(t, err)
 
 	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
 	src := filepath.Join(dir, "src")
@@ -105,18 +105,18 @@ func TestMoveFile(t *testing.T) {
 	}
 
 	dst := filepath.Join(dir, "dst")
-	if err = MoveFile(src, dst); err != nil {
-		t.Fatal(err)
-	}
+	err = MoveFile(src, dst)
+	require.NoError(t, err)
+	err = MoveFile(src, dst)
+	require.Error(t, err)
+	err = CopyFile(src, dst)
+	require.Error(t, err)
 
-	if err = srcFp.Close(); err != nil {
-		t.Fatal(err)
-	}
+	err = srcFp.Close()
+	require.NoError(t, err)
 
 	got, err := ioutil.ReadFile(dst)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	if !bytes.Equal(raw, got) {
 		t.Fatalf("got %s", string(got))
@@ -151,5 +151,58 @@ func TestIsDirWritable(t *testing.T) {
 
 	if err := IsDirWritable(dirNotWritable); err == nil {
 		t.Fatal()
+	}
+}
+
+func TestIsDir(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	// case: not exist
+	{
+		ok, err := IsDir(filepath.Join(dir, "notexist"))
+		require.False(t, ok)
+		require.Error(t, err)
+	}
+
+	// case: exist
+	{
+		ok, err := IsDir(dir)
+		require.True(t, ok)
+		require.NoError(t, err)
+	}
+}
+
+func TestListFilesInDir(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	err = os.MkdirAll(filepath.Join(dir, "dir1", "dir2"), os.ModePerm)
+	require.NoError(t, err)
+
+	_, err = os.OpenFile(filepath.Join(dir, "dir1", "file1"), os.O_CREATE, os.ModePerm)
+	require.NoError(t, err)
+
+	// case: exist
+	{
+		files, err := ListFilesInDir(dir)
+		require.NoError(t, err)
+		require.Len(t, files, 0)
+
+		files, err = ListFilesInDir(filepath.Join(dir, "dir1"))
+		require.NoError(t, err)
+		require.Len(t, files, 1)
+
+		files, err = ListFilesInDir(filepath.Join(dir, "notexist"))
+		require.Error(t, err)
+		require.Len(t, files, 0)
 	}
 }

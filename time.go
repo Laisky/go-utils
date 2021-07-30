@@ -88,11 +88,22 @@ type ClockItf interface {
 const defaultClockInterval = 10 * time.Millisecond
 
 // SetupClock setup internal Clock with step
+//
+// Deprecated: use SetInternalClock instead
 func SetupClock(refreshInterval time.Duration) {
+	SetInternalClock(refreshInterval)
+}
+
+// SetInternalClock set internal Clock with refresh interval
+func SetInternalClock(interval time.Duration) {
+	if interval < time.Microsecond {
+		panic("interval must greater than 1us")
+	}
+
 	if Clock == nil {
-		Clock = NewClock(context.Background(), refreshInterval)
+		Clock = NewClock(context.Background(), interval)
 	} else {
-		Clock.SetupInterval(refreshInterval)
+		Clock.SetupInterval(interval)
 	}
 }
 
