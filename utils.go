@@ -1,4 +1,3 @@
-// Package utils some useful tools fo Golang
 package utils
 
 import (
@@ -217,6 +216,8 @@ type gcOption struct {
 type GcOptFunc func(*gcOption) error
 
 // WithGCMemRatio set mem ratio trigger for GC
+//
+// default to 85
 func WithGCMemRatio(ratio int) GcOptFunc {
 	return func(opt *gcOption) error {
 		if ratio <= 0 {
@@ -246,6 +247,8 @@ func WithGCMemLimitFilePath(path string) GcOptFunc {
 }
 
 // AutoGC auto trigger GC when memory usage exceeds the custom ration
+//
+// default to /sys/fs/cgroup/memory/memory.limit_in_bytes
 func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	opt := &gcOption{
 		memRatio:         defaultGCMemRatio,
