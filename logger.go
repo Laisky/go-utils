@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +16,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+type LoggerLevel string
+
+func (l LoggerLevel) String() string {
+	return string(l)
+}
+
 const (
 	// SampleRateDenominator sample rate = sample / SampleRateDenominator
 	SampleRateDenominator = 1000
@@ -26,13 +31,13 @@ const (
 	defaultAlertHookLevel     = zapcore.ErrorLevel
 
 	// LoggerLevelInfo Logger level info
-	LoggerLevelInfo = "info"
+	LoggerLevelInfo LoggerLevel = "info"
 	// LoggerLevelDebug Logger level debug
-	LoggerLevelDebug = "debug"
+	LoggerLevelDebug LoggerLevel = "debug"
 	// LoggerLevelWarn Logger level warn
-	LoggerLevelWarn = "warn"
+	LoggerLevelWarn LoggerLevel = "warn"
 	// LoggerLevelError Logger level error
-	LoggerLevelError = "error"
+	LoggerLevelError LoggerLevel = "error"
 )
 
 var (
@@ -57,7 +62,7 @@ type LoggerType struct {
 }
 
 // CreateNewDefaultLogger set default utils.Logger
-func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func CreateNewDefaultLogger(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
 	if l, err = NewLoggerWithName(name, level, opts...); err != nil {
 		return nil, errors.Wrap(err, "create new logger")
 	}
@@ -67,22 +72,22 @@ func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerTy
 }
 
 // NewLogger create new logger
-func NewLogger(level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewLogger(level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
 	return NewLoggerWithName("", level, opts...)
 }
 
 // NewLoggerWithName create new logger with name
-func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
 	return NewLoggerWithNameAndFormat(name, "json", level, opts...)
 }
 
 // NewConsoleLoggerWithName create new logger with name
-func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewConsoleLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
 	return NewLoggerWithNameAndFormat(name, "console", level, opts...)
 }
 
 // NewLoggerWithNameAndFormat create new logger
-func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewLoggerWithNameAndFormat(name, format string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
 	zl := zap.NewAtomicLevel()
 	cfg := zap.Config{
 		Level:            zl,
@@ -113,27 +118,26 @@ func NewLoggerWithNameAndFormat(name, format, level string, opts ...zap.Option) 
 }
 
 // Level get current level of logger
-func (l *LoggerType) Level() string {
-	return l.level.String()
+func (l *LoggerType) Level() LoggerLevel {
+	return LoggerLevel(l.level.String())
 }
 
 // ChangeLevel change logger level
-func (l *LoggerType) ChangeLevel(level string) (err error) {
-	level = strings.ToLower(strings.TrimSpace(level))
+func (l *LoggerType) ChangeLevel(level LoggerLevel) (err error) {
 	switch level {
-	case "debug":
+	case LoggerLevelDebug:
 		l.level.SetLevel(zap.DebugLevel)
-	case "info":
+	case LoggerLevelInfo:
 		l.level.SetLevel(zap.InfoLevel)
-	case "warn":
+	case LoggerLevelWarn:
 		l.level.SetLevel(zap.WarnLevel)
-	case "error":
+	case LoggerLevelError:
 		l.level.SetLevel(zap.ErrorLevel)
 	default:
 		return fmt.Errorf("log level only be debug/info/warn/error")
 	}
 
-	l.Debug("set lovel level", zap.String("level", level))
+	l.Debug("set lovel level", zap.String("level", level.String()))
 	return
 }
 

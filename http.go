@@ -45,6 +45,8 @@ type httpClientOption struct {
 type HTTPClientOptFunc func(*httpClientOption) error
 
 // WithHTTPClientTimeout set http client timeout
+//
+// default to 30s
 func WithHTTPClientTimeout(timeout time.Duration) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if timeout <= 0 {
@@ -57,6 +59,8 @@ func WithHTTPClientTimeout(timeout time.Duration) HTTPClientOptFunc {
 }
 
 // WithHTTPClientMaxConn set http client max connection
+//
+// default to 20
 func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if maxConn <= 0 {
@@ -69,6 +73,8 @@ func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 }
 
 // WithHTTPClientInsecure set http client igonre ssl issue
+//
+// default to false
 func WithHTTPClientInsecure(insecure bool) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		opt.insecure = insecure

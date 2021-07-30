@@ -2,15 +2,10 @@ package utils
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Laisky/graphql"
-	"github.com/Laisky/zap"
-	"github.com/form3tech-oss/jwt-go"
 	"github.com/pkg/errors"
 )
 
@@ -67,182 +62,182 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 	}
 }
 
-// LaiskyRemoteLock acquire lock from Laisky's GraphQL API
-type LaiskyRemoteLock struct {
-	cli *graphql.Client
-	token,
-	tokenCookieName,
-	userID string
+// // LaiskyRemoteLock acquire lock from Laisky's GraphQL API
+// type LaiskyRemoteLock struct {
+// 	cli *graphql.Client
+// 	token,
+// 	tokenCookieName,
+// 	userID string
 
-	timeout time.Duration
-}
+// 	timeout time.Duration
+// }
 
-// LaiskyRemoteLockOptFunc laisky's lock option
-type LaiskyRemoteLockOptFunc func(*LaiskyRemoteLock) error
+// // LaiskyRemoteLockOptFunc laisky's lock option
+// type LaiskyRemoteLockOptFunc func(*LaiskyRemoteLock) error
 
-// WithLaiskyRemoteLockTimeout set http client timeout
-func WithLaiskyRemoteLockTimeout(timeout time.Duration) LaiskyRemoteLockOptFunc {
-	return func(opt *LaiskyRemoteLock) error {
-		opt.timeout = timeout
-		return nil
-	}
-}
+// // WithLaiskyRemoteLockTimeout set http client timeout
+// func WithLaiskyRemoteLockTimeout(timeout time.Duration) LaiskyRemoteLockOptFunc {
+// 	return func(opt *LaiskyRemoteLock) error {
+// 		opt.timeout = timeout
+// 		return nil
+// 	}
+// }
 
 // type headerTransport struct {
 // 	base    http.RoundTripper
 // 	headers map[string]string
 // }
 
-// NewLaiskyRemoteLock create remote lock
-func NewLaiskyRemoteLock(api, token string, opts ...LaiskyRemoteLockOptFunc) (l *LaiskyRemoteLock, err error) {
-	var payload jwt.MapClaims
-	if payload, err = ParseJWTTokenWithoutValidate(token); err != nil {
-		return nil, errors.Wrap(err, "token invalidate")
-	}
+// // NewLaiskyRemoteLock create remote lock
+// func NewLaiskyRemoteLock(api, token string, opts ...LaiskyRemoteLockOptFunc) (l *LaiskyRemoteLock, err error) {
+// 	var payload jwt.MapClaims
+// 	if payload, err = ParseJWTTokenWithoutValidate(token); err != nil {
+// 		return nil, errors.Wrap(err, "token invalidate")
+// 	}
 
-	l = &LaiskyRemoteLock{
-		token:           token,
-		tokenCookieName: defaultLaiskyRemoteLockAuthCookieName,
-		timeout:         defaultLaiskyRemoteLockTimeout,
-	}
-	var ok bool
-	if l.userID, ok = payload[defaultLaiskyRemoteLockTokenUserKey].(string); !ok {
-		return nil, fmt.Errorf("unknown typo of %s, should be string", defaultLaiskyRemoteLockTokenUserKey)
-	}
-	for _, optf := range opts {
-		if err = optf(l); err != nil {
-			return nil, errors.Wrap(err, "set option")
-		}
-	}
+// 	l = &LaiskyRemoteLock{
+// 		token:           token,
+// 		tokenCookieName: defaultLaiskyRemoteLockAuthCookieName,
+// 		timeout:         defaultLaiskyRemoteLockTimeout,
+// 	}
+// 	var ok bool
+// 	if l.userID, ok = payload[defaultLaiskyRemoteLockTokenUserKey].(string); !ok {
+// 		return nil, fmt.Errorf("unknown typo of %s, should be string", defaultLaiskyRemoteLockTokenUserKey)
+// 	}
+// 	for _, optf := range opts {
+// 		if err = optf(l); err != nil {
+// 			return nil, errors.Wrap(err, "set option")
+// 		}
+// 	}
 
-	l.cli = graphql.NewClient(
-		api,
-		&http.Client{
-			Timeout: l.timeout,
-		},
-		graphql.WithCookie(l.tokenCookieName, l.token),
-	)
+// 	l.cli = graphql.NewClient(
+// 		api,
+// 		&http.Client{
+// 			Timeout: l.timeout,
+// 		},
+// 		graphql.WithCookie(l.tokenCookieName, l.token),
+// 	)
 
-	return l, nil
-}
+// 	return l, nil
+// }
 
-type acquireLockMutation struct {
-	AcquireLock bool `graphql:"AcquireLock(lock_name: $lock_name, is_renewal: $is_renewal, duration_sec: $duration_sec)"`
-}
+// type acquireLockMutation struct {
+// 	AcquireLock bool `graphql:"AcquireLock(lock_name: $lock_name, is_renewal: $is_renewal, duration_sec: $duration_sec)"`
+// }
 
-type acquireLockOption struct {
-	renewalInterval,
-	duration time.Duration
-	isRenewal bool
-	maxRetry  int
-}
+// type acquireLockOption struct {
+// 	renewalInterval,
+// 	duration time.Duration
+// 	isRenewal bool
+// 	maxRetry  int
+// }
 
-// AcquireLockOptFunc options for acquire lock
-type AcquireLockOptFunc func(*acquireLockOption) error
+// // AcquireLockOptFunc options for acquire lock
+// type AcquireLockOptFunc func(*acquireLockOption) error
 
-// WithAcquireLockDuration set how long to extend lock
-func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
-	return func(opt *acquireLockOption) error {
-		if duration <= 0 {
-			return fmt.Errorf("duration should greater than 0, got %d", duration)
-		}
+// // WithAcquireLockDuration set how long to extend lock
+// func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
+// 	return func(opt *acquireLockOption) error {
+// 		if duration <= 0 {
+// 			return fmt.Errorf("duration should greater than 0, got %d", duration)
+// 		}
 
-		opt.duration = duration
-		return nil
-	}
-}
+// 		opt.duration = duration
+// 		return nil
+// 	}
+// }
 
-// WithAcquireLockRenewalInterval set how ofter to renewal lock
-func WithAcquireLockRenewalInterval(renewalInterval time.Duration) AcquireLockOptFunc {
-	return func(opt *acquireLockOption) error {
-		if renewalInterval < 100*time.Millisecond {
-			return fmt.Errorf("renewalInterval must greater than 100ms, got %d", renewalInterval)
-		}
+// // WithAcquireLockRenewalInterval set how ofter to renewal lock
+// func WithAcquireLockRenewalInterval(renewalInterval time.Duration) AcquireLockOptFunc {
+// 	return func(opt *acquireLockOption) error {
+// 		if renewalInterval < 100*time.Millisecond {
+// 			return fmt.Errorf("renewalInterval must greater than 100ms, got %d", renewalInterval)
+// 		}
 
-		opt.renewalInterval = renewalInterval
-		return nil
-	}
-}
+// 		opt.renewalInterval = renewalInterval
+// 		return nil
+// 	}
+// }
 
-// WithAcquireLockIsRenewal set whether to auto renewal lock
-func WithAcquireLockIsRenewal(isRenewal bool) AcquireLockOptFunc {
-	return func(opt *acquireLockOption) error {
-		opt.isRenewal = isRenewal
-		return nil
-	}
-}
+// // WithAcquireLockIsRenewal set whether to auto renewal lock
+// func WithAcquireLockIsRenewal(isRenewal bool) AcquireLockOptFunc {
+// 	return func(opt *acquireLockOption) error {
+// 		opt.isRenewal = isRenewal
+// 		return nil
+// 	}
+// }
 
-// WithAcquireLockMaxRetry set max retry to acquire lock
-func WithAcquireLockMaxRetry(maxRetry int) AcquireLockOptFunc {
-	return func(opt *acquireLockOption) error {
-		if maxRetry < 0 {
-			return fmt.Errorf("maxRetry must greater than 0, got %d", maxRetry)
-		}
+// // WithAcquireLockMaxRetry set max retry to acquire lock
+// func WithAcquireLockMaxRetry(maxRetry int) AcquireLockOptFunc {
+// 	return func(opt *acquireLockOption) error {
+// 		if maxRetry < 0 {
+// 			return fmt.Errorf("maxRetry must greater than 0, got %d", maxRetry)
+// 		}
 
-		opt.maxRetry = maxRetry
-		return nil
-	}
-}
+// 		opt.maxRetry = maxRetry
+// 		return nil
+// 	}
+// }
 
-// AcquireLock acquire lock with lockname,
-// if `isRenewal=true`, will automate refresh lock's lease until ctx done.
-// duration to specify how much time each renewal will extend.
-func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, opts ...AcquireLockOptFunc) (ok bool, err error) {
-	opt := &acquireLockOption{
-		renewalInterval: defaultLaiskyRemoteLockRenewalInterval,
-		duration:        defaultLaiskyRemoteLockRenewalDuration,
-		isRenewal:       defaultLaiskyRemoteLockIsRenewal,
-		maxRetry:        defaultLaiskyRemoteLockMaxRetry,
-	}
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return ok, errors.Wrap(err, "set option")
-		}
-	}
+// // AcquireLock acquire lock with lockname,
+// // if `isRenewal=true`, will automate refresh lock's lease until ctx done.
+// // duration to specify how much time each renewal will extend.
+// func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, opts ...AcquireLockOptFunc) (ok bool, err error) {
+// 	opt := &acquireLockOption{
+// 		renewalInterval: defaultLaiskyRemoteLockRenewalInterval,
+// 		duration:        defaultLaiskyRemoteLockRenewalDuration,
+// 		isRenewal:       defaultLaiskyRemoteLockIsRenewal,
+// 		maxRetry:        defaultLaiskyRemoteLockMaxRetry,
+// 	}
+// 	for _, optf := range opts {
+// 		if err = optf(opt); err != nil {
+// 			return ok, errors.Wrap(err, "set option")
+// 		}
+// 	}
 
-	var (
-		query = new(acquireLockMutation)
-		vars  = map[string]interface{}{
-			"lock_name":    graphql.String(lockName),
-			"is_renewal":   graphql.Boolean(opt.isRenewal),
-			"duration_sec": graphql.Int(opt.duration.Seconds()),
-		}
-	)
-	if err = l.cli.Mutate(ctx, query, vars); err != nil {
-		return ok, errors.Wrap(err, "request graphql mutation")
-	}
-	if ok = query.AcquireLock; opt.isRenewal && ok {
-		go l.renewalLock(ctx, query, vars, opt)
-	}
-	return ok, nil
-}
+// 	var (
+// 		query = new(acquireLockMutation)
+// 		vars  = map[string]interface{}{
+// 			"lock_name":    graphql.String(lockName),
+// 			"is_renewal":   graphql.Boolean(opt.isRenewal),
+// 			"duration_sec": graphql.Int(opt.duration.Seconds()),
+// 		}
+// 	)
+// 	if err = l.cli.Mutate(ctx, query, vars); err != nil {
+// 		return ok, errors.Wrap(err, "request graphql mutation")
+// 	}
+// 	if ok = query.AcquireLock; opt.isRenewal && ok {
+// 		go l.renewalLock(ctx, query, vars, opt)
+// 	}
+// 	return ok, nil
+// }
 
-func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMutation, vars map[string]interface{}, opt *acquireLockOption) {
-	var (
-		nRetry   = 0
-		err      error
-		ticker   = time.NewTicker(opt.renewalInterval)
-		lockName = string(vars["lock_name"].(graphql.String))
-	)
-	defer ticker.Stop()
-	Logger.Debug("start to auto renewal lock", zap.String("lock_name", lockName))
-	for nRetry < opt.maxRetry {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
+// func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMutation, vars map[string]interface{}, opt *acquireLockOption) {
+// 	var (
+// 		nRetry   = 0
+// 		err      error
+// 		ticker   = time.NewTicker(opt.renewalInterval)
+// 		lockName = string(vars["lock_name"].(graphql.String))
+// 	)
+// 	defer ticker.Stop()
+// 	Logger.Debug("start to auto renewal lock", zap.String("lock_name", lockName))
+// 	for nRetry < opt.maxRetry {
+// 		select {
+// 		case <-ctx.Done():
+// 			return
+// 		case <-ticker.C:
+// 		}
 
-		if err = l.cli.Mutate(ctx, query, vars); err != nil {
-			Logger.Error("renewal lock", zap.Error(err), zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
-			time.Sleep(1 * time.Second)
-			nRetry++
-			continue
-		}
-		nRetry = 0
-		Logger.Debug("success renewal lock", zap.String("lock_name", lockName))
-	}
-}
+// 		if err = l.cli.Mutate(ctx, query, vars); err != nil {
+// 			Logger.Error("renewal lock", zap.Error(err), zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
+// 			time.Sleep(1 * time.Second)
+// 			nRetry++
+// 			continue
+// 		}
+// 		nRetry = 0
+// 		Logger.Debug("success renewal lock", zap.String("lock_name", lockName))
+// 	}
+// }
 
 // ExpiredRLock Lock with expire time
 type ExpiredRLock struct {

@@ -19,6 +19,39 @@ func TestThrottle2(t *testing.T) {
 	require.NoError(t, err)
 	defer throttle.Close()
 
+	// case: wrong args
+	{
+		_, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+			NPerSec: 0,
+			Max:     100,
+		})
+		require.Error(t, err)
+
+		_, err = NewThrottleWithCtx(ctx, &ThrottleCfg{
+			NPerSec: 10,
+			Max:     9,
+		})
+		require.Error(t, err)
+	}
+
+	// case: stop
+	{
+		throttle2, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+			NPerSec: 10,
+			Max:     100,
+		})
+		require.NoError(t, err)
+		throttle2.Stop()
+
+		ctx2, cancel := context.WithCancel(ctx)
+		_, err = NewThrottleWithCtx(ctx2, &ThrottleCfg{
+			NPerSec: 10,
+			Max:     100,
+		})
+		require.NoError(t, err)
+		cancel()
+	}
+
 	for i := 0; i < 20; i++ {
 		allowed := throttle.Allow()
 		if i < 10 {

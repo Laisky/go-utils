@@ -71,6 +71,7 @@ key4:
   k4.1: 12
   k4.2: "qq"
   k4.3: "123 : 123"
+k5: 14
 `)
 	)
 
@@ -113,19 +114,45 @@ key4:
 		"key2": "val2",
 		"key3": "val3",
 	}
-	var got string
 	for k, expect := range cases {
-		got = Settings.GetString(k)
-		if got != expect {
-			t.Errorf("load %v, expect %v, got %v", k, expect, got)
-		}
+		got := Settings.GetString(k)
+		require.Equal(t, expect, got)
+
+		goti := Settings.Get(k)
+		require.Equal(t, expect, goti.(string))
 	}
 
-	mr := Settings.GetStringMapString("key4")
-	if mr["k4.1"] != "12" ||
-		mr["k4.2"] != "qq" ||
-		mr["k4.3"] != "123 : 123" {
-		t.Fatalf("string map string got %+v", mr)
+	require.Equal(t, int64(12), Settings.GetInt64("key4.k4.1"))
+	require.Equal(t, time.Duration(12), Settings.GetDuration("key4.k4.1"))
+	require.Equal(t, int64(14), Settings.GetInt64("k5"))
+	require.Equal(t, time.Duration(14), Settings.GetDuration("k5"))
+
+	// case: GetStringMapString
+	{
+		mr := Settings.GetStringMapString("key4")
+		require.Equal(t, "12", mr["k4.1"])
+		require.Equal(t, "qq", mr["k4.2"])
+		require.Equal(t, "123 : 123", mr["k4.3"])
+	}
+
+	// case: GetStringMap
+	{
+		mr := Settings.GetStringMap("key4")
+		require.Equal(t, 12, mr["k4.1"])
+		require.Equal(t, "qq", mr["k4.2"])
+		require.Equal(t, "123 : 123", mr["k4.3"])
+	}
+
+	// case: set
+	{
+		Settings.Set("kkz", 123)
+		require.Equal(t, int64(123), Settings.GetInt64("kkz"))
+		require.Equal(t, time.Duration(123), Settings.GetDuration("kkz"))
+
+		ok := Settings.IsSet("kkz")
+		require.True(t, ok)
+		ok = Settings.IsSet(RandomStringWithLength(100))
+		require.False(t, ok)
 	}
 }
 
@@ -162,7 +189,9 @@ root = "root"
 	}
 
 	t.Logf("load settings from: %v", fp.Name())
-	if err = Settings.SetupFromFile(fp.Name()); err != nil {
+	if err = Settings.LoadFromFile(fp.Name(),
+		WithSettingsInclude(true),
+	); err != nil {
 		t.Fatalf("setup settings got error: %+v", err)
 	}
 
@@ -275,6 +304,23 @@ a:
 	require.Equal(t, uint(123), cfg.A.B)
 	require.Equal(t, "abc", cfg.A.C)
 	require.True(t, cfg.A.E)
+
+	// case: unmarshal key
+	{
+		type cfgStruct struct {
+			B uint   `mapstructure:"b"`
+			C string `mapstructure:"c"`
+			D []int  `mapstructure:"d"`
+			E bool   `mapstructure:"e"`
+		}
+		cfg := &cfgStruct{}
+		err := Settings.UnmarshalKey("a", cfg)
+		require.NoError(t, err)
+		require.Equal(t, uint(123), cfg.B)
+		require.Equal(t, "abc", cfg.C)
+		require.True(t, cfg.E)
+
+	}
 }
 
 func BenchmarkSettings(b *testing.B) {

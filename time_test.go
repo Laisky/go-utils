@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTs2String(t *testing.T) {
@@ -100,12 +102,14 @@ func ExampleClock() {
 }
 
 func TestClock2(t *testing.T) {
-	var (
-		c   = NewClock2(context.Background(), 100*time.Millisecond)
-		ts  = c.GetUTCNow()
-		err error
-	)
+	ctx := context.Background()
+	c := NewClock2(ctx, 100*time.Millisecond)
+	ts := c.GetUTCNow()
+	var err error
 	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
+
+	c.SetupInterval(100 * time.Millisecond)
+	c.SetInterval(100 * time.Millisecond)
 
 	// test ts
 	time.Sleep(10 * time.Millisecond) // first refresh
@@ -168,6 +172,23 @@ func TestClock2(t *testing.T) {
 		t.Fatalf("hex time must equal to time")
 	}
 
+	// test date
+	{
+		_, err := c.GetDate()
+		require.NoError(t, err)
+	}
+
+	// case: close clock
+	{
+		ctx2, cancel := context.WithCancel(ctx)
+		_ = NewClock(ctx2, time.Second)
+		cancel()
+
+		ctx2, cancel = context.WithCancel(ctx)
+		defer cancel()
+		c2 := NewClock(ctx2, time.Second)
+		c2.Close()
+	}
 }
 
 func Benchmark_time(b *testing.B) {
@@ -292,4 +313,17 @@ func BenchmarkClock(b *testing.B) {
 			clock2.GetUTCNow()
 		}
 	})
+}
+
+func TestSetupClock(t *testing.T) {
+	SetupClock(100 * time.Millisecond)
+	SetInternalClock(100 * time.Millisecond)
+
+	// case: invalid interval
+	{
+		ok := IsPanic(func() {
+			SetInternalClock(time.Nanosecond)
+		})
+		require.True(t, ok)
+	}
 }

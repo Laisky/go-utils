@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRequestJSON(t *testing.T) {
@@ -36,7 +39,13 @@ func TestRequestJSONWithClient(t *testing.T) {
 		JSON map[string]string `json:"json"`
 	}
 	want := "{map[hello:world]}"
-	httpClient := &http.Client{}
+	httpClient, err := NewHTTPClient(
+		WithHTTPClientInsecure(false),
+		WithHTTPClientMaxConn(20),
+		WithHTTPClientTimeout(30*time.Second),
+	)
+	require.NoError(t, err)
+
 	if err := RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp); err != nil {
 		t.Fatalf("got: %v", resp)
 	}

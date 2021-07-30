@@ -7,8 +7,27 @@ import (
 	"time"
 
 	zap "github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 	// zap "github.com/Laisky/zap"
 )
+
+func TestNewLogger(t *testing.T) {
+	logger, err := CreateNewDefaultLogger("123", LoggerLevelDebug)
+	require.NoError(t, err)
+
+	lvl := logger.Level()
+	require.Equal(t, LoggerLevelDebug, lvl)
+
+	_, err = NewLogger(LoggerLevelDebug)
+	require.NoError(t, err)
+
+	logger = logger.Clone().Named("sample")
+	for i := 0; i < 100; i++ {
+		logger.DebugSample(1, "test")
+		logger.InfoSample(1, "test")
+		logger.WarnSample(1, "test")
+	}
+}
 
 func TestSetupLogger(t *testing.T) {
 	var err error
