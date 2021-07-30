@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"syscall"
 	"testing"
 	"time"
 
@@ -101,32 +102,37 @@ func TestIsHasField(t *testing.T) {
 
 func TestValidateFileHash(t *testing.T) {
 	fp, err := ioutil.TempFile("", "go-utils-*")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	require.NoError(t, err)
 	defer os.Remove(fp.Name())
 	defer fp.Close()
 
 	content := []byte("jijf32ijr923e890dsfuodsafjlj;f9o2ur9re")
-	if _, err = fp.Write(content); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	_, err = fp.Write(content)
+	require.NoError(t, err)
 
-	if err = ValidateFileHash(fp.Name(), "sha256:123"); err == nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = ValidateFileHash(fp.Name(), "sha254:123"); err == nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = ValidateFileHash(fp.Name(), ""); err == nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = ValidateFileHash(
+	err = ValidateFileHash(fp.Name(), "sha256:123")
+	require.Error(t, err)
+
+	err = ValidateFileHash(fp.Name(), "md5:123")
+	require.Error(t, err)
+
+	err = ValidateFileHash(fp.Name(), "sha254:123")
+	require.Error(t, err)
+
+	err = ValidateFileHash(fp.Name(), "")
+	require.Error(t, err)
+
+	err = ValidateFileHash(
 		fp.Name(),
 		"sha256:aea7e26c0e0b12ad210a8a0e45c379d0325b567afdd4b357158059b0ef03ae67",
-	); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	)
+	require.NoError(t, err)
+
+	err = ValidateFileHash(
+		fp.Name(),
+		"md5:794e37eea6b3df6e6eba69eb02f9b8c7",
+	)
+	require.NoError(t, err)
 }
 
 func TestJSON(t *testing.T) {
@@ -334,11 +340,28 @@ func TestAutoGC(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err = AutoGC(ctx, WithGCMemLimitFilePath(fp.Name())); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	err = AutoGC(ctx,
+		WithGCMemRatio(85),
+		WithGCMemLimitFilePath(fp.Name()),
+	)
+	require.NoError(t, err)
 	<-ctx.Done()
 	// t.Error()
+
+	// case: test err arguments
+	{
+		err = AutoGC(ctx, WithGCMemRatio(-1))
+		require.Error(t, err)
+
+		err = AutoGC(ctx, WithGCMemRatio(0))
+		require.Error(t, err)
+
+		err = AutoGC(ctx, WithGCMemRatio(101))
+		require.Error(t, err)
+
+		err = AutoGC(ctx, WithGCMemLimitFilePath(RandomStringWithLength(100)))
+		require.Error(t, err)
+	}
 }
 
 func ExampleAutoGC() {
@@ -779,6 +802,8 @@ func TestNewExpiredMap(t *testing.T) {
 	const key = "key"
 	v := m.Get(key)
 	require.Equal(t, 666, v)
+	v = m.Get(key)
+	require.Equal(t, 666, v)
 }
 
 /*
@@ -868,5 +893,50 @@ func TestConvert2Map(t *testing.T) {
 				t.Errorf("ConvertMap() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestStopSignal(t *testing.T) {
+	stopCh := StopSignal(WithStopSignalCloseSignals(os.Interrupt, syscall.SIGTERM))
+	select {
+	case <-stopCh:
+		t.Fatal("should not be closed")
+	default:
+	}
+
+	err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+	require.NoError(t, err)
+
+	_, ok := <-stopCh
+	require.False(t, ok)
+
+	// case: panic
+	{
+		ok := IsPanic(func() {
+			_ = StopSignal(WithStopSignalCloseSignals())
+		})
+		require.True(t, ok)
+	}
+}
+
+func TestBytes2Str(t *testing.T) {
+	rawStr := RandomStringWithLength(1024)
+	rawBytes := []byte(rawStr)
+	str := Bytes2Str(rawBytes)
+	require.Equal(t, rawStr, str)
+
+	// case: bytes should changed by string
+	{
+		rawBytes[0] = '@'
+		rawBytes[1] = 'a'
+		rawBytes[2] = 'b'
+		rawBytes[3] = 'c'
+		require.Equal(t, string(rawBytes), str)
+	}
+
+	// case: Str2Bytes should return the same bytes struct
+	{
+		newBytes := Str2Bytes(str)
+		require.Equal(t, fmt.Sprintf("%x", newBytes), fmt.Sprintf("%x", rawBytes))
 	}
 }
