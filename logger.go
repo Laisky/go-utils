@@ -38,6 +38,10 @@ const (
 	LoggerLevelWarn LoggerLevel = "warn"
 	// LoggerLevelError Logger level error
 	LoggerLevelError LoggerLevel = "error"
+	// LoggerLevelFatal Logger level fatal
+	LoggerLevelFatal LoggerLevel = "fatal"
+	// LoggerLevelPanic Logger level panic
+	LoggerLevelPanic LoggerLevel = "panic"
 )
 
 var (
@@ -133,6 +137,10 @@ func (l *LoggerType) ChangeLevel(level LoggerLevel) (err error) {
 		l.level.SetLevel(zap.WarnLevel)
 	case LoggerLevelError:
 		l.level.SetLevel(zap.ErrorLevel)
+	case LoggerLevelPanic:
+		l.level.SetLevel(zap.PanicLevel)
+	case LoggerLevelFatal:
+		l.level.SetLevel(zap.FatalLevel)
 	default:
 		return fmt.Errorf("log level only be debug/info/warn/error")
 	}

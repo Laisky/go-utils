@@ -5,11 +5,11 @@ go 1.13
 require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.5
-	github.com/Laisky/zap v1.12.2
+	github.com/Laisky/zap v1.12.3-0.20210804015521-853b5a8ec429
 	github.com/cespare/xxhash v1.1.0
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 	github.com/json-iterator/go v1.1.11
-	github.com/klauspost/compress v1.13.1 // indirect
+	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/klauspost/pgzip v1.2.5
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.0.0
