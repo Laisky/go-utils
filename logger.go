@@ -75,50 +75,141 @@ func CreateNewDefaultLogger(name string, level LoggerLevel, opts ...zap.Option) 
 	return Logger, nil
 }
 
-// NewLogger create new logger
-func NewLogger(level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
-	return NewLoggerWithName("", level, opts...)
-}
-
 // NewLoggerWithName create new logger with name
 func NewLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
-	return NewLoggerWithNameAndFormat(name, "json", level, opts...)
+	return NewLogger(
+		WithLoggerName(name),
+		WithLoggerEncoding(LoggerEncodingJSON),
+		WithLoggerLevel(level),
+		WithLoggerZapOptions(opts...),
+	)
 }
 
 // NewConsoleLoggerWithName create new logger with name
 func NewConsoleLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
-	return NewLoggerWithNameAndFormat(name, "console", level, opts...)
+	return NewLogger(
+		WithLoggerName(name),
+		WithLoggerEncoding(LoggerEncodingConsole),
+		WithLoggerLevel(level),
+		WithLoggerZapOptions(opts...),
+	)
 }
 
-// NewLoggerWithNameAndFormat create new logger
-func NewLoggerWithNameAndFormat(name, format string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
-	zl := zap.NewAtomicLevel()
-	cfg := zap.Config{
-		Level:            zl,
-		Development:      false,
-		Encoding:         format,
-		EncoderConfig:    zap.NewProductionEncoderConfig(),
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
+type LoggerConfig struct {
+	zap.Config
+	zapOptions []zap.Option
+	Name       string
+}
+
+type LoggerEncoding string
+
+const (
+	LoggerEncodingConsole = "console"
+	LoggerEncodingJSON    = "json"
+)
+
+type LoggerOption func(l *LoggerConfig) error
+
+func WithLoggerOutputFiles(files []string) LoggerOption {
+	return func(c *LoggerConfig) error {
+		c.OutputPaths = append(c.OutputPaths, files...)
+		return nil
 	}
-	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	cfg.EncoderConfig.MessageKey = "message"
-	cfg.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
-	if format == "console" {
-		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+}
+
+func WithLoggerErrorOutputFiles(files []string) LoggerOption {
+	return func(c *LoggerConfig) error {
+		c.ErrorOutputPaths = append(c.OutputPaths, files...)
+		return nil
+	}
+}
+
+func WithLoggerEncoding(format LoggerEncoding) LoggerOption {
+	return func(c *LoggerConfig) error {
+		switch format {
+		case LoggerEncodingConsole:
+			c.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		case LoggerEncodingJSON:
+		default:
+			return errors.Errorf("invalid format: %s", format)
+		}
+
+		return nil
+	}
+}
+
+func WithLoggerZapOptions(opts ...zap.Option) LoggerOption {
+	return func(c *LoggerConfig) error {
+		c.zapOptions = opts
+		return nil
+	}
+}
+
+func WithLoggerName(name string) LoggerOption {
+	return func(c *LoggerConfig) error {
+		c.Name = name
+		return nil
+	}
+}
+
+func WithLoggerLevel(level LoggerLevel) LoggerOption {
+	return func(c *LoggerConfig) error {
+		switch level {
+		case LoggerLevelInfo:
+			c.Level.SetLevel(zap.InfoLevel)
+		case LoggerLevelDebug:
+			c.Level.SetLevel(zap.DebugLevel)
+		case LoggerLevelWarn:
+			c.Level.SetLevel(zap.WarnLevel)
+		case LoggerLevelError:
+			c.Level.SetLevel(zap.ErrorLevel)
+		case LoggerLevelFatal:
+			c.Level.SetLevel(zap.FatalLevel)
+		case LoggerLevelPanic:
+			c.Level.SetLevel(zap.PanicLevel)
+		default:
+			return errors.Errorf("invalid level: %s", level)
+		}
+
+		return nil
+	}
+}
+
+// NewLogger create new logger
+func NewLogger(optfs ...LoggerOption) (l *LoggerType, err error) {
+	opt := &LoggerConfig{
+		Name: "app",
+		Config: zap.Config{
+			Level:            zap.NewAtomicLevel(),
+			Development:      false,
+			Encoding:         string(LoggerEncodingConsole),
+			EncoderConfig:    zap.NewProductionEncoderConfig(),
+			OutputPaths:      []string{"stdout"},
+			ErrorOutputPaths: []string{"stderr"},
+		},
+	}
+	opt.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	opt.EncoderConfig.MessageKey = "message"
+	opt.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+
+	for _, optf := range optfs {
+		if err = optf(opt); err != nil {
+			return nil, errors.Wrap(err, "create logger")
+		}
 	}
 
-	zapLogger, err := cfg.Build(opts...)
+	zapLogger, err := opt.Build(opt.zapOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("build zap logger: %+v", err)
 	}
-	zapLogger = zapLogger.Named(name)
+	zapLogger = zapLogger.Named(opt.Name)
 
 	l = &LoggerType{
 		Logger: zapLogger,
-		level:  zl,
+		level:  opt.Level,
 	}
-	return l, l.ChangeLevel(level)
+
+	return l, nil
 }
 
 // Level get current level of logger
@@ -142,10 +233,10 @@ func (l *LoggerType) ChangeLevel(level LoggerLevel) (err error) {
 	case LoggerLevelFatal:
 		l.level.SetLevel(zap.FatalLevel)
 	default:
-		return fmt.Errorf("log level only be debug/info/warn/error")
+		return errors.Errorf("invalid level %s", string(level))
 	}
 
-	l.Debug("set lovel level", zap.String("level", level.String()))
+	l.Debug("set logger level", zap.String("level", level.String()))
 	return
 }
 

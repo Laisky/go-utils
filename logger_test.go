@@ -18,7 +18,7 @@ func TestNewLogger(t *testing.T) {
 	lvl := logger.Level()
 	require.Equal(t, LoggerLevelDebug, lvl)
 
-	_, err = NewLogger(LoggerLevelDebug)
+	_, err = NewLogger()
 	require.NoError(t, err)
 
 	logger = logger.Clone().Named("sample")
