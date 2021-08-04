@@ -110,16 +110,22 @@ const (
 
 type LoggerOption func(l *LoggerConfig) error
 
-func WithLoggerOutputFiles(files []string) LoggerOption {
+// WithLoggerOutputPaths set output path
+//
+// like "stdout"
+func WithLoggerOutputPaths(paths []string) LoggerOption {
 	return func(c *LoggerConfig) error {
-		c.OutputPaths = append(c.OutputPaths, files...)
+		c.OutputPaths = paths
 		return nil
 	}
 }
 
-func WithLoggerErrorOutputFiles(files []string) LoggerOption {
+// WithLoggerErrorOutputPaths set error logs output path
+//
+// like "stderr"
+func WithLoggerErrorOutputPaths(paths []string) LoggerOption {
 	return func(c *LoggerConfig) error {
-		c.ErrorOutputPaths = append(c.OutputPaths, files...)
+		c.ErrorOutputPaths = paths
 		return nil
 	}
 }
