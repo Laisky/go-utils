@@ -16,12 +16,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type LoggerLevel string
-
-func (l LoggerLevel) String() string {
-	return string(l)
-}
-
 const (
 	// SampleRateDenominator sample rate = sample / SampleRateDenominator
 	SampleRateDenominator = 1000
@@ -31,17 +25,17 @@ const (
 	defaultAlertHookLevel     = zapcore.ErrorLevel
 
 	// LoggerLevelInfo Logger level info
-	LoggerLevelInfo LoggerLevel = "info"
+	LoggerLevelInfo string = "info"
 	// LoggerLevelDebug Logger level debug
-	LoggerLevelDebug LoggerLevel = "debug"
+	LoggerLevelDebug string = "debug"
 	// LoggerLevelWarn Logger level warn
-	LoggerLevelWarn LoggerLevel = "warn"
+	LoggerLevelWarn string = "warn"
 	// LoggerLevelError Logger level error
-	LoggerLevelError LoggerLevel = "error"
+	LoggerLevelError string = "error"
 	// LoggerLevelFatal Logger level fatal
-	LoggerLevelFatal LoggerLevel = "fatal"
+	LoggerLevelFatal string = "fatal"
 	// LoggerLevelPanic Logger level panic
-	LoggerLevelPanic LoggerLevel = "panic"
+	LoggerLevelPanic string = "panic"
 )
 
 var (
@@ -62,11 +56,16 @@ var (
 // LoggerType extend from zap.Logger
 type LoggerType struct {
 	*zap.Logger
+
+	// level level of current logger
+	//
+	// zap logger do not expose api to change log's level,
+	// so we have to save the pointer of zap.AtomicLevel.
 	level zap.AtomicLevel
 }
 
 // CreateNewDefaultLogger set default utils.Logger
-func CreateNewDefaultLogger(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
+func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	if l, err = NewLoggerWithName(name, level, opts...); err != nil {
 		return nil, errors.Wrap(err, "create new logger")
 	}
@@ -76,7 +75,7 @@ func CreateNewDefaultLogger(name string, level LoggerLevel, opts ...zap.Option) 
 }
 
 // NewLoggerWithName create new logger with name
-func NewLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
+func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	return NewLogger(
 		WithLoggerName(name),
 		WithLoggerEncoding(LoggerEncodingJSON),
@@ -86,7 +85,7 @@ func NewLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *L
 }
 
 // NewConsoleLoggerWithName create new logger with name
-func NewConsoleLoggerWithName(name string, level LoggerLevel, opts ...zap.Option) (l *LoggerType, err error) {
+func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
 	return NewLogger(
 		WithLoggerName(name),
 		WithLoggerEncoding(LoggerEncodingConsole),
@@ -130,6 +129,7 @@ func WithLoggerErrorOutputPaths(paths []string) LoggerOption {
 	}
 }
 
+// WithLoggerEncoding set logger encoding formet
 func WithLoggerEncoding(format LoggerEncoding) LoggerOption {
 	return func(c *LoggerConfig) error {
 		switch format {
@@ -144,6 +144,7 @@ func WithLoggerEncoding(format LoggerEncoding) LoggerOption {
 	}
 }
 
+// WithLoggerZapOptions set logger with zap.Option
 func WithLoggerZapOptions(opts ...zap.Option) LoggerOption {
 	return func(c *LoggerConfig) error {
 		c.zapOptions = opts
@@ -151,6 +152,7 @@ func WithLoggerZapOptions(opts ...zap.Option) LoggerOption {
 	}
 }
 
+// WithLoggerName set logger name
 func WithLoggerName(name string) LoggerOption {
 	return func(c *LoggerConfig) error {
 		c.Name = name
@@ -158,25 +160,35 @@ func WithLoggerName(name string) LoggerOption {
 	}
 }
 
-func WithLoggerLevel(level LoggerLevel) LoggerOption {
+// ParseLoggerLevel
+func ParseLoggerLevel(level string) (zapcore.Level, error) {
+	switch level {
+	case LoggerLevelInfo:
+		return zap.InfoLevel, nil
+	case LoggerLevelDebug:
+		return zap.DebugLevel, nil
+	case LoggerLevelWarn:
+		return zap.WarnLevel, nil
+	case LoggerLevelError:
+		return zap.ErrorLevel, nil
+	case LoggerLevelFatal:
+		return zap.FatalLevel, nil
+	case LoggerLevelPanic:
+		return zap.PanicLevel, nil
+	default:
+		return 0, errors.Errorf("invalid level: %s", level)
+	}
+}
+
+// WithLoggerLevel set logger level
+func WithLoggerLevel(level string) LoggerOption {
 	return func(c *LoggerConfig) error {
-		switch level {
-		case LoggerLevelInfo:
-			c.Level.SetLevel(zap.InfoLevel)
-		case LoggerLevelDebug:
-			c.Level.SetLevel(zap.DebugLevel)
-		case LoggerLevelWarn:
-			c.Level.SetLevel(zap.WarnLevel)
-		case LoggerLevelError:
-			c.Level.SetLevel(zap.ErrorLevel)
-		case LoggerLevelFatal:
-			c.Level.SetLevel(zap.FatalLevel)
-		case LoggerLevelPanic:
-			c.Level.SetLevel(zap.PanicLevel)
-		default:
-			return errors.Errorf("invalid level: %s", level)
+		lvl, err := ParseLoggerLevel(level)
+		if err != nil {
+			return err
 		}
 
+		c.Level.SetLevel(lvl)
 		return nil
 	}
 }
@@ -219,30 +231,23 @@ func NewLogger(optfs ...LoggerOption) (l *LoggerType, err error) {
 }
 
 // Level get current level of logger
-func (l *LoggerType) Level() LoggerLevel {
-	return LoggerLevel(l.level.String())
+func (l *LoggerType) Level() zapcore.Level {
+	return l.level.Level()
 }
 
 // ChangeLevel change logger level
-func (l *LoggerType) ChangeLevel(level LoggerLevel) (err error) {
-	switch level {
-	case LoggerLevelDebug:
-		l.level.SetLevel(zap.DebugLevel)
-	case LoggerLevelInfo:
-		l.level.SetLevel(zap.InfoLevel)
-	case LoggerLevelWarn:
-		l.level.SetLevel(zap.WarnLevel)
-	case LoggerLevelError:
-		l.level.SetLevel(zap.ErrorLevel)
-	case LoggerLevelPanic:
-		l.level.SetLevel(zap.PanicLevel)
-	case LoggerLevelFatal:
-		l.level.SetLevel(zap.FatalLevel)
-	default:
-		return errors.Errorf("invalid level %s", string(level))
+//
+// all children logger share the same level of their parent logger,
+// so if you change any logger's level, all its parent and
+// children logger's level will be changed.
+func (l *LoggerType) ChangeLevel(level string) (err error) {
+	lvl, err := ParseLoggerLevel(level)
+	if err != nil {
+		return err
 	}
 
-	l.Debug("set logger level", zap.String("level", level.String()))
+	l.level.SetLevel(lvl)
+	l.Debug("set logger level", zap.String("level", level))
 	return
 }
 

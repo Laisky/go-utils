@@ -7,6 +7,7 @@ import (
 	"time"
 
 	zap "github.com/Laisky/zap"
+	"github.com/Laisky/zap/zapcore"
 	"github.com/stretchr/testify/require"
 	// zap "github.com/Laisky/zap"
 )
@@ -16,7 +17,7 @@ func TestNewLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	lvl := logger.Level()
-	require.Equal(t, LoggerLevelDebug, lvl)
+	require.Equal(t, zap.DebugLevel, lvl)
 
 	_, err = NewLogger()
 	require.NoError(t, err)
@@ -218,3 +219,52 @@ func ExampleAlertPusher() {
 // 	time.Sleep(1 * time.Second)
 // 	t.Error()
 // }
+
+func TestChangeLoggerLevel(t *testing.T) {
+	var allLogs []string
+	logger, err := NewLogger(
+		WithLoggerZapOptions(zap.Hooks(func(e zapcore.Entry) error {
+			allLogs = append(allLogs, e.Message)
+			return nil
+		})),
+		WithLoggerLevel(LoggerLevelDebug),
+	)
+	require.NoError(t, err)
+
+	// case: normal log
+	{
+		msg := RandomStringWithLength(50)
+		logger.Debug(msg)
+		require.Equal(t, msg, allLogs[len(allLogs)-1])
+	}
+
+	// case: change level
+	{
+		msg := RandomStringWithLength(50)
+		err = logger.ChangeLevel(LoggerLevelInfo)
+		require.NoError(t, err)
+		logger.Debug(msg)
+		require.Len(t, allLogs, 1)
+		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
+		logger.ChangeLevel(LoggerLevelDebug)
+	}
+
+	// case: change level for child logger
+	{
+		msg := RandomStringWithLength(50)
+		childLogger := logger.Clone()
+		err = childLogger.ChangeLevel(LoggerLevelInfo)
+		require.NoError(t, err)
+		logger.Debug(msg)
+		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
+
+		msg = RandomStringWithLength(50)
+		childLogger.Info(msg)
+		require.Equal(t, msg, allLogs[len(allLogs)-1])
+
+		msg = RandomStringWithLength(50)
+		childLogger.Debug(msg)
+		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
+	}
+
+}
