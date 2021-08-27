@@ -67,17 +67,13 @@ func TestJWTSignAndVerify(t *testing.T) {
 		WithJWTPubKeyByte(es256PubByte),
 		WithJWTPriKeyByte(es256PriByte),
 	)
-	if err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
+	require.NoError(t, err)
 
 	jwtHS256, err := NewJWT(
 		WithJWTSignMethod(SignMethodHS256),
 		WithJWTSecretByte(secret),
 	)
-	if err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
+	require.NoError(t, err)
 
 	for _, j := range []*JWT{
 		jwtES256,
@@ -93,9 +89,8 @@ func TestJWTSignAndVerify(t *testing.T) {
 
 		// test sign & parse
 		token, err := j.Sign(claims)
-		if err != nil {
-			t.Fatalf("generate token error %+v", err)
-		}
+		require.NoError(t, err)
+
 		// expect := "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkdW5lIiwic3ViIjoibGFpc2t5In0.UtcJn1th7rvZNr0HLl6h5G8XE-sJLVSqyc96LYAFG42-p0ZAJJeDeE_9a5sp770hEaIXMtZSvVeeBQre90oTLA"
 		// if token != expect {
 		// 	t.Fatalf("expect %v,\n got %v", expect, token)
@@ -152,14 +147,13 @@ func TestJWTSignAndVerify(t *testing.T) {
 }
 
 func TestParseJWTTokenWithoutValidate(t *testing.T) {
-	token := "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkdW5lIiwic3ViIjoibGFpc2t5In0.UtcJn1th7rvZNr0HLl6h5G8XE-sJLVSqyc96LYAFG42-p0ZAJJeDeE_9a5sp770hEaIXMtZSvVeeBQre90oTLA"
-	claims, err := ParseJWTTokenWithoutValidate(token)
-	require.NoError(t, err)
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZHVuZSJdLCJzdWIiOiJsYWlza3kifQ.cYnd2OdN-i3kuPXSUc4xj1rkVk5elJnxln6zDdvlOUc"
 
-	if claims["sub"] != "laisky" ||
-		claims["aud"] != "dune" {
-		t.Fatal()
-	}
+	c := new(jwt.StandardClaims)
+	err := ParseJWTTokenWithoutValidate(token, c)
+	require.NoError(t, err)
+	require.Equal(t, "laisky", c.Subject)
+	require.Equal(t, []string{"dune"}, c.Audience)
 }
 
 // https://snyk.io/vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515?utm_medium=Partner&utm_source=RedHat&utm_campaign=Code-Ready-Analytics-2020&utm_content=vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515
@@ -190,7 +184,8 @@ func TestJWTAudValunerable(t *testing.T) {
 
 	// bug: slice aud will bypass verify
 	{
-		claims, err := ParseJWTTokenWithoutValidate(token)
+		claims := new(jwt.StandardClaims)
+		err := ParseJWTTokenWithoutValidate(token, claims)
 		require.NoError(t, err)
 
 		ok := claims.VerifyAudience("laisky", false)

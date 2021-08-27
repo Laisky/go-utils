@@ -17,7 +17,11 @@ func ExampleFIFO() {
 	f := NewFIFO()
 	f.Put(1)
 	v := f.Get()
-	fmt.Println(v)
+	if v == nil {
+		panic(v)
+	}
+
+	fmt.Println(v.(int))
 	// Output: 1
 }
 
@@ -76,8 +80,8 @@ func TestNewFIFO(t *testing.T) {
 		got = append(got, v)
 	}
 
-	require.Equal(t, 0, f.Len())
-	require.Len(t, got, int(cnt))
+	require.Equal(t, 0, f.Len(), "empty")
+	require.Len(t, got, int(cnt), "total len")
 }
 
 // BenchmarkFIFO

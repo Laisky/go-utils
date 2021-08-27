@@ -25,20 +25,20 @@ type FIFO struct {
 	len  int64
 }
 
-// add a dummy node to the queue to avoid contention
-// betweet head & tail when queue is empty
-//
-// dummyNode is the default value to unsafe.pointer as an empty pointer
-var dummyNode = &fifoNode{
-	d: "dummy",
-}
-
-func init() {
-	dummyNode.next = unsafe.Pointer(dummyNode)
+// emptyNode is the default value to unsafe.pointer as an empty pointer
+var emptyNode = &fifoNode{
+	d: "empty",
 }
 
 // NewFIFO create a new FIFO queue
 func NewFIFO() *FIFO {
+	// add a dummy node to the queue to avoid contention
+	// betweet head & tail when queue is empty
+	var dummyNode = &fifoNode{
+		d:    "dummy",
+		next: unsafe.Pointer(emptyNode),
+	}
+
 	return &FIFO{
 		head: unsafe.Pointer(dummyNode),
 		tail: unsafe.Pointer(dummyNode),
@@ -49,7 +49,7 @@ func NewFIFO() *FIFO {
 func (f *FIFO) Put(d interface{}) {
 	newNode := &fifoNode{
 		d:    d,
-		next: unsafe.Pointer(dummyNode),
+		next: unsafe.Pointer(emptyNode),
 	}
 	newAddr := unsafe.Pointer(newNode)
 
@@ -57,7 +57,7 @@ func (f *FIFO) Put(d interface{}) {
 	for {
 		tailAddr = atomic.LoadPointer(&f.tail)
 		tailNode := (*fifoNode)(tailAddr)
-		if atomic.CompareAndSwapPointer(&tailNode.next, unsafe.Pointer(dummyNode), newAddr) {
+		if atomic.CompareAndSwapPointer(&tailNode.next, unsafe.Pointer(emptyNode), newAddr) {
 			atomic.AddInt64(&f.len, 1)
 			break
 		}
@@ -76,7 +76,7 @@ func (f *FIFO) Get() interface{} {
 		headAddr := atomic.LoadPointer(&f.head)
 		headNode := (*fifoNode)(headAddr)
 		nextAddr := atomic.LoadPointer(&headNode.next)
-		if nextAddr == unsafe.Pointer(dummyNode) {
+		if nextAddr == unsafe.Pointer(emptyNode) {
 			// queue is empty
 			return nil
 		}
