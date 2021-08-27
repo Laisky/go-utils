@@ -74,7 +74,6 @@ func (p *PriorityQ) Push(x interface{}) {
 
 // Remove remove an specific item
 func (p *PriorityQ) Remove(v HeapItemItf) (ok bool) {
-	// utils.Logger.Debug("remove item")
 	for i, it := range p.q {
 		if it == v {
 			p.q = append(p.q[:i], p.q[i+1:]...)
