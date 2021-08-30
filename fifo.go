@@ -97,8 +97,28 @@ func (f *FIFO) Put(d interface{}) {
 
 // Get pop data from the head of queue
 func (f *FIFO) Get() interface{} {
+	var oldHeadAddr unsafe.Pointer
 	for {
 		headAddr := atomic.LoadPointer(&f.head)
+		for {
+			if oldHeadAddr == nil {
+				oldHeadAddr = headAddr
+				break
+			}
+
+			if oldHeadAddr == headAddr {
+				break
+			}
+
+			oldHeadNode := (*fifoNode)(oldHeadAddr)
+			if !atomic.CompareAndSwapInt32(&oldHeadNode.refcnt, 1, 0) {
+				break
+			}
+
+			oldHeadAddr = atomic.LoadPointer(&oldHeadNode.next)
+			fifoPool.Put(oldHeadNode)
+		}
+
 		headNode := (*fifoNode)(headAddr)
 		nextAddr := atomic.LoadPointer(&headNode.next)
 		if nextAddr == unsafe.Pointer(emptyNode) {
@@ -113,10 +133,6 @@ func (f *FIFO) Get() interface{} {
 			atomic.AddInt64(&f.len, -1)
 			return nextNode.d
 		}
-
-		// release refcnt when skip node
-		headNode.AddRef(-1)
-		fifoPool.Put(headNode)
 	}
 }
 

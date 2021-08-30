@@ -110,8 +110,14 @@ func BenchmarkFIFOAndChan(b *testing.B) {
 		f := NewFIFO()
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				f.Put(2)
-				f.Get()
+				for p.Next() {
+					switch rand.Intn(2) {
+					case 0:
+						f.Put(2)
+					case 1:
+						_ = f.Get()
+					}
+				}
 			}
 		})
 	})
@@ -120,8 +126,20 @@ func BenchmarkFIFOAndChan(b *testing.B) {
 		ch := make(chan struct{}, 10)
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				ch <- struct{}{}
-				<-ch
+				for p.Next() {
+					switch rand.Intn(2) {
+					case 0:
+						select {
+						case ch <- struct{}{}:
+						default:
+						}
+					case 1:
+						select {
+						case <-ch:
+						default:
+						}
+					}
+				}
 			}
 		})
 	})
@@ -130,8 +148,18 @@ func BenchmarkFIFOAndChan(b *testing.B) {
 		ch := make(chan int, 10)
 		b.RunParallel(func(p *testing.PB) {
 			for p.Next() {
-				ch <- 2
-				<-ch
+				switch rand.Intn(2) {
+				case 0:
+					select {
+					case ch <- 2:
+					default:
+					}
+				case 1:
+					select {
+					case <-ch:
+					default:
+					}
+				}
 			}
 		})
 	})
