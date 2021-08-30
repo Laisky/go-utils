@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -22,8 +23,8 @@ type fifoNode struct {
 }
 
 // AddRef add ref count
-func (f *fifoNode) AddRef(n int32) {
-	atomic.AddInt32(&f.refcnt, n)
+func (f *fifoNode) AddRef(n int32) int32 {
+	return atomic.AddInt32(&f.refcnt, n)
 }
 
 // Refcnt get ref count
@@ -97,40 +98,26 @@ func (f *FIFO) Put(d interface{}) {
 
 // Get pop data from the head of queue
 func (f *FIFO) Get() interface{} {
-	var oldHeadAddr unsafe.Pointer
 	for {
 		headAddr := atomic.LoadPointer(&f.head)
-		for {
-			if oldHeadAddr == nil {
-				oldHeadAddr = headAddr
-				break
-			}
-
-			if oldHeadAddr == headAddr {
-				break
-			}
-
-			oldHeadNode := (*fifoNode)(oldHeadAddr)
-			if !atomic.CompareAndSwapInt32(&oldHeadNode.refcnt, 1, 0) {
-				break
-			}
-
-			oldHeadAddr = atomic.LoadPointer(&oldHeadNode.next)
-			fifoPool.Put(oldHeadNode)
+		headNode := (*fifoNode)(headAddr)
+		if headNode.AddRef(1) < 0 {
+			headNode.AddRef(-1)
+			continue
 		}
 
-		headNode := (*fifoNode)(headAddr)
 		nextAddr := atomic.LoadPointer(&headNode.next)
 		if nextAddr == unsafe.Pointer(emptyNode) {
 			// queue is empty
 			return nil
 		}
 
-		headNode.AddRef(1)
 		nextNode := (*fifoNode)(nextAddr)
 		if atomic.CompareAndSwapPointer(&f.head, headAddr, nextAddr) {
 			// do not release refcnt
 			atomic.AddInt64(&f.len, -1)
+			atomic.StoreInt32(&headNode.refcnt, math.MinInt32)
+			fifoPool.Put(headNode)
 			return nextNode.d
 		}
 	}
