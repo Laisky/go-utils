@@ -89,15 +89,50 @@ func TestNewFIFO(t *testing.T) {
 //   cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
 //   BenchmarkFIFO-8   	  368847	      3330 ns/op	      15 B/op	       0 allocs/op
 func BenchmarkFIFO(b *testing.B) {
-	f := NewFIFO()
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			switch rand.Intn(2) {
-			case 0:
-				f.Put(2)
-			case 1:
-				_ = f.Get()
+	b.Run("fifo", func(b *testing.B) {
+		f := NewFIFO()
+		b.RunParallel(func(p *testing.PB) {
+			for p.Next() {
+				switch rand.Intn(2) {
+				case 0:
+					f.Put(2)
+				case 1:
+					_ = f.Get()
+				}
 			}
-		}
+		})
+	})
+}
+
+func BenchmarkFIFOAndChan(b *testing.B) {
+
+	b.Run("fifo", func(b *testing.B) {
+		f := NewFIFO()
+		b.RunParallel(func(p *testing.PB) {
+			for p.Next() {
+				f.Put(2)
+				f.Get()
+			}
+		})
+	})
+
+	b.Run("channel struct", func(b *testing.B) {
+		ch := make(chan struct{}, 10)
+		b.RunParallel(func(p *testing.PB) {
+			for p.Next() {
+				ch <- struct{}{}
+				<-ch
+			}
+		})
+	})
+
+	b.Run("channel int", func(b *testing.B) {
+		ch := make(chan int, 10)
+		b.RunParallel(func(p *testing.PB) {
+			for p.Next() {
+				ch <- 2
+				<-ch
+			}
+		})
 	})
 }
