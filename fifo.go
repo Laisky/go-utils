@@ -1,13 +1,34 @@
 package utils
 
 import (
+	"sync"
 	"sync/atomic"
 	"unsafe"
 )
 
+var fifoPool = sync.Pool{
+	New: func() interface{} {
+		return &fifoNode{
+			next: unsafe.Pointer(emptyNode),
+		}
+	},
+}
+
 type fifoNode struct {
 	next unsafe.Pointer
 	d    interface{}
+	// refcnt to avoid ABA problem
+	refcnt int32
+}
+
+// AddRef add ref count
+func (f *fifoNode) AddRef(n int32) {
+	atomic.AddInt32(&f.refcnt, n)
+}
+
+// Refcnt get ref count
+func (f *fifoNode) Refcnt() int32 {
+	return atomic.LoadInt32(&f.refcnt)
 }
 
 // FIFO is a lock-free First-In-First-Out queue
@@ -34,10 +55,9 @@ var emptyNode = &fifoNode{
 func NewFIFO() *FIFO {
 	// add a dummy node to the queue to avoid contention
 	// betweet head & tail when queue is empty
-	var dummyNode = &fifoNode{
-		d:    "dummy",
-		next: unsafe.Pointer(emptyNode),
-	}
+	var dummyNode = fifoPool.Get().(*fifoNode)
+	dummyNode.d = "dummy"
+	dummyNode.next = unsafe.Pointer(emptyNode)
 
 	return &FIFO{
 		head: unsafe.Pointer(dummyNode),
@@ -47,10 +67,16 @@ func NewFIFO() *FIFO {
 
 // Put put an data into queue's tail
 func (f *FIFO) Put(d interface{}) {
-	newNode := &fifoNode{
-		d:    d,
-		next: unsafe.Pointer(emptyNode),
+	var newNode *fifoNode
+	for {
+		newNode = fifoPool.Get().(*fifoNode)
+		if newNode.Refcnt() == 0 {
+			break
+		}
 	}
+
+	newNode.d = d
+	newNode.next = unsafe.Pointer(emptyNode)
 	newAddr := unsafe.Pointer(newNode)
 
 	var tailAddr unsafe.Pointer
@@ -71,7 +97,6 @@ func (f *FIFO) Put(d interface{}) {
 
 // Get pop data from the head of queue
 func (f *FIFO) Get() interface{} {
-	var nextNode *fifoNode
 	for {
 		headAddr := atomic.LoadPointer(&f.head)
 		headNode := (*fifoNode)(headAddr)
@@ -81,14 +106,18 @@ func (f *FIFO) Get() interface{} {
 			return nil
 		}
 
-		nextNode = (*fifoNode)(nextAddr)
+		headNode.AddRef(1)
+		nextNode := (*fifoNode)(nextAddr)
 		if atomic.CompareAndSwapPointer(&f.head, headAddr, nextAddr) {
+			// do not release refcnt
 			atomic.AddInt64(&f.len, -1)
-			break
+			return nextNode.d
 		}
-	}
 
-	return nextNode.d
+		// release refcnt when skip node
+		headNode.AddRef(-1)
+		fifoPool.Put(headNode)
+	}
 }
 
 // Len return the length of queue
