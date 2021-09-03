@@ -82,11 +82,6 @@ func WithHTTPClientInsecure(insecure bool) HTTPClientOptFunc {
 	}
 }
 
-// GetHTTPClient new http client
-//
-// Deprecated: replaced by NewHTTPClient
-var GetHTTPClient = NewHTTPClient
-
 // NewHTTPClient create http client
 func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
@@ -125,7 +120,12 @@ func RequestJSON(method, url string, request *RequestData, resp interface{}) (er
 }
 
 // RequestJSONWithClient request JSON and return JSON with specific client
-func RequestJSONWithClient(httpClient *http.Client, method, url string, request *RequestData, resp interface{}) (err error) {
+func RequestJSONWithClient(httpClient *http.Client,
+	method,
+	url string,
+	request *RequestData,
+	resp interface{},
+) (err error) {
 	Logger.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
 
 	var (
@@ -147,7 +147,7 @@ func RequestJSONWithClient(httpClient *http.Client, method, url string, request 
 	if err != nil {
 		return errors.Wrap(err, "try to request url error")
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	if r.StatusCode/100 != 2 {
 		respBytes, err := ioutil.ReadAll(r.Body)
@@ -197,7 +197,7 @@ func checkRespBody(c *chaining.Chain) (interface{}, error) {
 		return c.GetVal(), nil
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respB, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())

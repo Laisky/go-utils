@@ -1,3 +1,4 @@
+// Package cmd some useful tools for command argument
 package cmd
 
 import (

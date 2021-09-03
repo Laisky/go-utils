@@ -23,7 +23,7 @@ func IsRemoteUDPPortOpen(addr string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err = conn.SetDeadline(Clock.GetUTCNow().Add(3 * time.Second)); err != nil {
 		return errors.WithStack(err)

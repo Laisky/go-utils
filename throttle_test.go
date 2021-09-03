@@ -41,7 +41,7 @@ func TestThrottle2(t *testing.T) {
 			Max:     100,
 		})
 		require.NoError(t, err)
-		throttle2.Stop()
+		throttle2.Close()
 
 		ctx2, cancel := context.WithCancel(ctx)
 		_, err = NewThrottleWithCtx(ctx2, &ThrottleCfg{

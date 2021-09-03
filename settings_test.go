@@ -22,7 +22,7 @@ func ExampleSettings() {
 
 	// bind pflags to settings
 	if err := Settings.BindPFlags(pflag.CommandLine); err != nil {
-		Logger.Panic("parse command")
+		panic(err)
 	}
 
 	// use
@@ -45,7 +45,7 @@ func ExampleSettings_cobra() {
 		rootCmd := &cobra.Command{}
 		childCmd := &cobra.Command{
 			PreRun: func(cmd *cobra.Command, args []string) {
-				if err := Settings.BindPFlags(cmd.Flags()); err != nil {
+				 Settings.BindPFlags(cmd.Flags()); err != nil {
 					Logger.Panic("parse args")
 				}
 			},
@@ -94,7 +94,7 @@ k5: 14
 	}
 
 	t.Logf("load settings from: %v", dirName)
-	if err = Settings.Setup(dirName); err != nil {
+	if err = Settings.LoadFromDir(dirName); err != nil {
 		t.Fatalf("setup settings got error: %+v", err)
 	}
 
@@ -256,9 +256,9 @@ a:
 	addr := fmt.Sprintf("http://localhost:%v", port)
 	go runMockHTTPServer(ctx, port, "/app/profile/label", fakedata)
 	time.Sleep(100 * time.Millisecond)
-	if err := Settings.SetupFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw"); err != nil {
-		t.Fatalf("got error: %+v", err)
-	}
+	err := Settings.LoadFromConfigServerWithRawYaml(addr, "app", "profile", "label", "raw")
+	require.NoError(t, err)
+
 	for k, vi := range map[string]interface{}{
 		"a.b": 123,
 		"a.c": "abc",
@@ -299,7 +299,7 @@ a:
 		}
 	}
 	cfg := &cfgStruct{}
-	err := Settings.Unmarshal(cfg)
+	err = Settings.Unmarshal(cfg)
 	require.NoError(t, err)
 	require.Equal(t, uint(123), cfg.A.B)
 	require.Equal(t, "abc", cfg.A.C)

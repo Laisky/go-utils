@@ -246,7 +246,8 @@ func TestChangeLoggerLevel(t *testing.T) {
 		logger.Debug(msg)
 		require.Len(t, allLogs, 1)
 		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
-		logger.ChangeLevel(LoggerLevelDebug)
+		err = logger.ChangeLevel(LoggerLevelDebug)
+		require.NoError(t, err)
 	}
 
 	// case: change level for child logger

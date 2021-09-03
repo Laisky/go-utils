@@ -94,7 +94,7 @@ func ExampleClock() {
 	Clock.GetTimeInRFC3339Nano()
 
 	// change clock refresh step
-	SetupClock(10 * time.Millisecond)
+	SetInternalClock(10 * time.Millisecond)
 
 	// create new clock
 	c := NewClock(context.Background(), 1*time.Second)
@@ -108,7 +108,6 @@ func TestClock2(t *testing.T) {
 	var err error
 	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
 
-	c.SetupInterval(100 * time.Millisecond)
 	c.SetInterval(100 * time.Millisecond)
 
 	// test ts
@@ -271,43 +270,43 @@ func BenchmarkClock(b *testing.B) {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(100 * time.Millisecond)
+	clock2.SetInterval(100 * time.Millisecond)
 	b.Run("clock2 time with 100ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(10 * time.Millisecond)
+	clock2.SetInterval(10 * time.Millisecond)
 	b.Run("clock2 time with 10ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(1 * time.Millisecond)
+	clock2.SetInterval(1 * time.Millisecond)
 	b.Run("clock2 time with 1ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(500 * time.Microsecond)
+	clock2.SetInterval(500 * time.Microsecond)
 	b.Run("clock2 time with 500us", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(100 * time.Microsecond)
+	clock2.SetInterval(100 * time.Microsecond)
 	b.Run("clock2 time with 100us", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(10 * time.Microsecond)
+	clock2.SetInterval(10 * time.Microsecond)
 	b.Run("clock2 time with 10us", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
 		}
 	})
-	clock2.SetupInterval(1 * time.Microsecond)
+	clock2.SetInterval(1 * time.Microsecond)
 	b.Run("clock2 time with 10us", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
@@ -316,7 +315,6 @@ func BenchmarkClock(b *testing.B) {
 }
 
 func TestSetupClock(t *testing.T) {
-	SetupClock(100 * time.Millisecond)
 	SetInternalClock(100 * time.Millisecond)
 
 	// case: invalid interval

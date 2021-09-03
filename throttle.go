@@ -90,10 +90,3 @@ TOKEN_LOOP:
 func (t *Throttle) Close() {
 	close(t.stopChan)
 }
-
-// Stop stop throttle
-//
-// Deprecated: replaced by Close
-func (t *Throttle) Stop() {
-	t.Close()
-}

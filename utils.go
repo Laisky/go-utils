@@ -132,7 +132,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", filepath)
 	}
-	defer fp.Close()
+	defer func() { _ = fp.Close() }()
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return errors.Wrap(err, "read file content")
@@ -268,7 +268,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
 		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
 	}
-	defer fp.Close()
+	defer func() { _ = fp.Close() }()
 	if memByte, err = ioutil.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")
 	}

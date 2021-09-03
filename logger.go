@@ -426,8 +426,15 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertHookOptFun
 }
 
 // NewAlertPusherWithAlertType create new AlertPusher with default type and token
-func NewAlertPusherWithAlertType(ctx context.Context, pushAPI string, alertType, pushToken string, opts ...AlertHookOptFunc) (a *AlertPusher, err error) {
-	Logger.Debug("create new AlertPusher with alert type", zap.String("pushAPI", pushAPI), zap.String("type", alertType))
+func NewAlertPusherWithAlertType(ctx context.Context,
+	pushAPI string,
+	alertType,
+	pushToken string,
+	opts ...AlertHookOptFunc,
+) (a *AlertPusher, err error) {
+	Logger.Debug("create new AlertPusher with alert type",
+		zap.String("pushAPI", pushAPI),
+		zap.String("type", alertType))
 	if a, err = NewAlertPusher(ctx, pushAPI, opts...); err != nil {
 		return nil, err
 	}
@@ -547,7 +554,11 @@ type PateoAlertPusher struct {
 }
 
 // NewPateoAlertPusher create new PateoAlertPusher
-func NewPateoAlertPusher(ctx context.Context, api, token string, opts ...AlertHookOptFunc) (p *PateoAlertPusher, err error) {
+func NewPateoAlertPusher(ctx context.Context,
+	api,
+	token string,
+	opts ...AlertHookOptFunc,
+) (p *PateoAlertPusher, err error) {
 	opt := newAlertHookOpt()
 	for _, optf := range opts {
 		optf(opt)
