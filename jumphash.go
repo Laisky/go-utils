@@ -1,5 +1,4 @@
-// Package consistenthash contains some implementation of consistent hashing.
-package consistenthash
+package utils
 
 import "fmt"
 
