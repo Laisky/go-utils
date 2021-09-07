@@ -694,7 +694,7 @@ func TestExpCache_Store(t *testing.T) {
 // PASS
 // ok  	github.com/Laisky/go-utils	1.573s
 func BenchmarkExpMap(b *testing.B) {
-	cm, err := NewExpiredMap(context.Background(),
+	cm, err := NewLRUExpiredMap(context.Background(),
 		10*time.Millisecond,
 		func() interface{} { return 1 },
 	)
@@ -755,7 +755,7 @@ func TestGetStructFieldByName(t *testing.T) {
 }
 
 func Benchmark_NewSimpleExpCache(b *testing.B) {
-	c := NewSimpleExpCache(time.Millisecond)
+	c := NewSingleItemExpCache(time.Millisecond)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			if rand.Intn(10) < 5 {
@@ -774,7 +774,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 	// time.clock's test set interval to 100ms.
 	fmt.Println("interval", Clock.Interval())
 	Clock.SetInterval(1 * time.Microsecond)
-	c := NewSimpleExpCache(200 * time.Millisecond)
+	c := NewSingleItemExpCache(200 * time.Millisecond)
 
 	_, ok := c.Get()
 	require.False(t, ok)
@@ -801,7 +801,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 
 func TestNewExpiredMap(t *testing.T) {
 	ctx := context.Background()
-	m, err := NewExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
+	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
 	require.NoError(t, err)
 
 	const key = "key"
