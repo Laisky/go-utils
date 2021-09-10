@@ -1,6 +1,6 @@
 package utils
 
-import "skiplist"
+import skiplist "github.com/Laisky/fast-skiplist"
 
 func NewSkiplist() *skiplist.SkipList {
 	return skiplist.New()
