@@ -9,15 +9,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	defaultLaiskyRemoteLockTokenUserKey    = "uid"
-	defaultLaiskyRemoteLockAuthCookieName  = "general"
-	defaultLaiskyRemoteLockTimeout         = 5 * time.Second
-	defaultLaiskyRemoteLockRenewalDuration = 10 * time.Second
-	defaultLaiskyRemoteLockRenewalInterval = 1 * time.Second
-	defaultLaiskyRemoteLockIsRenewal       = false
-	defaultLaiskyRemoteLockMaxRetry        = 3
-)
+// const (
+// 	defaultLaiskyRemoteLockTokenUserKey    = "uid"
+// 	defaultLaiskyRemoteLockAuthCookieName  = "general"
+// 	defaultLaiskyRemoteLockTimeout         = 5 * time.Second
+// 	defaultLaiskyRemoteLockRenewalDuration = 10 * time.Second
+// 	defaultLaiskyRemoteLockRenewalInterval = 1 * time.Second
+// 	defaultLaiskyRemoteLockIsRenewal       = false
+// 	defaultLaiskyRemoteLockMaxRetry        = 3
+// )
 
 // Mutex mutex that support unblocking lock
 type Mutex struct {
@@ -122,7 +122,10 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // }
 
 // type acquireLockMutation struct {
-// 	AcquireLock bool `graphql:"AcquireLock(lock_name: $lock_name, is_renewal: $is_renewal, duration_sec: $duration_sec)"`
+// 	AcquireLock bool `graphql:"AcquireLock(
+// lock_name: $lock_name,
+//  is_renewal: $is_renewal,
+//  duration_sec: $duration_sec)"`
 // }
 
 // type acquireLockOption struct {
@@ -182,7 +185,9 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // // AcquireLock acquire lock with lockname,
 // // if `isRenewal=true`, will automate refresh lock's lease until ctx done.
 // // duration to specify how much time each renewal will extend.
-// func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context, lockName string, opts ...AcquireLockOptFunc) (ok bool, err error) {
+// func (l *LaiskyRemoteLock) AcquireLock(ctx context.Context,
+// lockName string,
+// opts ...AcquireLockOptFunc) (ok bool, err error) {
 // 	opt := &acquireLockOption{
 // 		renewalInterval: defaultLaiskyRemoteLockRenewalInterval,
 // 		duration:        defaultLaiskyRemoteLockRenewalDuration,
@@ -212,7 +217,9 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // 	return ok, nil
 // }
 
-// func (l *LaiskyRemoteLock) renewalLock(ctx context.Context, query *acquireLockMutation, vars map[string]interface{}, opt *acquireLockOption) {
+// func (l *LaiskyRemoteLock) renewalLock(ctx context.Context,
+// query *acquireLockMutation,
+//  vars map[string]interface{}, opt *acquireLockOption) {
 // 	var (
 // 		nRetry   = 0
 // 		err      error
@@ -229,7 +236,9 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // 		}
 
 // 		if err = l.cli.Mutate(ctx, query, vars); err != nil {
-// 			Logger.Error("renewal lock", zap.Error(err), zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
+// 			Logger.Error("renewal lock",
+// zap.Error(err),
+// zap.Int("n_retry", nRetry), zap.String("lock_name", lockName))
 // 			time.Sleep(1 * time.Second)
 // 			nRetry++
 // 			continue
@@ -241,13 +250,13 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // ExpiredRLock Lock with expire time
 type ExpiredRLock struct {
-	m *ExpiredMap
+	m *LRUExpiredMap
 }
 
 // NewExpiredRLock new ExpiredRLock
 func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, err error) {
 	el = &ExpiredRLock{}
-	el.m, err = NewExpiredMap(ctx, exp, func() interface{} {
+	el.m, err = NewLRUExpiredMap(ctx, exp, func() interface{} {
 		return &sync.RWMutex{}
 	})
 	err = errors.Wrap(err, "new expired rlock")

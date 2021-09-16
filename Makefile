@@ -7,7 +7,7 @@ lint:
 	# goimports -local github.com/Laisky -w .
 	gofmt -s -w .
 	go mod tidy
-	golangci-lint run -E golint,depguard,gocognit,goconst,gofmt,misspell,exportloopref,durationcheck,nilerr #,gosec,lll
+	golangci-lint run -c .golangci.lint.yml
 
 changelog:
 	./.scripts/generate_changelog.sh

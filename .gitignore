@@ -112,6 +112,7 @@ tags
 memory.pprof
 cpu.pprof
 coverage.txt
+profile.out
 
 # fuzz
 corpus

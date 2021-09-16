@@ -17,20 +17,9 @@ var (
 )
 
 // ParseJWTTokenWithoutValidate parse and get payload without validate jwt token
-func ParseJWTTokenWithoutValidate(token string) (payload jwt.MapClaims, err error) {
-	var jt *jwt.Token
-	if jt, err = jwt.Parse(token, func(_ *jwt.Token) (interface{}, error) {
-		return "", nil
-	}); jt == nil && err != nil {
-		return nil, errors.Wrap(err, "parse jwt token")
-	}
-
-	var ok bool
-	if payload, ok = jt.Claims.(jwt.MapClaims); !ok {
-		return nil, errors.New("payload type not match `map[string]interface{}`")
-	}
-
-	return payload, nil
+func ParseJWTTokenWithoutValidate(token string, payload jwt.Claims) (err error) {
+	_, _, err = new(jwt.Parser).ParseUnverified(token, payload)
+	return err
 }
 
 // JWT is token utils that support HS256/ES256

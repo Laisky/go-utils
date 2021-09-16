@@ -61,7 +61,9 @@ func init() {
 	GenTLS.Flags().Duration("duration", 365*24*time.Hour*10, "Duration that certificate is valid for")
 	GenTLS.Flags().Bool("ca", false, "whether this cert should be its own Certificate Authority")
 	GenTLS.Flags().Int("rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
-	GenTLS.Flags().String("ecdsa-curve", "", "ECDSA curve to use to generate a key. Valid values are P224, P256 (recommended), P384, P521")
+	GenTLS.Flags().String("ecdsa-curve", "",
+		"ECDSA curve to use to generate a key. "+
+			"Valid values are P224, P256 (recommended), P384, P521")
 	GenTLS.Flags().Bool("ed25519", false, "Generate an Ed25519 key")
 }
 

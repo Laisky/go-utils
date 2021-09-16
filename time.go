@@ -88,13 +88,6 @@ type ClockItf interface {
 
 const defaultClockInterval = 10 * time.Millisecond
 
-// SetupClock setup internal Clock with step
-//
-// Deprecated: use SetInternalClock instead
-func SetupClock(refreshInterval time.Duration) {
-	SetInternalClock(refreshInterval)
-}
-
 // SetInternalClock set internal Clock with refresh interval
 func SetInternalClock(interval time.Duration) {
 	if interval < time.Microsecond {
@@ -104,7 +97,7 @@ func SetInternalClock(interval time.Duration) {
 	if Clock == nil {
 		Clock = NewClock(context.Background(), interval)
 	} else {
-		Clock.SetupInterval(interval)
+		Clock.SetInterval(interval)
 	}
 }
 
@@ -181,13 +174,6 @@ func (c *ClockType) GetDate() (time.Time, error) {
 // GetTimeInRFC3339Nano return Clock current time in string
 func (c *ClockType) GetTimeInRFC3339Nano() string {
 	return c.GetUTCNow().Format(time.RFC3339Nano)
-}
-
-// SetupInterval setup update interval
-//
-// Deprecated: use SetInterval instead
-func (c *ClockType) SetupInterval(interval time.Duration) {
-	c.SetInterval(interval)
 }
 
 // SetInterval setup update interval

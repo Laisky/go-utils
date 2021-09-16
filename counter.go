@@ -282,16 +282,13 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 		step = step % c.rotatePoint
 	}
 
-	// Logger.Info("try acquire lock", zap.Int64("step", step), zap.Int64("lid", c.lockID))
 	c.Lock()
-	// Logger.Info("acquired lock", zap.Int64("step", step), zap.Int64("lid", c.lockID))
 	from = atomic.LoadInt64(&c.n)
 	to = atomic.AddInt64(&c.n, step) - 1
 	if c.rotatePoint > 0 && to > c.rotatePoint { // need rotate
 		from, to = 0, step
 		atomic.StoreInt64(&c.n, to+1)
 	}
-	// Logger.Info("release lock", zap.Int64("step", step), zap.Int64("from", from), zap.Int64("lid", c.lockID), zap.Int64("to", to))
 	c.Unlock()
 
 	Logger.Debug("get quote",

@@ -13,6 +13,11 @@ func init() {
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+// NewRand new individual random to aviod global mutex
+func NewRand() *rand.Rand {
+	return rand.New(rand.NewSource(time.Now().UnixNano()))
+}
+
 // RandomStringWithLength generate random string with specific length
 func RandomStringWithLength(n int) string {
 	b := make([]rune, n)

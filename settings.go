@@ -137,32 +137,11 @@ func (s *SettingsType) GetStringMapString(key string) map[string]string {
 	return viper.GetStringMapString(key)
 }
 
-// Setup load config file settings.yml
-//
-// Deprecated: use LoadFromDir instead
-func (s *SettingsType) Setup(configPath string) error {
-	return s.LoadFromDir(configPath)
-}
-
-// SetupFromDir load settings from dir, default fname is `settings.yml`
-//
-// Deprecated: use LoadFromDir instead
-func (s *SettingsType) SetupFromDir(dirPath string) error {
-	return s.LoadFromDir(dirPath)
-}
-
 // LoadFromDir load settings from dir, default fname is `settings.yml`
 func (s *SettingsType) LoadFromDir(dirPath string) error {
 	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
 	fpath := filepath.Join(dirPath, defaultConfigFileName)
-	return s.SetupFromFile(fpath)
-}
-
-// SetupFromFile load settings from file
-//
-// Deprecated: use LoadFromFile instead
-func (s *SettingsType) SetupFromFile(filePath string) error {
-	return s.LoadFromFile(filePath)
+	return s.LoadFromFile(fpath)
 }
 
 type settingsOpt struct {
@@ -241,7 +220,7 @@ RECUR_INCLUDE_LOOP:
 		if fp, err = os.Open(filePath); err != nil {
 			return errors.Wrapf(err, "open config file `%s`", filePath)
 		}
-		defer fp.Close()
+		defer func() { _ = fp.Close() }()
 
 		viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
 		if isSettingsFileEncrypted(opt, filePath) {
@@ -292,7 +271,7 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 		if fp, err = os.Open(filePath); err != nil {
 			return errors.Wrapf(err, "open config file `%s`", filePath)
 		}
-		defer fp.Close()
+		defer func() { _ = fp.Close() }()
 
 		if isSettingsFileEncrypted(opt, filePath) {
 			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
@@ -317,13 +296,6 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 	return nil
 }
 
-// SetupFromConfigServer load configs from config-server,
-//
-// Deprecated: use LoadFromConfigServer instead
-func (s *SettingsType) SetupFromConfigServer(url, app, profile, label string) (err error) {
-	return s.LoadFromConfigServer(url, app, profile, label)
-}
-
 // LoadFromConfigServer load configs from config-server,
 //
 // endpoint `{url}/{app}/{profile}/{label}`
@@ -341,13 +313,6 @@ func (s *SettingsType) LoadFromConfigServer(url, app, profile, label string) (er
 	srv.Map(viper.Set)
 
 	return nil
-}
-
-// SetupFromConfigServerWithRawYaml load configs from config-server
-//
-// Deprecated: use LoadFromConfigServer instead
-func (s *SettingsType) SetupFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
-	return s.LoadFromConfigServerWithRawYaml(url, app, profile, label, key)
 }
 
 // LoadFromConfigServerWithRawYaml load configs from config-server

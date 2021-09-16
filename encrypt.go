@@ -194,26 +194,9 @@ func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []
 
 const ecdsaSignDelimiter = "."
 
-// FormatECDSASign encode es256 signature by hex
-//
-// Deprecated: replaced by EncodeES256SignByBase6e
-var FormatECDSASign = EncodeES256SignByHex
-
 // EncodeES256SignByHex format ecdsa sign to stirng
 func EncodeES256SignByHex(a, b *big.Int) string {
 	return FormatBig2Hex(a) + ecdsaSignDelimiter + FormatBig2Hex(b)
-}
-
-// ParseECDSASign encode es256 signature by base64
-//
-// Deprecated: replaced by EncodeES256SignByBase64
-func ParseECDSASign(sign string) (a, b *big.Int, ok bool) {
-	var err error
-	if a, b, err = DecodeES256SignByHex(sign); err != nil {
-		return nil, nil, false
-	}
-
-	return a, b, true
 }
 
 // DecodeES256SignByHex parse ecdsa signature string to two *big.Int

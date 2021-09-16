@@ -1,10 +1,9 @@
-package structures
+package utils
 
 import (
 	"container/heap"
 	"fmt"
 
-	utils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
 )
 
@@ -36,7 +35,7 @@ type PriorityQ struct {
 
 // NewPriorityQ create new PriorityQ
 func NewPriorityQ(isMaxTop bool) *PriorityQ {
-	// utils.Logger.Debug("create PriorityQ")
+	// Logger.Debug("create PriorityQ")
 	return &PriorityQ{
 		isMaxTop: isMaxTop,
 		q:        []HeapItemItf{},
@@ -45,13 +44,13 @@ func NewPriorityQ(isMaxTop bool) *PriorityQ {
 
 // Len get length of items in heapq
 func (p *PriorityQ) Len() int {
-	// utils.Logger.Debug("len", zap.Int("len", len(p.q)))
+	// Logger.Debug("len", zap.Int("len", len(p.q)))
 	return len(p.q)
 }
 
 // Less compare two items in heapq
 func (p *PriorityQ) Less(i, j int) bool {
-	// utils.Logger.Debug("less two items", zap.Int("i", i), zap.Int("j", j))
+	// Logger.Debug("less two items", zap.Int("i", i), zap.Int("j", j))
 	if p.isMaxTop {
 		return p.q[i].GetPriority() > p.q[j].GetPriority()
 	}
@@ -61,20 +60,19 @@ func (p *PriorityQ) Less(i, j int) bool {
 
 // Swap swat two items in heapq
 func (p *PriorityQ) Swap(i, j int) {
-	// utils.Logger.Debug("swap two items", zap.Int("i", i), zap.Int("j", j))
+	// Logger.Debug("swap two items", zap.Int("i", i), zap.Int("j", j))
 	p.q[i], p.q[j] = p.q[j], p.q[i]
 }
 
 // Push push new item into heapq
 func (p *PriorityQ) Push(x interface{}) {
-	// utils.Logger.Debug("push item", zap.Int("priority", x.(HeapItemItf).GetPriority()))
+	// Logger.Debug("push item", zap.Int("priority", x.(HeapItemItf).GetPriority()))
 	item := x.(HeapItemItf)
 	p.q = append(p.q, item)
 }
 
 // Remove remove an specific item
 func (p *PriorityQ) Remove(v HeapItemItf) (ok bool) {
-	// utils.Logger.Debug("remove item")
 	for i, it := range p.q {
 		if it == v {
 			p.q = append(p.q[:i], p.q[i+1:]...)
@@ -88,7 +86,7 @@ func (p *PriorityQ) Remove(v HeapItemItf) (ok bool) {
 // Pop pop from the tail.
 // if `isMaxTop=True`, pop the biggest item
 func (p *PriorityQ) Pop() (popped interface{}) {
-	utils.Logger.Debug("pop item")
+	Logger.Debug("pop item")
 	n := len(p.q)
 	popped = p.q[n-1]
 	p.q[n-1] = nil // avoid memory leak
@@ -117,7 +115,7 @@ func GetSmallestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, e
 //   * use min-heap to calculates topN Highest items.
 //   * use max-heap to calculates topN Lowest items.
 func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]HeapItemItf, error) {
-	utils.Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
+	Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
 		return nil, fmt.Errorf("GetMostFreqWords topN must larger than 2")
 	}
@@ -181,7 +179,7 @@ LOAD_LOOP:
 		}
 	}
 
-	utils.Logger.Debug("process all items", zap.Int("total", nTotal))
+	Logger.Debug("process all items", zap.Int("total", nTotal))
 	for i := 1; i <= topN; i++ { // pop all needed items
 		item = heap.Pop(p).(*itemType)
 		items[topN-i] = item

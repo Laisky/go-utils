@@ -224,7 +224,7 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 	if r, err = zip.OpenReader(src); err != nil {
 		return nil, errors.Wrap(err, "open src")
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
 		// Store filename/path for returning and using later on
@@ -258,13 +258,13 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 			return nil, errors.Wrapf(err, "open file to write: %s", fpath)
 		}
 		Logger.Debug("create file", zap.String("path", filepath.Dir(fpath)))
-		defer outFile.Close()
+		defer func() { _ = outFile.Close() }()
 
 		rc, err := f.Open()
 		if err != nil {
 			return nil, errors.Wrapf(err, "read src file to write: %s", f.Name)
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		if _, err = io.Copy(outFile, rc); err != nil {
 			return nil, errors.Wrap(err, "copy src to dest")
@@ -287,10 +287,10 @@ func ZipFiles(output string, files []string) (err error) {
 	if newZipFile, err = os.Create(output); err != nil {
 		return err
 	}
-	defer newZipFile.Close()
+	defer func() { _ = newZipFile.Close() }()
 
 	zipWriter := zip.NewWriter(newZipFile)
-	defer zipWriter.Close()
+	defer func() { _ = zipWriter.Close() }()
 
 	// Add files to zip
 	for _, file := range files {
@@ -319,7 +319,10 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 
 		for _, finfoInDir := range fs {
 			_, childDir := filepath.Split(finfoInDir.Name())
-			if err = AddFileToZip(zipWriter, filepath.Join(filename, finfoInDir.Name()), filepath.Join(basedir, finfo.Name())); err != nil {
+			if err = AddFileToZip(zipWriter,
+				filepath.Join(filename, finfoInDir.Name()),
+				filepath.Join(basedir, finfo.Name()),
+			); err != nil {
 				return errors.Wrapf(err, "zip sub basedir `%s`", childDir)
 			}
 		}
@@ -331,7 +334,7 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file: %s", filename)
 	}
-	defer fileToZip.Close()
+	defer func() { _ = fileToZip.Close() }()
 
 	var header *zip.FileHeader
 	if header, err = zip.FileInfoHeader(finfo); err != nil {

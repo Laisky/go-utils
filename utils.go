@@ -132,7 +132,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", filepath)
 	}
-	defer fp.Close()
+	defer func() { _ = fp.Close() }()
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return errors.Wrap(err, "read file content")
@@ -268,7 +268,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
 		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
 	}
-	defer fp.Close()
+	defer func() { _ = fp.Close() }()
 	if memByte, err = ioutil.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")
 	}
@@ -497,23 +497,23 @@ func Base64Decode(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
 }
 
-// SimpleExpCache single item with expires
-type SimpleExpCache struct {
+// SingleItemExpCache single item with expires
+type SingleItemExpCache struct {
 	expiredAt time.Time
 	ttl       time.Duration
 	data      interface{}
 	mu        sync.RWMutex
 }
 
-// NewSimpleExpCache new expcache contains single data
-func NewSimpleExpCache(ttl time.Duration) *SimpleExpCache {
-	return &SimpleExpCache{
+// NewSingleItemExpCache new expcache contains single data
+func NewSingleItemExpCache(ttl time.Duration) *SingleItemExpCache {
+	return &SingleItemExpCache{
 		ttl: ttl,
 	}
 }
 
 // Set set data and refresh expires
-func (c *SimpleExpCache) Set(data interface{}) {
+func (c *SingleItemExpCache) Set(data interface{}) {
 	c.mu.Lock()
 	c.data = data
 	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
@@ -523,12 +523,9 @@ func (c *SimpleExpCache) Set(data interface{}) {
 // Get get data
 //
 // if data is expired, ok=false
-func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
+func (c *SingleItemExpCache) Get() (data interface{}, ok bool) {
 	c.mu.RLock()
 	data = c.data
-
-	fmt.Println("c.expiredAt", c.expiredAt)
-	fmt.Println("Clock.GetUTCNow()", Clock.GetUTCNow())
 
 	ok = Clock.GetUTCNow().Before(c.expiredAt)
 	c.mu.RUnlock()
@@ -537,7 +534,7 @@ func (c *SimpleExpCache) Get() (data interface{}, ok bool) {
 }
 
 // GetString same as Get, but return string
-func (c *SimpleExpCache) GetString() (data string, ok bool) {
+func (c *SingleItemExpCache) GetString() (data string, ok bool) {
 	var itf interface{}
 	if itf, ok = c.Get(); !ok {
 		return "", false
@@ -547,7 +544,7 @@ func (c *SimpleExpCache) GetString() (data string, ok bool) {
 }
 
 // GetUintSlice same as Get, but return []uint
-func (c *SimpleExpCache) GetUintSlice() (data []uint, ok bool) {
+func (c *SingleItemExpCache) GetUintSlice() (data []uint, ok bool) {
 	var itf interface{}
 	if itf, ok = c.Get(); !ok {
 		return nil, false
@@ -611,6 +608,11 @@ func (c *ExpCache) Store(key, val interface{}) {
 	})
 }
 
+// Delete remove key
+func (c *ExpCache) Delete(key interface{}) {
+	c.data.Delete(key)
+}
+
 // Load load val from cache
 func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
@@ -637,18 +639,20 @@ func (e *expiredMapItem) refreshTime() {
 	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
 }
 
-// ExpiredMap map with expire time, auto delete expired item.
+// LRUExpiredMap map with expire time, auto delete expired item.
 //
 // `Get` will auto refresh item's expires.
-type ExpiredMap struct {
+type LRUExpiredMap struct {
 	m   sync.Map
 	ttl time.Duration
 	new func() interface{}
 }
 
-// NewExpiredMap new ExpiredMap
-func NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{}) (el *ExpiredMap, err error) {
-	el = &ExpiredMap{
+// NewLRUExpiredMap new ExpiredMap
+func NewLRUExpiredMap(ctx context.Context,
+	ttl time.Duration,
+	new func() interface{}) (el *LRUExpiredMap, err error) {
+	el = &LRUExpiredMap{
 		ttl: ttl,
 		new: new,
 	}
@@ -657,7 +661,7 @@ func NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{
 	return el, nil
 }
 
-func (e *ExpiredMap) clean(ctx context.Context) {
+func (e *LRUExpiredMap) clean(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -689,7 +693,7 @@ func (e *ExpiredMap) clean(ctx context.Context) {
 // Get get item
 //
 // will auto refresh key's ttl
-func (e *ExpiredMap) Get(key string) interface{} {
+func (e *LRUExpiredMap) Get(key string) interface{} {
 	l, _ := e.m.Load(key)
 	if l == nil {
 		t := Clock.GetUTCNow().Unix()
