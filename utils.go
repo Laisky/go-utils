@@ -608,6 +608,11 @@ func (c *ExpCache) Store(key, val interface{}) {
 	})
 }
 
+// Delete remove key
+func (c *ExpCache) Delete(key interface{}) {
+	c.data.Delete(key)
+}
+
 // Load load val from cache
 func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {

@@ -3,6 +3,7 @@ module github.com/Laisky/go-utils
 go 1.13
 
 require (
+	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.12.3-0.20210804015521-853b5a8ec429
@@ -22,7 +23,4 @@ require (
 	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
-	skiplist v0.0.0-00010101000000-000000000000
 )
-
-replace skiplist => github.com/Laisky/fast-skiplist v0.0.0-20210903093518-aea9c86c0252
