@@ -379,9 +379,20 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 	}
 }
 
-func TestAtomicField(t *testing.T) {
+func ExampleAtomicFieldBool() {
 	type foo struct {
-		v AtomicField
+		v AtomicFieldBool
+	}
+
+	f := new(foo)
+	f.v.SetTrue()
+	fmt.Println(f.v.True())
+	// Output: true
+}
+
+func TestAtomicFieldBool(t *testing.T) {
+	type foo struct {
+		v AtomicFieldBool
 	}
 
 	f := new(foo)

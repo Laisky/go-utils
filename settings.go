@@ -18,19 +18,23 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type AtomicField struct {
+// AtomicFieldBool is a bool field which is goroutine-safe
+type AtomicFieldBool struct {
 	v int64
 }
 
-func (a *AtomicField) True() bool {
+// True value == true
+func (a *AtomicFieldBool) True() bool {
 	return atomic.LoadInt64(&a.v) == 1
 }
 
-func (a *AtomicField) SetTrue() {
+// SetTrue set true
+func (a *AtomicFieldBool) SetTrue() {
 	atomic.StoreInt64(&a.v, 1)
 }
 
-func (a *AtomicField) SetFalse() {
+// SetFalse set false
+func (a *AtomicFieldBool) SetFalse() {
 	atomic.StoreInt64(&a.v, 0)
 }
 
