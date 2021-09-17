@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	zap "github.com/Laisky/zap"
@@ -16,6 +17,22 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 )
+
+type AtomicField struct {
+	v int64
+}
+
+func (a *AtomicField) True() bool {
+	return atomic.LoadInt64(&a.v) == 1
+}
+
+func (a *AtomicField) SetTrue() {
+	atomic.StoreInt64(&a.v, 1)
+}
+
+func (a *AtomicField) SetFalse() {
+	atomic.StoreInt64(&a.v, 0)
+}
 
 const defaultConfigFileName = "settings.yml"
 

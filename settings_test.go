@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
+	"golang.org/x/sync/errgroup"
 )
 
 func ExampleSettings() {
@@ -375,4 +377,43 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 			t.Fatalf("got: %s", string(got))
 		}
 	}
+}
+
+func TestAtomicField(t *testing.T) {
+	type foo struct {
+		v AtomicField
+	}
+
+	f := new(foo)
+	require.False(t, f.v.True())
+
+	t.Run("baseline", func(t *testing.T) {
+		f.v.SetTrue()
+		require.True(t, f.v.True())
+
+		f.v.SetFalse()
+		require.False(t, f.v.True())
+	})
+
+	t.Run("race", func(t *testing.T) {
+		var pool errgroup.Group
+		for i := 0; i < 10; i++ {
+			pool.Go(func() error {
+				rander := rand.New(rand.NewSource(time.Now().Unix()))
+				for i := 0; i < 1000; i++ {
+					if rander.Intn(10) < 5 {
+						f.v.SetTrue()
+						f.v.True()
+					} else {
+						f.v.SetFalse()
+						f.v.True()
+					}
+				}
+
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+	})
 }
