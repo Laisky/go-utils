@@ -945,3 +945,91 @@ func TestBytes2Str(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%x", newBytes), fmt.Sprintf("%x", rawBytes))
 	}
 }
+
+func Benchmark_slice(b *testing.B) {
+	type foo struct {
+		val string
+	}
+	payload := RandomStringWithLength(128)
+
+	b.Run("[]struct append", func(b *testing.B) {
+		var data []foo
+		for i := 0; i < b.N; i++ {
+			data = append(data, foo{val: payload})
+		}
+
+		b.Log(len(data))
+	})
+
+	b.Run("[]*struct append", func(b *testing.B) {
+		var data []*foo
+		for i := 0; i < b.N; i++ {
+			data = append(data, &foo{val: payload})
+		}
+
+		b.Log(len(data))
+	})
+
+	b.Run("[]struct with prealloc", func(b *testing.B) {
+		data := make([]foo, 100)
+		for i := 0; i < b.N; i++ {
+			data[i%100] = foo{val: payload}
+		}
+	})
+
+	b.Run("[]*struct with prealloc", func(b *testing.B) {
+		data := make([]*foo, 100)
+		for i := 0; i < b.N; i++ {
+			data[i%100] = &foo{val: payload}
+		}
+	})
+}
+
+func TestJSONMd5(t *testing.T) {
+	type args struct {
+		data interface{}
+	}
+	type foo struct {
+		Name string `json:"name"`
+	}
+	var nilArgs *foo
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{"0", args{nil}, "", true},
+		{"1", args{nilArgs}, "", true},
+		{"2", args{foo{}}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"3", args{new(foo)}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"4", args{foo{""}}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"5", args{foo{Name: "a"}}, "88148e411b9b424a2e0ddf108cb02baa", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := JSONMd5(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("JSONMd5() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("JSONMd5() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNilInterface(t *testing.T) {
+	type foo struct{}
+	var f *foo
+	var v interface{}
+	var tf foo
+
+	v = f
+	require.False(t, v == nil)
+	require.True(t, NilInterface(v))
+	require.False(t, NilInterface(tf))
+	require.False(t, NilInterface(123))
+	require.True(t, NilInterface(nil))
+}

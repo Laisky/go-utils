@@ -79,6 +79,42 @@ func IsHasMethod(st interface{}, methodName string) bool {
 	return method.IsValid()
 }
 
+// MD5JSON calculate md5(jsonify(data))
+func MD5JSON(data interface{}) (string, error) {
+	if NilInterface(data) {
+		return "", errors.New("data is nil")
+	}
+
+	b, err := JSON.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
+}
+
+// NilInterface make sure data is nil interface or another type with nil value
+//
+// Example:
+//   type foo struct{}
+//   var f *foo
+//   var v interface{}
+//   v = f
+//   v == nil // false
+//   NilInterface(v) // true
+func NilInterface(data interface{}) bool {
+	if data == nil {
+		return true
+	}
+
+	if reflect.TypeOf(data).Kind() == reflect.Ptr &&
+		reflect.ValueOf(data).IsNil() {
+		return true
+	}
+
+	return false
+}
+
 // GetStructFieldByName get struct field by name
 func GetStructFieldByName(st interface{}, fieldName string) interface{} {
 	stv := reflect.ValueOf(st)
