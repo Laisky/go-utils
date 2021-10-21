@@ -1008,13 +1008,13 @@ func TestJSONMd5(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := JSONMd5(tt.args.data)
+			got, err := MD5JSON(tt.args.data)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("JSONMd5() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("MD5JSON() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("JSONMd5() = %v, want %v", got, tt.want)
+				t.Errorf("MD5JSON() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1027,7 +1027,7 @@ func TestNilInterface(t *testing.T) {
 	var tf foo
 
 	v = f
-	require.False(t, v == nil)
+	require.NotEqual(t, v, nil)
 	require.True(t, NilInterface(v))
 	require.False(t, NilInterface(tf))
 	require.False(t, NilInterface(123))

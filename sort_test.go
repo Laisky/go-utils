@@ -13,9 +13,9 @@ func (i *Item) GetValue() int {
 	return i.v
 }
 
-// func (i *Item) GetKey() interface{} {
-// 	return i.k
-// }
+func (i *Item) GetData() interface{} {
+	return i.k
+}
 
 func TestSortSmallest(t *testing.T) {
 	items := PairList{
