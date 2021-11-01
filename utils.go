@@ -29,6 +29,7 @@ import (
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
