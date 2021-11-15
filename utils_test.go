@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
+	_ "go.uber.org/automaxprocs"
 )
 
 type testEmbeddedSt struct{}
@@ -1032,4 +1034,15 @@ func TestNilInterface(t *testing.T) {
 	require.False(t, NilInterface(tf))
 	require.False(t, NilInterface(123))
 	require.True(t, NilInterface(nil))
+}
+
+func TestPanicIfErr(t *testing.T) {
+	PanicIfErr(nil)
+
+	err := errors.New("yo")
+	defer func() {
+		perr := recover()
+		require.Equal(t, err, perr)
+	}()
+	PanicIfErr(err)
 }

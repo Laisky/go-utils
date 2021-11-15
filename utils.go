@@ -856,3 +856,10 @@ func StopSignal(optfs ...StopSignalOptFunc) (stopCh <-chan struct{}) {
 
 	return stop
 }
+
+// PanicIfErr panic if err is not nil
+func PanicIfErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
