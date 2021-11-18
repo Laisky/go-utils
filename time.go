@@ -201,3 +201,10 @@ func (c *ClockType) Interval() time.Duration {
 
 	return c.interval
 }
+
+var (
+	// TimeZoneUTC timezone UTC
+	TimeZoneUTC = time.UTC
+	// TimeZoneShanghai timezone Shanghai
+	TimeZoneShanghai = time.FixedZone("Asia/Shanghai", 8*3600)
+)

@@ -9,6 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTimeZone(t *testing.T) {
+	ts := "2021-10-24T20:00:00+10:00"
+	tt, err := time.Parse(time.RFC3339, ts)
+	require.NoError(t, err)
+
+	_, offset := tt.Zone()
+	require.Equal(t, 10*3600, offset)
+
+	tt = tt.In(TimeZoneUTC)
+	_, offset = tt.Zone()
+	require.Equal(t, 0, offset)
+
+	tt = tt.In(TimeZoneShanghai)
+	_, offset = tt.Zone()
+	require.Equal(t, 8*3600, offset)
+
+	tz, err := time.LoadLocation("Asia/Shanghai")
+	require.NoError(t, err)
+	tt = tt.In(tz)
+	_, offset = tt.Zone()
+	require.Equal(t, 8*3600, offset)
+}
+
 func TestParseTs2String(t *testing.T) {
 	var (
 		got    string
