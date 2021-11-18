@@ -6,7 +6,7 @@ require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.5
-	github.com/Laisky/zap v1.12.3-0.20210804015521-853b5a8ec429
+	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
 	github.com/cespare/xxhash v1.1.0
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 	github.com/json-iterator/go v1.1.11
