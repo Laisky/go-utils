@@ -206,5 +206,12 @@ var (
 	// TimeZoneUTC timezone UTC
 	TimeZoneUTC = time.UTC
 	// TimeZoneShanghai timezone Shanghai
-	TimeZoneShanghai = time.FixedZone("Asia/Shanghai", 8*3600)
+	// TimeZoneShanghai = time.FixedZone("Asia/Shanghai", 8*3600)
+	TimeZoneShanghai *time.Location
 )
+
+func init() {
+	var err error
+	TimeZoneShanghai, err = time.LoadLocation("Asia/Shanghai")
+	PanicIfErr(err)
+}
