@@ -152,7 +152,7 @@ func GetStructFieldByName(st interface{}, fieldName string) interface{} {
 func ValidateFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")
 	if len(hs) != 2 {
-		return fmt.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
+		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
 	}
 
 	var hasher hash.Hash
@@ -162,7 +162,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	case "md5":
 		hasher = md5.New()
 	default:
-		return fmt.Errorf("unknown hasher `%s`", hs[0])
+		return errors.Errorf("unknown hasher `%s`", hs[0])
 	}
 
 	fp, err := os.Open(filepath)
@@ -177,7 +177,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if hs[1] != actualHash {
-		return fmt.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
+		return errors.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
 	}
 
 	return nil
@@ -258,10 +258,10 @@ type GcOptFunc func(*gcOption) error
 func WithGCMemRatio(ratio int) GcOptFunc {
 	return func(opt *gcOption) error {
 		if ratio <= 0 {
-			return fmt.Errorf("ratio must > 0, got %d", ratio)
+			return errors.Errorf("ratio must > 0, got %d", ratio)
 		}
 		if ratio > 100 {
-			return fmt.Errorf("ratio must <= 0, got %d", ratio)
+			return errors.Errorf("ratio must <= 0, got %d", ratio)
 		}
 
 		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
@@ -317,7 +317,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
 	if memLimit == 0 {
-		return fmt.Errorf("mem limit should > 0, but got: %d", memLimit)
+		return errors.Errorf("mem limit should > 0, but got: %d", memLimit)
 	}
 	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 
@@ -412,7 +412,7 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 		case reflect.Slice:
 		case reflect.Array:
 		default:
-			return fmt.Errorf(name + " must be array/slice")
+			return errors.Errorf(name + " must be array/slice")
 		}
 
 		return nil

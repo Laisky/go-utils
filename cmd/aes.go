@@ -7,7 +7,6 @@ package cmd
 // =====================================
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -78,7 +77,7 @@ func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
 
 	if gutils.Settings.GetString("inputfile") == "" &&
 		gutils.Settings.GetString("inputdir") == "" {
-		return fmt.Errorf("inputfile & inputdir cannot both be empty")
+		return errors.Errorf("inputfile & inputdir cannot both be empty")
 	}
 
 	if gutils.Settings.GetString("outputfile") == "" &&
@@ -93,7 +92,7 @@ func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
 	}
 
 	if gutils.Settings.GetString("secret") == "" {
-		return fmt.Errorf("secret cannot be empty")
+		return errors.Errorf("secret cannot be empty")
 	}
 
 	return nil
@@ -109,7 +108,7 @@ func encryptDirFileByAes() error {
 	)
 	logger.Info("encrypt files in dir")
 
-	return gutils.AESEncryptFilesInDir(in, secret)
+	return gutils.AESEncryptFilesInDir2(in, secret)
 }
 
 func encryptFileByAes() error {

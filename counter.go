@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 )
 
 // Int64CounterItf counter for int64
@@ -105,13 +105,13 @@ func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
 // NewRotateCounterFromNWithCtx create new RotateCounter with threshold from N
 func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*RotateCounter, error) {
 	if rotatePoint <= 0 {
-		return nil, fmt.Errorf("rotatePoint should bigger than 0, but got %d", rotatePoint)
+		return nil, errors.Errorf("rotatePoint should bigger than 0, but got %d", rotatePoint)
 	}
 	if n < 0 {
-		return nil, fmt.Errorf("n should bigger than 0, but got %d", n)
+		return nil, errors.Errorf("n should bigger than 0, but got %d", n)
 	}
 	if n >= rotatePoint {
-		return nil, fmt.Errorf("n should less than rotatePoint, got n %d, rotatePoint %d", n, rotatePoint)
+		return nil, errors.Errorf("n should less than rotatePoint, got n %d, rotatePoint %d", n, rotatePoint)
 	}
 	c := &RotateCounter{
 		n:           n,
@@ -241,7 +241,7 @@ func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) 
 		quoteStep = defaultQuoteStep
 	}
 	if rotatePoint <= 0 || quoteStep >= rotatePoint {
-		return nil, fmt.Errorf("rotate should greater than quoteStep and 0")
+		return nil, errors.Errorf("rotate should greater than quoteStep and 0")
 	}
 
 	return &ParallelCounter{
@@ -259,10 +259,10 @@ func NewParallelCounterFromN(n, quoteStep, rotatePoint int64) (*ParallelCounter,
 		quoteStep = defaultQuoteStep
 	}
 	if n < 0 {
-		return nil, fmt.Errorf("n must greater than 0")
+		return nil, errors.Errorf("n must greater than 0")
 	}
 	if rotatePoint <= 0 || quoteStep >= rotatePoint {
-		return nil, fmt.Errorf("rotate should greater than quoteStep and 0")
+		return nil, errors.Errorf("rotate should greater than quoteStep and 0")
 	}
 
 	return &ParallelCounter{

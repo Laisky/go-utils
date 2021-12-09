@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"fmt"
-
 	"github.com/form3tech-oss/jwt-go"
 	"github.com/pkg/errors"
 )
@@ -120,7 +118,7 @@ func (e *JWT) Sign(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) 
 		return e.SignByES256(claims, opts...)
 	}
 
-	return "", fmt.Errorf("unknown signmethod `%s`", e.signingMethod)
+	return "", errors.Errorf("unknown signmethod `%s`", e.signingMethod)
 }
 
 // SignByHS256 signing claims by HS256
@@ -171,7 +169,7 @@ func (e *JWT) ParseClaims(token string, claimsPtr jwt.Claims, opts ...JWTDiviceO
 	case SignMethodES256:
 		return e.ParseClaimsByES256(token, claimsPtr, opts...)
 	default:
-		return fmt.Errorf("unknown sign method `%s`", e.signingMethod)
+		return errors.Errorf("unknown sign method `%s`", e.signingMethod)
 	}
 }
 
@@ -188,7 +186,7 @@ func (e *JWT) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...JWT
 
 	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return opt.secret, nil
 	}); err != nil {
@@ -217,7 +215,7 @@ func (e *JWT) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...JWT
 
 	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
 		return pubKey, nil

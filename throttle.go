@@ -2,8 +2,9 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // ThrottleCfg Throttle's configuration
@@ -25,10 +26,10 @@ type Throttle struct {
 // 90x faster than `rate.NewLimiter`
 func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err error) {
 	if cfg.NPerSec <= 0 {
-		return nil, fmt.Errorf("npersec should greater than 0")
+		return nil, errors.Errorf("npersec should greater than 0")
 	}
 	if cfg.Max < cfg.NPerSec {
-		return nil, fmt.Errorf("max should greater than npersec")
+		return nil, errors.Errorf("max should greater than npersec")
 	}
 
 	t = &Throttle{

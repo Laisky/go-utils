@@ -102,7 +102,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // 	}
 // 	var ok bool
 // 	if l.userID, ok = payload[defaultLaiskyRemoteLockTokenUserKey].(string); !ok {
-// 		return nil, fmt.Errorf("unknown typo of %s, should be string", defaultLaiskyRemoteLockTokenUserKey)
+// 		return nil, errors.Errorf("unknown typo of %s, should be string", defaultLaiskyRemoteLockTokenUserKey)
 // 	}
 // 	for _, optf := range opts {
 // 		if err = optf(l); err != nil {
@@ -142,7 +142,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // func WithAcquireLockDuration(duration time.Duration) AcquireLockOptFunc {
 // 	return func(opt *acquireLockOption) error {
 // 		if duration <= 0 {
-// 			return fmt.Errorf("duration should greater than 0, got %d", duration)
+// 			return errors.Errorf("duration should greater than 0, got %d", duration)
 // 		}
 
 // 		opt.duration = duration
@@ -154,7 +154,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // func WithAcquireLockRenewalInterval(renewalInterval time.Duration) AcquireLockOptFunc {
 // 	return func(opt *acquireLockOption) error {
 // 		if renewalInterval < 100*time.Millisecond {
-// 			return fmt.Errorf("renewalInterval must greater than 100ms, got %d", renewalInterval)
+// 			return errors.Errorf("renewalInterval must greater than 100ms, got %d", renewalInterval)
 // 		}
 
 // 		opt.renewalInterval = renewalInterval
@@ -174,7 +174,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 // func WithAcquireLockMaxRetry(maxRetry int) AcquireLockOptFunc {
 // 	return func(opt *acquireLockOption) error {
 // 		if maxRetry < 0 {
-// 			return fmt.Errorf("maxRetry must greater than 0, got %d", maxRetry)
+// 			return errors.Errorf("maxRetry must greater than 0, got %d", maxRetry)
 // 		}
 
 // 		opt.maxRetry = maxRetry

@@ -218,7 +218,7 @@ func NewLogger(optfs ...LoggerOption) (l *LoggerType, err error) {
 
 	zapLogger, err := opt.Build(opt.zapOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("build zap logger: %+v", err)
+		return nil, errors.Errorf("build zap logger: %+v", err)
 	}
 	zapLogger = zapLogger.Named(opt.Name)
 
@@ -401,7 +401,7 @@ type alertMsg struct {
 func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertHookOptFunc) (a *AlertPusher, err error) {
 	Logger.Debug("create new AlertPusher", zap.String("pushAPI", pushAPI))
 	if pushAPI == "" {
-		return nil, fmt.Errorf("pushAPI should nout empty")
+		return nil, errors.Errorf("pushAPI should nout empty")
 	}
 
 	opt := newAlertHookOpt()
@@ -459,7 +459,7 @@ func (a *AlertPusher) SendWithType(alertType, pushToken, msg string) (err error)
 		msg:       msg,
 	}:
 	default:
-		return fmt.Errorf("send channel overflow")
+		return errors.Errorf("send channel overflow")
 	}
 
 	return nil
@@ -629,7 +629,7 @@ func (p *PateoAlertPusher) Send(title, content string, ts time.Time) (err error)
 	}:
 		return nil
 	default:
-		return fmt.Errorf("sender chan overflow")
+		return errors.Errorf("sender chan overflow")
 	}
 }
 

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ExampleSettings() {
+func ExampleSettings_CMD() {
 	// read settings from yml file
 	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
 	pflag.Parse()
@@ -38,7 +38,6 @@ func ExampleSettings() {
 
 func ExampleSettings_cobra() {
 	/*
-
 		import {
 			"github.com/spf13/cobra"
 		}

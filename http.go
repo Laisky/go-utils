@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"crypto/tls"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -50,7 +49,7 @@ type HTTPClientOptFunc func(*httpClientOption) error
 func WithHTTPClientTimeout(timeout time.Duration) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if timeout <= 0 {
-			return fmt.Errorf("timeout should greater than 0")
+			return errors.Errorf("timeout should greater than 0")
 		}
 
 		opt.timeout = timeout
@@ -64,7 +63,7 @@ func WithHTTPClientTimeout(timeout time.Duration) HTTPClientOptFunc {
 func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		if maxConn <= 0 {
-			return fmt.Errorf("maxConn should greater than 0")
+			return errors.Errorf("maxConn should greater than 0")
 		}
 
 		opt.maxConn = maxConn

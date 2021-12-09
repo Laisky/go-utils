@@ -1,6 +1,6 @@
 package utils
 
-import "fmt"
+import "github.com/pkg/errors"
 
 // JumpHash fatest consistent hashing created by google.
 // inspired by https://medium.com/@dgryski/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8
@@ -8,7 +8,7 @@ func JumpHash(key uint64, numBuckets int) (int32, error) {
 	var b, j int64
 
 	if numBuckets <= 0 {
-		return 0, fmt.Errorf("numBuckets should greater than 0")
+		return 0, errors.Errorf("numBuckets should greater than 0")
 	}
 
 	for j < int64(numBuckets) {

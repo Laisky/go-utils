@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -203,14 +202,14 @@ func EncodeES256SignByHex(a, b *big.Int) string {
 func DecodeES256SignByHex(sign string) (a, b *big.Int, err error) {
 	ss := strings.Split(sign, ecdsaSignDelimiter)
 	if len(ss) != 2 {
-		return nil, nil, fmt.Errorf("unknown format of signature `%s`, want `xxx.xxx`", sign)
+		return nil, nil, errors.Errorf("unknown format of signature `%s`, want `xxx.xxx`", sign)
 	}
 	var ok bool
 	if a, ok = ParseHex2Big(ss[0]); !ok {
-		return nil, nil, fmt.Errorf("invalidate hex `%s`", ss[0])
+		return nil, nil, errors.Errorf("invalidate hex `%s`", ss[0])
 	}
 	if b, ok = ParseHex2Big(ss[1]); !ok {
-		return nil, nil, fmt.Errorf("invalidate hex `%s`", ss[1])
+		return nil, nil, errors.Errorf("invalidate hex `%s`", ss[1])
 	}
 
 	return
@@ -289,7 +288,7 @@ func expandAesSecret(secret []byte) []byte {
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
 	if len(secret) == 0 {
-		return nil, fmt.Errorf("secret is empty")
+		return nil, errors.Errorf("secret is empty")
 	}
 
 	// generate a new aes cipher
@@ -328,7 +327,7 @@ func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
 	if len(secret) == 0 {
-		return nil, fmt.Errorf("secret is empty")
+		return nil, errors.Errorf("secret is empty")
 	}
 
 	// generate a new aes cipher
@@ -347,7 +346,7 @@ func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
 
 	nonceSize := gcm.NonceSize()
 	if len(encrypted) < nonceSize {
-		return nil, fmt.Errorf("encrypted too short")
+		return nil, errors.Errorf("encrypted too short")
 	}
 
 	nonce, encrypted := encrypted[:nonceSize], encrypted[nonceSize:]
