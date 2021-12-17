@@ -29,6 +29,8 @@ import (
 	"github.com/Laisky/zap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+
+	// automaxprocs compatable with cgroup
 	_ "go.uber.org/automaxprocs"
 )
 

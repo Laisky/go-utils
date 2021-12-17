@@ -192,9 +192,11 @@ type settingsOpt struct {
 	encryptedSuffix string
 }
 
+const defaultEncryptSuffix = ".enc"
+
 func (o *settingsOpt) fillDefault() {
 	o.encryptedMark = ".enc."
-	o.encryptedSuffix = ".enc"
+	o.encryptedSuffix = defaultEncryptSuffix
 }
 
 // SettingsOptFunc opt for settings
@@ -438,8 +440,8 @@ type settingsAESEncryptOpt struct {
 
 func (o *settingsAESEncryptOpt) fillDefault() {
 	o.ext = ".toml"
-	o.append = ".enc"
-	o.suffix = ".enc"
+	o.append = defaultEncryptSuffix
+	o.suffix = defaultEncryptSuffix
 }
 
 // SettingsEncryptOptf options to encrypt files in dir
@@ -497,7 +499,7 @@ func AESEncryptFilesInDirFileSuffix(suffix string) SettingsEncryptOptf {
 func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
 	opt := &settingsAESEncryptOpt{
 		ext:    ".toml",
-		append: ".enc",
+		append: defaultEncryptSuffix,
 	}
 	for _, optf := range opts {
 		if err = optf(opt); err != nil {

@@ -8,7 +8,7 @@ require (
 	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
 	github.com/cespare/xxhash v1.1.0
-	github.com/form3tech-oss/jwt-go v3.2.3+incompatible
+	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/klauspost/pgzip v1.2.5
