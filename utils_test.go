@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
 )
@@ -1045,4 +1045,41 @@ func TestPanicIfErr(t *testing.T) {
 		require.Equal(t, err, perr)
 	}()
 	PanicIfErr(err)
+}
+
+func TestDedent(t *testing.T) {
+	t.Run("normal", func(t *testing.T) {
+		v := `
+		123
+		234
+		 345
+			222
+		`
+
+		dedent := Dedent(v, WithReplaceTabBySpaces(4))
+		require.Equal(t, "123\n234\n 345\n    222", dedent)
+	})
+
+	t.Run("3 blanks", func(t *testing.T) {
+		v := `
+		123
+		234
+		 345	2
+			222
+		`
+
+		dedent := Dedent(v, WithReplaceTabBySpaces(3))
+		require.Equal(t, "123\n234\n 345\t2\n   222", dedent)
+	})
+
+	t.Run("shrink", func(t *testing.T) {
+		v := `
+		123
+	   234
+		`
+
+		dedent := Dedent(v)
+		require.Equal(t, " 123\n234", dedent)
+	})
+
 }

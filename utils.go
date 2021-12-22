@@ -48,6 +48,72 @@ const (
 // CtxKeyT type of context key
 type CtxKeyT struct{}
 
+var dedentMarginChar = regexp.MustCompile(`^[ \t]*`)
+
+type dedentOpt struct {
+	replaceTabBySpaces int
+}
+
+func (d *dedentOpt) fillDefault() *dedentOpt {
+	d.replaceTabBySpaces = 4
+	return d
+}
+
+func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
+	for _, optf := range optfs {
+		optf(d)
+	}
+	return d
+}
+
+// DedentOptFunc dedent option
+type DedentOptFunc func(opt *dedentOpt)
+
+// WithReplaceTabBySpaces replace tab to spaces
+func WithReplaceTabBySpaces(spaces int) DedentOptFunc {
+	return func(opt *dedentOpt) {
+		opt.replaceTabBySpaces = spaces
+	}
+}
+
+// Dedent removes leading whitespace or tab from the beginning of each line
+//
+// will replace all tab to 4 blanks.
+func Dedent(v string, optfs ...DedentOptFunc) string {
+	opt := new(dedentOpt).fillDefault().applyOpts(optfs...)
+	ls := strings.Split(v, "\n")
+	var (
+		firstLine      bool = true
+		NSpaceTobeTrim int
+		result         []string
+	)
+	for _, l := range ls {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+
+		m := dedentMarginChar.FindString(l)
+		spaceIndent := strings.ReplaceAll(m, "\t", strings.Repeat(" ", opt.replaceTabBySpaces))
+		n := len(spaceIndent)
+		l = strings.Replace(l, m, spaceIndent, 1)
+		if firstLine {
+			NSpaceTobeTrim = n
+			firstLine = false
+		} else if n < NSpaceTobeTrim {
+			// choose the smallest margin
+			NSpaceTobeTrim = n
+		}
+
+		result = append(result, l)
+	}
+
+	for i := range result {
+		result[i] = result[i][NSpaceTobeTrim:]
+	}
+
+	return strings.Join(result, "\n")
+}
+
 // IsHasField check is struct has field
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
