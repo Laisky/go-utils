@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ExampleSettings_CMD() {
+func ExampleSettings_BindPFlags() {
 	// read settings from yml file
 	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
 	pflag.Parse()

@@ -46,7 +46,7 @@ var fakeConfigSrvData = map[string]interface{}{
 
 func fakeHandler(data interface{}) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		d, err := json.Marshal(data)
+		d, err := JSON.Marshal(data)
 		if err != nil {
 			Logger.Panic("marashal fake config")
 		}
