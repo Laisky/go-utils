@@ -9,6 +9,7 @@ require (
 	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
 	github.com/cespare/xxhash v1.1.0
 	github.com/golang-jwt/jwt/v4 v4.2.0
+	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.11
 	github.com/klauspost/compress v1.13.3 // indirect
 	github.com/klauspost/pgzip v1.2.5

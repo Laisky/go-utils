@@ -27,6 +27,7 @@ import (
 	"unsafe"
 
 	"github.com/Laisky/zap"
+	"github.com/google/go-cpy/cpy"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 
@@ -47,6 +48,17 @@ const (
 
 // CtxKeyT type of context key
 type CtxKeyT struct{}
+
+var cloner = cpy.New(
+	cpy.IgnoreAllUnexported(),
+)
+
+// DeepClone deep clone a struct
+//
+// will ignore all unexported fields
+func DeepClone(src interface{}) (dst interface{}) {
+	return cloner.Copy(src)
+}
 
 var dedentMarginChar = regexp.MustCompile(`^[ \t]*`)
 
