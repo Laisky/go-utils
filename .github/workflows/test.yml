@@ -32,4 +32,5 @@ jobs:
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
       - run: go mod vendor
       - run: go vet
-      - run: go test -race ./...
+      - run: go test -race -mod=vendor -coverprofile=coverage.txt -covermode=atomic ./...
+      - run: bash <(curl -s https://codecov.io/bash)
