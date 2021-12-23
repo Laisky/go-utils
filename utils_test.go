@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	_ "go.uber.org/automaxprocs"
 )
 
 type testEmbeddedSt struct{}
@@ -944,4 +946,151 @@ func TestBytes2Str(t *testing.T) {
 		newBytes := Str2Bytes(str)
 		require.Equal(t, fmt.Sprintf("%x", newBytes), fmt.Sprintf("%x", rawBytes))
 	}
+}
+
+func Benchmark_slice(b *testing.B) {
+	type foo struct {
+		val string
+	}
+	payload := RandomStringWithLength(128)
+
+	b.Run("[]struct append", func(b *testing.B) {
+		var data []foo
+		for i := 0; i < b.N; i++ {
+			data = append(data, foo{val: payload})
+		}
+
+		b.Log(len(data))
+	})
+
+	b.Run("[]*struct append", func(b *testing.B) {
+		var data []*foo
+		for i := 0; i < b.N; i++ {
+			data = append(data, &foo{val: payload})
+		}
+
+		b.Log(len(data))
+	})
+
+	b.Run("[]struct with prealloc", func(b *testing.B) {
+		data := make([]foo, 100)
+		for i := 0; i < b.N; i++ {
+			data[i%100] = foo{val: payload}
+		}
+	})
+
+	b.Run("[]*struct with prealloc", func(b *testing.B) {
+		data := make([]*foo, 100)
+		for i := 0; i < b.N; i++ {
+			data[i%100] = &foo{val: payload}
+		}
+	})
+}
+
+func TestJSONMd5(t *testing.T) {
+	type args struct {
+		data interface{}
+	}
+	type foo struct {
+		Name string `json:"name"`
+	}
+	var nilArgs *foo
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{"0", args{nil}, "", true},
+		{"1", args{nilArgs}, "", true},
+		{"2", args{foo{}}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"3", args{new(foo)}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"4", args{foo{""}}, "555dfa90763bd852d5dd9144887eed97", false},
+		{"5", args{foo{Name: "a"}}, "88148e411b9b424a2e0ddf108cb02baa", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MD5JSON(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MD5JSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("MD5JSON() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNilInterface(t *testing.T) {
+	type foo struct{}
+	var f *foo
+	var v interface{}
+	var tf foo
+
+	v = f
+	require.NotEqual(t, v, nil)
+	require.True(t, NilInterface(v))
+	require.False(t, NilInterface(tf))
+	require.False(t, NilInterface(123))
+	require.True(t, NilInterface(nil))
+}
+
+func TestPanicIfErr(t *testing.T) {
+	PanicIfErr(nil)
+
+	err := errors.New("yo")
+	defer func() {
+		perr := recover()
+		require.Equal(t, err, perr)
+	}()
+	PanicIfErr(err)
+}
+
+func TestDedent(t *testing.T) {
+	t.Run("normal", func(t *testing.T) {
+		v := `
+		123
+		234
+		 345
+			222
+		`
+
+		dedent := Dedent(v, WithReplaceTabBySpaces(4))
+		require.Equal(t, "123\n234\n 345\n    222", dedent)
+	})
+
+	t.Run("3 blanks", func(t *testing.T) {
+		v := `
+		123
+		234
+		 345	2
+			222
+		`
+
+		dedent := Dedent(v, WithReplaceTabBySpaces(3))
+		require.Equal(t, "123\n234\n 345\t2\n   222", dedent)
+	})
+
+	t.Run("shrink", func(t *testing.T) {
+		v := `
+		123
+	   234
+		`
+
+		dedent := Dedent(v)
+		require.Equal(t, " 123\n234", dedent)
+	})
+
+}
+
+func TestDeepClone(t *testing.T) {
+	t.Run("slice", func(t *testing.T) {
+		inner := []int{4, 5, 6}
+		src := [][]int{inner}
+		dst := DeepClone(src)
+
+		inner[1] = 100
+		require.NotEqual(t, src[0][1], dst.([][]int)[0][1])
+	})
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,9 +14,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
+	"golang.org/x/sync/errgroup"
 )
 
-func ExampleSettings() {
+func ExampleSettings_BindPFlags() {
 	// read settings from yml file
 	pflag.String("config", "/etc/go-ramjet/settings", "config file directory path")
 	pflag.Parse()
@@ -36,7 +38,6 @@ func ExampleSettings() {
 
 func ExampleSettings_cobra() {
 	/*
-
 		import {
 			"github.com/spf13/cobra"
 		}
@@ -375,4 +376,54 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 			t.Fatalf("got: %s", string(got))
 		}
 	}
+}
+
+func ExampleAtomicFieldBool() {
+	type foo struct {
+		v AtomicFieldBool
+	}
+
+	f := new(foo)
+	f.v.SetTrue()
+	fmt.Println(f.v.True())
+	// Output: true
+}
+
+func TestAtomicFieldBool(t *testing.T) {
+	type foo struct {
+		v AtomicFieldBool
+	}
+
+	f := new(foo)
+	require.False(t, f.v.True())
+
+	t.Run("baseline", func(t *testing.T) {
+		f.v.SetTrue()
+		require.True(t, f.v.True())
+
+		f.v.SetFalse()
+		require.False(t, f.v.True())
+	})
+
+	t.Run("race", func(t *testing.T) {
+		var pool errgroup.Group
+		for i := 0; i < 10; i++ {
+			pool.Go(func() error {
+				rander := rand.New(rand.NewSource(time.Now().Unix()))
+				for i := 0; i < 1000; i++ {
+					if rander.Intn(10) < 5 {
+						f.v.SetTrue()
+						f.v.True()
+					} else {
+						f.v.SetFalse()
+						f.v.True()
+					}
+				}
+
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+	})
 }

@@ -2,9 +2,9 @@ package utils
 
 import (
 	"container/heap"
-	"fmt"
 
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 )
 
 // itemType item that need to sort
@@ -117,7 +117,7 @@ func GetSmallestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, e
 func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]HeapItemItf, error) {
 	Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
-		return nil, fmt.Errorf("GetMostFreqWords topN must larger than 2")
+		return nil, errors.Errorf("GetMostFreqWords topN must larger than 2")
 	}
 
 	var (
@@ -199,7 +199,7 @@ type LimitSizeHeap struct {
 // NewLimitSizeHeap create new LimitSizeHeap
 func NewLimitSizeHeap(size int, isHighest bool) (h *LimitSizeHeap, err error) {
 	if size < 1 {
-		return nil, fmt.Errorf("size must greater than 0")
+		return nil, errors.Errorf("size must greater than 0")
 	}
 
 	h = &LimitSizeHeap{

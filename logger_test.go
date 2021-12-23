@@ -2,12 +2,12 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	// zap "github.com/Laisky/zap"
 )
@@ -69,7 +69,7 @@ func TestSetupLogger(t *testing.T) {
 // 	case "error":
 // 		loglevel = zap2.NewAtomicLevelAt(zap2.ErrorLevel)
 // 	default:
-// 		panic(fmt.Errorf("log level only be debug/info/warn/error"))
+// 		panic(errors.Errorf("log level only be debug/info/warn/error"))
 // 	}
 
 // 	cfg := zap2.Config{
@@ -166,7 +166,7 @@ func TestAlertHook(t *testing.T) {
 	logger.Debug("DEBUG", zap.String("yo", "hello"))
 	logger.Info("Info", zap.String("yo", "hello"))
 	logger.Warn("Warn", zap.String("yo", "hello"))
-	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(fmt.Errorf("xxx")))
+	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(errors.Errorf("xxx")))
 	// t.Error()
 
 	time.Sleep(5 * time.Second)

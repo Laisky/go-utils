@@ -27,8 +27,12 @@ import (
 	"unsafe"
 
 	"github.com/Laisky/zap"
+	"github.com/google/go-cpy/cpy"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+
+	// automaxprocs compatable with cgroup
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
@@ -44,6 +48,83 @@ const (
 
 // CtxKeyT type of context key
 type CtxKeyT struct{}
+
+var cloner = cpy.New(
+	cpy.IgnoreAllUnexported(),
+)
+
+// DeepClone deep clone a struct
+//
+// will ignore all unexported fields
+func DeepClone(src interface{}) (dst interface{}) {
+	return cloner.Copy(src)
+}
+
+var dedentMarginChar = regexp.MustCompile(`^[ \t]*`)
+
+type dedentOpt struct {
+	replaceTabBySpaces int
+}
+
+func (d *dedentOpt) fillDefault() *dedentOpt {
+	d.replaceTabBySpaces = 4
+	return d
+}
+
+func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
+	for _, optf := range optfs {
+		optf(d)
+	}
+	return d
+}
+
+// DedentOptFunc dedent option
+type DedentOptFunc func(opt *dedentOpt)
+
+// WithReplaceTabBySpaces replace tab to spaces
+func WithReplaceTabBySpaces(spaces int) DedentOptFunc {
+	return func(opt *dedentOpt) {
+		opt.replaceTabBySpaces = spaces
+	}
+}
+
+// Dedent removes leading whitespace or tab from the beginning of each line
+//
+// will replace all tab to 4 blanks.
+func Dedent(v string, optfs ...DedentOptFunc) string {
+	opt := new(dedentOpt).fillDefault().applyOpts(optfs...)
+	ls := strings.Split(v, "\n")
+	var (
+		firstLine      bool = true
+		NSpaceTobeTrim int
+		result         []string
+	)
+	for _, l := range ls {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+
+		m := dedentMarginChar.FindString(l)
+		spaceIndent := strings.ReplaceAll(m, "\t", strings.Repeat(" ", opt.replaceTabBySpaces))
+		n := len(spaceIndent)
+		l = strings.Replace(l, m, spaceIndent, 1)
+		if firstLine {
+			NSpaceTobeTrim = n
+			firstLine = false
+		} else if n < NSpaceTobeTrim {
+			// choose the smallest margin
+			NSpaceTobeTrim = n
+		}
+
+		result = append(result, l)
+	}
+
+	for i := range result {
+		result[i] = result[i][NSpaceTobeTrim:]
+	}
+
+	return strings.Join(result, "\n")
+}
 
 // IsHasField check is struct has field
 //
@@ -77,6 +158,42 @@ func IsHasMethod(st interface{}, methodName string) bool {
 	// Get the method by name
 	method := valueIface.MethodByName(methodName)
 	return method.IsValid()
+}
+
+// MD5JSON calculate md5(jsonify(data))
+func MD5JSON(data interface{}) (string, error) {
+	if NilInterface(data) {
+		return "", errors.New("data is nil")
+	}
+
+	b, err := JSON.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", md5.Sum(b)), nil
+}
+
+// NilInterface make sure data is nil interface or another type with nil value
+//
+// Example:
+//   type foo struct{}
+//   var f *foo
+//   var v interface{}
+//   v = f
+//   v == nil // false
+//   NilInterface(v) // true
+func NilInterface(data interface{}) bool {
+	if data == nil {
+		return true
+	}
+
+	if reflect.TypeOf(data).Kind() == reflect.Ptr &&
+		reflect.ValueOf(data).IsNil() {
+		return true
+	}
+
+	return false
 }
 
 // GetStructFieldByName get struct field by name
@@ -115,7 +232,7 @@ func GetStructFieldByName(st interface{}, fieldName string) interface{} {
 func ValidateFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")
 	if len(hs) != 2 {
-		return fmt.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
+		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
 	}
 
 	var hasher hash.Hash
@@ -125,7 +242,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	case "md5":
 		hasher = md5.New()
 	default:
-		return fmt.Errorf("unknown hasher `%s`", hs[0])
+		return errors.Errorf("unknown hasher `%s`", hs[0])
 	}
 
 	fp, err := os.Open(filepath)
@@ -140,7 +257,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if hs[1] != actualHash {
-		return fmt.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
+		return errors.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
 	}
 
 	return nil
@@ -221,10 +338,10 @@ type GcOptFunc func(*gcOption) error
 func WithGCMemRatio(ratio int) GcOptFunc {
 	return func(opt *gcOption) error {
 		if ratio <= 0 {
-			return fmt.Errorf("ratio must > 0, got %d", ratio)
+			return errors.Errorf("ratio must > 0, got %d", ratio)
 		}
 		if ratio > 100 {
-			return fmt.Errorf("ratio must <= 0, got %d", ratio)
+			return errors.Errorf("ratio must <= 0, got %d", ratio)
 		}
 
 		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
@@ -280,7 +397,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 		return errors.Wrap(err, "parse cgroup memory limit")
 	}
 	if memLimit == 0 {
-		return fmt.Errorf("mem limit should > 0, but got: %d", memLimit)
+		return errors.Errorf("mem limit should > 0, but got: %d", memLimit)
 	}
 	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 
@@ -375,7 +492,7 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 		case reflect.Slice:
 		case reflect.Array:
 		default:
-			return fmt.Errorf(name + " must be array/slice")
+			return errors.Errorf(name + " must be array/slice")
 		}
 
 		return nil
@@ -818,4 +935,11 @@ func StopSignal(optfs ...StopSignalOptFunc) (stopCh <-chan struct{}) {
 	}()
 
 	return stop
+}
+
+// PanicIfErr panic if err is not nil
+func PanicIfErr(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

@@ -2,12 +2,12 @@
 package cmd
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
 	gutils "github.com/Laisky/go-utils"
 	"github.com/Laisky/zap"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -51,10 +51,17 @@ func init() {
 
 // NoExtraArgs make sure every args has been processed
 //
-// do not allow any un processed args
+// do not allow any unprocessed args
+//
+// Example
+//
+// use with cobra.Command:
+//   cmd = &cobra.Command{
+//       Args: NoExtraArgs,
+//   }
 func NoExtraArgs(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
-		return fmt.Errorf("unknown args `%v`", args)
+		return errors.Errorf("unknown args `%v`", args)
 	}
 
 	return nil

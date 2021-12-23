@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bufio"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -54,7 +53,7 @@ type GZCompressor struct {
 func WithCompressBufSizeByte(n int) CompressOptFunc {
 	return func(opt *compressOption) error {
 		if n < 0 {
-			return fmt.Errorf("`BufSizeByte` should great than or equal to 0")
+			return errors.Errorf("`BufSizeByte` should great than or equal to 0")
 		}
 
 		opt.bufSizeByte = n
@@ -136,7 +135,7 @@ type PGZCompressor struct {
 func WithPGzipNBlocks(nBlock int) CompressOptFunc {
 	return func(opt *compressOption) error {
 		if nBlock < 0 {
-			return fmt.Errorf("nBlock size must greater than 0, got %d", nBlock)
+			return errors.Errorf("nBlock size must greater than 0, got %d", nBlock)
 		}
 
 		opt.nBlock = nBlock
@@ -148,7 +147,7 @@ func WithPGzipNBlocks(nBlock int) CompressOptFunc {
 func WithPGzipBlockSize(bytes int) CompressOptFunc {
 	return func(opt *compressOption) error {
 		if bytes <= 0 {
-			return fmt.Errorf("block size must greater than 0, got %d", bytes)
+			return errors.Errorf("block size must greater than 0, got %d", bytes)
 		}
 
 		opt.blockSizeByte = bytes
@@ -232,7 +231,7 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 
 		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			return filenames, fmt.Errorf("illegal file path: %s", fpath)
+			return filenames, errors.Errorf("illegal file path: %s", fpath)
 		}
 
 		filenames = append(filenames, fpath)
