@@ -1083,3 +1083,14 @@ func TestDedent(t *testing.T) {
 	})
 
 }
+
+func TestDeepClone(t *testing.T) {
+	t.Run("slice", func(t *testing.T) {
+		inner := []int{4, 5, 6}
+		src := [][]int{inner}
+		dst := DeepClone(src)
+
+		inner[1] = 100
+		require.NotEqual(t, src[0][1], dst.([][]int)[0][1])
+	})
+}
