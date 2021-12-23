@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/form3tech-oss/jwt-go"
 	"github.com/pkg/errors"
 )
 
