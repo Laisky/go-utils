@@ -1048,16 +1048,31 @@ func TestPanicIfErr(t *testing.T) {
 }
 
 func TestDedent(t *testing.T) {
-	t.Run("normal", func(t *testing.T) {
+	// t.Run("normal", func(t *testing.T) {
+	// 	v := `
+	// 	123
+	// 	234
+	// 	 345
+	// 		222
+	// 	`
+
+	// 	dedent := Dedent(v, WithReplaceTabBySpaces(4))
+	// 	require.Equal(t, "123\n234\n 345\n    222", dedent)
+	// })
+
+	t.Run("normal with blank lines", func(t *testing.T) {
 		v := `
 		123
+
+
 		234
+
 		 345
 			222
 		`
 
 		dedent := Dedent(v, WithReplaceTabBySpaces(4))
-		require.Equal(t, "123\n234\n 345\n    222", dedent)
+		require.Equal(t, "123\n\n\n234\n\n 345\n    222", dedent)
 	})
 
 	t.Run("3 blanks", func(t *testing.T) {
@@ -1080,6 +1095,17 @@ func TestDedent(t *testing.T) {
 
 		dedent := Dedent(v)
 		require.Equal(t, " 123\n234", dedent)
+	})
+
+	t.Run("shrink with blank line", func(t *testing.T) {
+		v := `
+		123
+
+	   234
+		`
+
+		dedent := Dedent(v)
+		require.Equal(t, " 123\n\n234", dedent)
 	})
 
 }

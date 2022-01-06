@@ -101,6 +101,10 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 	)
 	for _, l := range ls {
 		if strings.TrimSpace(l) == "" {
+			if !firstLine {
+				result = append(result, "")
+			}
+
 			continue
 		}
 
@@ -111,7 +115,7 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 		if firstLine {
 			NSpaceTobeTrim = n
 			firstLine = false
-		} else if n < NSpaceTobeTrim {
+		} else if n != 0 && n < NSpaceTobeTrim {
 			// choose the smallest margin
 			NSpaceTobeTrim = n
 		}
@@ -120,7 +124,20 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 	}
 
 	for i := range result {
+		if result[i] == "" {
+			continue
+		}
+
 		result[i] = result[i][NSpaceTobeTrim:]
+	}
+
+	// remove tail blank lines
+	for i := len(result) - 1; i >= 0; i-- {
+		if result[i] == "" {
+			result = result[:i]
+		} else {
+			break
+		}
 	}
 
 	return strings.Join(result, "\n")
@@ -129,7 +146,16 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 // IsHasField check is struct has field
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+//
+// Deprecated: use HasField instead
 func IsHasField(st interface{}, fieldName string) bool {
+	return HasField(st, fieldName)
+}
+
+// HasField check is struct has field
+//
+// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+func HasField(st interface{}, fieldName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer
@@ -146,7 +172,16 @@ func IsHasField(st interface{}, fieldName string) bool {
 // IsHasMethod check is struct has method
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+//
+// Deprecated: use HasMethod instead
 func IsHasMethod(st interface{}, methodName string) bool {
+	return HasMethod(st, methodName)
+}
+
+// HasMethod check is struct has method
+//
+// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
+func HasMethod(st interface{}, methodName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer

@@ -5,6 +5,7 @@ init:
 
 lint:
 	# goimports -local github.com/Laisky -w .
+	go vet
 	gofmt -s -w .
 	go mod tidy
 	golangci-lint run -c .golangci.lint.yml
