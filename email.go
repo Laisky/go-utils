@@ -34,8 +34,43 @@ func (m *Mail) BuildMessage(msg string) string {
 	return msg
 }
 
+// EmailDialer create gomail.Dialer
+type EmailDialer interface {
+	DialAndSend(m ...*gomail.Message) error
+}
+
+type mailSendOpt struct {
+	dialerFact func(host string, port int, username, passwd string) EmailDialer
+}
+
+func (o *mailSendOpt) fillDefault() *mailSendOpt {
+	o.dialerFact = func(host string, port int, username, passwd string) EmailDialer {
+		return gomail.NewDialer(host, port, username, passwd)
+	}
+
+	return o
+}
+
+func (o *mailSendOpt) applyOpts(optfs []MailSendOptFunc) *mailSendOpt {
+	for _, optf := range optfs {
+		optf(o)
+	}
+	return o
+}
+
+// MailSendOptFunc is a function to set option for Mail.Send
+type MailSendOptFunc func(*mailSendOpt)
+
+// WithMailSendDialer set gomail.Dialer
+func WithMailSendDialer(dialerFact func(host string, port int, username, passwd string) EmailDialer) MailSendOptFunc {
+	return func(opt *mailSendOpt) {
+		opt.dialerFact = dialerFact
+	}
+}
+
 // Send send email
-func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string) (err error) {
+func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...MailSendOptFunc) (err error) {
+	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
 	Logger.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()
 	s.SetAddressHeader("From", frAddr, frName)
@@ -43,21 +78,9 @@ func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string) (er
 	s.SetHeader("Subject", subject)
 	s.SetBody("text/plain", content)
 
-	d := gomail.NewDialer(m.host, m.port, m.username, m.password)
-
-	if Settings.GetBool("dry") {
-		Logger.Info("try to send email",
-			zap.String("fromAddr", frAddr),
-			zap.String("toAddr", toAddr),
-			zap.String("frName", frName),
-			zap.String("toName", toName),
-			zap.String("subject", subject),
-			zap.String("content", content),
-		)
-	} else {
-		if err := d.DialAndSend(s); err != nil {
-			return errors.Wrap(err, "try to send email got error")
-		}
+	dialer := opt.dialerFact(m.host, m.port, m.username, m.password)
+	if err := dialer.DialAndSend(s); err != nil {
+		return errors.Wrap(err, "try to send email got error")
 	}
 
 	return nil
