@@ -38,9 +38,13 @@ func TestSetupLogger(t *testing.T) {
 	}
 
 	Logger.Info("test", zap.String("arg", "111"))
-	if err = Logger.ChangeLevel("info"); err != nil {
-		t.Fatalf("set level: %+v", err)
-	}
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelDebug))
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelWarn))
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelError))
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelFatal))
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelPanic))
+	require.Error(t, Logger.ChangeLevel("xxx"))
+	require.NoError(t, Logger.ChangeLevel(LoggerLevelInfo))
 	Logger.Info("test", zap.String("arg", "222"), zap.String("color", "\033[1;34m colored \033[0m"))
 	Logger.Debug("test", zap.String("arg", "333"))
 	// if err := Logger.Sync(); err != nil {

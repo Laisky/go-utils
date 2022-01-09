@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -94,10 +93,36 @@ func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l *Logger
 	)
 }
 
-type LoggerConfig struct {
+type loggerOption struct {
 	zap.Config
 	zapOptions []zap.Option
 	Name       string
+}
+
+func (o *loggerOption) fillDefault() *loggerOption {
+	o.Name = "app"
+	o.Config = zap.Config{
+		Level:            zap.NewAtomicLevel(),
+		Development:      false,
+		Encoding:         string(LoggerEncodingConsole),
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
+	}
+	o.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	o.EncoderConfig.MessageKey = "message"
+	o.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+	return o
+}
+
+func (o *loggerOption) applyOpts(optfs ...LoggerOptFunc) (*loggerOption, error) {
+	for _, optf := range optfs {
+		if err := optf(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
 }
 
 type LoggerEncoding string
@@ -107,13 +132,13 @@ const (
 	LoggerEncodingJSON    = "json"
 )
 
-type LoggerOption func(l *LoggerConfig) error
+type LoggerOptFunc func(l *loggerOption) error
 
 // WithLoggerOutputPaths set output path
 //
 // like "stdout"
-func WithLoggerOutputPaths(paths []string) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		c.OutputPaths = paths
 		return nil
 	}
@@ -122,16 +147,16 @@ func WithLoggerOutputPaths(paths []string) LoggerOption {
 // WithLoggerErrorOutputPaths set error logs output path
 //
 // like "stderr"
-func WithLoggerErrorOutputPaths(paths []string) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerErrorOutputPaths(paths []string) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		c.ErrorOutputPaths = paths
 		return nil
 	}
 }
 
 // WithLoggerEncoding set logger encoding formet
-func WithLoggerEncoding(format LoggerEncoding) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerEncoding(format LoggerEncoding) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		switch format {
 		case LoggerEncodingConsole:
 			c.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
@@ -145,16 +170,16 @@ func WithLoggerEncoding(format LoggerEncoding) LoggerOption {
 }
 
 // WithLoggerZapOptions set logger with zap.Option
-func WithLoggerZapOptions(opts ...zap.Option) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerZapOptions(opts ...zap.Option) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		c.zapOptions = opts
 		return nil
 	}
 }
 
 // WithLoggerName set logger name
-func WithLoggerName(name string) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerName(name string) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		c.Name = name
 		return nil
 	}
@@ -181,8 +206,8 @@ func ParseLoggerLevel(level string) (zapcore.Level, error) {
 }
 
 // WithLoggerLevel set logger level
-func WithLoggerLevel(level string) LoggerOption {
-	return func(c *LoggerConfig) error {
+func WithLoggerLevel(level string) LoggerOptFunc {
+	return func(c *loggerOption) error {
 		lvl, err := ParseLoggerLevel(level)
 		if err != nil {
 			return err
@@ -194,26 +219,10 @@ func WithLoggerLevel(level string) LoggerOption {
 }
 
 // NewLogger create new logger
-func NewLogger(optfs ...LoggerOption) (l *LoggerType, err error) {
-	opt := &LoggerConfig{
-		Name: "app",
-		Config: zap.Config{
-			Level:            zap.NewAtomicLevel(),
-			Development:      false,
-			Encoding:         string(LoggerEncodingConsole),
-			EncoderConfig:    zap.NewProductionEncoderConfig(),
-			OutputPaths:      []string{"stdout"},
-			ErrorOutputPaths: []string{"stderr"},
-		},
-	}
-	opt.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	opt.EncoderConfig.MessageKey = "message"
-	opt.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
-
-	for _, optf := range optfs {
-		if err = optf(opt); err != nil {
-			return nil, errors.Wrap(err, "create logger")
-		}
+func NewLogger(optfs ...LoggerOptFunc) (l *LoggerType, err error) {
+	opt, err := new(loggerOption).fillDefault().applyOpts(optfs...)
+	if err != nil {
+		return nil, err
 	}
 
 	zapLogger, err := opt.Build(opt.zapOptions...)
@@ -353,16 +362,22 @@ type alertHookOption struct {
 	timeout time.Duration
 }
 
-func newAlertHookOpt() *alertHookOption {
-	return &alertHookOption{
-		encPool: &sync.Pool{
-			New: func() interface{} {
-				return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
-			},
+func (o *alertHookOption) fillDefault() *alertHookOption {
+	o.encPool = &sync.Pool{
+		New: func() interface{} {
+			return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
 		},
-		level:   defaultAlertHookLevel,
-		timeout: defaultAlertPusherTimeout,
 	}
+	o.level = defaultAlertHookLevel
+	o.timeout = defaultAlertPusherTimeout
+	return o
+}
+
+func (o *alertHookOption) applyOpts(opts ...AlertHookOptFunc) *alertHookOption {
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
 // AlertHookOptFunc option for create AlertHook
@@ -404,11 +419,7 @@ func NewAlertPusher(ctx context.Context, pushAPI string, opts ...AlertHookOptFun
 		return nil, errors.Errorf("pushAPI should nout empty")
 	}
 
-	opt := newAlertHookOpt()
-	for _, optf := range opts {
-		optf(opt)
-	}
-
+	opt := new(alertHookOption).fillDefault().applyOpts(opts...)
 	a = &AlertPusher{
 		alertHookOption: opt,
 		stopChan:        make(chan struct{}),
@@ -530,134 +541,6 @@ func (a *AlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err err
 			"message: " + e.Message + "\n" +
 			fsb
 		if err = a.Send(msg); err != nil {
-			Logger.Debug("send alert got error", zap.Error(err))
-			return nil
-		}
-
-		return nil
-	}
-}
-
-type pateoAlertMsg struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
-	Time    string `json:"time"`
-}
-
-// PateoAlertPusher alert pusher for pateo wechat service
-type PateoAlertPusher struct {
-	*alertHookOption
-	cli        *http.Client
-	api, token string
-
-	senderBufChan chan *pateoAlertMsg
-}
-
-// NewPateoAlertPusher create new PateoAlertPusher
-func NewPateoAlertPusher(ctx context.Context,
-	api,
-	token string,
-	opts ...AlertHookOptFunc,
-) (p *PateoAlertPusher, err error) {
-	opt := newAlertHookOpt()
-	for _, optf := range opts {
-		optf(opt)
-	}
-
-	p = &PateoAlertPusher{
-		alertHookOption: opt,
-		api:             api,
-		token:           token,
-		cli: &http.Client{
-			Timeout: opt.timeout,
-		},
-	}
-
-	p.senderBufChan = make(chan *pateoAlertMsg, defaultAlertPusherBufSize)
-	go p.runSender(ctx)
-
-	return
-}
-
-func (p *PateoAlertPusher) runSender(ctx context.Context) {
-	var (
-		ok   bool
-		msg  *pateoAlertMsg
-		req  *http.Request
-		resp *http.Response
-		jb   []byte
-		err  error
-	)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok = <-p.senderBufChan:
-			if !ok {
-				return
-			}
-		}
-
-		if jb, err = json.Marshal(msg); err != nil {
-			Logger.Debug("marshal msg to json", zap.Error(err))
-			continue
-		}
-		if req, err = http.NewRequest("POST", p.api, bytes.NewBuffer(jb)); err != nil {
-			Logger.Debug("make pateo alert request", zap.Error(err))
-			continue
-		}
-		req.Header.Add(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
-		req.Header.Add("Authorization", "Bearer "+p.token)
-		if resp, err = p.cli.Do(req); err != nil {
-			Logger.Debug("http post pateo alert server", zap.Error(err))
-			continue
-		}
-		if err = CheckResp(resp); err != nil {
-			Logger.Debug("pateo alert server return error", zap.Error(err))
-			continue
-		}
-	}
-}
-
-// Send send alert msg
-func (p *PateoAlertPusher) Send(title, content string, ts time.Time) (err error) {
-	select {
-	case p.senderBufChan <- &pateoAlertMsg{
-		Title:   title,
-		Content: content,
-		Time:    ts.Format(time.RFC3339Nano),
-	}:
-		return nil
-	default:
-		return errors.Errorf("sender chan overflow")
-	}
-}
-
-// GetZapHook get hook for zap logger
-func (p *PateoAlertPusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
-	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
-		if !p.level.Enabled(e.Level) {
-			return nil
-		}
-
-		var bb *buffer.Buffer
-		enc := p.encPool.Get().(zapcore.Encoder)
-		if bb, err = enc.EncodeEntry(e, fs); err != nil {
-			Logger.Debug("zapcore encode fields got error", zap.Error(err))
-			return nil
-		}
-		fsb := bb.String()
-		bb.Reset()
-		p.encPool.Put(enc)
-		msg := "logger: " + e.LoggerName + "\n" +
-			"time: " + e.Time.Format(time.RFC3339Nano) + "\n" +
-			"level: " + e.Level.String() + "\n" +
-			"caller: " + e.Caller.FullPath() + "\n" +
-			"stack: " + e.Stack + "\n" +
-			"message: " + e.Message + "\n" +
-			fsb
-
-		if err = p.Send(e.LoggerName+":"+e.Message, msg, e.Time); err != nil {
 			Logger.Debug("send alert got error", zap.Error(err))
 			return nil
 		}
