@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -77,38 +76,28 @@ k5: 14
 	)
 
 	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
-	if err != nil {
-		t.Fatalf("try to create tmp dir got error: %+v", err)
-	}
+	require.NoError(t, err)
 	fp, err := os.Create(filepath.Join(dirName, "settings.yml"))
-	if err != nil {
-		t.Fatalf("try to create tmp file got error: %+v", err)
-	}
+	require.NoError(t, err)
 	t.Logf("create file: %v", fp.Name())
 	defer os.RemoveAll(dirName)
 
-	if _, err = fp.Write(st); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = fp.Close(); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	_, err = fp.Write(st)
+	require.NoError(t, err)
+	require.NoError(t, fp.Close())
 
 	t.Logf("load settings from: %v", dirName)
-	if err = Settings.LoadFromDir(dirName); err != nil {
-		t.Fatalf("setup settings got error: %+v", err)
-	}
+	err = Settings.LoadFromDir(dirName)
+	require.NoError(t, err)
 
 	t.Logf(">> key1: %+v", viper.Get("key1"))
-	if fp, err = os.Open(fp.Name()); err != nil {
-		t.Fatalf("open: %+v", err)
-	}
+	fp, err = os.Open(fp.Name())
+	require.NoError(t, err)
 	defer fp.Close()
-	if b, err := ioutil.ReadAll(fp); err != nil {
-		t.Fatalf("try to read tmp file got error: %+v", err)
-	} else {
-		t.Logf("file content: %v", string(b))
-	}
+
+	b, err := ioutil.ReadAll(fp)
+	require.NoError(t, err)
+	t.Logf("file content: %v", string(b))
 
 	cases := map[string]string{
 		"key1": "val1",
@@ -160,65 +149,48 @@ k5: 14
 func TestSettingsToml(t *testing.T) {
 	var (
 		err error
-		st  = []byte(`
-root = "root"
+		st  = []byte(Dedent(`
+			root = "root"
 
-[foo]
-	a = 1
-	b = "b"
-	c = true
-`)
+			[foo]
+				a = 1
+				b = "b"
+				c = true
+		`))
 	)
 
 	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
-	if err != nil {
-		t.Fatalf("try to create tmp dir got error: %+v", err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(dirName)
 
 	fp, err := os.Create(filepath.Join(dirName, "settings.toml"))
-	if err != nil {
-		t.Fatalf("try to create tmp file got error: %+v", err)
-	}
+	require.NoError(t, err)
 	t.Logf("create file: %v", fp.Name())
 
-	if _, err = fp.Write(st); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if err = fp.Close(); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	_, err = fp.Write(st)
+	require.NoError(t, err)
+	require.NoError(t, fp.Close())
 
 	t.Logf("load settings from: %v", fp.Name())
-	if err = Settings.LoadFromFile(fp.Name(),
+	err = Settings.LoadFromFile(fp.Name(),
 		WithSettingsInclude(true),
-	); err != nil {
-		t.Fatalf("setup settings got error: %+v", err)
-	}
+		WithSettingsEnableInclude(),
+	)
+	require.NoError(t, err)
 
 	t.Logf(">> key1: %+v", viper.Get("root"))
-	if fp, err = os.Open(fp.Name()); err != nil {
-		t.Fatalf("open: %+v", err)
-	}
+	fp, err = os.Open(fp.Name())
+	require.NoError(t, err)
 	defer fp.Close()
-	if b, err := ioutil.ReadAll(fp); err != nil {
-		t.Fatalf("try to read tmp file got error: %+v", err)
-	} else {
-		t.Logf("file content: %v", string(b))
-	}
 
-	if Settings.GetString("root") != "root" {
-		t.Fatal(Settings.GetString("root"))
-	}
-	if Settings.GetInt("foo.a") != 1 {
-		t.Fatal()
-	}
-	if Settings.GetString("foo.b") != "b" {
-		t.Fatal()
-	}
-	if !Settings.GetBool("foo.c") {
-		t.Fatal()
-	}
+	b, err := ioutil.ReadAll(fp)
+	require.NoError(t, err)
+	t.Logf("file content: %v", string(b))
+
+	require.Equal(t, "root", Settings.GetString("root"))
+	require.Equal(t, 1, Settings.GetInt("foo.a"))
+	require.Equal(t, "b", Settings.GetString("foo.b"))
+	require.Equal(t, true, Settings.GetBool("foo.c"))
 }
 
 // depended on remote config-s  erver
@@ -250,9 +222,7 @@ a:
 	}
 
 	// jb, err := json.Marshal(fakedata)
-	// if err != nil {
-	// 	Logger.Panic("try to marshal fake data got error", zap.Error(err))
-	// }
+	// require.NoError(t, err)
 	port := 24953
 	addr := fmt.Sprintf("http://localhost:%v", port)
 	go runMockHTTPServer(ctx, port, "/app/profile/label", fakedata)
@@ -268,13 +238,9 @@ a:
 	} {
 		switch val := vi.(type) {
 		case string:
-			if Settings.GetString(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
-			}
+			require.Equal(t, val, Settings.GetString(k))
 		case int:
-			if Settings.GetInt(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
-			}
+			require.Equal(t, val, Settings.GetInt(k))
 		case []string:
 			vs := Settings.GetStringSlice(k)
 			if len(vs) != 2 ||
@@ -283,9 +249,7 @@ a:
 				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
 			}
 		case bool:
-			if Settings.GetBool(k) != val {
-				t.Fatalf("`%v` should be `%v`, but got %+v", k, val, Settings.Get(k))
-			}
+			require.Equal(t, val, Settings.GetBool(k))
 		default:
 			t.Fatal("unknown type")
 		}
@@ -339,42 +303,30 @@ func BenchmarkSettings(b *testing.B) {
 
 func TestAESEncryptFilesInDir(t *testing.T) {
 	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
-	if err != nil {
-		t.Fatalf("try to create tmp dir got error: %+v", err)
-	}
+	require.NoError(t, err)
 	defer os.RemoveAll(dirName)
 
 	cnt := []byte("12345")
-	if err = ioutil.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm); err != nil {
-		t.Fatal(err)
-	}
-	if err = ioutil.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm); err != nil {
-		t.Fatal(err)
-	}
-	if err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm); err != nil {
-		t.Fatal(err)
-	}
+	err = ioutil.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
 
 	secret := []byte("laisky")
-	if err = AESEncryptFilesInDir(dirName, secret); err != nil {
-		t.Fatal(err)
-	}
+	err = AESEncryptFilesInDir(dirName, secret)
+	require.NoError(t, err)
 
 	for _, fname := range []string{"test1.enc.toml", "test2.enc.toml", "test3.enc.toml"} {
 		fname = filepath.Join(dirName, fname)
 		cipher, err := ioutil.ReadFile(fname)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		got, err := DecryptByAes(secret, cipher)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if !bytes.Equal(got, cnt) {
-			t.Fatalf("got: %s", string(got))
-		}
+		require.Equal(t, cnt, got)
 	}
 }
 

@@ -1120,3 +1120,15 @@ func TestDeepClone(t *testing.T) {
 		require.NotEqual(t, src[0][1], dst.([][]int)[0][1])
 	})
 }
+
+type testCloseQuitlyStruct struct{}
+
+func (f *testCloseQuitlyStruct) Close() error {
+	return nil
+}
+
+func TestCloseQuietly(t *testing.T) {
+
+	f := new(testCloseQuitlyStruct)
+	CloseQuietly(f)
+}

@@ -295,7 +295,7 @@ RECUR_INCLUDE_LOOP:
 		if fp, err = os.Open(filePath); err != nil {
 			return errors.Wrapf(err, "open config file `%s`", filePath)
 		}
-		defer func() { _ = fp.Close() }()
+		defer CloseQuietly(fp)
 
 		viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
 		if isSettingsFileEncrypted(opt, filePath) {
@@ -342,29 +342,31 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 		fp       *os.File
 	)
 	for i := len(cfgFiles) - 1; i >= 0; i-- {
-		filePath = cfgFiles[i]
-		if fp, err = os.Open(filePath); err != nil {
-			return errors.Wrapf(err, "open config file `%s`", filePath)
-		}
-		defer func() { _ = fp.Close() }()
+		if err = func() error {
+			filePath = cfgFiles[i]
+			if fp, err = os.Open(filePath); err != nil {
+				return errors.Wrapf(err, "open config file `%s`", filePath)
+			}
+			defer CloseQuietly(fp)
 
-		if isSettingsFileEncrypted(opt, filePath) {
-			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
-			if err != nil {
-				return err
+			if isSettingsFileEncrypted(opt, filePath) {
+				encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
+				if err != nil {
+					return err
+				}
+
+				if err = viper.MergeConfig(encryptedFp); err != nil {
+					return errors.Wrapf(err, "merge encrypted config file `%s`", filePath)
+				}
+			} else {
+				if err = viper.MergeConfig(fp); err != nil {
+					return errors.Wrapf(err, "merge config file `%s`", filePath)
+				}
 			}
 
-			if err = viper.MergeConfig(encryptedFp); err != nil {
-				return errors.Wrapf(err, "merge encrypted config file `%s`", filePath)
-			}
-		} else {
-			if err = viper.MergeConfig(fp); err != nil {
-				return errors.Wrapf(err, "merge config file `%s`", filePath)
-			}
-		}
-
-		if err = fp.Close(); err != nil {
-			return errors.Wrapf(err, "close file `%s`", filePath)
+			return nil
+		}(); err != nil {
+			return err
 		}
 	}
 

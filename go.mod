@@ -19,11 +19,10 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/automaxprocs v1.4.0
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
-	golang.org/x/tools v0.1.7 // indirect
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )

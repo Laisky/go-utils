@@ -78,6 +78,17 @@ func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 	return d
 }
 
+// CloseQuietly closes `io.Closer` quietly, ignore errcheck linter
+//
+// Example
+//
+//   defer CloseQuietly(fp)
+func CloseQuietly(v interface{}) {
+	if d, ok := v.(io.Closer); ok {
+		_ = d.Close()
+	}
+}
+
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
 
@@ -284,7 +295,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", filepath)
 	}
-	defer func() { _ = fp.Close() }()
+	defer CloseQuietly(fp)
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return errors.Wrap(err, "read file content")
@@ -420,10 +431,12 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
 		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
 	}
-	defer func() { _ = fp.Close() }()
+	defer CloseQuietly(fp)
+
 	if memByte, err = ioutil.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")
 	}
+
 	if err = fp.Close(); err != nil {
 		Logger.Error("close cgroup mem limit file", zap.Error(err), zap.String("file", opt.memLimitFilePath))
 	}
