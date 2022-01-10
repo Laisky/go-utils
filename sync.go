@@ -9,6 +9,29 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Race return when any goroutine returned
+func Race(gs ...func()) {
+	cond := sync.NewCond(&sync.Mutex{})
+	for i := range gs {
+		g := gs[i]
+		go func() {
+			g()
+			cond.L.Lock()
+			cond.Signal()
+			cond.L.Unlock()
+		}()
+	}
+
+	cond.L.Lock()
+	cond.Wait()
+	cond.L.Unlock()
+}
+
+// RunWithTimeout run func with timeout
+func RunWithTimeout(timeout time.Duration, f func()) {
+	Race(f, func() { time.Sleep(timeout) })
+}
+
 // const (
 // 	defaultLaiskyRemoteLockTokenUserKey    = "uid"
 // 	defaultLaiskyRemoteLockAuthCookieName  = "general"

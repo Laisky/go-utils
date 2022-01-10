@@ -2,8 +2,11 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMutex(t *testing.T) {
@@ -156,4 +159,48 @@ func TestNewExpiredRLock(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	l.RUnlock()
 	l.RUnlock()
+}
+
+func ExampleRunWithTimeout() {
+	slow := func() { time.Sleep(10 * time.Second) }
+	startAt := time.Now()
+	RunWithTimeout(5*time.Millisecond, slow)
+
+	fmt.Println(time.Since(startAt) < 10*time.Second)
+	// Output:
+	// true
+}
+
+func TestRunWithTimeout(t *testing.T) {
+	slow := func() { time.Sleep(10 * time.Second) }
+	startAt := time.Now()
+	RunWithTimeout(5*time.Millisecond, slow)
+	require.GreaterOrEqual(t, time.Since(startAt), 5*time.Millisecond)
+	require.Less(t, time.Since(startAt), 10*time.Millisecond)
+}
+
+func ExampleRace() {
+	startAt := time.Now()
+	Race(
+		func() { time.Sleep(time.Millisecond) },
+		func() { time.Sleep(time.Second) },
+		func() { time.Sleep(time.Minute) },
+	)
+
+	fmt.Println(time.Since(startAt) < time.Second)
+	// Output:
+	// true
+
+}
+
+func TestRace(t *testing.T) {
+	startAt := time.Now()
+	Race(
+		func() { time.Sleep(time.Millisecond) },
+		func() { time.Sleep(time.Second) },
+		func() { time.Sleep(time.Minute) },
+	)
+
+	require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
+	require.Less(t, time.Since(startAt), time.Second)
 }
