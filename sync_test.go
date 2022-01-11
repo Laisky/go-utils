@@ -11,28 +11,16 @@ import (
 
 func TestMutex(t *testing.T) {
 	l := NewMutex()
-	if !l.TryLock() {
-		t.Fatal("should acquire lock")
-	}
-	if !l.IsLocked() {
-		t.Fatal("should locked")
-	}
-	if l.TryLock() {
-		t.Fatal("should not acquire lock")
-	}
-	if !l.TryRelease() {
-		t.Fatal("should release lock")
-	}
-	if l.IsLocked() {
-		t.Fatal("should not locked")
-	}
-	if l.TryRelease() {
-		t.Fatal("should not release lock")
-	}
+	require.True(t, l.TryLock(), "should acquire lock")
+	require.True(t, l.IsLocked(), "should locked")
+
+	require.False(t, l.TryLock(), "should not acquire lock")
+	require.True(t, l.TryRelease(), "should release lock")
+	require.False(t, l.IsLocked(), "should not locked")
+	require.False(t, l.TryRelease(), "should not release lock")
 	l.SpinLock(1*time.Second, 3*time.Second)
-	if !l.IsLocked() {
-		t.Fatal("should locked")
-	}
+	require.True(t, l.IsLocked(), "should locked")
+
 	start := time.Now()
 	l.SpinLock(1*time.Second, 3*time.Second)
 	if time.Since(start) < 3*time.Second || time.Since(start) > 4100*time.Millisecond {
@@ -40,9 +28,7 @@ func TestMutex(t *testing.T) {
 	}
 
 	l.ForceRelease()
-	if l.IsLocked() {
-		t.Fatal("should not locked")
-	}
+	require.False(t, l.IsLocked(), "should not locked")
 }
 
 func ExampleMutex() {
@@ -203,4 +189,19 @@ func TestRace(t *testing.T) {
 
 	require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
 	require.Less(t, time.Since(startAt), time.Second)
+}
+
+func TestRaceWithCtx(t *testing.T) {
+	t.Run("fatest task", func(t *testing.T) {
+		startAt := time.Now()
+		RaceWithCtx(
+			context.Background(),
+			func() { time.Sleep(time.Millisecond) },
+			func() { time.Sleep(time.Second) },
+			func() { time.Sleep(time.Minute) },
+		)
+
+		require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
+		require.Less(t, time.Since(startAt), time.Second)
+	})
 }
