@@ -27,7 +27,6 @@ func (_m *LoggerItf) ChangeLevel(level string) error {
 	return r0
 }
 
-
 // Core provides a mock function with given fields:
 func (_m *LoggerItf) Core() zapcore.Core {
 	ret := _m.Called()
@@ -141,7 +140,6 @@ func (_m *LoggerItf) Level() zapcore.Level {
 
 	return r0
 }
-
 
 // Panic provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Panic(msg string, fields ...zapcore.Field) {

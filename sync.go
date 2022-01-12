@@ -30,6 +30,7 @@ func Race(gs ...func()) {
 // RaceWithCtx return when any goroutine returned or ctx canceled
 func RaceWithCtx(ctx context.Context, gs ...func()) {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	for _, g := range gs {
 		g := g
 		go func() {
