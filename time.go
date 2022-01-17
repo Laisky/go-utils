@@ -34,7 +34,7 @@ func SleepWithContext(ctx context.Context, duration time.Duration) {
 		}
 
 		remain := time.Until(endAt)
-		if remain < 0 {
+		if remain <= 0 {
 			return
 		} else if remain > time.Second {
 			time.Sleep(time.Second)
