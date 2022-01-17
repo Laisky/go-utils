@@ -19,6 +19,31 @@ const (
 	BaseHex = 16
 )
 
+// SleepWithContext sleep duration with context, if context is done, return
+func SleepWithContext(ctx context.Context, duration time.Duration) {
+	endAt := time.Now().Add(duration)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if time.Now().After(endAt) {
+			return
+		}
+
+		remain := time.Until(endAt)
+		if remain < 0 {
+			return
+		} else if remain > time.Second {
+			time.Sleep(time.Second)
+		} else {
+			time.Sleep(remain)
+		}
+	}
+}
+
 // UTCNow get current time in utc
 func UTCNow() time.Time {
 	return time.Now().UTC()
