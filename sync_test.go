@@ -3,6 +3,9 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -203,5 +206,36 @@ func TestRaceWithCtx(t *testing.T) {
 
 		require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
 		require.Less(t, time.Since(startAt), time.Second)
+	})
+}
+
+func TestNewFlock(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fs")
+	require.NoError(t, err)
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	lockfile := filepath.Join(dir, "test.lock")
+
+	t.Run("file not exist", func(t *testing.T) {
+		f := NewFlock("/123/" + lockfile)
+		require.NoError(t, err)
+		require.Error(t, f.Lock())
+		require.Error(t, f.Unlock())
+	})
+
+	t.Run("same process", func(t *testing.T) {
+		flock1 := NewFlock(lockfile)
+		require.NoError(t, err)
+		flock2 := NewFlock(lockfile)
+		require.NoError(t, err)
+
+		err = flock1.Lock()
+		require.NoError(t, err)
+		err = flock2.Lock()
+		require.NoError(t, err)
+
+		require.NoError(t, flock1.Unlock())
+		require.NoError(t, flock2.Unlock())
 	})
 }
