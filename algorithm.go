@@ -9,9 +9,86 @@ import (
 
 	skiplist "github.com/Laisky/fast-skiplist"
 	"github.com/Laisky/zap"
+	"github.com/gammazero/deque"
 	"github.com/pkg/errors"
 )
 
+// -------------------------------------
+// deque
+// -------------------------------------
+
+// Deque
+//
+// https://pkg.go.dev/github.com/gammazero/deque#Deque
+type Deque interface {
+	PushBack(interface{})
+	PushFront(interface{})
+	PopFront() interface{}
+	PopBack() interface{}
+	Len() int
+	Front() interface{}
+	Back() interface{}
+}
+
+type dequeOpt struct {
+	currentCapacity,
+	minimalCapacity int
+}
+
+func (o *dequeOpt) applyFuncs(optfs ...DequeOptFunc) (*dequeOpt, error) {
+	for _, optf := range optfs {
+		if err := optf(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+// DequeOptFunc optional arguments for deque
+type DequeOptFunc func(*dequeOpt) error
+
+// WithDequeCurrentCapacity preallocate memory for deque
+func WithDequeCurrentCapacity(size int) DequeOptFunc {
+	return func(opt *dequeOpt) error {
+		if size < 0 {
+			return errors.Errorf("size must greater than 0")
+		}
+
+		opt.currentCapacity = size
+		return nil
+	}
+}
+
+// WithDequeMinimalCapacity set deque minimal capacity
+func WithDequeMinimalCapacity(size int) DequeOptFunc {
+	return func(opt *dequeOpt) error {
+		if size < 0 {
+			return errors.Errorf("size must greater than 0")
+		}
+
+		opt.minimalCapacity = size
+		return nil
+	}
+}
+
+// NewDeque new deque
+func NewDeque(optfs ...DequeOptFunc) (Deque, error) {
+	opt, err := new(dequeOpt).applyFuncs(optfs...)
+	if err != nil {
+		return nil, err
+	}
+
+	return deque.New(opt.currentCapacity, opt.minimalCapacity), nil
+}
+
+// -------------------------------------
+// skiplist
+// -------------------------------------
+
+// NewSkiplist new skiplist
+//
+// https://github.com/sean-public/fast-skiplist
 func NewSkiplist() *skiplist.SkipList {
 	return skiplist.New()
 }
