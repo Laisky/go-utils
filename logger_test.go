@@ -2,6 +2,9 @@ package utils
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,6 +31,29 @@ func TestNewLogger(t *testing.T) {
 		logger.InfoSample(1, "test")
 		logger.WarnSample(1, "test")
 	}
+}
+
+func TestWriteToFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "TestWriteToFile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	file := filepath.Join(dir, "test.log")
+	logger, err := NewLogger(
+		WithLoggerOutputPaths([]string{file}),
+	)
+	require.NoError(t, err)
+
+	logger.Info("yoo")
+	logger.Sync()
+
+	content, err := ioutil.ReadFile(file)
+	require.NoError(t, err)
+	require.Contains(t, string(content), "go-utils/logger_test.go")
+	require.Contains(t, string(content), "yoo\n")
 }
 
 func TestSetupLogger(t *testing.T) {
