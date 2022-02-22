@@ -137,6 +137,7 @@ func (o *loggerOption) fillDefault() *loggerOption {
 	o.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	o.EncoderConfig.MessageKey = "message"
 	o.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+	o.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	return o
 }
 
@@ -164,7 +165,7 @@ type LoggerOptFunc func(l *loggerOption) error
 // like "stdout"
 func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
 	return func(c *loggerOption) error {
-		c.OutputPaths = paths
+		c.OutputPaths = append(paths, "stdout")
 		return nil
 	}
 }
@@ -174,7 +175,7 @@ func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
 // like "stderr"
 func WithLoggerErrorOutputPaths(paths []string) LoggerOptFunc {
 	return func(c *loggerOption) error {
-		c.ErrorOutputPaths = paths
+		c.ErrorOutputPaths = append(paths, "stderr")
 		return nil
 	}
 }
@@ -186,6 +187,7 @@ func WithLoggerEncoding(format LoggerEncoding) LoggerOptFunc {
 		case LoggerEncodingConsole:
 			c.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		case LoggerEncodingJSON:
+			c.Encoding = string(LoggerEncodingJSON)
 		default:
 			return errors.Errorf("invalid format: %s", format)
 		}
