@@ -204,7 +204,7 @@ type SettingsOptFunc func(*settingsOpt) error
 
 // WithSettingsInclude enable `include` in config file
 //
-// Deprecated: use WithSettingsInclude2 instead
+// Deprecated: use WithSettingsEnableInclude instead
 func WithSettingsInclude(enableInclude bool) SettingsOptFunc {
 	return func(opt *settingsOpt) error {
 		opt.enableInclude = enableInclude
@@ -297,7 +297,7 @@ RECUR_INCLUDE_LOOP:
 		}
 		defer CloseQuietly(fp)
 
-		viper.SetConfigType(strings.TrimLeft(filepath.Ext(filePath), "."))
+		viper.SetConfigType(strings.TrimLeft(filepath.Ext(strings.TrimSuffix(filePath, opt.encryptedSuffix)), "."))
 		if isSettingsFileEncrypted(opt, filePath) {
 			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
