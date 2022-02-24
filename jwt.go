@@ -10,6 +10,7 @@ var (
 	SignMethodHS256 = jwt.SigningMethodHS256
 	// SignMethodES256 use ES256 for jwt
 	SignMethodES256 = jwt.SigningMethodES256
+	SignMethodRS256 = jwt.SigningMethodRS256
 
 	defaultSignMethod = SignMethodHS256
 )
@@ -221,6 +222,36 @@ func (e *JWT) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...JWT
 		return pubKey, nil
 	}); err != nil {
 		return errors.Wrap(err, "parse token by es256")
+	}
+
+	return nil
+}
+
+// ParseClaimsByRS256 parse token to claims by rs256
+func (e *JWT) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
+	opt := &jwtDivideOpt{
+		pubKey: e.pubKey,
+		priKey: e.priKey,
+	}
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return errors.Wrap(err, "apply optf")
+		}
+	}
+
+	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(opt.pubKey)
+	if err != nil {
+		return errors.Wrap(err, "parse rs256 public key")
+	}
+
+	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return pubKey, nil
+	}); err != nil {
+		return errors.Wrap(err, "parse token by rs256")
 	}
 
 	return nil
