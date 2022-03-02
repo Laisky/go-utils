@@ -1,0 +1,105 @@
+package gorm
+
+import (
+	"bytes"
+	"compress/gzip"
+	"database/sql/driver"
+	"io/ioutil"
+
+	"github.com/pkg/errors"
+)
+
+// GzText store string with gzip into blob
+type GzText string
+
+// Value val -> db
+func (j GzText) Value() (driver.Value, error) {
+	out := new(bytes.Buffer)
+	w := gzip.NewWriter(out)
+	if _, err := w.Write([]byte(j)); err != nil {
+		return nil, err
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
+}
+
+// Scan db -> val
+func (j *GzText) Scan(value interface{}) error {
+	var val []byte
+	switch value := value.(type) {
+	case []byte:
+		val = value
+	case string:
+		val = []byte(value)
+	}
+
+	if len(val) == 0 {
+		*j = ""
+		return nil
+	}
+
+	r, err := gzip.NewReader(bytes.NewReader(val))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+
+	*j = GzText(string(b))
+	return nil
+}
+
+// JSON store json into blob
+type JSON []byte
+
+// Value val -> db
+func (j JSON) Value() (driver.Value, error) {
+	if j.IsNull() {
+		return nil, nil
+	}
+	return string(j), nil
+}
+
+// Scan db -> val
+func (j *JSON) Scan(value interface{}) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+	s, ok := value.([]byte)
+	if !ok {
+		return errors.New("invalid scan source")
+	}
+	*j = append((*j)[0:0], s...)
+	return nil
+}
+
+func (j JSON) Marshal() ([]byte, error) {
+	if j == nil {
+		return []byte("null"), nil
+	}
+	return j, nil
+}
+
+func (j *JSON) Unmarshal(data []byte) error {
+	if j == nil {
+		return errors.New("null point exception")
+	}
+	*j = append((*j)[0:0], data...)
+	return nil
+}
+
+func (j JSON) IsNull() bool {
+	return len(j) == 0 || string(j) == "null"
+}
+
+func (j JSON) Equals(j1 JSON) bool {
+	return bytes.Equal([]byte(j), []byte(j1))
+}
