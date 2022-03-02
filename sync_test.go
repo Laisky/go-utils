@@ -2,34 +2,28 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMutex(t *testing.T) {
 	l := NewMutex()
-	if !l.TryLock() {
-		t.Fatal("should acquire lock")
-	}
-	if !l.IsLocked() {
-		t.Fatal("should locked")
-	}
-	if l.TryLock() {
-		t.Fatal("should not acquire lock")
-	}
-	if !l.TryRelease() {
-		t.Fatal("should release lock")
-	}
-	if l.IsLocked() {
-		t.Fatal("should not locked")
-	}
-	if l.TryRelease() {
-		t.Fatal("should not release lock")
-	}
+	require.True(t, l.TryLock(), "should acquire lock")
+	require.True(t, l.IsLocked(), "should locked")
+
+	require.False(t, l.TryLock(), "should not acquire lock")
+	require.True(t, l.TryRelease(), "should release lock")
+	require.False(t, l.IsLocked(), "should not locked")
+	require.False(t, l.TryRelease(), "should not release lock")
 	l.SpinLock(1*time.Second, 3*time.Second)
-	if !l.IsLocked() {
-		t.Fatal("should locked")
-	}
+	require.True(t, l.IsLocked(), "should locked")
+
 	start := time.Now()
 	l.SpinLock(1*time.Second, 3*time.Second)
 	if time.Since(start) < 3*time.Second || time.Since(start) > 4100*time.Millisecond {
@@ -37,9 +31,7 @@ func TestMutex(t *testing.T) {
 	}
 
 	l.ForceRelease()
-	if l.IsLocked() {
-		t.Fatal("should not locked")
-	}
+	require.False(t, l.IsLocked(), "should not locked")
 }
 
 func ExampleMutex() {
@@ -156,4 +148,94 @@ func TestNewExpiredRLock(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	l.RUnlock()
 	l.RUnlock()
+}
+
+func ExampleRunWithTimeout() {
+	slow := func() { time.Sleep(10 * time.Second) }
+	startAt := time.Now()
+	RunWithTimeout(5*time.Millisecond, slow)
+
+	fmt.Println(time.Since(startAt) < 10*time.Second)
+	// Output:
+	// true
+}
+
+func TestRunWithTimeout(t *testing.T) {
+	slow := func() { time.Sleep(10 * time.Second) }
+	startAt := time.Now()
+	RunWithTimeout(5*time.Millisecond, slow)
+	require.GreaterOrEqual(t, time.Since(startAt), 5*time.Millisecond)
+	require.Less(t, time.Since(startAt), 10*time.Millisecond)
+}
+
+func ExampleRace() {
+	startAt := time.Now()
+	Race(
+		func() { time.Sleep(time.Millisecond) },
+		func() { time.Sleep(time.Second) },
+		func() { time.Sleep(time.Minute) },
+	)
+
+	fmt.Println(time.Since(startAt) < time.Second)
+	// Output:
+	// true
+
+}
+
+func TestRace(t *testing.T) {
+	startAt := time.Now()
+	Race(
+		func() { time.Sleep(time.Millisecond) },
+		func() { time.Sleep(time.Second) },
+		func() { time.Sleep(time.Minute) },
+	)
+
+	require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
+	require.Less(t, time.Since(startAt), time.Second)
+}
+
+func TestRaceWithCtx(t *testing.T) {
+	t.Run("fatest task", func(t *testing.T) {
+		startAt := time.Now()
+		RaceWithCtx(
+			context.Background(),
+			func() { time.Sleep(time.Millisecond) },
+			func() { time.Sleep(time.Second) },
+			func() { time.Sleep(time.Minute) },
+		)
+
+		require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
+		require.Less(t, time.Since(startAt), time.Second)
+	})
+}
+
+func TestNewFlock(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fs")
+	require.NoError(t, err)
+	t.Logf("create directory: %v", dir)
+	defer os.RemoveAll(dir)
+
+	lockfile := filepath.Join(dir, "test.lock")
+
+	t.Run("file not exist", func(t *testing.T) {
+		f := NewFlock("/123/" + lockfile)
+		require.NoError(t, err)
+		require.Error(t, f.Lock())
+		require.Error(t, f.Unlock())
+	})
+
+	t.Run("same process", func(t *testing.T) {
+		flock1 := NewFlock(lockfile)
+		require.NoError(t, err)
+		flock2 := NewFlock(lockfile)
+		require.NoError(t, err)
+
+		err = flock1.Lock()
+		require.NoError(t, err)
+		err = flock2.Lock()
+		require.NoError(t, err)
+
+		require.NoError(t, flock1.Unlock())
+		require.NoError(t, flock2.Unlock())
+	})
 }

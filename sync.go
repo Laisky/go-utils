@@ -2,12 +2,52 @@ package utils
 
 import (
 	"context"
+	"io"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 )
+
+// Race return when any goroutine returned
+func Race(gs ...func()) {
+	cond := sync.NewCond(&sync.Mutex{})
+	for i := range gs {
+		g := gs[i]
+		go func() {
+			g()
+			cond.L.Lock()
+			cond.Signal()
+			cond.L.Unlock()
+		}()
+	}
+
+	cond.L.Lock()
+	cond.Wait()
+	cond.L.Unlock()
+}
+
+// RaceWithCtx return when any goroutine returned or ctx canceled
+func RaceWithCtx(ctx context.Context, gs ...func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	for _, g := range gs {
+		g := g
+		go func() {
+			g()
+			cancel()
+		}()
+	}
+
+	<-ctx.Done()
+}
+
+// RunWithTimeout run func with timeout
+func RunWithTimeout(timeout time.Duration, f func()) {
+	Race(f, func() { time.Sleep(timeout) })
+}
 
 // const (
 // 	defaultLaiskyRemoteLockTokenUserKey    = "uid"
@@ -266,4 +306,50 @@ func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, 
 // GetLock get lock
 func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
 	return e.m.Get(key).(*sync.RWMutex)
+}
+
+// FLock lock by file
+type FLock interface {
+	Lock() error
+	Unlock() error
+}
+
+type flock struct {
+	fpath string
+	fd    int
+}
+
+// NewFlock new file lock
+func NewFlock(lockFilePath string) FLock {
+	return &flock{
+		fpath: lockFilePath,
+	}
+}
+
+func (f *flock) Lock() (err error) {
+	f.fd, err = syscall.Open(f.fpath, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC, 0666)
+	if err != nil {
+		return errors.Wrapf(err, "open `%s`", f.fpath)
+	}
+
+	flock := syscall.Flock_t{
+		Type:   syscall.F_WRLCK,
+		Whence: io.SeekStart,
+		Start:  0,
+		Len:    0,
+	}
+	if err := syscall.FcntlFlock(uintptr(f.fd), syscall.F_SETLK, &flock); err != nil {
+		return errors.Wrap(err, "FcntlFlock(F_SETLK)")
+	}
+
+	return nil
+}
+
+func (f *flock) Unlock() error {
+	if err := syscall.Close(f.fd); err != nil {
+		return errors.Wrap(err, "close file")
+	}
+
+	_ = syscall.Unlink(f.fpath)
+	return nil
 }

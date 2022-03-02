@@ -348,3 +348,20 @@ func TestSetupClock(t *testing.T) {
 		require.True(t, ok)
 	}
 }
+
+func TestSleepWithContext(t *testing.T) {
+	t.Run("normal sleep", func(t *testing.T) {
+		startAt := time.Now()
+		SleepWithContext(context.Background(), time.Millisecond*10)
+		require.Greater(t, time.Since(startAt), 10*time.Millisecond)
+	})
+
+	t.Run("sleep break by context", func(t *testing.T) {
+		startAt := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
+		defer cancel()
+		SleepWithContext(ctx, time.Hour)
+		require.Less(t, time.Since(startAt), time.Second*2)
+		require.Greater(t, time.Since(startAt), time.Millisecond*10)
+	})
+}

@@ -49,8 +49,33 @@ var (
 	* InfoSample(sample int, msg string, fields ...zapcore.Field)
 	* WarnSample(sample int, msg string, fields ...zapcore.Field)
 	 */
-	Logger *LoggerType
+	Logger LoggerItf
 )
+
+type zapLoggerItf interface {
+	Debug(msg string, fields ...zapcore.Field)
+	Info(msg string, fields ...zapcore.Field)
+	Warn(msg string, fields ...zapcore.Field)
+	Error(msg string, fields ...zapcore.Field)
+	DPanic(msg string, fields ...zapcore.Field)
+	Panic(msg string, fields ...zapcore.Field)
+	Fatal(msg string, fields ...zapcore.Field)
+	Sync() error
+	Core() zapcore.Core
+}
+
+type LoggerItf interface {
+	zapLoggerItf
+	Level() zapcore.Level
+	ChangeLevel(level string) (err error)
+	DebugSample(sample int, msg string, fields ...zapcore.Field)
+	InfoSample(sample int, msg string, fields ...zapcore.Field)
+	WarnSample(sample int, msg string, fields ...zapcore.Field)
+	Clone() LoggerItf
+	Named(s string) LoggerItf
+	With(fields ...zapcore.Field) LoggerItf
+	WithOptions(opts ...zap.Option) LoggerItf
+}
 
 // LoggerType extend from zap.Logger
 type LoggerType struct {
@@ -64,7 +89,7 @@ type LoggerType struct {
 }
 
 // CreateNewDefaultLogger set default utils.Logger
-func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l LoggerItf, err error) {
 	if l, err = NewLoggerWithName(name, level, opts...); err != nil {
 		return nil, errors.Wrap(err, "create new logger")
 	}
@@ -74,7 +99,7 @@ func CreateNewDefaultLogger(name, level string, opts ...zap.Option) (l *LoggerTy
 }
 
 // NewLoggerWithName create new logger with name
-func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewLoggerWithName(name, level string, opts ...zap.Option) (l LoggerItf, err error) {
 	return NewLogger(
 		WithLoggerName(name),
 		WithLoggerEncoding(LoggerEncodingJSON),
@@ -84,7 +109,7 @@ func NewLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, e
 }
 
 // NewConsoleLoggerWithName create new logger with name
-func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l *LoggerType, err error) {
+func NewConsoleLoggerWithName(name, level string, opts ...zap.Option) (l LoggerItf, err error) {
 	return NewLogger(
 		WithLoggerName(name),
 		WithLoggerEncoding(LoggerEncodingConsole),
@@ -112,6 +137,7 @@ func (o *loggerOption) fillDefault() *loggerOption {
 	o.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 	o.EncoderConfig.MessageKey = "message"
 	o.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+	o.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	return o
 }
 
@@ -139,7 +165,7 @@ type LoggerOptFunc func(l *loggerOption) error
 // like "stdout"
 func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
 	return func(c *loggerOption) error {
-		c.OutputPaths = paths
+		c.OutputPaths = append(paths, "stdout")
 		return nil
 	}
 }
@@ -149,7 +175,7 @@ func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
 // like "stderr"
 func WithLoggerErrorOutputPaths(paths []string) LoggerOptFunc {
 	return func(c *loggerOption) error {
-		c.ErrorOutputPaths = paths
+		c.ErrorOutputPaths = append(paths, "stderr")
 		return nil
 	}
 }
@@ -161,6 +187,7 @@ func WithLoggerEncoding(format LoggerEncoding) LoggerOptFunc {
 		case LoggerEncodingConsole:
 			c.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		case LoggerEncodingJSON:
+			c.Encoding = string(LoggerEncodingJSON)
 		default:
 			return errors.Errorf("invalid format: %s", format)
 		}
@@ -219,7 +246,7 @@ func WithLoggerLevel(level string) LoggerOptFunc {
 }
 
 // NewLogger create new logger
-func NewLogger(optfs ...LoggerOptFunc) (l *LoggerType, err error) {
+func NewLogger(optfs ...LoggerOptFunc) (l LoggerItf, err error) {
 	opt, err := new(loggerOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return nil, err
@@ -289,7 +316,7 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field)
 }
 
 // Clone clone new Logger that inherit all config
-func (l *LoggerType) Clone() *LoggerType {
+func (l *LoggerType) Clone() LoggerItf {
 	return &LoggerType{
 		Logger: l.Logger.With(),
 		level:  l.level,
@@ -298,7 +325,7 @@ func (l *LoggerType) Clone() *LoggerType {
 
 // Named adds a new path segment to the logger's name. Segments are joined by
 // periods. By default, Loggers are unnamed.
-func (l *LoggerType) Named(s string) *LoggerType {
+func (l *LoggerType) Named(s string) LoggerItf {
 	return &LoggerType{
 		Logger: l.Logger.Named(s),
 		level:  l.level,
@@ -307,7 +334,7 @@ func (l *LoggerType) Named(s string) *LoggerType {
 
 // With creates a child logger and adds structured context to it. Fields added
 // to the child don't affect the parent, and vice versa.
-func (l *LoggerType) With(fields ...zapcore.Field) *LoggerType {
+func (l *LoggerType) With(fields ...zapcore.Field) LoggerItf {
 	return &LoggerType{
 		Logger: l.Logger.With(fields...),
 		level:  l.level,
@@ -316,7 +343,7 @@ func (l *LoggerType) With(fields ...zapcore.Field) *LoggerType {
 
 // WithOptions clones the current Logger, applies the supplied Options, and
 // returns the resulting Logger. It's safe to use concurrently.
-func (l *LoggerType) WithOptions(opts ...zap.Option) *LoggerType {
+func (l *LoggerType) WithOptions(opts ...zap.Option) LoggerItf {
 	return &LoggerType{
 		Logger: l.Logger.WithOptions(opts...),
 		level:  l.level,
