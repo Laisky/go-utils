@@ -1,3 +1,4 @@
+// Package gorm some useful tools for gorm
 package gorm
 
 import (
