@@ -991,3 +991,12 @@ func PanicIfErr(err error) {
 		panic(err)
 	}
 }
+
+// GracefulCancel is a function that will be called when the process is about to be terminated.
+func GracefulCancel(cancel func()) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+
+	cancel()
+}

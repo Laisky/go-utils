@@ -10,9 +10,12 @@ import (
 type AsyncTaskStatus string
 
 const (
+	// AsyncTaskStatusPending task pending
 	AsyncTaskStatusPending AsyncTaskStatus = "pending"
-	AsyncTaskStatusDone    AsyncTaskStatus = "done"
-	AsyncTaskStatusFailed  AsyncTaskStatus = "failed"
+	// AsyncTaskStatusDone task done
+	AsyncTaskStatusDone AsyncTaskStatus = "done"
+	// AsyncTaskStatusFailed task failed
+	AsyncTaskStatusFailed AsyncTaskStatus = "failed"
 )
 
 var (
@@ -36,15 +39,26 @@ type AsyncTaskStore interface {
 	Set(ctx context.Context, taskID string, result *AsyncTaskResult) (err error)
 }
 
-// AsyncTask 异步任务
-type AsyncTask struct {
+// asyncTask async task
+type AsyncTask interface {
+	// ID get task id
+	ID() string
+	// Status get task status, pending/done/failed
+	Status() AsyncTaskStatus
+	// SetDone set task done with result data
+	SetDone(ctx context.Context, data string) (err error)
+	// SetError set task error with err message
+	SetError(ctx context.Context, errMsg string) (err error)
+}
+
+type asyncTask struct {
 	id     string
 	store  AsyncTaskStore
 	result *AsyncTaskResult
 }
 
 // NewTask new async task
-func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (*AsyncTask, error) {
+func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (AsyncTask, error) {
 	result, err := store.New(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "new async task result")
@@ -52,7 +66,7 @@ func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (*AsyncTask, error)
 
 	result.Exp = Clock.GetUTCNow().Add(time.Hour)
 	result.Status = AsyncTaskStatusPending
-	t := &AsyncTask{
+	t := &asyncTask{
 		id:     result.TaskID,
 		store:  store,
 		result: result,
@@ -66,17 +80,17 @@ func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (*AsyncTask, error)
 }
 
 // ID get task id
-func (t *AsyncTask) ID() string {
+func (t *asyncTask) ID() string {
 	return t.id
 }
 
 // Status get task status
-func (t *AsyncTask) Status() AsyncTaskStatus {
+func (t *asyncTask) Status() AsyncTaskStatus {
 	return t.result.Status
 }
 
 // SetDone set task done with result data
-func (t *AsyncTask) SetDone(ctx context.Context, data string) (err error) {
+func (t *asyncTask) SetDone(ctx context.Context, data string) (err error) {
 	if t.result.Exp.After(Clock.GetUTCNow()) {
 		return errors.Wrap(ErrAsyncTask, "task expired")
 	}
@@ -92,7 +106,7 @@ func (t *AsyncTask) SetDone(ctx context.Context, data string) (err error) {
 }
 
 // SetError set task error with err message
-func (t *AsyncTask) SetError(ctx context.Context, errMsg string) (err error) {
+func (t *asyncTask) SetError(ctx context.Context, errMsg string) (err error) {
 	if t.result.Exp.After(Clock.GetUTCNow()) {
 		return errors.Wrap(ErrAsyncTask, "task expired")
 	}
