@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"io/ioutil"
 
+	gutils "github.com/Laisky/go-utils"
 	"github.com/pkg/errors"
 )
 
@@ -47,7 +48,7 @@ func (j *GzText) Scan(value interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer gutils.CloseQuietly(r)
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err

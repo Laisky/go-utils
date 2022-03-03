@@ -83,10 +83,8 @@ func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 // Example
 //
 //   defer CloseQuietly(fp)
-func CloseQuietly(v interface{}) {
-	if d, ok := v.(io.Closer); ok {
-		_ = d.Close()
-	}
+func CloseQuietly(v io.Closer) {
+	_ = v.Close()
 }
 
 // DedentOptFunc dedent option
