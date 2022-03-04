@@ -35,7 +35,7 @@ func TestGormLogger_Print(t *testing.T) {
 					msg,
 				}
 			}
-			gl := NewGormLogger(mockFomatter, logger)
+			gl := NewLogger(mockFomatter, logger)
 			gl.Print(
 				"type",
 				"caller",
@@ -56,7 +56,7 @@ func TestGormLogger_Print(t *testing.T) {
 				"yo",
 			}
 		}
-		gl := NewGormLogger(mockFomatter, gutils.Logger)
+		gl := NewLogger(mockFomatter, gutils.Logger)
 		gl.Print(
 			"type",
 			"caller",

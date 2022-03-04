@@ -11,28 +11,40 @@ import (
 	"github.com/Laisky/zap/zapcore"
 )
 
-type gormLoggerItf interface {
+type loggerItf interface {
 	Debug(string, ...zap.Field)
 	Info(string, ...zap.Field)
 	Error(string, ...zap.Field)
 }
 
-// GormLogger colored logger for gorm
-type GormLogger struct {
-	logger    gormLoggerItf
+var (
+	// NewGormLogger new gorm logger
+	//
+	// Deprecated: use NewLogger instead
+	NewGormLogger = NewLogger
+)
+
+// GormLogger gorm logger
+//
+// Deprecated: use Logger instead
+type GormLogger Logger
+
+// Logger colored logger for gorm
+type Logger struct {
+	logger    loggerItf
 	formatter func(...interface{}) []interface{}
 }
 
-// NewGormLogger new gorm sql logger
-func NewGormLogger(formatter func(...interface{}) []interface{}, logger gormLoggerItf) *GormLogger {
-	return &GormLogger{
+// NewLogger new gorm sql logger
+func NewLogger(formatter func(...interface{}) []interface{}, logger loggerItf) *Logger {
+	return &Logger{
 		logger:    logger,
 		formatter: formatter,
 	}
 }
 
 // Print print sql logger
-func (l *GormLogger) Print(vs ...interface{}) {
+func (l *Logger) Print(vs ...interface{}) {
 	fvs := l.formatter(vs...)
 	var fields []zapcore.Field
 	for i, v := range vs {

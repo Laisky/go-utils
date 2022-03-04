@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Laisky/zap"
-	"github.com/form3tech-oss/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +25,7 @@ qLW+xXwTysxo/xiZcW8fwQowCyxcGJv8r7OfHYB/FScm3jgOaNhabM6laQ==
 )
 
 type testJWTClaims struct {
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 func ExampleJWT() {
@@ -39,11 +39,11 @@ func ExampleJWT() {
 	}
 
 	type jwtClaims struct {
-		jwt.StandardClaims
+		jwt.RegisteredClaims
 	}
 
 	claims := &jwtClaims{
-		jwt.StandardClaims{
+		jwt.RegisteredClaims{
 			Subject: "laisky",
 		},
 	}
@@ -81,7 +81,7 @@ func TestJWTSignAndVerify(t *testing.T) {
 	} {
 
 		claims := &testJWTClaims{
-			StandardClaims: jwt.StandardClaims{
+			RegisteredClaims: jwt.RegisteredClaims{
 				Subject:  "laisky",
 				Audience: []string{"dune"},
 			},
@@ -110,11 +110,11 @@ func TestJWTSignAndVerify(t *testing.T) {
 
 		// test exp
 		claims = &testJWTClaims{
-			jwt.StandardClaims{
-				ExpiresAt: expired.Unix(),
+			jwt.RegisteredClaims{
+				ExpiresAt: &jwt.NumericDate{Time: expired},
 			},
 		}
-		claims.ExpiresAt = expired.Unix()
+		claims.ExpiresAt = &jwt.NumericDate{Time: expired}
 		if token, err = j.Sign(claims); err != nil {
 			require.NoError(t, err, "generate token error %+v", err)
 		}
@@ -128,11 +128,11 @@ func TestJWTSignAndVerify(t *testing.T) {
 
 		// test issuerAt
 		claims = &testJWTClaims{
-			jwt.StandardClaims{
-				IssuedAt: future.Unix(),
+			jwt.RegisteredClaims{
+				IssuedAt: &jwt.NumericDate{Time: future},
 			},
 		}
-		claims.ExpiresAt = expired.Unix()
+		claims.ExpiresAt = &jwt.NumericDate{Time: expired}
 		if token, err = j.Sign(claims); err != nil {
 			require.NoError(t, err, "generate token error %+v", err)
 		}
@@ -149,11 +149,11 @@ func TestJWTSignAndVerify(t *testing.T) {
 func TestParseJWTTokenWithoutValidate(t *testing.T) {
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZHVuZSJdLCJzdWIiOiJsYWlza3kifQ.cYnd2OdN-i3kuPXSUc4xj1rkVk5elJnxln6zDdvlOUc"
 
-	c := new(jwt.StandardClaims)
+	c := new(jwt.RegisteredClaims)
 	err := ParseJWTTokenWithoutValidate(token, c)
 	require.NoError(t, err)
 	require.Equal(t, "laisky", c.Subject)
-	require.Equal(t, []string{"dune"}, c.Audience)
+	require.Equal(t, jwt.ClaimStrings([]string{"dune"}), c.Audience)
 }
 
 // https://snyk.io/vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515?utm_medium=Partner&utm_source=RedHat&utm_campaign=Code-Ready-Analytics-2020&utm_content=vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515
@@ -168,7 +168,7 @@ func TestJWTAudValunerable(t *testing.T) {
 			WithJWTSecretByte(secret),
 		)
 		require.NoError(t, err)
-		claims := new(jwt.StandardClaims)
+		claims := new(jwt.RegisteredClaims)
 		err = j.ParseClaims(token, claims)
 		require.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestJWTAudValunerable(t *testing.T) {
 
 	// bug: slice aud will bypass verify
 	{
-		claims := new(jwt.StandardClaims)
+		claims := new(jwt.RegisteredClaims)
 		err := ParseJWTTokenWithoutValidate(token, claims)
 		require.NoError(t, err)
 

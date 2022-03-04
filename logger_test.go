@@ -48,7 +48,7 @@ func TestWriteToFile(t *testing.T) {
 	require.NoError(t, err)
 
 	logger.Info("yoo")
-	logger.Sync()
+	require.NoError(t, logger.Sync())
 
 	content, err := ioutil.ReadFile(file)
 	require.NoError(t, err)
