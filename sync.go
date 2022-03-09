@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -305,31 +304,4 @@ func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, 
 // GetLock get lock
 func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
 	return e.m.Get(key).(*sync.RWMutex)
-}
-
-// FLock lock by file
-type FLock interface {
-	Lock() error
-	Unlock() error
-}
-
-type flock struct {
-	fpath string
-	fd    int
-}
-
-// NewFlock new file lock
-func NewFlock(lockFilePath string) FLock {
-	return &flock{
-		fpath: lockFilePath,
-	}
-}
-
-func (f *flock) Unlock() error {
-	if err := syscall.Close(f.fd); err != nil {
-		return errors.Wrap(err, "close file")
-	}
-
-	_ = syscall.Unlink(f.fpath)
-	return nil
 }
