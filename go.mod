@@ -12,15 +12,15 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.3.0
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.14.4 // indirect
+	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/pgzip v1.2.5
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/automaxprocs v1.4.0
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
+	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
