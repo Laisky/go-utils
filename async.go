@@ -9,6 +9,10 @@ import (
 
 type AsyncTaskStatus string
 
+func (s AsyncTaskStatus) String() string {
+	return string(s)
+}
+
 const (
 	// AsyncTaskStatusPending task pending
 	AsyncTaskStatusPending AsyncTaskStatus = "pending"
@@ -109,6 +113,11 @@ func (t *asyncTask) Status() AsyncTaskStatus {
 
 // SetDone set task done with result data
 func (t *asyncTask) SetDone(ctx context.Context, data string) (err error) {
+	if t.result.Status != AsyncTaskStatusPending {
+		return errors.Errorf("task already %s", t.result.Status.String())
+	}
+
+	defer t.cancel()
 	t.result.Status = AsyncTaskStatusDone
 	t.result.Data = data
 
@@ -121,6 +130,11 @@ func (t *asyncTask) SetDone(ctx context.Context, data string) (err error) {
 
 // SetError set task error with err message
 func (t *asyncTask) SetError(ctx context.Context, errMsg string) (err error) {
+	if t.result.Status != AsyncTaskStatusPending {
+		return errors.Errorf("task already %s", t.result.Status.String())
+	}
+
+	defer t.cancel()
 	t.result.Status = AsyncTaskStatusFailed
 	t.result.Err = errMsg
 
