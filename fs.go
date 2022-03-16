@@ -114,3 +114,19 @@ func ListFilesInDir(dir string) (files []string, err error) {
 
 	return
 }
+
+// NewTmpFileForContent write content to tmp file and return path
+func NewTmpFileForContent(content []byte) (path string, err error) {
+	tmpDir := os.TempDir()
+	tmpFile, err := ioutil.TempFile(tmpDir, "tmp")
+	if err != nil {
+		return "", errors.Wrap(err, "create tmp file")
+	}
+	defer CloseQuietly(tmpFile)
+
+	if _, err = tmpFile.Write(content); err != nil {
+		return "", errors.Wrap(err, "write to tmp file")
+	}
+
+	return tmpFile.Name(), nil
+}

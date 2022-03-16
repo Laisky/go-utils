@@ -206,3 +206,15 @@ func TestListFilesInDir(t *testing.T) {
 		require.Len(t, files, 0)
 	}
 }
+
+func TestNewTmpFileForContent(t *testing.T) {
+	cnt := "yahoo"
+
+	path, err := NewTmpFileForContent([]byte(cnt))
+	require.NoError(t, err)
+
+	got, err := ioutil.ReadFile(path)
+	require.NoError(t, err)
+
+	require.Equal(t, cnt, string(got))
+}

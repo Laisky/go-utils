@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 )
 
@@ -66,6 +67,10 @@ type asyncTask struct {
 // NewTask new async task
 func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (AsyncTask, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		<-ctx.Done()
+		cancel()
+	}()
 
 	result, err := store.New(ctx)
 	if err != nil {
@@ -96,7 +101,12 @@ func (t *asyncTask) heartbeat(ctx context.Context) {
 		default:
 		}
 
-		t.store.Heartbeat(ctx, t.id)
+		if alived, err := t.store.Heartbeat(ctx, t.id); err != nil {
+			Logger.Error("async task heartbeat", zap.Error(err))
+		} else if !alived {
+			return
+		}
+
 		SleepWithContext(ctx, 10*time.Second)
 	}
 }
