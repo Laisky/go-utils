@@ -74,9 +74,9 @@ func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 // WithHTTPClientInsecure set http client igonre ssl issue
 //
 // default to false
-func WithHTTPClientInsecure(insecure bool) HTTPClientOptFunc {
+func WithHTTPClientInsecure() HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
-		opt.insecure = insecure
+		opt.insecure = true
 		return nil
 	}
 }
