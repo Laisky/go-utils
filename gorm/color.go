@@ -17,18 +17,6 @@ type loggerItf interface {
 	Error(string, ...zap.Field)
 }
 
-var (
-	// NewGormLogger new gorm logger
-	//
-	// Deprecated: use NewLogger instead
-	NewGormLogger = NewLogger
-)
-
-// GormLogger gorm logger
-//
-// Deprecated: use Logger instead
-type GormLogger Logger
-
 // Logger colored logger for gorm
 type Logger struct {
 	logger    loggerItf

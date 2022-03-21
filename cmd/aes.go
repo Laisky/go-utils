@@ -108,7 +108,7 @@ func encryptDirFileByAes() error {
 	)
 	logger.Info("encrypt files in dir")
 
-	return gutils.AESEncryptFilesInDir2(in, secret)
+	return gutils.AESEncryptFilesInDir(in, secret)
 }
 
 func encryptFileByAes() error {

@@ -173,7 +173,7 @@ func TestSettingsToml(t *testing.T) {
 
 	t.Logf("load settings from: %v", fp.Name())
 	err = Settings.LoadFromFile(fp.Name(),
-		WithSettingsInclude(true),
+		WithSettingsEnableInclude(),
 		WithSettingsEnableInclude(),
 	)
 	require.NoError(t, err)
@@ -318,7 +318,7 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 	err = AESEncryptFilesInDir(dirName, secret)
 	require.NoError(t, err)
 
-	for _, fname := range []string{"test1.enc.toml", "test2.enc.toml", "test3.enc.toml"} {
+	for _, fname := range []string{"test1.toml.enc", "test2.toml.enc", "test3.toml.enc"} {
 		fname = filepath.Join(dirName, fname)
 		cipher, err := ioutil.ReadFile(fname)
 		require.NoError(t, err)

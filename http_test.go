@@ -40,7 +40,7 @@ func TestRequestJSONWithClient(t *testing.T) {
 	}
 	want := "{map[hello:world]}"
 	httpClient, err := NewHTTPClient(
-		WithHTTPClientInsecure(false),
+		WithHTTPClientInsecure(),
 		WithHTTPClientMaxConn(20),
 		WithHTTPClientTimeout(30*time.Second),
 	)

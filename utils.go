@@ -152,15 +152,6 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 	return strings.Join(result, "\n")
 }
 
-// IsHasField check is struct has field
-//
-// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
-//
-// Deprecated: use HasField instead
-func IsHasField(st interface{}, fieldName string) bool {
-	return HasField(st, fieldName)
-}
-
 // HasField check is struct has field
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
@@ -176,15 +167,6 @@ func HasField(st interface{}, fieldName string) bool {
 	// 'dereference' with Elem() and get the field by name
 	field := valueIface.Elem().FieldByName(fieldName)
 	return field.IsValid()
-}
-
-// IsHasMethod check is struct has method
-//
-// inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
-//
-// Deprecated: use HasMethod instead
-func IsHasMethod(st interface{}, methodName string) bool {
-	return HasMethod(st, methodName)
 }
 
 // HasMethod check is struct has method

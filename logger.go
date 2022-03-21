@@ -165,7 +165,7 @@ type LoggerOptFunc func(l *loggerOption) error
 // like "stdout"
 func WithLoggerOutputPaths(paths []string) LoggerOptFunc {
 	return func(c *loggerOption) error {
-		c.OutputPaths = append(paths, "stdout")
+		c.OutputPaths = append(c.OutputPaths, paths...)
 		return nil
 	}
 }

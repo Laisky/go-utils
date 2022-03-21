@@ -184,10 +184,6 @@ func (s *SettingsType) LoadFromDir(dirPath string) error {
 type settingsOpt struct {
 	enableInclude bool
 	aesKey        []byte
-	// encryptedMark which will contained in encrypted file
-	//
-	// Deprecated: use encryptedSuffix instead
-	encryptedMark string
 	// encryptedSuffix encrypted file must end with this suffix
 	encryptedSuffix string
 }
@@ -195,22 +191,11 @@ type settingsOpt struct {
 const defaultEncryptSuffix = ".enc"
 
 func (o *settingsOpt) fillDefault() {
-	o.encryptedMark = ".enc."
 	o.encryptedSuffix = defaultEncryptSuffix
 }
 
 // SettingsOptFunc opt for settings
 type SettingsOptFunc func(*settingsOpt) error
-
-// WithSettingsInclude enable `include` in config file
-//
-// Deprecated: use WithSettingsEnableInclude instead
-func WithSettingsInclude(enableInclude bool) SettingsOptFunc {
-	return func(opt *settingsOpt) error {
-		opt.enableInclude = enableInclude
-		return nil
-	}
-}
 
 // WithSettingsEnableInclude enable `include` in config file
 func WithSettingsEnableInclude() SettingsOptFunc {
@@ -232,16 +217,6 @@ func WithSettingsAesEncrypt(key []byte) SettingsOptFunc {
 	}
 }
 
-// WithSettingsEncryptedFileContain only decrypt files which name contains `filenameMark`
-//
-// Deprecated: use WithSettingsEncryptedFileSuffix instead
-func WithSettingsEncryptedFileContain(filenameMark string) SettingsOptFunc {
-	return func(opt *settingsOpt) error {
-		opt.encryptedMark = filenameMark
-		return nil
-	}
-}
-
 // WithSettingsEncryptedFileSuffix only decrypt files which name ends with `encryptedSuffix`
 func WithSettingsEncryptedFileSuffix(suffix string) SettingsOptFunc {
 	return func(opt *settingsOpt) error {
@@ -256,12 +231,6 @@ const settingsIncludeKey = "include"
 func isSettingsFileEncrypted(opt *settingsOpt, fname string) bool {
 	if opt.aesKey == nil {
 		return false
-	}
-
-	// TODO: deprecated in 2.0
-	if opt.encryptedMark != "" &&
-		strings.Contains(fname, opt.encryptedMark) {
-		return true
 	}
 
 	if opt.encryptedSuffix != "" &&
@@ -461,22 +430,6 @@ func AESEncryptFilesInDirFileExt(ext string) SettingsEncryptOptf {
 	}
 }
 
-// AESEncryptFilesInDirFileAppend will append in encrypted file'name before ext
-//
-//   xxx.toml -> xxx.enc.toml
-//
-// Deprecated: use AESEncryptFilesInDirFileSuffix instead
-func AESEncryptFilesInDirFileAppend(append string) SettingsEncryptOptf {
-	return func(opt *settingsAESEncryptOpt) error {
-		if !strings.HasPrefix(append, ".") {
-			return errors.Errorf("append should start with `.`")
-		}
-
-		opt.append = append
-		return nil
-	}
-}
-
 // AESEncryptFilesInDirFileSuffix will append to encrypted's filename as suffix
 //
 //   xxx.toml -> xxx.toml.enc
@@ -493,69 +446,10 @@ func AESEncryptFilesInDirFileSuffix(suffix string) SettingsEncryptOptf {
 
 // AESEncryptFilesInDir encrypt files in dir
 //
-// will generate new encrypted files with <append> before ext
-//
-//   xxx.toml -> xxx.enc.toml
-//
-// Deprecated: use AESEncryptFilesInDir2 instead
-func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
-	opt := &settingsAESEncryptOpt{
-		ext:    ".toml",
-		append: defaultEncryptSuffix,
-	}
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return err
-		}
-	}
-	logger := Logger.With(
-		zap.String("append", opt.append),
-		zap.String("ext", opt.ext))
-
-	fs, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return errors.Wrapf(err, "read dir `%s`", dir)
-	}
-
-	var pool errgroup.Group
-	for _, f := range fs {
-		fname := filepath.Join(dir, f.Name())
-		if !strings.HasSuffix(fname, opt.ext) ||
-			strings.HasSuffix(fname, opt.append+opt.ext) {
-			continue
-		}
-
-		pool.Go(func() (err error) {
-			raw, err := ioutil.ReadFile(fname)
-			if err != nil {
-				return errors.Wrapf(err, "read file `%s`", fname)
-			}
-
-			cipher, err := EncryptByAes(secret, raw)
-			if err != nil {
-				return errors.Wrapf(err, "encrypt")
-			}
-
-			ext := filepath.Ext(fname)
-			out := strings.TrimSuffix(fname, ext) + opt.append + ext
-			if err = ioutil.WriteFile(out, cipher, os.ModePerm); err != nil {
-				return errors.Wrapf(err, "write file `%s`", out)
-			}
-
-			logger.Info("encrypt file", zap.String("src", fname), zap.String("out", out))
-			return nil
-		})
-	}
-
-	return pool.Wait()
-}
-
-// AESEncryptFilesInDir2 encrypt files in dir
-//
 // will generate new encrypted files with <suffix> after ext
 //
 //   xxx.toml -> xxx.toml.enc
-func AESEncryptFilesInDir2(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
+func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
 	opt := new(settingsAESEncryptOpt)
 	opt.fillDefault()
 	for _, optf := range opts {
