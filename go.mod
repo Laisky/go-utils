@@ -5,12 +5,12 @@ go 1.18
 require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/go-utils v1.17.0
+	github.com/Laisky/go-utils v1.17.1-0.20220318074617-9ec15b5aa895
 	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
 	github.com/cespare/xxhash v1.1.0
 	github.com/gammazero/deque v0.1.1
-	github.com/golang-jwt/jwt/v4 v4.3.0
+	github.com/golang-jwt/jwt/v4 v4.4.1-0.20220318111545-1096e506e671
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.5
