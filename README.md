@@ -19,7 +19,7 @@ go get github.com/Laisky/go-utils
 
 ```go
 import (
-    gutils "github.com/Laisky/go-utils"
+    gutils "github.com/Laisky/go-utils/v2"
 )
 ```
 

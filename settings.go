@@ -52,7 +52,7 @@ type SettingsType struct {
 //
 // Basic Usage
 //
-//   import gutils "github.com/Laisky/go-utils"
+//   import gutils "github.com/Laisky/go-utils/v2"
 //
 //	 gutils.Settings.
 var Settings = NewSettings()
