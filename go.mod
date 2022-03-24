@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/go-utils v1.17.1-0.20220318074617-9ec15b5aa895
 	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
 	github.com/cespare/xxhash v1.1.0
@@ -33,6 +32,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.1 // indirect
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -51,6 +51,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.10 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Laisky/go-utils/mocks"
+	"github.com/Laisky/go-utils/v2/mocks"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

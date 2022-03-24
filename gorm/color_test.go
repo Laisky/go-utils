@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/mocks"
 	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
