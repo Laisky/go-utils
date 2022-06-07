@@ -273,9 +273,8 @@ func (l *LoggerType) Level() zapcore.Level {
 
 // ChangeLevel change logger level
 //
-// all children logger share the same level of their parent logger,
-// so if you change any logger's level, all its parent and
-// children logger's level will be changed.
+// Because all children loggers share the same level as their parent logger,
+// if you modify one logger's level, it will affect all of its parent and children loggers.
 func (l *LoggerType) ChangeLevel(level string) (err error) {
 	lvl, err := ParseLoggerLevel(level)
 	if err != nil {
