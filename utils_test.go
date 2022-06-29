@@ -1132,3 +1132,10 @@ func TestCloseQuietly(t *testing.T) {
 	f := new(testCloseQuitlyStruct)
 	CloseQuietly(f)
 }
+
+func TestContains(t *testing.T) {
+	require.True(t, Contains([]string{"1", "2", "3"}, "2"))
+	require.False(t, Contains([]string{"1", "2", "3"}, "4"))
+	require.True(t, Contains([]int{1, 2, 3}, 2))
+	require.False(t, Contains([]int{1, 2, 3}, 4))
+}

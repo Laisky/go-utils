@@ -597,7 +597,20 @@ func TrimEleSpaceAndRemoveEmpty(vs []string) (r []string) {
 	return
 }
 
+// Contains if collection contains ele
+func Contains[V comparable](collection []V, ele V) bool {
+	for _, v := range collection {
+		if v == ele {
+			return true
+		}
+	}
+
+	return false
+}
+
 // InArray if collection contains ele
+//
+// Depracated: use Contains instead
 func InArray(collection interface{}, ele interface{}) bool {
 	targetValue := reflect.ValueOf(collection)
 	switch reflect.TypeOf(collection).Kind() {
