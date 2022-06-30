@@ -18,7 +18,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/Laisky/zap"
 	"github.com/cespare/xxhash"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -254,6 +253,26 @@ func FormatBig2Base64(b *big.Int) string {
 	return base64.URLEncoding.EncodeToString(b.Bytes())
 }
 
+// expandAesSecret expand or strip aes secret
+//
+// Deprecated: dangerous, do not use
+// func expandAesSecret(secret []byte) []byte {
+// 	var n int
+// 	if len(secret) <= 16 {
+// 		n = 16 - len(secret)
+// 	} else if len(secret) <= 24 {
+// 		n = 24 - len(secret)
+// 	} else if len(secret) <= 32 {
+// 		n = 32 - len(secret)
+// 	} else {
+// 		return secret[:32]
+// 	}
+
+// 	Logger.Debug("expand secuet", zap.Int("raw", len(secret)), zap.Int("expand", n))
+// 	newSec := secret[:len(secret):len(secret)]
+// 	return append(newSec, make([]byte, n)...)
+// }
+
 // ParseBase642Big parse base64 string to big
 func ParseBase642Big(raw string) (*big.Int, error) {
 	bb, err := base64.URLEncoding.DecodeString(raw)
@@ -266,33 +285,20 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	return b, nil
 }
 
-func expandAesSecret(secret []byte) []byte {
-	var n int
-	if len(secret) <= 16 {
-		n = 16 - len(secret)
-	} else if len(secret) <= 24 {
-		n = 24 - len(secret)
-	} else if len(secret) <= 32 {
-		n = 32 - len(secret)
-	} else {
-		return secret[:32]
-	}
-
-	Logger.Debug("expand secuet", zap.Int("raw", len(secret)), zap.Int("expand", n))
-	newSec := secret[:len(secret):len(secret)]
-	return append(newSec, make([]byte, n)...)
-}
-
 // EncryptByAes encrypt bytes by aes with key
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+//
+// The key argument should be the AES key,
+// either 16, 24, or 32 bytes to select
+// AES-128, AES-192, or AES-256.
 func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
-	if len(secret) == 0 {
-		return nil, errors.Errorf("secret is empty")
+	if len(cnt) == 0 {
+		return nil, errors.Errorf("content is empty")
 	}
 
 	// generate a new aes cipher
-	c, err := aes.NewCipher(expandAesSecret(secret))
+	c, err := aes.NewCipher(secret)
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}
@@ -325,13 +331,15 @@ func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
 // DecryptByAes encrypt bytes by aes with key
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+//
+// The key argument should be 16, 24, or 32 bytes
 func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
-	if len(secret) == 0 {
-		return nil, errors.Errorf("secret is empty")
+	if len(encrypted) == 0 {
+		return nil, errors.Errorf("encrypted is empty")
 	}
 
 	// generate a new aes cipher
-	c, err := aes.NewCipher(expandAesSecret(secret))
+	c, err := aes.NewCipher(secret)
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}

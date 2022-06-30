@@ -14,29 +14,7 @@ import (
 	"testing"
 
 	"github.com/Laisky/zap"
-	"golang.org/x/sync/errgroup"
 )
-
-func TestAes(t *testing.T) {
-	key := []byte(RandomStringWithLength(32))
-	cnt := []byte("hello, laisky")
-
-	cipher, err := EncryptByAes(key, cnt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("got cipher: %s", Base64Encode(cipher))
-
-	cnt2, err := DecryptByAes(key, cipher)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if Base64Encode(cnt2) != Base64Encode(cnt) {
-		t.Fatalf("got: %s", Base64Encode(cnt2))
-	}
-
-	// t.Error()
-}
 
 const (
 	testhashraw = "dfij3ifj2jjl2jelkjdkwef"
@@ -487,47 +465,86 @@ func TestNewAesReaderWrapper(t *testing.T) {
 	}
 }
 
-func Test_expandAesSecret(t *testing.T) {
+// func Test_expandAesSecret(t *testing.T) {
+// 	type args struct {
+// 		secret []byte
+// 	}
+// 	tests := []struct {
+// 		name string
+// 		args args
+// 		want int
+// 	}{
+// 		{"0", args{[]byte("")}, 16},
+// 		{"1", args{[]byte("1")}, 16},
+// 		{"2", args{[]byte("12")}, 16},
+// 		{"3", args{[]byte("14124")}, 16},
+// 		{"4", args{[]byte("1535435535")}, 16},
+// 		{"5", args{[]byte("   43242341")}, 16},
+// 		{"6", args{[]byte("1111111111111111")}, 16},
+// 		{"7", args{[]byte("11111111111111111")}, 24},
+// 		{"8", args{[]byte("11111111111111111   ")}, 24},
+// 		{"9", args{[]byte("11111111111111111   23423 4324   ")}, 32},
+// 		{"10", args{[]byte("11111111111111111   23423 4324   111")}, 32},
+// 		{"11", args{[]byte("11111111111111111   23423 4324   111414124")}, 32},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			if got := expandAesSecret(tt.args.secret); len(got) != tt.want {
+// 				t.Errorf("expandAesSecret() = (%d)%v, want %v", len(got), got, tt.want)
+// 			}
+// 		})
+// 	}
+
+// 	// race
+// 	var pool errgroup.Group
+// 	secret := make([]byte, 5, 10)
+// 	for i := 0; i < 17; i++ {
+// 		pool.Go(func() error {
+// 			expandAesSecret(secret)
+// 			return nil
+// 		})
+// 	}
+
+// 	if err := pool.Wait(); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// }
+
+func TestEncryptByAes(t *testing.T) {
 	type args struct {
 		secret []byte
+		cnt    string
 	}
 	tests := []struct {
-		name string
-		args args
-		want int
+		name    string
+		args    args
+		wantErr bool
 	}{
-		{"0", args{[]byte("")}, 16},
-		{"1", args{[]byte("1")}, 16},
-		{"2", args{[]byte("12")}, 16},
-		{"3", args{[]byte("14124")}, 16},
-		{"4", args{[]byte("1535435535")}, 16},
-		{"5", args{[]byte("   43242341")}, 16},
-		{"6", args{[]byte("1111111111111111")}, 16},
-		{"7", args{[]byte("11111111111111111")}, 24},
-		{"8", args{[]byte("11111111111111111   ")}, 24},
-		{"9", args{[]byte("11111111111111111   23423 4324   ")}, 32},
-		{"10", args{[]byte("11111111111111111   23423 4324   111")}, 32},
-		{"11", args{[]byte("11111111111111111   23423 4324   111414124")}, 32},
+		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifew"), "mmm"}, false},
+		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifew"), ""}, true},
+		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifeww"), "mmm"}, true},
+		{"", args{[]byte("fjdwudkwfjwiefweffewfewjelwifew"), "mmm"}, true},
+		{"", args{[]byte(""), "mmm"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := expandAesSecret(tt.args.secret); len(got) != tt.want {
-				t.Errorf("expandAesSecret() = (%d)%v, want %v", len(got), got, tt.want)
+			got, err := EncryptByAes(tt.args.secret, []byte(tt.args.cnt))
+			if err != nil {
+				if !tt.wantErr {
+					t.Fatalf("EncryptByAes() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				return
+			}
+
+			decrypted, err := DecryptByAes(tt.args.secret, got)
+			if err != nil {
+				t.Fatalf("decrypt: %+v", err)
+			}
+			if string(decrypted) != tt.args.cnt {
+				t.Fatalf("decrypted not equal to cnt")
 			}
 		})
-	}
-
-	// race
-	var pool errgroup.Group
-	secret := make([]byte, 5, 10)
-	for i := 0; i < 17; i++ {
-		pool.Go(func() error {
-			expandAesSecret(secret)
-			return nil
-		})
-	}
-
-	if err := pool.Wait(); err != nil {
-		t.Fatalf("%+v", err)
 	}
 }
