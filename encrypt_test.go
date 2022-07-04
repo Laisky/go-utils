@@ -552,6 +552,10 @@ func TestEncryptByAes(t *testing.T) {
 }
 
 func TestNewDHKX(t *testing.T) {
+	ExampleDHKX(t)
+}
+
+func ExampleDHKX(t *testing.T) {
 	alice, err := NewDHKX()
 	require.NoError(t, err)
 
@@ -568,6 +572,5 @@ func TestNewDHKX(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("generate key: %+v", hex.EncodeToString(aliceKey))
-	// t.Error()
 	require.Equal(t, aliceKey, bobKey)
 }

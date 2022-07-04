@@ -407,6 +407,19 @@ func (w *AesReaderWrapper) Read(p []byte) (n int, err error) {
 // Diffie Hellman Key-exchange algorithm
 //
 // https://pkg.go.dev/github.com/monnand/dhkx
+//
+// Example
+//
+//   alice, _ := NewDHKX()
+//   bob, _ := NewDHKX()
+//
+//   alicePub := alice.PublicKey()
+//   bobPub := bob.PublicKey()
+//
+//   aliceKey, _ := alice.GenerateKey(bobPub)
+//   bobKey, _ := bob.GenerateKey(alicePub)
+//
+//   // aliceKey == bobKey
 type DHKX struct {
 	g    *dhkx.DHGroup
 	priv *dhkx.DHKey
