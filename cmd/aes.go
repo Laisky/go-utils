@@ -9,8 +9,6 @@ package cmd
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 
 	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/zap"
@@ -20,8 +18,25 @@ import (
 
 // EncryptCMD encrypt files
 var EncryptCMD = &cobra.Command{
-	Use:  "encrypt",
-	Long: `encrypt file`,
+	Use:   "encrypt",
+	Short: "encrypt file or directory",
+	Long: gutils.Dedent(`
+		encrypt file or directory by aes
+
+		Usage
+
+			import (
+				gcmd "github.com/Laisky/go-utils/v2/cmd"
+			)
+
+			func init() {
+				rootCMD.AddCommand(gcmd.EncryptCMD)
+			}
+
+		Run
+
+			go run -race main.go encrypt aes -i <file_path> -s <password>
+	`),
 	Args: NoExtraArgs,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		return setupEncryptArgs(cmd)
@@ -34,26 +49,31 @@ func setupEncryptArgs(cmd *cobra.Command) error {
 	return gutils.Settings.BindPFlags(cmd.Flags())
 }
 
+var (
+	inputpath, outputpath, secret string
+)
+
 func init() {
 	rootCmd.AddCommand(EncryptCMD)
-	EncryptCMD.PersistentFlags().StringP("inputfile", "i", "", "file path tobe encrypt")
-	EncryptCMD.PersistentFlags().StringP("outputfile", "o", "", "file path to output encrypted file")
+	EncryptCMD.PersistentFlags().StringVarP(&inputpath, "input", "i", "", "file/directory path tobe encrypt")
+	EncryptCMD.PersistentFlags().StringVarP(&outputpath, "output", "o", "", "file/directory path to output encrypted file, default to <inputfilepath>.enc")
 
 	EncryptCMD.AddCommand(EncryptAESCMD)
-	EncryptAESCMD.Flags().StringP("secret", "s", "", "secret to encrypt file")
+	EncryptAESCMD.Flags().StringVarP(&secret, "secret", "s", "", "secret to encrypt file")
 }
 
 // EncryptAESCMD encrypt files by aes
 //
 //   `go run cmd/main/main.go encrypt aes -i cmd/root.go -s 123`
 var EncryptAESCMD = &cobra.Command{
-	Use:  "aes",
-	Long: `encrypt file by aes`,
+	Use:   "aes",
+	Short: "encrypt file by aes, key's length must be 16/24/32",
+	Long:  `encrypt file by aes`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		return setupEncryptAESArgs(cmd)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		fs, err := os.Stat(gutils.Settings.GetString("inputfile"))
+		fs, err := os.Stat(inputpath)
 		if err != nil {
 			gutils.Logger.Panic("read path", zap.Error(err))
 		}
@@ -71,50 +91,31 @@ var EncryptAESCMD = &cobra.Command{
 }
 
 func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
-	if err = gutils.Settings.BindPFlags(cmd.Flags()); err != nil {
-		return err
+	if inputpath == "" {
+		return errors.Errorf("inputfile cannot be empty")
 	}
-
-	if gutils.Settings.GetString("inputfile") == "" &&
-		gutils.Settings.GetString("inputdir") == "" {
-		return errors.Errorf("inputfile & inputdir cannot both be empty")
-	}
-
-	if gutils.Settings.GetString("outputfile") == "" &&
-		gutils.Settings.GetString("inputfile") != "" {
-		out := gutils.Settings.GetString("inputfile")
-		ext := filepath.Ext(out)
-		gutils.Settings.Set("outputfile", strings.TrimSuffix(out, ext)+".enc"+ext)
-	}
-
-	if gutils.Settings.GetString("outputdir") == "" {
-		gutils.Settings.Set("outputdir", gutils.Settings.GetString("inputdir"))
-	}
-
-	if gutils.Settings.GetString("secret") == "" {
+	if secret == "" {
 		return errors.Errorf("secret cannot be empty")
+	}
+
+	if outputpath == "" {
+		outputpath = inputpath + ".enc"
 	}
 
 	return nil
 }
 
 func encryptDirFileByAes() error {
-	in := gutils.Settings.GetString("inputfile")
-	out := gutils.Settings.GetString("outputfile")
-	secret := []byte(gutils.Settings.GetString("secret"))
-	logger := gutils.Logger.With(
-		zap.String("in", in),
-		zap.String("out", out),
-	)
-	logger.Info("encrypt files in dir")
+	secret := []byte(secret)
+	gutils.Logger.Info("encrypt files in dir", zap.String("path", inputpath))
 
-	return gutils.AESEncryptFilesInDir(in, secret)
+	return gutils.AESEncryptFilesInDir(inputpath, secret)
 }
 
 func encryptFileByAes() error {
-	in := gutils.Settings.GetString("inputfile")
-	out := gutils.Settings.GetString("outputfile")
-	secret := []byte(gutils.Settings.GetString("secret"))
+	in := inputpath
+	out := outputpath
+	secret := []byte(secret)
 	logger := gutils.Logger.With(
 		zap.String("in", in),
 		zap.String("out", out),

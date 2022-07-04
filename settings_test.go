@@ -314,7 +314,7 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 	err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
 	require.NoError(t, err)
 
-	secret := []byte("laisky")
+	secret := []byte("laiskyfwejfewjfewlijffed")
 	err = AESEncryptFilesInDir(dirName, secret)
 	require.NoError(t, err)
 

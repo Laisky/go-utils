@@ -77,8 +77,8 @@ type LoggerItf interface {
 	WithOptions(opts ...zap.Option) LoggerItf
 }
 
-// LoggerType extend from zap.Logger
-type LoggerType struct {
+// loggerType extend from zap.Logger
+type loggerType struct {
 	*zap.Logger
 
 	// level level of current logger
@@ -258,7 +258,7 @@ func NewLogger(optfs ...LoggerOptFunc) (l LoggerItf, err error) {
 	}
 	zapLogger = zapLogger.Named(opt.Name)
 
-	l = &LoggerType{
+	l = &loggerType{
 		Logger: zapLogger,
 		level:  opt.Level,
 	}
@@ -267,15 +267,20 @@ func NewLogger(optfs ...LoggerOptFunc) (l LoggerItf, err error) {
 }
 
 // Level get current level of logger
-func (l *LoggerType) Level() zapcore.Level {
+func (l *loggerType) Level() zapcore.Level {
 	return l.level.Level()
+}
+
+// Zap return internal z*ap.Logger
+func (l *loggerType) Zap() *zap.Logger {
+	return l.Logger
 }
 
 // ChangeLevel change logger level
 //
 // Because all children loggers share the same level as their parent logger,
 // if you modify one logger's level, it will affect all of its parent and children loggers.
-func (l *LoggerType) ChangeLevel(level string) (err error) {
+func (l *loggerType) ChangeLevel(level string) (err error) {
 	lvl, err := ParseLoggerLevel(level)
 	if err != nil {
 		return err
@@ -288,7 +293,7 @@ func (l *LoggerType) ChangeLevel(level string) (err error) {
 
 // DebugSample emit debug log with propability sample/SampleRateDenominator.
 // sample could be [0, 1000], less than 0 means never, great than 1000 means certainly
-func (l *LoggerType) DebugSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *loggerType) DebugSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -297,7 +302,7 @@ func (l *LoggerType) DebugSample(sample int, msg string, fields ...zapcore.Field
 }
 
 // InfoSample emit info log with propability sample/SampleRateDenominator
-func (l *LoggerType) InfoSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *loggerType) InfoSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -306,7 +311,7 @@ func (l *LoggerType) InfoSample(sample int, msg string, fields ...zapcore.Field)
 }
 
 // WarnSample emit warn log with propability sample/SampleRateDenominator
-func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *loggerType) WarnSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -315,8 +320,8 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field)
 }
 
 // Clone clone new Logger that inherit all config
-func (l *LoggerType) Clone() LoggerItf {
-	return &LoggerType{
+func (l *loggerType) Clone() LoggerItf {
+	return &loggerType{
 		Logger: l.Logger.With(),
 		level:  l.level,
 	}
@@ -324,8 +329,8 @@ func (l *LoggerType) Clone() LoggerItf {
 
 // Named adds a new path segment to the logger's name. Segments are joined by
 // periods. By default, Loggers are unnamed.
-func (l *LoggerType) Named(s string) LoggerItf {
-	return &LoggerType{
+func (l *loggerType) Named(s string) LoggerItf {
+	return &loggerType{
 		Logger: l.Logger.Named(s),
 		level:  l.level,
 	}
@@ -333,8 +338,8 @@ func (l *LoggerType) Named(s string) LoggerItf {
 
 // With creates a child logger and adds structured context to it. Fields added
 // to the child don't affect the parent, and vice versa.
-func (l *LoggerType) With(fields ...zapcore.Field) LoggerItf {
-	return &LoggerType{
+func (l *loggerType) With(fields ...zapcore.Field) LoggerItf {
+	return &loggerType{
 		Logger: l.Logger.With(fields...),
 		level:  l.level,
 	}
@@ -342,8 +347,8 @@ func (l *LoggerType) With(fields ...zapcore.Field) LoggerItf {
 
 // WithOptions clones the current Logger, applies the supplied Options, and
 // returns the resulting Logger. It's safe to use concurrently.
-func (l *LoggerType) WithOptions(opts ...zap.Option) LoggerItf {
-	return &LoggerType{
+func (l *loggerType) WithOptions(opts ...zap.Option) LoggerItf {
+	return &loggerType{
 		Logger: l.Logger.WithOptions(opts...),
 		level:  l.level,
 	}

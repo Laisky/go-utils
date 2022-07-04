@@ -188,7 +188,9 @@ type settingsOpt struct {
 	encryptedSuffix string
 }
 
-const defaultEncryptSuffix = ".enc"
+const (
+	defaultEncryptSuffix = ".enc"
+)
 
 func (o *settingsOpt) fillDefault() {
 	o.encryptedSuffix = defaultEncryptSuffix
@@ -403,15 +405,12 @@ func (s *SettingsType) LoadSettings() {
 
 type settingsAESEncryptOpt struct {
 	ext string
-	// append will append in encrypted file'name before ext
-	append string
 	// suffix will append in encrypted file'name after ext as suffix
 	suffix string
 }
 
 func (o *settingsAESEncryptOpt) fillDefault() {
-	o.ext = ".toml"
-	o.append = defaultEncryptSuffix
+	// o.ext = ".toml"
 	o.suffix = defaultEncryptSuffix
 }
 
@@ -462,19 +461,18 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf
 		zap.String("suffix", opt.suffix),
 	)
 
-	fs, err := ioutil.ReadDir(dir)
+	fs, err := ListFilesInDir(dir)
 	if err != nil {
 		return errors.Wrapf(err, "read dir `%s`", dir)
 	}
 
 	var pool errgroup.Group
-	for _, f := range fs {
-		fname := filepath.Join(dir, f.Name())
-		if !strings.HasSuffix(fname, opt.ext) ||
-			strings.HasSuffix(fname, opt.append+opt.ext) {
+	for _, fname := range fs {
+		if !strings.HasSuffix(fname, opt.ext) {
 			continue
 		}
 
+		fname := fname
 		pool.Go(func() (err error) {
 			raw, err := ioutil.ReadFile(fname)
 			if err != nil {

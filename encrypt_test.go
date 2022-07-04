@@ -443,7 +443,7 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 
 func TestNewAesReaderWrapper(t *testing.T) {
 	raw := []byte("fjlf2fjjefjwijf93r23f")
-	secret := []byte("fjefil2j3i2lfj32fl")
+	secret := []byte("fjefil2j3i2lfj32fl2defea")
 	cipher, err := EncryptByAes(secret, raw)
 	if err != nil {
 		t.Fatalf("%+v", err)
