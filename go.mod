@@ -13,6 +13,7 @@ require (
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.5
+	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5

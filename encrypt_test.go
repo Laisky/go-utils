@@ -8,12 +8,14 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"testing"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -547,4 +549,25 @@ func TestEncryptByAes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewDHKX(t *testing.T) {
+	alice, err := NewDHKX()
+	require.NoError(t, err)
+
+	bob, err := NewDHKX()
+	require.NoError(t, err)
+
+	alicePub := alice.PublicKey()
+	bobPub := bob.PublicKey()
+
+	aliceKey, err := alice.GenerateKey(bobPub)
+	require.NoError(t, err)
+
+	bobKey, err := bob.GenerateKey(alicePub)
+	require.NoError(t, err)
+
+	t.Logf("generate key: %+v", hex.EncodeToString(aliceKey))
+	// t.Error()
+	require.Equal(t, aliceKey, bobKey)
 }
