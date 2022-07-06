@@ -7,6 +7,43 @@ import (
 	"strings"
 )
 
+// Number is a number type
+type Number interface {
+	int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | float32 | float64
+}
+
+// Min return the minimal value in collection
+func Min[T Number](collection []T) T {
+	if len(collection) == 0 {
+		panic("empty collection")
+	}
+
+	min := collection[0]
+	for _, v := range collection {
+		if v < min {
+			min = v
+		}
+	}
+
+	return min
+}
+
+// Max return the maximal value in collection
+func Max[T Number](collection []T) T {
+	if len(collection) == 0 {
+		panic("empty collection")
+	}
+
+	max := collection[0]
+	for _, v := range collection {
+		if v > max {
+			max = v
+		}
+	}
+
+	return max
+}
+
 // MaxInt get the max int of two
 func MaxInt(a, b int) int {
 	if a >= b {

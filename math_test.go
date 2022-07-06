@@ -175,3 +175,17 @@ func TestMaxInt(t *testing.T) {
 		})
 	}
 }
+
+func TestMin(t *testing.T) {
+	require.Equal(t, Min([]int{-1, 2, 3}), -1)
+	require.Equal(t, Min([]int{1, -2, 3}), -2)
+	require.Equal(t, Min([]uint{4, 2, 3}), uint(2))
+	require.Equal(t, Min([]float32{4, 2, 3}), float32(2))
+}
+
+func TestMax(t *testing.T) {
+	require.Equal(t, Max([]int{-1, 2, 3}), 3)
+	require.Equal(t, Max([]int{1, -2, 3}), 3)
+	require.Equal(t, Max([]uint{4, 2, 3}), uint(4))
+	require.Equal(t, Max([]float32{4, 2, 3}), float32(4))
+}
