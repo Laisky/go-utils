@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // Number is a number type
@@ -142,6 +144,105 @@ func HumanReadableByteCount(bytes int64, si bool) (ret string) {
 	panic(fmt.Sprintf("unknown bytes `%v`", bytes))
 }
 
-// func IntersectSortedChans[T Sortable](chans []chan T) []T {
+type isc[T Sortable] struct {
+	vals  []T
+	chans []chan T
+}
 
-// }
+type iscSortItem struct {
+	idx int
+}
+
+func newISC[T Sortable](chans ...chan T) (*isc[T], error) {
+	v := &isc[T]{
+		chans: chans,
+		vals:  make([]T, len(chans)),
+	}
+
+	return v, nil
+}
+
+// updateVal update specific cursor val by channs,
+// if idx < 0, update all vals
+func (c isc[T]) updateVal(idx int) (closed bool) {
+	if idx < 0 {
+		for i := range c.chans {
+			if c.updateVal(i) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	v, ok := <-c.chans[idx]
+	if !ok {
+		return true
+	}
+
+	c.vals[idx] = v
+	return false
+}
+
+func (c isc[T]) allEqual() bool {
+	return Max[T](c.vals) == Min[T](c.vals)
+}
+
+func (c isc[T]) getSmallestTwo() (smallest, smaller iscSortItem) {
+	smallest = iscSortItem{idx: 0}
+	smaller = iscSortItem{idx: 1}
+	for idx, v := range c.vals {
+		if v < c.vals[smallest.idx] {
+			smaller.idx = smallest.idx
+			smallest.idx = idx
+		} else if v < c.vals[smaller.idx] {
+			smaller.idx = idx
+		}
+	}
+
+	return
+}
+
+func IntersectSortedChans[T Sortable](chans ...chan T) (result chan T, err error) {
+	if len(chans) < 2 {
+		return nil, errors.Errorf("at least two chans required")
+	}
+
+	result = make(chan T)
+	isc, err := newISC(chans...)
+	if err != nil {
+		return nil, err
+	}
+
+	if isc.updateVal(-1) {
+		return nil, errors.Errorf("some chan already closed")
+	}
+
+	go func() {
+		defer close(result)
+		for {
+			if isc.allEqual() {
+				result <- isc.vals[0]
+				if isc.updateVal(-1) {
+					return
+				}
+
+				continue
+			}
+
+			smallest, smaller := isc.getSmallestTwo()
+			smallestV := isc.vals[smallest.idx]
+			needUpdate := smallestV == isc.vals[smaller.idx]
+			for smallestV < isc.vals[smaller.idx] || needUpdate {
+				if isc.updateVal(smallest.idx) {
+					return
+				}
+
+				smallestV = isc.vals[smallest.idx]
+				needUpdate = false
+			}
+		}
+	}()
+
+	return result, nil
+}

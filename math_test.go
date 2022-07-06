@@ -3,8 +3,11 @@ package utils
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
+	"time"
 
+	gset "github.com/deckarep/golang-set/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -192,4 +195,50 @@ func TestMax(t *testing.T) {
 	require.Equal(t, Max([]float32{4, 2, 3}), float32(4))
 	require.Equal(t, Max([]string{"a", "b", "c"}), "c")
 	require.Panics(t, func() { Max([]int{}) })
+}
+
+func TestIntersectSortedChans(t *testing.T) {
+	nChan := 5
+
+	chans := make([]chan int, nChan)
+	sets := make([]gset.Set[int], nChan)
+	arrs := make([][]int, nChan)
+	for i := 0; i < nChan; i++ {
+		chans[i] = make(chan int)
+		sets[i] = gset.NewSet[int]()
+		go func(i int) {
+			last := 0
+			randor := rand.New(rand.NewSource(time.Now().UnixNano()))
+			for j := 0; j < 1000; j++ {
+				last += randor.Intn(2)
+				sets[i].Add(last)
+				arrs[i] = append(arrs[i], last)
+				chans[i] <- last
+			}
+
+			close(chans[i])
+		}(i)
+	}
+
+	got := gset.NewSet[int]()
+	resultChan, err := IntersectSortedChans[int](chans...)
+	require.NoError(t, err)
+	for v := range resultChan {
+		got.Add(v)
+	}
+
+	EmptyAllChans(chans...)
+
+	expect := sets[0]
+	t.Log("arr<0>:", arrs[0])
+	for i := 1; i < nChan; i++ {
+		t.Logf("arr<%d>:%v", i, arrs[i])
+		expect = expect.Intersect(sets[i])
+	}
+
+	t.Log("expect:", expect.ToSlice())
+	t.Log("got:", got.ToSlice())
+	require.NotEqual(t, len(got.ToSlice()), 0)
+	require.True(t, got.Equal(expect))
+	// t.Error()
 }

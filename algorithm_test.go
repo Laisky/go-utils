@@ -56,7 +56,7 @@ func (it *heapItem) GetPriority() int {
 }
 
 var (
-	itemsWaitToSort = HeapSlice{
+	itemsWaitToSort = HeapSlice[int]{
 		&heapItem{p: 1},
 		&heapItem{p: 3},
 		&heapItem{p: 55},
@@ -69,7 +69,7 @@ var (
 
 func ExampleGetLargestNItems() {
 	var (
-		itemsWaitToSort = HeapSlice{
+		itemsWaitToSort = HeapSlice[int]{
 			&heapItem{p: 1},
 			&heapItem{p: 3},
 			&heapItem{p: 55},
@@ -78,7 +78,7 @@ func ExampleGetLargestNItems() {
 			&heapItem{p: 15555},
 			&heapItem{p: 122},
 		}
-		itemChan = make(chan HeapItemItf)
+		itemChan = make(chan HeapItemItf[int])
 	)
 
 	go func() {
@@ -104,7 +104,7 @@ func ExampleGetLargestNItems() {
 
 func ExampleGetSmallestNItems() {
 	var (
-		itemsWaitToSort = HeapSlice{
+		itemsWaitToSort = HeapSlice[int]{
 			&heapItem{p: 1},
 			&heapItem{p: 3},
 			&heapItem{p: 55},
@@ -113,7 +113,7 @@ func ExampleGetSmallestNItems() {
 			&heapItem{p: 15555},
 			&heapItem{p: 122},
 		}
-		itemChan = make(chan HeapItemItf)
+		itemChan = make(chan HeapItemItf[int])
 	)
 
 	go func() {
@@ -139,7 +139,7 @@ func ExampleGetSmallestNItems() {
 
 func TestGetTopKItems(t *testing.T) {
 	// defer utils.Logger.Sync()
-	generate := func(itemChan chan HeapItemItf) {
+	generate := func(itemChan chan HeapItemItf[int]) {
 		for _, item := range itemsWaitToSort {
 			itemChan <- item
 		}
@@ -148,13 +148,13 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	var (
-		items    HeapSlice
+		items    HeapSlice[int]
 		err      error
-		itemChan chan HeapItemItf
+		itemChan chan HeapItemItf[int]
 	)
 
 	// test highest
-	itemChan = make(chan HeapItemItf)
+	itemChan = make(chan HeapItemItf[int])
 	go generate(itemChan)
 	items, err = GetTopKItems(itemChan, 3, true)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestGetTopKItems(t *testing.T) {
 	}
 
 	// test lowest
-	itemChan = make(chan HeapItemItf)
+	itemChan = make(chan HeapItemItf[int])
 	go generate(itemChan)
 	items, err = GetTopKItems(itemChan, 3, false)
 	if err != nil {
@@ -192,7 +192,7 @@ func TestGetTopKItems(t *testing.T) {
 
 func TestPriorityQ(t *testing.T) {
 	for _, isMaxTop := range []bool{true, false} {
-		q := NewPriorityQ(isMaxTop)
+		q := newPriorityQ[int](isMaxTop)
 		heap.Init(q)
 		var (
 			v, n int
@@ -236,73 +236,86 @@ func TestPriorityQ(t *testing.T) {
 			}
 			curP = heap.Pop(q).(*heapItem).GetPriority()
 			if lastP != 0 {
-				if isMaxTop && curP > lastP {
-					t.Errorf("%v should <= %v", curP, lastP)
-				} else if !isMaxTop && curP < lastP {
-					t.Errorf("%v should >= %v", curP, lastP)
+				if isMaxTop {
+					require.GreaterOrEqual(t, curP, lastP)
+				} else {
+					require.LessOrEqual(t, curP, lastP)
 				}
 			}
 
 			lastP = curP
 			results = append(results, curP)
 		}
+
+		if isMaxTop {
+			require.Equal(t, lastP, Max[int](results))
+		} else {
+			require.Equal(t, lastP, Min[int](results))
+		}
+
 		t.Logf("%v[%v]: %v\n", isMaxTop, len(results), results[:10])
 	}
 	// t.Error("done")
 }
 
 func TestLimitSizeHeap(t *testing.T) {
-	heap, err := NewLimitSizeHeap(5, true)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	var (
-		it HeapItemItf
-		n  int
-	)
-	for i := 0; i < 100; i++ {
-		n = rand.Intn(1000)
-		it = heap.Push(&heapItem{
-			p: n,
-			k: n,
-		})
-		if it != nil {
-			t.Logf("push %v, pop %v", n, it.GetPriority())
-		} else {
-			t.Logf("push %v", n)
+	for _, isHighest := range []bool{true, false} {
+		heap, err := NewLimitSizeHeap[int](5, isHighest)
+		if err != nil {
+			t.Fatalf("%+v", err)
 		}
-	}
 
-	var oldit HeapItemItf
-	results := []int{}
-	for {
-		if it = heap.Pop(); it == nil {
-			break
-		}
-		results = append(results, it.GetPriority())
-		if oldit != nil {
-			if oldit.GetPriority() > it.GetPriority() {
-				t.Fatal(oldit.GetPriority(), "should <=", it.GetPriority(), ",", results)
+		var (
+			it HeapItemItf[int]
+			n  int
+		)
+		for i := 0; i < 100; i++ {
+			n = rand.Intn(1000)
+			it = heap.Push(&heapItem{
+				p: n,
+				k: n,
+			})
+			if it != nil {
+				t.Logf("push %v, pop %v", n, it.GetPriority())
+			} else {
+				t.Logf("push %v", n)
 			}
 		}
-		oldit = it
-	}
 
-	t.Log("results: ", results)
-	// t.Error("done")
+		var lastItem HeapItemItf[int]
+		results := []int{}
+		for {
+			if it = heap.Pop(); it == nil {
+				break
+			}
+
+			results = append(results, it.GetPriority())
+			if lastItem != nil {
+				if isHighest {
+					require.GreaterOrEqual(t, lastItem.GetPriority(), it.GetPriority())
+				} else {
+					require.LessOrEqual(t, lastItem.GetPriority(), it.GetPriority())
+				}
+			}
+
+			lastItem = it
+		}
+
+		t.Log("results: ", results)
+		// t.Error("done")
+	}
 }
 
 func BenchmarkLimitSizeHeap(b *testing.B) {
-	heap5, err := NewLimitSizeHeap(5, true)
+	heap5, err := NewLimitSizeHeap[int](5, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	heap50, err := NewLimitSizeHeap(50, true)
+	heap50, err := NewLimitSizeHeap[int](50, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	heap500, err := NewLimitSizeHeap(500, true)
+	heap500, err := NewLimitSizeHeap[int](500, true)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}

@@ -98,73 +98,68 @@ func NewSkiplist() *skiplist.SkipList {
 // -------------------------------------
 
 // itemType item that need to sort
-type itemType struct {
-	priority int
+type itemType[T Sortable] struct {
+	priority T
 	key      interface{}
 }
 
 // GetKey get key of item
-func (it *itemType) GetKey() interface{} {
+func (it *itemType[T]) GetKey() interface{} {
 	return it.key
 }
 
 // GetPriority get priority of item
-func (it *itemType) GetPriority() int {
+func (it *itemType[T]) GetPriority() T {
 	return it.priority
 }
 
-type HeapSlice []HeapItemItf
+type HeapSlice[T Sortable] []HeapItemItf[T]
 
-// PriorityQ lower structure used by heap
+// priorityQ lower structure used by heap
 //
 // do not use this structure directly
-type PriorityQ struct {
+type priorityQ[T Sortable] struct {
 	isMaxTop bool
-	q        []HeapItemItf
+	q        []HeapItemItf[T]
 }
 
-// NewPriorityQ create new PriorityQ
-func NewPriorityQ(isMaxTop bool) *PriorityQ {
-	// Logger.Debug("create PriorityQ")
-	return &PriorityQ{
+// newPriorityQ create new PriorityQ
+func newPriorityQ[T Sortable](isMaxTop bool) *priorityQ[T] {
+	return &priorityQ[T]{
 		isMaxTop: isMaxTop,
-		q:        []HeapItemItf{},
+		q:        []HeapItemItf[T]{},
 	}
 }
 
 // Len get length of items in heapq
-func (p *PriorityQ) Len() int {
-	// Logger.Debug("len", zap.Int("len", len(p.q)))
+func (p *priorityQ[T]) Len() int {
 	return len(p.q)
 }
 
 // Less compare two items in heapq
-func (p *PriorityQ) Less(i, j int) bool {
-	// Logger.Debug("less two items", zap.Int("i", i), zap.Int("j", j))
+func (p *priorityQ[T]) Less(i, j int) bool {
 	if p.isMaxTop {
-		return p.q[i].GetPriority() > p.q[j].GetPriority()
+		return p.q[i].GetPriority() < p.q[j].GetPriority()
 	}
 
-	return p.q[i].GetPriority() < p.q[j].GetPriority()
+	return p.q[i].GetPriority() >= p.q[j].GetPriority()
 }
 
 // Swap swat two items in heapq
-func (p *PriorityQ) Swap(i, j int) {
-	// Logger.Debug("swap two items", zap.Int("i", i), zap.Int("j", j))
+func (p *priorityQ[T]) Swap(i, j int) {
 	p.q[i], p.q[j] = p.q[j], p.q[i]
 }
 
 // Push push new item into heapq
-func (p *PriorityQ) Push(x interface{}) {
-	// Logger.Debug("push item", zap.Int("priority", x.(HeapItemItf).GetPriority()))
-	item := x.(HeapItemItf)
+func (p *priorityQ[T]) Push(x interface{}) {
+	item := x.(HeapItemItf[T])
 	p.q = append(p.q, item)
 }
 
 // Remove remove an specific item
-func (p *PriorityQ) Remove(v HeapItemItf) (ok bool) {
+func (p *priorityQ[T]) Remove(key interface{}) (ok bool) {
 	for i, it := range p.q {
-		if it == v {
+		if it.GetKey() == key {
 			p.q = append(p.q[:i], p.q[i+1:]...)
 			return true
 		}
@@ -173,11 +168,30 @@ func (p *PriorityQ) Remove(v HeapItemItf) (ok bool) {
 	return false
 }
 
+// Get get item by key
+func (p *priorityQ[T]) Get(key interface{}) HeapItemItf[T] {
+	for i := range p.q {
+		if p.q[i].GetKey() == key {
+			return p.q[i]
+		}
+	}
+
+	return nil
+}
+
+// GetIdx get item by idx
+func (p *priorityQ[T]) GetIdx(idx int) HeapItemItf[T] {
+	return p.q[idx]
+}
+
 // Pop pop from the tail.
-// if `isMaxTop=True`, pop the biggest item
-func (p *PriorityQ) Pop() (popped interface{}) {
-	Logger.Debug("pop item")
+// if `isMaxTop=True`, pop the tail(smallest) item
+func (p *priorityQ[T]) Pop() (popped interface{}) {
 	n := len(p.q)
+	if n == 0 {
+		return nil
+	}
+
 	popped = p.q[n-1]
 	p.q[n-1] = nil // avoid memory leak
 	p.q = p.q[:n-1]
@@ -185,18 +199,20 @@ func (p *PriorityQ) Pop() (popped interface{}) {
 }
 
 // HeapItemItf items need to sort
-type HeapItemItf interface {
+//
+// T is the type of priority
+type HeapItemItf[T Sortable] interface {
 	GetKey() interface{}
-	GetPriority() int
+	GetPriority() T
 }
 
 // GetLargestNItems get N highest priority items
-func GetLargestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, error) {
+func GetLargestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
 	return GetTopKItems(inputChan, topN, false)
 }
 
 // GetSmallestNItems get N smallest priority items
-func GetSmallestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, error) {
+func GetSmallestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
 	return GetTopKItems(inputChan, topN, true)
 }
 
@@ -204,7 +220,7 @@ func GetSmallestNItems(inputChan <-chan HeapItemItf, topN int) ([]HeapItemItf, e
 //
 //   * use min-heap to calculates topN Highest items.
 //   * use max-heap to calculates topN Lowest items.
-func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]HeapItemItf, error) {
+func GetTopKItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
 	Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
 		return nil, errors.Errorf("GetMostFreqWords topN must larger than 2")
@@ -213,10 +229,10 @@ func GetTopKItems(inputChan <-chan HeapItemItf, topN int, isHighest bool) ([]Hea
 	var (
 		i               int
 		ok              bool
-		item, thresItem HeapItemItf
-		items           = make([]HeapItemItf, topN)
+		item, thresItem HeapItemItf[T]
+		items           = make([]HeapItemItf[T], topN)
 		nTotal          = 0
-		p               = NewPriorityQ(!isHighest)
+		p               = newPriorityQ[T](!isHighest)
 	)
 
 LOAD_LOOP:
@@ -235,7 +251,7 @@ LOAD_LOOP:
 			thresItem = item
 		}
 
-		p.Push(&itemType{
+		p.Push(&itemType[T]{
 			key:      item.GetKey(),
 			priority: item.GetPriority(),
 		})
@@ -243,10 +259,10 @@ LOAD_LOOP:
 
 	if inputChan == nil {
 		if p.Len() == 1 { // only one item
-			return []HeapItemItf{item}, nil
+			return []HeapItemItf[T]{item}, nil
 		}
 		if p.Len() == 0 {
-			return []HeapItemItf{}, nil
+			return []HeapItemItf[T]{}, nil
 		}
 	}
 
@@ -261,48 +277,53 @@ LOAD_LOOP:
 				continue
 			}
 
-			heap.Push(p, &itemType{
+			heap.Push(p, &itemType[T]{
 				priority: item.GetPriority(),
 				key:      item.GetKey(),
 			})
-			thresItem = heap.Pop(p).(*itemType)
+			thresItem = heap.Pop(p).(*itemType[T])
 		}
 	}
 
 	Logger.Debug("process all items", zap.Int("total", nTotal))
 	for i := 1; i <= topN; i++ { // pop all needed items
-		item = heap.Pop(p).(*itemType)
+		item = heap.Pop(p).(*itemType[T])
 		items[topN-i] = item
 	}
 
 	return items, nil
 }
 
-// LimitSizeHeap heap with limit size
-type LimitSizeHeap struct {
-	q             *PriorityQ
-	thresItem     HeapItemItf
+type LimitSizeHeap[T Sortable] interface {
+	Push(item HeapItemItf[T]) HeapItemItf[T]
+	Pop() HeapItemItf[T]
+}
+
+// limitSizeHeap heap with limit size
+type limitSizeHeap[T Sortable] struct {
+	q             *priorityQ[T]
+	thresItem     HeapItemItf[T]
 	isHighest     bool
 	size, maxSize int64
 }
 
 // NewLimitSizeHeap create new LimitSizeHeap
-func NewLimitSizeHeap(size int, isHighest bool) (h *LimitSizeHeap, err error) {
+func NewLimitSizeHeap[T Sortable](size int, isHighest bool) (LimitSizeHeap[T], error) {
 	if size < 1 {
 		return nil, errors.Errorf("size must greater than 0")
 	}
 
-	h = &LimitSizeHeap{
-		q:         NewPriorityQ(!isHighest),
+	h := &limitSizeHeap[T]{
+		q:         newPriorityQ[T](!isHighest),
 		maxSize:   int64(size),
 		isHighest: isHighest,
 	}
 	heap.Init(h.q)
-	return
+	return h, nil
 }
 
 // Push push item into heap, return popped item if exceed size
-func (h *LimitSizeHeap) Push(item HeapItemItf) HeapItemItf {
+func (h *limitSizeHeap[T]) Push(item HeapItemItf[T]) HeapItemItf[T] {
 	if h.size == h.maxSize && h.thresItem != nil {
 		if h.isHighest && item.GetPriority() <= h.thresItem.GetPriority() {
 			return item // item <= minimal member
@@ -324,7 +345,7 @@ func (h *LimitSizeHeap) Push(item HeapItemItf) HeapItemItf {
 	heap.Push(h.q, item)
 	if h.size > h.maxSize {
 		h.size--
-		h.thresItem = heap.Pop(h.q).(HeapItemItf)
+		h.thresItem = heap.Pop(h.q).(HeapItemItf[T])
 		return h.thresItem
 	}
 
@@ -333,13 +354,13 @@ func (h *LimitSizeHeap) Push(item HeapItemItf) HeapItemItf {
 
 // Pop pop from the tail.
 // if `isHighest=True`, pop the biggest item
-func (h *LimitSizeHeap) Pop() HeapItemItf {
+func (h *limitSizeHeap[T]) Pop() HeapItemItf[T] {
 	if h.size == 0 {
 		return nil
 	}
 
 	h.size--
-	return heap.Pop(h.q).(HeapItemItf)
+	return heap.Pop(h.q).(HeapItemItf[T])
 }
 
 // -------------------------------------

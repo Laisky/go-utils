@@ -2,6 +2,10 @@
 
 Many useful golang tools, support Go >= v1.18.
 
+**STILL ON HEAVY DEVELOPING, DO NOT STABLE**
+
+**WILL BE STABLE IN v2.1**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils)](https://goreportcard.com/report/github.com/Laisky/go-utils)
