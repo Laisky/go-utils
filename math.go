@@ -11,12 +11,16 @@ import (
 type Number interface {
 	int | int8 | int16 | int32 | int64 |
 		uint | uint8 | uint16 | uint32 | uint64 |
-		float32 | float64 |
-		string
+		float32 | float64
+}
+
+// Sortable types that can be sorted by bigger/smaller
+type Sortable interface {
+	Number | string
 }
 
 // Min return the minimal value in collection
-func Min[T Number](collection []T) T {
+func Min[T Sortable](collection []T) T {
 	if len(collection) == 0 {
 		panic("empty collection")
 	}
@@ -32,7 +36,7 @@ func Min[T Number](collection []T) T {
 }
 
 // Max return the maximal value in collection
-func Max[T Number](collection []T) T {
+func Max[T Sortable](collection []T) T {
 	if len(collection) == 0 {
 		panic("empty collection")
 	}
@@ -137,3 +141,7 @@ func HumanReadableByteCount(bytes int64, si bool) (ret string) {
 
 	panic(fmt.Sprintf("unknown bytes `%v`", bytes))
 }
+
+// func IntersectSortedChans[T Sortable](chans []chan T) []T {
+
+// }
