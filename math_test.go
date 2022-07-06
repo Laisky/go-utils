@@ -181,6 +181,8 @@ func TestMin(t *testing.T) {
 	require.Equal(t, Min([]int{1, -2, 3}), -2)
 	require.Equal(t, Min([]uint{4, 2, 3}), uint(2))
 	require.Equal(t, Min([]float32{4, 2, 3}), float32(2))
+	require.Equal(t, Min([]string{"a", "b", "c"}), "a")
+	require.Panics(t, func() { Min([]int{}) })
 }
 
 func TestMax(t *testing.T) {
@@ -188,4 +190,6 @@ func TestMax(t *testing.T) {
 	require.Equal(t, Max([]int{1, -2, 3}), 3)
 	require.Equal(t, Max([]uint{4, 2, 3}), uint(4))
 	require.Equal(t, Max([]float32{4, 2, 3}), float32(4))
+	require.Equal(t, Max([]string{"a", "b", "c"}), "c")
+	require.Panics(t, func() { Max([]int{}) })
 }
