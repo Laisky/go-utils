@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/Laisky/zap"
@@ -552,10 +553,6 @@ func TestEncryptByAes(t *testing.T) {
 }
 
 func TestNewDHKX(t *testing.T) {
-	ExampleDHKX(t)
-}
-
-func ExampleDHKX(t *testing.T) {
 	alice, err := NewDHKX()
 	require.NoError(t, err)
 
@@ -573,4 +570,18 @@ func ExampleDHKX(t *testing.T) {
 
 	t.Logf("generate key: %+v", hex.EncodeToString(aliceKey))
 	require.Equal(t, aliceKey, bobKey)
+}
+
+func ExampleDHKX() {
+	alice, _ := NewDHKX()
+
+	bob, _ := NewDHKX()
+
+	alicePub := alice.PublicKey()
+	bobPub := bob.PublicKey()
+
+	aliceKey, _ := alice.GenerateKey(bobPub)
+	bobKey, _ := bob.GenerateKey(alicePub)
+	fmt.Println(reflect.DeepEqual(aliceKey, bobKey))
+	// Output: true
 }

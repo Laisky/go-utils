@@ -269,7 +269,7 @@ func TestLimitSizeHeap(t *testing.T) {
 			it HeapItemItf[int]
 			n  int
 		)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 1000; i++ {
 			n = rand.Intn(1000)
 			it = heap.Push(&heapItem{
 				p: n,
@@ -279,6 +279,10 @@ func TestLimitSizeHeap(t *testing.T) {
 				t.Logf("push %v, pop %v", n, it.GetPriority())
 			} else {
 				t.Logf("push %v", n)
+			}
+
+			if rand.Intn(10) < 5 {
+				_ = heap.Pop()
 			}
 		}
 

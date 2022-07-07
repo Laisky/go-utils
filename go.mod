@@ -6,11 +6,11 @@ require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.5
-	github.com/Laisky/zap v1.19.3-0.20211118020215-b17f220cebee
+	github.com/Laisky/zap v1.19.3-0.20220707055623-fe1750cd1b41
 	github.com/cespare/xxhash v1.1.0
 	github.com/deckarep/golang-set/v2 v2.1.0
-	github.com/gammazero/deque v0.1.0
-	github.com/golang-jwt/jwt/v4 v4.4.1-0.20220318141810-9a23588c687c
+	github.com/gammazero/deque v0.1.1
+	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.5
@@ -54,5 +54,5 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

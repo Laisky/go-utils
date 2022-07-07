@@ -2,7 +2,7 @@
 
 Many useful golang tools, support Go >= v1.18.
 
-**STILL ON HEAVY DEVELOPING, DO NOT STABLE**
+**STILL UNDER HEAVY DEVELOPING, DO NOT STABLE**
 
 **WILL BE STABLE IN v2.1**
 
