@@ -150,7 +150,7 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 
 	go func() {
 		for {
-			defer watcher.Close()
+			defer CloseQuietly(watcher)
 			select {
 			case evt := <-watcher.Events:
 				if evt.Op&fsnotify.Write == fsnotify.Write {

@@ -2,6 +2,8 @@ package utils
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	zap "github.com/Laisky/zap"
+	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -45,7 +48,7 @@ type SettingsType struct {
 
 	v *viper.Viper
 
-	// watchOnce sync.Once
+	watchOnce sync.Once
 }
 
 // Settings is the settings for this project
@@ -68,7 +71,7 @@ func NewSettings() *SettingsType {
 
 // BindPFlags bind pflags to settings
 func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
-	return viper.BindPFlags(p)
+	return s.v.BindPFlags(p)
 }
 
 // Get get setting by key
@@ -76,7 +79,7 @@ func (s *SettingsType) Get(key string) interface{} {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.Get(key)
+	return s.v.Get(key)
 }
 
 // GetString get setting by key
@@ -84,7 +87,7 @@ func (s *SettingsType) GetString(key string) string {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetString(key)
+	return s.v.GetString(key)
 }
 
 // GetStringSlice get setting by key
@@ -92,7 +95,7 @@ func (s *SettingsType) GetStringSlice(key string) []string {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetStringSlice(key)
+	return s.v.GetStringSlice(key)
 }
 
 // GetBool get setting by key
@@ -100,7 +103,7 @@ func (s *SettingsType) GetBool(key string) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetBool(key)
+	return s.v.GetBool(key)
 }
 
 // GetInt get setting by key
@@ -108,7 +111,7 @@ func (s *SettingsType) GetInt(key string) int {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetInt(key)
+	return s.v.GetInt(key)
 }
 
 // GetInt64 get setting by key
@@ -116,7 +119,7 @@ func (s *SettingsType) GetInt64(key string) int64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetInt64(key)
+	return s.v.GetInt64(key)
 }
 
 // GetDuration get setting by key
@@ -124,7 +127,7 @@ func (s *SettingsType) GetDuration(key string) time.Duration {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetDuration(key)
+	return s.v.GetDuration(key)
 }
 
 // Set set setting by key
@@ -132,7 +135,7 @@ func (s *SettingsType) Set(key string, val interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
-	viper.Set(key, val)
+	s.v.Set(key, val)
 }
 
 // IsSet check whether exists
@@ -140,7 +143,7 @@ func (s *SettingsType) IsSet(key string) bool {
 	s.Lock()
 	defer s.Unlock()
 
-	return viper.IsSet(key)
+	return s.v.IsSet(key)
 }
 
 // Unmarshal unmarshals the config into a Struct. Make sure that the tags
@@ -149,7 +152,7 @@ func (s *SettingsType) Unmarshal(obj interface{}) error {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.Unmarshal(obj)
+	return s.v.Unmarshal(obj)
 }
 
 // UnmarshalKey takes a single key and unmarshals it into a Struct.
@@ -157,7 +160,7 @@ func (s *SettingsType) UnmarshalKey(key string, obj interface{}) error {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.UnmarshalKey(key, obj)
+	return s.v.UnmarshalKey(key, obj)
 }
 
 // GetStringMap return map contains interface
@@ -165,7 +168,7 @@ func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetStringMap(key)
+	return s.v.GetStringMap(key)
 }
 
 // GetStringMapString return map contains strings
@@ -173,14 +176,28 @@ func (s *SettingsType) GetStringMapString(key string) map[string]string {
 	s.RLock()
 	defer s.RUnlock()
 
-	return viper.GetStringMapString(key)
+	return s.v.GetStringMapString(key)
+}
+
+func (s *SettingsType) ReadConfig(in io.Reader) error {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.v.ReadConfig(in)
+}
+
+func (s *SettingsType) MergeConfig(in io.Reader) error {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.v.MergeConfig(in)
 }
 
 // LoadFromDir load settings from dir, default fname is `settings.yml`
-func (s *SettingsType) LoadFromDir(dirPath string) error {
+func (s *SettingsType) LoadFromDir(dirPath string, opts ...SettingsOptFunc) error {
 	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
 	fpath := filepath.Join(dirPath, defaultConfigFileName)
-	return s.LoadFromFile(fpath)
+	return s.LoadFromFile(fpath, opts...)
 }
 
 type settingsOpt struct {
@@ -189,7 +206,8 @@ type settingsOpt struct {
 	// encryptedSuffix encrypted file must end with this suffix
 	encryptedSuffix string
 	// watchModify automate update when file modified
-	watchModify bool
+	watchModify         bool
+	watchModifyCallback func(fsnotify.Event)
 }
 
 const (
@@ -243,9 +261,13 @@ func WithSettingsEncryptedFileSuffix(suffix string) SettingsOptFunc {
 }
 
 // WithSettingsWatchFileModified automate update when file modified
-func WithSettingsWatchFileModified() SettingsOptFunc {
+//
+// callback will be called when file modified.
+// you can set callback to nil if you don't want to process file changing event manually.
+func WithSettingsWatchFileModified(callback func(fsnotify.Event)) SettingsOptFunc {
 	return func(opt *settingsOpt) error {
 		opt.watchModify = true
+		opt.watchModifyCallback = callback
 		return nil
 	}
 }
@@ -266,61 +288,85 @@ func isSettingsFileEncrypted(opt *settingsOpt, fname string) bool {
 	return false
 }
 
+func (s *SettingsType) watch(opt *settingsOpt, entryFile string, files []string, opts ...SettingsOptFunc) {
+	s.watchOnce.Do(func() {
+		if err := WatchFileChanging(context.Background(), files, func(e fsnotify.Event) {
+			if err := s.LoadFromFile(entryFile, opts...); err != nil {
+				Logger.Error("file watcher auto reload settings", zap.Error(err))
+			}
+
+			if opt.watchModifyCallback != nil {
+				opt.watchModifyCallback(e)
+			}
+		}); err != nil {
+			Logger.Error("watch file error", zap.Error(err), zap.Strings("files", files))
+		}
+
+		Logger.Debug("watching config files", zap.Strings("files", files))
+	})
+}
+
 // LoadFromFile load settings from file
-func (s *SettingsType) LoadFromFile(filePath string, opts ...SettingsOptFunc) (err error) {
-	opt, err := new(settingsOpt).fillDefault().applyOptfs()
+func (s *SettingsType) LoadFromFile(entryFile string, opts ...SettingsOptFunc) (err error) {
+	opt, err := new(settingsOpt).fillDefault().applyOptfs(opts...)
 	if err != nil {
 		return errors.Wrap(err, "apply options")
 	}
 
 	logger := Logger.With(
-		zap.String("file", filePath),
+		zap.String("file", entryFile),
 		zap.Bool("include", opt.enableInclude),
 	)
-	cfgDir := filepath.Dir(filePath)
-	cfgFiles := []string{filePath}
+
+	curFpath := entryFile
+	cfgDir := filepath.Dir(entryFile)
+	cfgFiles := []string{entryFile}
 	var fp *os.File
 
 RECUR_INCLUDE_LOOP:
 	for {
-		if fp, err = os.Open(filePath); err != nil {
-			return errors.Wrapf(err, "open config file `%s`", filePath)
+		if fp, err = os.Open(curFpath); err != nil {
+			return errors.Wrapf(err, "open config file `%s`", curFpath)
 		}
 		defer CloseQuietly(fp)
 
-		viper.SetConfigType(strings.TrimLeft(filepath.Ext(strings.TrimSuffix(filePath, opt.encryptedSuffix)), "."))
-		if isSettingsFileEncrypted(opt, filePath) {
+		s.v.SetConfigType(strings.TrimLeft(filepath.Ext(strings.TrimSuffix(curFpath, opt.encryptedSuffix)), "."))
+		if isSettingsFileEncrypted(opt, curFpath) {
 			decrptReader, err := NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
 				return err
 			}
 
-			if err = viper.ReadConfig(decrptReader); err != nil {
-				return errors.Wrapf(err, "load encrypted config from file `%s`", filePath)
+			if err = s.ReadConfig(decrptReader); err != nil {
+				return errors.Wrapf(err, "load encrypted config from file `%s`", curFpath)
 			}
 		} else {
-			if err = viper.ReadConfig(fp); err != nil {
-				return errors.Wrapf(err, "load config from file `%s`", filePath)
+			if err = s.ReadConfig(fp); err != nil {
+				return errors.Wrapf(err, "load config from file `%s`", curFpath)
 			}
 		}
 
 		_ = fp.Close()
-		if filePath = viper.GetString(settingsIncludeKey); filePath == "" {
+		if curFpath = s.GetString(settingsIncludeKey); curFpath == "" {
 			break
 		}
 
-		filePath = filepath.Join(cfgDir, filePath)
+		curFpath = filepath.Join(cfgDir, curFpath)
 		for _, f := range cfgFiles {
-			if f == filePath {
+			if f == curFpath {
 				break RECUR_INCLUDE_LOOP
 			}
 		}
 
-		cfgFiles = append(cfgFiles, filePath)
+		cfgFiles = append(cfgFiles, curFpath)
 	}
 
 	if err = s.loadConfigFiles(opt, cfgFiles); err != nil {
 		return err
+	}
+
+	if opt.watchModify {
+		s.watch(opt, entryFile, cfgFiles, opts...)
 	}
 
 	logger.Info("load configs", zap.Strings("config_files", cfgFiles))
@@ -346,11 +392,11 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 					return err
 				}
 
-				if err = viper.MergeConfig(encryptedFp); err != nil {
+				if err = s.MergeConfig(encryptedFp); err != nil {
 					return errors.Wrapf(err, "merge encrypted config file `%s`", filePath)
 				}
 			} else {
-				if err = viper.MergeConfig(fp); err != nil {
+				if err = s.MergeConfig(fp); err != nil {
 					return errors.Wrapf(err, "merge config file `%s`", filePath)
 				}
 			}
@@ -378,7 +424,7 @@ func (s *SettingsType) LoadFromConfigServer(url, app, profile, label string) (er
 	if err = srv.Fetch(); err != nil {
 		return errors.Wrap(err, "try to fetch remote config got error")
 	}
-	srv.Map(viper.Set)
+	srv.Map(s.v.Set)
 
 	return nil
 }
@@ -404,8 +450,8 @@ func (s *SettingsType) LoadFromConfigServerWithRawYaml(url, app, profile, label,
 		return errors.Errorf("can not load raw cfg with key `%s`", key)
 	}
 	Logger.Debug("load raw cfg", zap.String("raw", raw))
-	viper.SetConfigType("yaml")
-	if err = viper.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
+	s.v.SetConfigType("yaml")
+	if err = s.v.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
 	}
 
@@ -417,8 +463,8 @@ func (s *SettingsType) LoadSettings() {
 	s.RLock()
 	defer s.RUnlock()
 
-	err := viper.ReadInConfig() // Find and read the config file
-	if err != nil {             // Handle errors reading the config file
+	err := s.v.ReadInConfig() // Find and read the config file
+	if err != nil {           // Handle errors reading the config file
 		panic(errors.Errorf("fatal error config file: %s", err))
 	}
 }

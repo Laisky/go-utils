@@ -6,9 +6,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -174,7 +176,6 @@ func TestSettingsToml(t *testing.T) {
 	t.Logf("load settings from: %v", fp.Name())
 	err = Settings.LoadFromFile(fp.Name(),
 		WithSettingsEnableInclude(),
-		WithSettingsEnableInclude(),
 	)
 	require.NoError(t, err)
 
@@ -191,6 +192,34 @@ func TestSettingsToml(t *testing.T) {
 	require.Equal(t, 1, Settings.GetInt("foo.a"))
 	require.Equal(t, "b", Settings.GetString("foo.b"))
 	require.Equal(t, true, Settings.GetBool("foo.c"))
+
+	t.Run("watch", func(t *testing.T) {
+		Logger.ChangeLevel(LoggerLevelDebug)
+		st := NewSettings()
+		err = st.LoadFromFile(fp.Name(),
+			WithSettingsWatchFileModified(func(e fsnotify.Event) {
+				t.Logf("file modified: %v", e.Name)
+			}),
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, st.GetInt("foo.a"))
+		cnt, err := os.ReadFile(fp.Name())
+		require.NoError(t, err)
+
+		cnt = []byte(strings.Replace(string(cnt), "a = 1", "a = 2", 1))
+
+		fp, err := os.OpenFile(fp.Name(), os.O_WRONLY|os.O_TRUNC, 0666)
+		require.NoError(t, err)
+		_, err = fp.Write(cnt)
+		require.NoError(t, err)
+		fp.Close()
+
+		time.Sleep(time.Second)
+		require.Equal(t, 2, st.GetInt("foo.a"))
+
+		// t.Error()
+	})
 }
 
 // depended on remote config-s  erver
