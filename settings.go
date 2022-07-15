@@ -44,6 +44,8 @@ type SettingsType struct {
 	sync.RWMutex
 
 	v *viper.Viper
+
+	// watchOnce sync.Once
 }
 
 // Settings is the settings for this project
@@ -186,14 +188,27 @@ type settingsOpt struct {
 	aesKey        []byte
 	// encryptedSuffix encrypted file must end with this suffix
 	encryptedSuffix string
+	// watchModify automate update when file modified
+	watchModify bool
 }
 
 const (
 	defaultEncryptSuffix = ".enc"
 )
 
-func (o *settingsOpt) fillDefault() {
+func (o *settingsOpt) fillDefault() *settingsOpt {
 	o.encryptedSuffix = defaultEncryptSuffix
+	return o
+}
+
+func (o *settingsOpt) applyOptfs(opts ...SettingsOptFunc) (*settingsOpt, error) {
+	for _, opt := range opts {
+		if err := opt(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
 }
 
 // SettingsOptFunc opt for settings
@@ -227,6 +242,14 @@ func WithSettingsEncryptedFileSuffix(suffix string) SettingsOptFunc {
 	}
 }
 
+// WithSettingsWatchFileModified automate update when file modified
+func WithSettingsWatchFileModified() SettingsOptFunc {
+	return func(opt *settingsOpt) error {
+		opt.watchModify = true
+		return nil
+	}
+}
+
 const settingsIncludeKey = "include"
 
 // isSettingsFileEncrypted encrypted file's name contains encryptedMark
@@ -245,12 +268,9 @@ func isSettingsFileEncrypted(opt *settingsOpt, fname string) bool {
 
 // LoadFromFile load settings from file
 func (s *SettingsType) LoadFromFile(filePath string, opts ...SettingsOptFunc) (err error) {
-	opt := new(settingsOpt)
-	opt.fillDefault()
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return err
-		}
+	opt, err := new(settingsOpt).fillDefault().applyOptfs()
+	if err != nil {
+		return errors.Wrap(err, "apply options")
 	}
 
 	logger := Logger.With(
@@ -270,12 +290,12 @@ RECUR_INCLUDE_LOOP:
 
 		viper.SetConfigType(strings.TrimLeft(filepath.Ext(strings.TrimSuffix(filePath, opt.encryptedSuffix)), "."))
 		if isSettingsFileEncrypted(opt, filePath) {
-			encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
+			decrptReader, err := NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
 				return err
 			}
 
-			if err = viper.ReadConfig(encryptedFp); err != nil {
+			if err = viper.ReadConfig(decrptReader); err != nil {
 				return errors.Wrapf(err, "load encrypted config from file `%s`", filePath)
 			}
 		} else {

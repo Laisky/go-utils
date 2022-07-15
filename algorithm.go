@@ -115,29 +115,29 @@ func (it *itemType[T]) GetPriority() T {
 
 type HeapSlice[T Sortable] []HeapItemItf[T]
 
-// priorityQ lower structure used by heap
+// innerHeapQ lower structure used by heap
 //
 // do not use this structure directly
-type priorityQ[T Sortable] struct {
+type innerHeapQ[T Sortable] struct {
 	isMaxTop bool
 	q        []HeapItemItf[T]
 }
 
-// newPriorityQ create new PriorityQ
-func newPriorityQ[T Sortable](isMaxTop bool) *priorityQ[T] {
-	return &priorityQ[T]{
+// newInnerHeapQ create new PriorityQ
+func newInnerHeapQ[T Sortable](isMaxTop bool) *innerHeapQ[T] {
+	return &innerHeapQ[T]{
 		isMaxTop: isMaxTop,
 		q:        []HeapItemItf[T]{},
 	}
 }
 
 // Len get length of items in heapq
-func (p *priorityQ[T]) Len() int {
+func (p *innerHeapQ[T]) Len() int {
 	return len(p.q)
 }
 
 // Less compare two items in heapq
-func (p *priorityQ[T]) Less(i, j int) bool {
+func (p *innerHeapQ[T]) Less(i, j int) bool {
 	if p.isMaxTop {
 		return p.q[i].GetPriority() < p.q[j].GetPriority()
 	}
@@ -146,18 +146,18 @@ func (p *priorityQ[T]) Less(i, j int) bool {
 }
 
 // Swap swat two items in heapq
-func (p *priorityQ[T]) Swap(i, j int) {
+func (p *innerHeapQ[T]) Swap(i, j int) {
 	p.q[i], p.q[j] = p.q[j], p.q[i]
 }
 
 // Push push new item into heapq
-func (p *priorityQ[T]) Push(x interface{}) {
+func (p *innerHeapQ[T]) Push(x interface{}) {
 	item := x.(HeapItemItf[T])
 	p.q = append(p.q, item)
 }
 
 // Remove remove an specific item
-func (p *priorityQ[T]) Remove(key interface{}) (ok bool) {
+func (p *innerHeapQ[T]) Remove(key interface{}) (ok bool) {
 	for i, it := range p.q {
 		if it.GetKey() == key {
 			p.q = append(p.q[:i], p.q[i+1:]...)
@@ -169,7 +169,7 @@ func (p *priorityQ[T]) Remove(key interface{}) (ok bool) {
 }
 
 // Get get item by key
-func (p *priorityQ[T]) Get(key interface{}) HeapItemItf[T] {
+func (p *innerHeapQ[T]) Get(key interface{}) HeapItemItf[T] {
 	for i := range p.q {
 		if p.q[i].GetKey() == key {
 			return p.q[i]
@@ -180,13 +180,13 @@ func (p *priorityQ[T]) Get(key interface{}) HeapItemItf[T] {
 }
 
 // GetIdx get item by idx
-func (p *priorityQ[T]) GetIdx(idx int) HeapItemItf[T] {
+func (p *innerHeapQ[T]) GetIdx(idx int) HeapItemItf[T] {
 	return p.q[idx]
 }
 
 // Pop pop from the tail.
 // if `isMaxTop=True`, pop the tail(smallest) item
-func (p *priorityQ[T]) Pop() (popped interface{}) {
+func (p *innerHeapQ[T]) Pop() (popped interface{}) {
 	n := len(p.q)
 	if n == 0 {
 		return nil
@@ -232,7 +232,7 @@ func GetTopKItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighe
 		item, thresItem HeapItemItf[T]
 		items           = make([]HeapItemItf[T], topN)
 		nTotal          = 0
-		p               = newPriorityQ[T](!isHighest)
+		p               = newInnerHeapQ[T](!isHighest)
 	)
 
 LOAD_LOOP:
@@ -258,10 +258,10 @@ LOAD_LOOP:
 	}
 
 	if inputChan == nil {
-		if p.Len() == 1 { // only one item
+		switch p.Len() {
+		case 1: // only one item
 			return []HeapItemItf[T]{item}, nil
-		}
-		if p.Len() == 0 {
+		case 0:
 			return []HeapItemItf[T]{}, nil
 		}
 	}
@@ -301,7 +301,7 @@ type LimitSizeHeap[T Sortable] interface {
 
 // limitSizeHeap heap with limit size
 type limitSizeHeap[T Sortable] struct {
-	q             *priorityQ[T]
+	q             *innerHeapQ[T]
 	thresItem     HeapItemItf[T]
 	isHighest     bool
 	size, maxSize int64
@@ -314,7 +314,7 @@ func NewLimitSizeHeap[T Sortable](size int, isHighest bool) (LimitSizeHeap[T], e
 	}
 
 	h := &limitSizeHeap[T]{
-		q:         newPriorityQ[T](!isHighest),
+		q:         newInnerHeapQ[T](!isHighest),
 		maxSize:   int64(size),
 		isHighest: isHighest,
 	}

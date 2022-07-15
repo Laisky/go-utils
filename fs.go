@@ -1,12 +1,14 @@
 package utils
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/Laisky/zap"
+	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 )
 
@@ -129,4 +131,38 @@ func NewTmpFileForContent(content []byte) (path string, err error) {
 	}
 
 	return tmpFile.Name(), nil
+}
+
+// WatchFileChanging watch file changing
+//
+// when file changed, callback will be called
+func WatchFileChanging(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return errors.Wrap(err, "create watcher")
+	}
+
+	for _, f := range files {
+		if err = watcher.Add(f); err != nil {
+			return errors.Wrapf(err, "add file `%s` to watcher", f)
+		}
+	}
+
+	go func() {
+		for {
+			defer watcher.Close()
+			select {
+			case evt := <-watcher.Events:
+				if evt.Op&fsnotify.Write == fsnotify.Write {
+					callback(evt)
+				}
+			case err := <-watcher.Errors:
+				Logger.Error("watch file error", zap.Error(err))
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
 }

@@ -16,7 +16,7 @@ type Number interface {
 		float32 | float64
 }
 
-// Sortable types that can be sorted by bigger/smaller
+// Sortable Data types that can be compared by >, <, ==
 type Sortable interface {
 	Number | string
 }
@@ -203,6 +203,7 @@ func (c isc[T]) getSmallestTwo() (smallest, smaller iscSortItem) {
 	return
 }
 
+// IntersectSortedChans return the intersection of multiple sorted chans
 func IntersectSortedChans[T Sortable](chans ...chan T) (result chan T, err error) {
 	if len(chans) < 2 {
 		return nil, errors.Errorf("at least two chans required")

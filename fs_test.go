@@ -2,12 +2,16 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Laisky/zap"
+	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 )
 
@@ -217,4 +221,57 @@ func TestNewTmpFileForContent(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, cnt, string(got))
+}
+
+func TestWatchFileChanging(t *testing.T) {
+	dir := os.TempDir()
+
+	fpath1 := filepath.Join(dir, "1")
+	fp1, err := os.OpenFile(fpath1, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	require.NoError(t, err)
+
+	fpath2 := filepath.Join(dir, "2")
+	fp2, err := os.OpenFile(fpath2, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	require.NoError(t, err)
+
+	var evts []fsnotify.Event
+	var mu sync.Mutex
+
+	ctx, cancel := context.WithCancel(context.Background())
+	err = WatchFileChanging(ctx, []string{fpath1, fpath2}, func(e fsnotify.Event) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		evts = append(evts, e)
+	})
+	require.NoError(t, err)
+
+	_, err = fp1.WriteString("yo")
+	require.NoError(t, err)
+
+	_, err = fp2.WriteString("yo")
+	require.NoError(t, err)
+
+	for {
+		mu.Lock()
+		l := len(evts)
+		mu.Unlock()
+
+		if l == 2 {
+			break
+		} else {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	cancel()
+	var got []fsnotify.Event
+	mu.Lock()
+	got = append(got, evts...)
+	mu.Unlock()
+
+	require.Equal(t, got[0].Op, fsnotify.Write)
+	require.Equal(t, got[0].Name, fpath1)
+	require.Equal(t, got[1].Op, fsnotify.Write)
+	require.Equal(t, got[1].Name, fpath2)
 }

@@ -192,7 +192,7 @@ func TestGetTopKItems(t *testing.T) {
 
 func TestPriorityQ(t *testing.T) {
 	for _, isMaxTop := range []bool{true, false} {
-		q := newPriorityQ[int](isMaxTop)
+		q := newInnerHeapQ[int](isMaxTop)
 		heap.Init(q)
 		var (
 			v, n int
