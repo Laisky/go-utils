@@ -3,8 +3,7 @@ module github.com/Laisky/go-utils/v2/email
 go 1.18
 
 require (
-	github.com/Laisky/go-utils/v2 v2.1.0
-	github.com/Laisky/go-utils/v2/log v0.0.1
+	github.com/Laisky/go-utils/v2 c4761fc
 	github.com/Laisky/zap v1.19.3-0.20220707055623-fe1750cd1b41
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
@@ -22,9 +21,4 @@ require (
 	golang.org/x/tools v0.1.10 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
-
-replace (
-	github.com/Laisky/go-utils/v2 v2.1.0 => ../.
-	github.com/Laisky/go-utils/v2/log v0.0.1 => ../log
 )

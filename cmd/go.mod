@@ -3,9 +3,8 @@ module github.com/Laisky/go-utils/v2/cmd
 go 1.18
 
 require (
-	github.com/Laisky/go-utils/v2 v2.1.0
-	github.com/Laisky/go-utils/v2/config v0.0.1
-	github.com/Laisky/go-utils/v2/log v0.0.1
+	github.com/Laisky/go-utils/v2 c4761fc
+	github.com/Laisky/go-utils/v2/config c4761fc
 	github.com/Laisky/zap v1.19.3-0.20220707055623-fe1750cd1b41
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.4.0
@@ -48,11 +47,4 @@ require (
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
-
-replace (
-	github.com/Laisky/go-utils/v2 v2.1.0 => ../.
-	github.com/Laisky/go-utils/v2/config v0.0.1 => ../config
-	github.com/Laisky/go-utils/v2/encrypt v0.0.1 => ../encrypt
-	github.com/Laisky/go-utils/v2/log v0.0.1 => ../log
 )

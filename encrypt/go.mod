@@ -3,8 +3,7 @@ module github.com/Laisky/go-utils/v2/encrypt
 go 1.18
 
 require (
-	github.com/Laisky/go-utils/v2 v2.1.0
-	github.com/Laisky/go-utils/v2/log v0.0.1
+	github.com/Laisky/go-utils/v2 v2.0.2-0.20220716024128-c4761fcb418d
 	github.com/Laisky/zap v1.19.3-0.20220707055623-fe1750cd1b41
 	github.com/cespare/xxhash v1.1.0
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
@@ -33,9 +32,4 @@ require (
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
-
-replace (
-	github.com/Laisky/go-utils/v2 v2.1.0 => ../.
-	github.com/Laisky/go-utils/v2/log v0.0.1 => ../log
 )
