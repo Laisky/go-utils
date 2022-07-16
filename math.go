@@ -185,7 +185,7 @@ func (c isc[T]) updateVal(idx int) (closed bool) {
 }
 
 func (c isc[T]) allEqual() bool {
-	return Max[T](c.vals) == Min[T](c.vals)
+	return Max(c.vals) == Min(c.vals)
 }
 
 func (c isc[T]) getSmallestTwo() (smallest, smaller iscSortItem) {

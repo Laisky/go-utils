@@ -450,7 +450,7 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 func TestNewAesReaderWrapper(t *testing.T) {
 	raw := []byte("fjlf2fjjefjwijf93r23f")
 	secret := []byte("fjefil2j3i2lfj32fl2defea")
-	cipher, err := EncryptByAes(secret, raw)
+	cipher, err := AesEncrypt(secret, raw)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -534,7 +534,7 @@ func TestEncryptByAes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := EncryptByAes(tt.args.secret, []byte(tt.args.cnt))
+			got, err := AesEncrypt(tt.args.secret, []byte(tt.args.cnt))
 			if err != nil {
 				if !tt.wantErr {
 					t.Fatalf("EncryptByAes() error = %v, wantErr %v", err, tt.wantErr)
@@ -544,7 +544,7 @@ func TestEncryptByAes(t *testing.T) {
 				return
 			}
 
-			decrypted, err := DecryptByAes(tt.args.secret, got)
+			decrypted, err := AesDecrypt(tt.args.secret, got)
 			if err != nil {
 				t.Fatalf("decrypt: %+v", err)
 			}
@@ -611,7 +611,7 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 		cipher, err := ioutil.ReadFile(fname)
 		require.NoError(t, err)
 
-		got, err := DecryptByAes(secret, cipher)
+		got, err := AesDecrypt(secret, cipher)
 		require.NoError(t, err)
 
 		require.Equal(t, cnt, got)

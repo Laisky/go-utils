@@ -55,12 +55,18 @@ var GenTLS = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(GenTLS)
 
-	GenTLS.Flags().StringVar(&cmdArgs.host, "host", "", "Comma-separated hostnames and IPs to generate a certificate for")
-	GenTLS.Flags().StringVar(&cmdArgs.startDate, "start-date", "2020-01-02T15:04:05+08:00", "Creation date formatted as RFC3339")
-	GenTLS.Flags().DurationVar(&cmdArgs.duration, "duration", 365*24*time.Hour*10, "Duration that certificate is valid for")
-	GenTLS.Flags().BoolVar(&cmdArgs.ca, "ca", false, "whether this cert should be its own Certificate Authority")
-	GenTLS.Flags().IntVar(&cmdArgs.rsaBits, "rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
-	GenTLS.Flags().StringVar(&cmdArgs.ecdsaCurve, "ecdsa-curve", "",
+	GenTLS.Flags().StringVar(&cmdArgs.host,
+		"host", "", "Comma-separated hostnames and IPs to generate a certificate for")
+	GenTLS.Flags().StringVar(&cmdArgs.startDate,
+		"start-date", "2020-01-02T15:04:05+08:00", "Creation date formatted as RFC3339")
+	GenTLS.Flags().DurationVar(&cmdArgs.duration,
+		"duration", 365*24*time.Hour*10, "Duration that certificate is valid for")
+	GenTLS.Flags().BoolVar(&cmdArgs.ca,
+		"ca", false, "whether this cert should be its own Certificate Authority")
+	GenTLS.Flags().IntVar(&cmdArgs.rsaBits,
+		"rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
+	GenTLS.Flags().StringVar(&cmdArgs.ecdsaCurve,
+		"ecdsa-curve", "",
 		"ECDSA curve to use to generate a key. "+
 			"Valid values are P224, P256 (recommended), P384, P521")
 	GenTLS.Flags().BoolVar(&cmdArgs.ed25519, "ed25519", false, "Generate an Ed25519 key")

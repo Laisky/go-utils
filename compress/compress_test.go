@@ -140,7 +140,7 @@ func TestGZCompressor(t *testing.T) {
 	}
 }
 
-func ExampleGZCompressor() {
+func ExampleNewGZip() {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
 
@@ -222,7 +222,7 @@ func TestPGZCompressor(t *testing.T) {
 	}
 }
 
-func ExamplePGZCompressor() {
+func ExamplePGZip() {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
 

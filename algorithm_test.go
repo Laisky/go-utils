@@ -248,9 +248,9 @@ func TestPriorityQ(t *testing.T) {
 		}
 
 		if isMaxTop {
-			require.Equal(t, lastP, Max[int](results))
+			require.Equal(t, lastP, Max(results))
 		} else {
-			require.Equal(t, lastP, Min[int](results))
+			require.Equal(t, lastP, Min(results))
 		}
 
 		t.Logf("%v[%v]: %v\n", isMaxTop, len(results), results[:10])

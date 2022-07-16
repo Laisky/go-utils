@@ -1,3 +1,4 @@
+// Package jwt all in one JWT sdk
 package jwt
 
 import (

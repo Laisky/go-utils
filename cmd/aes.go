@@ -48,8 +48,11 @@ var (
 
 func init() {
 	rootCmd.AddCommand(EncryptCMD)
-	EncryptCMD.PersistentFlags().StringVarP(&inputpath, "input", "i", "", "file/directory path tobe encrypt")
-	EncryptCMD.PersistentFlags().StringVarP(&outputpath, "output", "o", "", "file/directory path to output encrypted file, default to <inputfilepath>.enc")
+	EncryptCMD.PersistentFlags().StringVarP(&inputpath,
+		"input", "i", "", "file/directory path tobe encrypt")
+	EncryptCMD.PersistentFlags().StringVarP(&outputpath,
+		"output", "o", "",
+		"file/directory path to output encrypted file, default to <inputfilepath>.enc")
 
 	EncryptCMD.AddCommand(EncryptAESCMD)
 	EncryptAESCMD.Flags().StringVarP(&secret, "secret", "s", "", "secret to encrypt file")
@@ -120,7 +123,7 @@ func encryptFileByAes() error {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
 
-	cipher, err := encrypt.EncryptByAes(secret, cnt)
+	cipher, err := encrypt.AesEncrypt(secret, cnt)
 	if err != nil {
 		return errors.Wrap(err, "encrypt")
 	}

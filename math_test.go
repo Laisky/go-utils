@@ -221,7 +221,7 @@ func TestIntersectSortedChans(t *testing.T) {
 	}
 
 	got := gset.NewSet[int]()
-	resultChan, err := IntersectSortedChans[int](chans...)
+	resultChan, err := IntersectSortedChans(chans...)
 	require.NoError(t, err)
 	for v := range resultChan {
 		got.Add(v)

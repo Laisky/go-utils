@@ -1,3 +1,4 @@
+// Package compress contains some useful tools to compress/decompress data or files
 package compress
 
 import (

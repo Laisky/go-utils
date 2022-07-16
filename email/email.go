@@ -1,3 +1,4 @@
+// Package email simple email sender
 package email
 
 import (
@@ -35,42 +36,42 @@ func (m *Mail) BuildMessage(msg string) string {
 	return msg
 }
 
-// EmailDialer create gomail.Dialer
-type EmailDialer interface {
+// Sender create gomail.Dialer
+type Sender interface {
 	DialAndSend(m ...*gomail.Message) error
 }
 
 type mailSendOpt struct {
-	dialerFact func(host string, port int, username, passwd string) EmailDialer
+	dialerFact func(host string, port int, username, passwd string) Sender
 }
 
 func (o *mailSendOpt) fillDefault() *mailSendOpt {
-	o.dialerFact = func(host string, port int, username, passwd string) EmailDialer {
+	o.dialerFact = func(host string, port int, username, passwd string) Sender {
 		return gomail.NewDialer(host, port, username, passwd)
 	}
 
 	return o
 }
 
-func (o *mailSendOpt) applyOpts(optfs []MailSendOptFunc) *mailSendOpt {
+func (o *mailSendOpt) applyOpts(optfs []SendOption) *mailSendOpt {
 	for _, optf := range optfs {
 		optf(o)
 	}
 	return o
 }
 
-// MailSendOptFunc is a function to set option for Mail.Send
-type MailSendOptFunc func(*mailSendOpt)
+// SendOption is a function to set option for Mail.Send
+type SendOption func(*mailSendOpt)
 
 // WithMailSendDialer set gomail.Dialer
-func WithMailSendDialer(dialerFact func(host string, port int, username, passwd string) EmailDialer) MailSendOptFunc {
+func WithMailSendDialer(dialerFact func(host string, port int, username, passwd string) Sender) SendOption {
 	return func(opt *mailSendOpt) {
 		opt.dialerFact = dialerFact
 	}
 }
 
 // Send send email
-func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...MailSendOptFunc) (err error) {
+func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
 	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
 	log.Shared.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()

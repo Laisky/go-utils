@@ -1,3 +1,4 @@
+// Package encrypt contains some useful tools to deal with encryption/decryption
 package encrypt
 
 import (
@@ -291,14 +292,14 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	return b, nil
 }
 
-// EncryptByAes encrypt bytes by aes with key
+// AesEncrypt encrypt bytes by aes with key
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
 // The key argument should be the AES key,
 // either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256.
-func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
+func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 	if len(cnt) == 0 {
 		return nil, errors.Errorf("content is empty")
 	}
@@ -334,12 +335,12 @@ func EncryptByAes(secret []byte, cnt []byte) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, cnt, nil), nil
 }
 
-// DecryptByAes encrypt bytes by aes with key
+// AesDecrypt encrypt bytes by aes with key
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
 // The key argument should be 16, 24, or 32 bytes
-func DecryptByAes(secret []byte, encrypted []byte) ([]byte, error) {
+func AesDecrypt(secret []byte, encrypted []byte) ([]byte, error) {
 	if len(encrypted) == 0 {
 		return nil, errors.Errorf("encrypted is empty")
 	}
@@ -386,7 +387,7 @@ func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
 	}
 
 	w := new(AesReaderWrapper)
-	if w.cnt, err = DecryptByAes(key, cipher); err != nil {
+	if w.cnt, err = AesDecrypt(key, cipher); err != nil {
 		return nil, errors.Wrap(err, "decrypt")
 	}
 
@@ -508,11 +509,11 @@ func (o *encryptFilesOption) fillDefault() {
 	o.suffix = defaultEncryptSuffix
 }
 
-// EncryptFilesOption options to encrypt files in dir
-type EncryptFilesOption func(*encryptFilesOption) error
+// AESEncryptFilesInDirOption options to encrypt files in dir
+type AESEncryptFilesInDirOption func(*encryptFilesOption) error
 
 // WithAESFilesInDirFileExt only encrypt files with specific ext
-func WithAESFilesInDirFileExt(ext string) EncryptFilesOption {
+func WithAESFilesInDirFileExt(ext string) AESEncryptFilesInDirOption {
 	return func(opt *encryptFilesOption) error {
 		if !strings.HasPrefix(ext, ".") {
 			return errors.Errorf("ext should start with `.`")
@@ -526,7 +527,7 @@ func WithAESFilesInDirFileExt(ext string) EncryptFilesOption {
 // WithAESFilesInDirFileSuffix will append to encrypted's filename as suffix
 //
 //   xxx.toml -> xxx.toml.enc
-func WithAESFilesInDirFileSuffix(suffix string) EncryptFilesOption {
+func WithAESFilesInDirFileSuffix(suffix string) AESEncryptFilesInDirOption {
 	return func(opt *encryptFilesOption) error {
 		if !strings.HasPrefix(suffix, ".") {
 			return errors.Errorf("suffix should start with `.`")
@@ -542,7 +543,7 @@ func WithAESFilesInDirFileSuffix(suffix string) EncryptFilesOption {
 // will generate new encrypted files with <suffix> after ext
 //
 //   xxx.toml -> xxx.toml.enc
-func AESEncryptFilesInDir(dir string, secret []byte, opts ...EncryptFilesOption) (err error) {
+func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDirOption) (err error) {
 	opt := new(encryptFilesOption)
 	opt.fillDefault()
 	for _, optf := range opts {
@@ -573,7 +574,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...EncryptFilesOption)
 				return errors.Wrapf(err, "read file `%s`", fname)
 			}
 
-			cipher, err := EncryptByAes(secret, raw)
+			cipher, err := AesEncrypt(secret, raw)
 			if err != nil {
 				return errors.Wrapf(err, "encrypt")
 			}

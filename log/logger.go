@@ -1,3 +1,4 @@
+// Package log enhanced zap logger
 package log
 
 import (
