@@ -21,11 +21,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/config"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 )
+
+var cmdArgs = struct {
+	host       string
+	startDate  string
+	ecdsaCurve string
+	ca         bool
+	duration   time.Duration
+	rsaBits    int
+	ed25519    bool
+}{}
 
 // GenTLS 生成 tls 证书
 //
@@ -37,35 +46,24 @@ var GenTLS = &cobra.Command{
 	Use:   "gentls",
 	Short: "generate tls cert",
 	Args:  NoExtraArgs,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return setupTLSArgs(cmd, args)
-	},
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Shared.Info("run generateTLSCert")
 		generateTLSCert()
 	},
 }
 
-func setupTLSArgs(cmd *cobra.Command, args []string) (err error) {
-	if err = config.Shared.BindPFlags(cmd.Flags()); err != nil {
-		return err
-	}
-
-	return
-}
-
 func init() {
 	rootCmd.AddCommand(GenTLS)
 
-	GenTLS.Flags().String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
-	GenTLS.Flags().String("start-date", "2020-01-02T15:04:05+08:00", "Creation date formatted as RFC3339")
-	GenTLS.Flags().Duration("duration", 365*24*time.Hour*10, "Duration that certificate is valid for")
-	GenTLS.Flags().Bool("ca", false, "whether this cert should be its own Certificate Authority")
-	GenTLS.Flags().Int("rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
-	GenTLS.Flags().String("ecdsa-curve", "",
+	GenTLS.Flags().StringVar(&cmdArgs.host, "host", "", "Comma-separated hostnames and IPs to generate a certificate for")
+	GenTLS.Flags().StringVar(&cmdArgs.startDate, "start-date", "2020-01-02T15:04:05+08:00", "Creation date formatted as RFC3339")
+	GenTLS.Flags().DurationVar(&cmdArgs.duration, "duration", 365*24*time.Hour*10, "Duration that certificate is valid for")
+	GenTLS.Flags().BoolVar(&cmdArgs.ca, "ca", false, "whether this cert should be its own Certificate Authority")
+	GenTLS.Flags().IntVar(&cmdArgs.rsaBits, "rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
+	GenTLS.Flags().StringVar(&cmdArgs.ecdsaCurve, "ecdsa-curve", "",
 		"ECDSA curve to use to generate a key. "+
 			"Valid values are P224, P256 (recommended), P384, P521")
-	GenTLS.Flags().Bool("ed25519", false, "Generate an Ed25519 key")
+	GenTLS.Flags().BoolVar(&cmdArgs.ed25519, "ed25519", false, "Generate an Ed25519 key")
 }
 
 func publicKey(priv interface{}) interface{} {
@@ -82,13 +80,13 @@ func publicKey(priv interface{}) interface{} {
 }
 
 func generateTLSCert() {
-	host := config.Shared.GetString("host")
-	validFrom := config.Shared.GetString("start-date")
-	validFor := config.Shared.GetDuration("duration")
-	isCA := config.Shared.GetBool("ca")
-	rsaBits := config.Shared.GetInt("rsa-bits")
-	ecdsaCurve := config.Shared.GetString("ecdsa-curve")
-	ed25519Key := config.Shared.GetBool("ed25519")
+	host := cmdArgs.host
+	validFrom := cmdArgs.startDate
+	validFor := cmdArgs.duration
+	isCA := cmdArgs.ca
+	rsaBits := cmdArgs.rsaBits
+	ecdsaCurve := cmdArgs.ecdsaCurve
+	ed25519Key := cmdArgs.ed25519
 
 	if len(host) == 0 {
 		log.Shared.Panic("Missing required --host parameter")

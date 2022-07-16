@@ -11,7 +11,6 @@ import (
 	"os"
 
 	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/config"
 	"github.com/Laisky/go-utils/v2/encrypt"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
@@ -41,15 +40,6 @@ var EncryptCMD = &cobra.Command{
 			go run -race main.go encrypt aes -i <file_path> -s <password>
 	`),
 	Args: NoExtraArgs,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return setupEncryptArgs(cmd)
-	},
-	Run: func(cmd *cobra.Command, args []string) {
-	},
-}
-
-func setupEncryptArgs(cmd *cobra.Command) error {
-	return config.Shared.BindPFlags(cmd.Flags())
 }
 
 var (

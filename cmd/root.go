@@ -5,11 +5,14 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/config"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+)
+
+var (
+	cmdDebug bool
 )
 
 var rootCmd = &cobra.Command{
@@ -30,24 +33,19 @@ func Execute() {
 	}()
 	rand.Seed(time.Now().UnixNano())
 
-	var err error
-	if err = config.Shared.BindPFlags(rootCmd.Flags()); err != nil {
-		log.Shared.Panic("bind flags", zap.Error(err))
-	}
-
-	if config.Shared.GetBool("debug") {
+	if cmdDebug {
 		if err := log.Shared.ChangeLevel(log.LevelDebug); err != nil {
 			log.Shared.Panic("change logger level to debug", zap.Error(err))
 		}
 	}
 
-	if err = rootCmd.Execute(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		log.Shared.Panic("parse command line arguments", zap.Error(err))
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().Bool("debug", false, "debug")
+	rootCmd.PersistentFlags().BoolVar(&cmdDebug, "debug", false, "debug")
 }
 
 // NoExtraArgs make sure every args has been processed
