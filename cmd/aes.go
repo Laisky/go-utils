@@ -12,6 +12,7 @@ import (
 
 	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/go-utils/v2/config"
+	"github.com/Laisky/go-utils/v2/encrypt"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
@@ -111,7 +112,7 @@ func encryptDirFileByAes() error {
 	secret := []byte(secret)
 	log.Shared.Info("encrypt files in dir", zap.String("path", inputpath))
 
-	return gutils.AESEncryptFilesInDir(inputpath, secret)
+	return encrypt.AESEncryptFilesInDir(inputpath, secret)
 }
 
 func encryptFileByAes() error {
@@ -129,7 +130,7 @@ func encryptFileByAes() error {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
 
-	cipher, err := gutils.EncryptByAes(secret, cnt)
+	cipher, err := encrypt.EncryptByAes(secret, cnt)
 	if err != nil {
 		return errors.Wrap(err, "encrypt")
 	}

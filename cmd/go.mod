@@ -14,11 +14,11 @@ require (
 require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6 // indirect
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be // indirect
+	github.com/Laisky/go-utils/v2/encrypt v0.0.1 // indirect
 	github.com/Laisky/graphql v1.0.5 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/gammazero/deque v0.1.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -53,5 +53,6 @@ require (
 replace (
 	github.com/Laisky/go-utils/v2 v2.1.0 => ../.
 	github.com/Laisky/go-utils/v2/config v0.0.1 => ../config
+	github.com/Laisky/go-utils/v2/encrypt v0.0.1 => ../encrypt
 	github.com/Laisky/go-utils/v2/log v0.0.1 => ../log
 )
