@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
-	github.com/Laisky/go-utils/v2/log v0.0.1
+	github.com/Laisky/graphql v1.0.5
 	github.com/Laisky/zap v1.19.3-0.20220707055623-fe1750cd1b41
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/fsnotify/fsnotify v1.5.4
@@ -21,7 +21,6 @@ require (
 )
 
 require (
-	github.com/Laisky/graphql v1.0.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -35,5 +34,3 @@ require (
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/Laisky/go-utils/v2/log v0.0.1 => ./log
