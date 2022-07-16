@@ -1,9 +1,10 @@
-package utils
+package email
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/go-utils/v2/mocks"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/mock"
@@ -20,7 +21,7 @@ func ExampleMail() {
 		"Title",
 		"Content",
 	); err != nil {
-		Logger.Error("try to send email got error", zap.Error(err))
+		log.Shared.Error("try to send email got error", zap.Error(err))
 	}
 }
 

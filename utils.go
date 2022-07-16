@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
 	jsoniter "github.com/json-iterator/go"
@@ -338,7 +339,7 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 
 // ForceGCBlocking force to run blocking manual gc.
 func ForceGCBlocking() {
-	Logger.Info("force gc")
+	log.Shared.Info("force gc")
 	runtime.GC()
 	debug.FreeOSMemory()
 }
@@ -370,7 +371,7 @@ func WithGCMemRatio(ratio int) GcOptFunc {
 			return errors.Errorf("ratio must <= 0, got %d", ratio)
 		}
 
-		Logger.Debug("set memRatio", zap.Int("ratio", ratio))
+		log.Shared.Debug("set memRatio", zap.Int("ratio", ratio))
 		opt.memRatio = uint64(ratio)
 		return nil
 	}
@@ -383,7 +384,7 @@ func WithGCMemLimitFilePath(path string) GcOptFunc {
 			return errors.Wrapf(err, "try open path `%s`", path)
 		}
 
-		Logger.Debug("set memLimitFilePath", zap.String("file", path))
+		log.Shared.Debug("set memLimitFilePath", zap.String("file", path))
 		opt.memLimitFilePath = path
 		return nil
 	}
@@ -418,7 +419,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	}
 
 	if err = fp.Close(); err != nil {
-		Logger.Error("close cgroup mem limit file", zap.Error(err), zap.String("file", opt.memLimitFilePath))
+		log.Shared.Error("close cgroup mem limit file", zap.Error(err), zap.String("file", opt.memLimitFilePath))
 	}
 
 	if memLimit, err = strconv.ParseUint(string(bytes.TrimSpace(memByte)), 10, 64); err != nil {
@@ -427,7 +428,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if memLimit == 0 {
 		return errors.Errorf("mem limit should > 0, but got: %d", memLimit)
 	}
-	Logger.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
+	log.Shared.Info("enable auto gc", zap.Uint64("ratio", opt.memRatio), zap.Uint64("limit", memLimit))
 
 	go func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Second)
@@ -445,7 +446,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 			}
 			runtime.ReadMemStats(&m)
 			ratio = (m.Alloc * 100) / memLimit
-			Logger.Debug("mem stat",
+			log.Shared.Debug("mem stat",
 				zap.Uint64("mem", m.Alloc),
 				zap.Uint64("limit_mem", memLimit),
 				zap.Uint64("ratio", ratio),
@@ -629,7 +630,7 @@ func InArray(collection interface{}, ele interface{}) bool {
 			}
 		}
 	default:
-		Logger.Panic("unsupport type", zap.String("type", reflect.TypeOf(collection).Kind().String()))
+		log.Shared.Panic("unsupport type", zap.String("type", reflect.TypeOf(collection).Kind().String()))
 	}
 
 	return false
@@ -932,7 +933,7 @@ type StopSignalOptFunc func(*stopSignalOpt)
 // WithStopSignalCloseSignals set signals that will trigger close
 func WithStopSignalCloseSignals(signals ...os.Signal) StopSignalOptFunc {
 	if len(signals) == 0 {
-		Logger.Panic("signals cannot be empty")
+		log.Shared.Panic("signals cannot be empty")
 	}
 
 	return func(opt *stopSignalOpt) {
@@ -943,7 +944,7 @@ func WithStopSignalCloseSignals(signals ...os.Signal) StopSignalOptFunc {
 // // WithStopSignalCloseFunc set func that will be called when signal is triggered
 // func WithStopSignalCloseFunc(f func()) StopSignalOptFunc {
 // 	if f == nil {
-// 		Logger.Panic("f cannot be nil")
+// 		log.Shared.Panic("f cannot be nil")
 // 	}
 
 // 	return func(opt *stopSignalOpt) {

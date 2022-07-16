@@ -1,13 +1,26 @@
-package utils
+package config
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 )
+
+var httpClient *http.Client
+
+func init() {
+	var err error
+	httpClient, err = gutils.NewHTTPClient()
+	if err != nil {
+		log.Shared.Panic("new http client", zap.Error(err))
+	}
+}
 
 // ConfigSource config item in config-server
 type ConfigSource struct {
@@ -48,7 +61,7 @@ func NewConfigSrv(url, app, profile, label string) *ConfigSrv {
 // Fetch load data from config-server
 func (c *ConfigSrv) Fetch() error {
 	url := strings.Join([]string{c.url, c.app, c.profile, c.label}, "/")
-	err := RequestJSONWithClient(httpClient, "get", url, &RequestData{}, c.RemoteCfg)
+	err := gutils.RequestJSONWithClient(httpClient, "get", url, &gutils.RequestData{}, c.RemoteCfg)
 	if err != nil {
 		return errors.Wrap(err, "try to get config got error")
 	}
@@ -96,13 +109,13 @@ func (c *ConfigSrv) GetInt(name string) (val int, ok bool) {
 			val = int(v)
 		case string:
 			if val, err = strconv.Atoi(v); err != nil {
-				Logger.Error("cannot parse string to int64",
+				log.Shared.Error("cannot parse string to int64",
 					zap.String("name", name),
 					zap.String("val", fmt.Sprint(v)))
 				return val, false
 			}
 		default:
-			Logger.Error("unknown type",
+			log.Shared.Error("unknown type",
 				zap.String("name", name),
 				zap.String("val", fmt.Sprint(v)))
 			return val, false
@@ -128,13 +141,13 @@ func (c *ConfigSrv) GetBool(name string) (val bool, ok bool) {
 			val = v != 0
 		case string:
 			if val, err = strconv.ParseBool(v); err != nil {
-				Logger.Error("cannot parse string to bool",
+				log.Shared.Error("cannot parse string to bool",
 					zap.String("name", name),
 					zap.String("val", fmt.Sprint(v)))
 				return val, false
 			}
 		default:
-			Logger.Error("unknown type",
+			log.Shared.Error("unknown type",
 				zap.String("name", name),
 				zap.String("val", fmt.Sprint(v)))
 			return val, false
@@ -156,7 +169,7 @@ func (c *ConfigSrv) Map(set func(string, interface{})) {
 	for i := 0; i < len(c.RemoteCfg.Sources); i++ {
 		src = c.RemoteCfg.Sources[i]
 		for key, val = range src.Source {
-			Logger.Debug("set settings", zap.String("key", key), zap.String("val", fmt.Sprint(val)))
+			log.Shared.Debug("set settings", zap.String("key", key), zap.String("val", fmt.Sprint(val)))
 			set(key, val)
 		}
 	}

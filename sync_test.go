@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +38,7 @@ func TestMutex(t *testing.T) {
 func ExampleMutex() {
 	l := NewMutex()
 	if !l.TryLock() {
-		Logger.Info("can not acquire lock")
+		log.Shared.Info("can not acquire lock")
 		return
 	}
 	defer l.ForceRelease()

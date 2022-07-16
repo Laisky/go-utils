@@ -1,4 +1,4 @@
-package utils
+package config
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 )
 
@@ -46,13 +48,13 @@ var fakeConfigSrvData = map[string]interface{}{
 
 func fakeHandler(data interface{}) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		d, err := JSON.Marshal(data)
+		d, err := gutils.JSON.Marshal(data)
 		if err != nil {
-			Logger.Panic("marashal fake config")
+			log.Shared.Panic("marashal fake config")
 		}
 
 		if _, err := w.Write(d); err != nil {
-			Logger.Panic("write http response")
+			log.Shared.Panic("write http response")
 		}
 	}
 }
@@ -60,7 +62,7 @@ func fakeHandler(data interface{}) func(http.ResponseWriter, *http.Request) {
 func runMockHTTPServer(ctx context.Context, port int, path string, fakadata interface{}) {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		Logger.Panic("listen", zap.Error(err))
+		log.Shared.Panic("listen", zap.Error(err))
 	}
 
 	go func() {
@@ -73,14 +75,14 @@ func runMockHTTPServer(ctx context.Context, port int, path string, fakadata inte
 
 	// srv.HandleFunc("/app/profile/label", fakeHandler func)
 	if err = http.Serve(ln, mux); err != nil {
-		Logger.Error("http server exit", zap.Error(err))
+		log.Shared.Error("http server exit", zap.Error(err))
 	}
 }
 
 func TestConfigSrv(t *testing.T) {
-	// jb, err := json.Marshal(fakeConfigSrvData)
+	// jb, err := gutils..Marshal(fakeConfigSrvData)
 	// if err != nil {
-	// 	Logger.Panic("try to marshal fake data got error", zap.Error(err))
+	// 	log.Shared.Panic("try to marshal fake data got error", zap.Error(err))
 	// }
 
 	ctx, cancel := context.WithCancel(context.Background())

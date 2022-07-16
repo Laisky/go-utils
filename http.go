@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Laisky/go-chaining"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 )
@@ -125,7 +126,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	request *RequestData,
 	resp interface{},
 ) (err error) {
-	Logger.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
+	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
 
 	var (
 		jsonBytes []byte
@@ -134,7 +135,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	if err != nil {
 		return errors.Wrap(err, "marshal request data error")
 	}
-	Logger.Debug("request json", zap.String("body", string(jsonBytes[:])))
+	log.Shared.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
 	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
 	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
@@ -160,12 +161,12 @@ func RequestJSONWithClient(httpClient *http.Client,
 	if err != nil {
 		return errors.Wrap(err, "try to read response data error")
 	}
-	Logger.Debug("got resp", zap.ByteString("resp", respBytes))
+	log.Shared.Debug("got resp", zap.ByteString("resp", respBytes))
 	err = JSON.Unmarshal(respBytes, resp)
 	if err != nil {
 		return errors.Wrapf(err, "unmarshal response `%s`", string(respBytes[:]))
 	}
-	Logger.Debug("request json successed", zap.String("body", string(respBytes[:])))
+	log.Shared.Debug("request json successed", zap.String("body", string(respBytes[:])))
 
 	return nil
 }

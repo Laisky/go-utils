@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 )
 
@@ -29,7 +30,7 @@ func ExampleRotateCounter() {
 
 func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name string, store *sync.Map) {
 	defer wg.Done()
-	defer Logger.Info("validator exit", zap.String("name", name))
+	defer log.Shared.Info("validator exit", zap.String("name", name))
 	var (
 		nParallel = 10
 		padding   = struct{}{}
@@ -42,7 +43,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name st
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer Logger.Info("counter exit", zap.String("name", name))
+			defer log.Shared.Info("counter exit", zap.String("name", name))
 			var (
 				ok bool
 				n  int64
@@ -50,7 +51,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name st
 			for j := 0; j < N; j++ {
 				n = counter.Count()
 				if _, ok = store.LoadOrStore(n, padding); ok {
-					Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
+					log.Shared.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
 				}
 			}
 		}()
@@ -59,7 +60,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name st
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer Logger.Info("multi counter exit", zap.String("name", name))
+			defer log.Shared.Info("multi counter exit", zap.String("name", name))
 			var (
 				ok      bool
 				step, n int64
@@ -68,7 +69,7 @@ func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name st
 				step = rand.Int63n(100) + 1
 				n = counter.CountN(step)
 				if _, ok = store.LoadOrStore(n, padding); ok {
-					Logger.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
+					log.Shared.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
 				}
 			}
 		}()
@@ -80,7 +81,7 @@ func TestCounterValidation(t *testing.T) {
 		err error
 		wg  = &sync.WaitGroup{}
 	)
-	if err = Logger.ChangeLevel("info"); err != nil {
+	if err = log.Shared.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
 	atomicCounter := NewCounter()
@@ -190,7 +191,7 @@ func TestRotateCounter(t *testing.T) {
 
 func TestParallelRotateCounter(t *testing.T) {
 	var err error
-	if err = Logger.ChangeLevel("info"); err != nil {
+	if err = log.Shared.ChangeLevel("info"); err != nil {
 		t.Fatalf("set level: %+v", err)
 	}
 	pcounter, err := NewParallelCounter(10, 100)
@@ -424,7 +425,7 @@ ok      github.com/Laisky/go-utils      82.997s
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()
 	var err error
-	if err = Logger.ChangeLevel("info"); err != nil {
+	if err = log.Shared.ChangeLevel("info"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	atomicCounter := NewCounter()

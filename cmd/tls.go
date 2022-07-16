@@ -21,7 +21,8 @@ import (
 	"strings"
 	"time"
 
-	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/config"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 )
@@ -40,13 +41,13 @@ var GenTLS = &cobra.Command{
 		return setupTLSArgs(cmd, args)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		gutils.Logger.Info("run generateTLSCert")
+		log.Shared.Info("run generateTLSCert")
 		generateTLSCert()
 	},
 }
 
 func setupTLSArgs(cmd *cobra.Command, args []string) (err error) {
-	if err = gutils.Settings.BindPFlags(cmd.Flags()); err != nil {
+	if err = config.Shared.BindPFlags(cmd.Flags()); err != nil {
 		return err
 	}
 
@@ -81,16 +82,16 @@ func publicKey(priv interface{}) interface{} {
 }
 
 func generateTLSCert() {
-	host := gutils.Settings.GetString("host")
-	validFrom := gutils.Settings.GetString("start-date")
-	validFor := gutils.Settings.GetDuration("duration")
-	isCA := gutils.Settings.GetBool("ca")
-	rsaBits := gutils.Settings.GetInt("rsa-bits")
-	ecdsaCurve := gutils.Settings.GetString("ecdsa-curve")
-	ed25519Key := gutils.Settings.GetBool("ed25519")
+	host := config.Shared.GetString("host")
+	validFrom := config.Shared.GetString("start-date")
+	validFor := config.Shared.GetDuration("duration")
+	isCA := config.Shared.GetBool("ca")
+	rsaBits := config.Shared.GetInt("rsa-bits")
+	ecdsaCurve := config.Shared.GetString("ecdsa-curve")
+	ed25519Key := config.Shared.GetBool("ed25519")
 
 	if len(host) == 0 {
-		gutils.Logger.Panic("Missing required --host parameter")
+		log.Shared.Panic("Missing required --host parameter")
 	}
 
 	var priv interface{}
@@ -111,10 +112,10 @@ func generateTLSCert() {
 	case "P521":
 		priv, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	default:
-		gutils.Logger.Panic("Unrecognized elliptic curve", zap.String("ecdsaCurve", ecdsaCurve))
+		log.Shared.Panic("Unrecognized elliptic curve", zap.String("ecdsaCurve", ecdsaCurve))
 	}
 	if err != nil {
-		gutils.Logger.Panic("Failed to generate private key", zap.Error(err))
+		log.Shared.Panic("Failed to generate private key", zap.Error(err))
 	}
 
 	var notBefore time.Time
@@ -123,7 +124,7 @@ func generateTLSCert() {
 	} else {
 		notBefore, err = time.Parse(time.RFC3339, validFrom)
 		if err != nil {
-			gutils.Logger.Panic("Failed to parse creation date", zap.Error(err))
+			log.Shared.Panic("Failed to parse creation date", zap.Error(err))
 		}
 	}
 
@@ -131,7 +132,7 @@ func generateTLSCert() {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		gutils.Logger.Panic("Failed to generate serial number", zap.Error(err))
+		log.Shared.Panic("Failed to generate serial number", zap.Error(err))
 	}
 
 	template := x509.Certificate{
@@ -164,36 +165,36 @@ func generateTLSCert() {
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
 	if err != nil {
-		gutils.Logger.Panic("Failed to create certificate: %v", zap.Error(err))
+		log.Shared.Panic("Failed to create certificate: %v", zap.Error(err))
 	}
 
 	certOut, err := os.Create("cert.pem")
 	if err != nil {
-		gutils.Logger.Panic("Failed to open cert.pem for writing: %v", zap.Error(err))
+		log.Shared.Panic("Failed to open cert.pem for writing: %v", zap.Error(err))
 	}
 	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		gutils.Logger.Panic("Failed to write data to cert.pem: %v", zap.Error(err))
+		log.Shared.Panic("Failed to write data to cert.pem: %v", zap.Error(err))
 	}
 	if err := certOut.Close(); err != nil {
-		gutils.Logger.Panic("Error closing cert.pem: %v", zap.Error(err))
+		log.Shared.Panic("Error closing cert.pem: %v", zap.Error(err))
 	}
-	gutils.Logger.Info("wrote cert.pem")
+	log.Shared.Info("wrote cert.pem")
 
 	keyOut, err := os.OpenFile("key.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		gutils.Logger.Panic("Failed to open key.pem for writing: %v", zap.Error(err))
+		log.Shared.Panic("Failed to open key.pem for writing: %v", zap.Error(err))
 		return
 	}
 	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		gutils.Logger.Panic("Unable to marshal private key: %v", zap.Error(err))
+		log.Shared.Panic("Unable to marshal private key: %v", zap.Error(err))
 	}
 	if err := pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
-		gutils.Logger.Panic("Failed to write data to key.pem: %v", zap.Error(err))
+		log.Shared.Panic("Failed to write data to key.pem: %v", zap.Error(err))
 	}
 	if err := keyOut.Close(); err != nil {
-		gutils.Logger.Panic("Error closing key.pem: %v", zap.Error(err))
+		log.Shared.Panic("Error closing key.pem: %v", zap.Error(err))
 	}
 
-	gutils.Logger.Info("wrote key.pem")
+	log.Shared.Info("wrote key.pem")
 }

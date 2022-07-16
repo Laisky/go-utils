@@ -13,10 +13,10 @@ Many useful golang tools
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils)](https://goreportcard.com/report/github.com/Laisky/go-utils)
-[![GoDoc](https://godoc.org/github.com/Laisky/go-utils?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils?tab=doc)
-![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=master)
-[![codecov](https://codecov.io/gh/Laisky/go-utils/branch/master/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils/v2)](https://goreportcard.com/report/github.com/Laisky/go-utils/v2)
+[![GoDoc](https://godoc.org/github.com/Laisky/go-utils/v2?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils/v2)
+![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v2)
+[![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v2/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
 Install:
 

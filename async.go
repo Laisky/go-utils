@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 )
@@ -102,7 +103,7 @@ func (t *asyncTask) heartbeat(ctx context.Context) {
 		}
 
 		if alived, err := t.store.Heartbeat(ctx, t.id); err != nil {
-			Logger.Error("async task heartbeat", zap.Error(err))
+			log.Shared.Error("async task heartbeat", zap.Error(err))
 		} else if !alived {
 			return
 		}

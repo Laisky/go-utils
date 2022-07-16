@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -223,7 +224,7 @@ func ExampleRegexNamedSubMatch() {
 	str := "12345abcde"
 	groups := map[string]string{}
 	if err := RegexNamedSubMatch(reg, str, groups); err != nil {
-		Logger.Error("try to group match got error", zap.Error(err))
+		log.Shared.Error("try to group match got error", zap.Error(err))
 	}
 
 	fmt.Println(groups)
@@ -326,7 +327,7 @@ func ExampleURLMasking() {
 
 func TestAutoGC(t *testing.T) {
 	var err error
-	if err = Logger.ChangeLevel("debug"); err != nil {
+	if err = log.Shared.ChangeLevel("debug"); err != nil {
 		t.Fatalf("%+v", err)
 	}
 
@@ -374,7 +375,7 @@ func ExampleAutoGC() {
 		WithGCMemRatio(85), // default
 		WithGCMemLimitFilePath("/sys/fs/cgroup/memory/memory.limit_in_bytes"), // default
 	); err != nil {
-		Logger.Error("enable autogc", zap.Error(err))
+		log.Shared.Error("enable autogc", zap.Error(err))
 	}
 }
 
@@ -425,7 +426,7 @@ func ExampleSetStructFieldsBySlice() {
 		}
 	)
 	if err = SetStructFieldsBySlice(ss, vs); err != nil {
-		Logger.Error("set struct val", zap.Error(err))
+		log.Shared.Error("set struct val", zap.Error(err))
 		return
 	}
 

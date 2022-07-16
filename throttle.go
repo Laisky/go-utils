@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/pkg/errors"
 )
 
@@ -59,7 +60,7 @@ func (t *Throttle) Allow() bool {
 
 // runWithCtx start throttle with context
 func (t *Throttle) runWithCtx(ctx context.Context) {
-	defer Logger.Debug("throttle exit")
+	defer log.Shared.Debug("throttle exit")
 
 	var nBatch float64 = 10
 	nPerBatch := float64(t.NPerSec) / nBatch

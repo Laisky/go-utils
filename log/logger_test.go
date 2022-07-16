@@ -1,8 +1,9 @@
-package utils
+package log
 
 import (
 	"context"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,16 +17,16 @@ import (
 )
 
 func TestNewLogger(t *testing.T) {
-	logger, err := CreateNewDefaultLogger("123", LoggerLevelDebug)
+	logger, err := New()
 	require.NoError(t, err)
 
 	lvl := logger.Level()
 	require.Equal(t, zap.DebugLevel, lvl)
 
-	_, err = NewLogger()
+	_, err = New()
 	require.NoError(t, err)
 
-	logger = logger.Clone().Named("sample")
+	logger = logger.Named("sample")
 	for i := 0; i < 100; i++ {
 		logger.DebugSample(1, "test")
 		logger.InfoSample(1, "test")
@@ -42,8 +43,8 @@ func TestWriteToFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	file := filepath.Join(dir, "test.log")
-	logger, err := NewLogger(
-		WithLoggerOutputPaths([]string{file}),
+	logger, err := New(
+		WithOutputPaths([]string{file}),
 	)
 	require.NoError(t, err)
 
@@ -58,19 +59,19 @@ func TestWriteToFile(t *testing.T) {
 
 func TestSetupLogger(t *testing.T) {
 	var err error
-	Logger, err := NewConsoleLoggerWithName("test", "debug")
+	Logger, err := NewConsoleWithName("test", "debug")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	Logger.Info("test", zap.String("arg", "111"))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelDebug))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelWarn))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelError))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelFatal))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelPanic))
+	require.NoError(t, Logger.ChangeLevel(LevelDebug))
+	require.NoError(t, Logger.ChangeLevel(LevelWarn))
+	require.NoError(t, Logger.ChangeLevel(LevelError))
+	require.NoError(t, Logger.ChangeLevel(LevelFatal))
+	require.NoError(t, Logger.ChangeLevel(LevelPanic))
 	require.Error(t, Logger.ChangeLevel("xxx"))
-	require.NoError(t, Logger.ChangeLevel(LoggerLevelInfo))
+	require.NoError(t, Logger.ChangeLevel(LevelInfo))
 	Logger.Info("test", zap.String("arg", "222"), zap.String("color", "\033[1;34m colored \033[0m"))
 	Logger.Debug("test", zap.String("arg", "333"))
 	// if err := Logger.Sync(); err != nil {
@@ -146,16 +147,16 @@ func TestSetupLogger(t *testing.T) {
 
 func BenchmarkLogger(b *testing.B) {
 	var err error
-	if err = Logger.ChangeLevel("error"); err != nil {
+	if err = Shared.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			Logger.Debug("yooo")
+			Shared.Debug("yooo")
 		}
 	})
 
-	if err = Logger.ChangeLevel("error"); err != nil {
+	if err = Shared.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	// b.Run("log", func(b *testing.B) {
@@ -167,12 +168,12 @@ func BenchmarkLogger(b *testing.B) {
 
 func BenchmarkSampleLogger(b *testing.B) {
 	var err error
-	if err = Logger.ChangeLevel("error"); err != nil {
+	if err = Shared.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	b.Run("low level log", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			Logger.DebugSample(100, "yooo")
+			Shared.DebugSample(100, "yooo")
 		}
 	})
 }
@@ -188,7 +189,7 @@ func TestAlertHook(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	defer pusher.Close()
-	logger := Logger.WithOptions(
+	logger := Shared.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
 		zap.HooksWithFields(pusher.GetZapHook()),
 	)
@@ -209,10 +210,10 @@ func ExampleAlertPusher() {
 		"rwkpVuAgaBZQBASKndHK",
 	)
 	if err != nil {
-		Logger.Panic("create alert pusher", zap.Error(err))
+		Shared.Panic("create alert pusher", zap.Error(err))
 	}
 	defer pusher.Close()
-	logger := Logger.WithOptions(
+	logger := Shared.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
 		zap.HooksWithFields(pusher.GetZapHook()),
 	)
@@ -250,50 +251,59 @@ func ExampleAlertPusher() {
 // 	t.Error()
 // }
 
-func TestChangeLoggerLevel(t *testing.T) {
+func randomString(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func TestChangeLevel(t *testing.T) {
 	var allLogs []string
-	logger, err := NewLogger(
-		WithLoggerZapOptions(zap.Hooks(func(e zapcore.Entry) error {
+	logger, err := New(
+		WithZapOptions(zap.Hooks(func(e zapcore.Entry) error {
 			allLogs = append(allLogs, e.Message)
 			return nil
 		})),
-		WithLoggerLevel(LoggerLevelDebug),
+		WithLevel(LevelDebug),
 	)
 	require.NoError(t, err)
 
 	// case: normal log
 	{
-		msg := RandomStringWithLength(50)
+		msg := randomString(50)
 		logger.Debug(msg)
 		require.Equal(t, msg, allLogs[len(allLogs)-1])
 	}
 
 	// case: change level
 	{
-		msg := RandomStringWithLength(50)
-		err = logger.ChangeLevel(LoggerLevelInfo)
+		msg := randomString(50)
+		err = logger.ChangeLevel(LevelInfo)
 		require.NoError(t, err)
 		logger.Debug(msg)
 		require.Len(t, allLogs, 1)
 		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
-		err = logger.ChangeLevel(LoggerLevelDebug)
+		err = logger.ChangeLevel(LevelDebug)
 		require.NoError(t, err)
 	}
 
 	// case: change level for child logger
 	{
-		msg := RandomStringWithLength(50)
-		childLogger := logger.Clone()
-		err = childLogger.ChangeLevel(LoggerLevelInfo)
+		msg := randomString(50)
+		childLogger := logger.Named("child")
+		err = childLogger.ChangeLevel(LevelInfo)
 		require.NoError(t, err)
 		logger.Debug(msg)
 		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
 
-		msg = RandomStringWithLength(50)
+		msg = randomString(50)
 		childLogger.Info(msg)
 		require.Equal(t, msg, allLogs[len(allLogs)-1])
 
-		msg = RandomStringWithLength(50)
+		msg = randomString(50)
 		childLogger.Debug(msg)
 		require.NotEqual(t, msg, allLogs[len(allLogs)-1])
 	}

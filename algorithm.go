@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	skiplist "github.com/Laisky/fast-skiplist"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/gammazero/deque"
 	"github.com/pkg/errors"
@@ -221,7 +222,7 @@ func GetSmallestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([
 //   * use min-heap to calculates topN Highest items.
 //   * use max-heap to calculates topN Lowest items.
 func GetTopKItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
-	Logger.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
+	log.Shared.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
 		return nil, errors.Errorf("GetMostFreqWords topN must larger than 2")
 	}
@@ -285,7 +286,7 @@ LOAD_LOOP:
 		}
 	}
 
-	Logger.Debug("process all items", zap.Int("total", nTotal))
+	log.Shared.Debug("process all items", zap.Int("total", nTotal))
 	for i := 1; i <= topN; i++ { // pop all needed items
 		item = heap.Pop(p).(*itemType[T])
 		items[topN-i] = item

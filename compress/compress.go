@@ -1,4 +1,4 @@
-package utils
+package compress
 
 import (
 	"archive/zip"
@@ -10,21 +10,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
 	"github.com/pkg/errors"
 )
 
 const (
-	defaultGzCompressLevel      = gzip.DefaultCompression
-	defaultPGzCompressLevel     = pgzip.DefaultCompression
-	defaultCompressBufSizeByte  = 4 * 1024 * 1024
-	defaultPgzCompressNBlock    = 16
-	defaultPgzCompressBlockSize = 250000
+	defaultGzipLevel      = gzip.DefaultCompression
+	defaultPGzipLevel     = pgzip.DefaultCompression
+	defaultBufSizeByte    = 4 * 1024 * 1024
+	defaultPgzipNBlock    = 16
+	defaultPgzipBlockSize = 250000
 )
 
-// CompressorItf interface of compressor
-type CompressorItf interface {
+// Compressor interface of compressor
+type Compressor interface {
 	Write([]byte) (int, error)
 	WriteString(string) (int, error)
 	// write footer and flust to lower writer
@@ -33,25 +35,25 @@ type CompressorItf interface {
 	WriteFooter() error
 }
 
-type compressOption struct {
+type option struct {
 	level, bufSizeByte,
 	nBlock, blockSizeByte int
 }
 
 // CompressOptFunc options for compressor
-type CompressOptFunc func(*compressOption) error
+type Option func(*option) error
 
 // GZCompressor compress by gz with buf
-type GZCompressor struct {
-	*compressOption
+type Gzip struct {
+	*option
 	buf      *bufio.Writer
 	gzWriter *gzip.Writer
 	writer   io.Writer
 }
 
-// WithCompressBufSizeByte set compressor buf size
-func WithCompressBufSizeByte(n int) CompressOptFunc {
-	return func(opt *compressOption) error {
+// WithBufSizeByte set compressor buf size
+func WithBufSizeByte(n int) Option {
+	return func(opt *option) error {
 		if n < 0 {
 			return errors.Errorf("`BufSizeByte` should great than or equal to 0")
 		}
@@ -61,28 +63,29 @@ func WithCompressBufSizeByte(n int) CompressOptFunc {
 	}
 }
 
-// WithCompressLevel set compressor compress level
-func WithCompressLevel(n int) CompressOptFunc {
-	return func(opt *compressOption) error {
+// WithLevel set compressor compress level
+func WithLevel(n int) Option {
+	return func(opt *option) error {
 		opt.level = n
 		return nil
 	}
 }
 
-// NewGZCompressor create new GZCompressor
-func NewGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *GZCompressor, err error) {
-	opt := &compressOption{
-		level:       defaultGzCompressLevel,
-		bufSizeByte: defaultCompressBufSizeByte,
+// NewGZip create new GZCompressor
+func NewGZip(writer io.Writer, opts ...Option) (Compressor, error) {
+	opt := &option{
+		level:       defaultGzipLevel,
+		bufSizeByte: defaultBufSizeByte,
 	}
+	var err error
 	for _, of := range opts {
 		if err = of(opt); err != nil {
 			return nil, errors.Wrap(err, "set option")
 		}
 	}
-	c = &GZCompressor{
-		writer:         writer,
-		compressOption: opt,
+	c := &Gzip{
+		writer: writer,
+		option: opt,
 	}
 	c.buf = bufio.NewWriterSize(c.writer, c.bufSizeByte)
 	if c.gzWriter, err = gzip.NewWriterLevel(c.buf, c.level); err != nil {
@@ -93,17 +96,17 @@ func NewGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *GZCompressor
 }
 
 // Write write bytes via compressor
-func (c *GZCompressor) Write(d []byte) (int, error) {
+func (c *Gzip) Write(d []byte) (int, error) {
 	return c.gzWriter.Write(d)
 }
 
 // WriteString write string via compressor
-func (c *GZCompressor) WriteString(d string) (int, error) {
+func (c *Gzip) WriteString(d string) (int, error) {
 	return c.gzWriter.Write([]byte(d))
 }
 
 // Flush flush buffer bytes into bottom writer with gz meta footer
-func (c *GZCompressor) Flush() (err error) {
+func (c *Gzip) Flush() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
 		return err
 	}
@@ -115,7 +118,7 @@ func (c *GZCompressor) Flush() (err error) {
 }
 
 // WriteFooter write gz footer
-func (c *GZCompressor) WriteFooter() (err error) {
+func (c *Gzip) WriteFooter() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
 		return err
 	}
@@ -123,17 +126,17 @@ func (c *GZCompressor) WriteFooter() (err error) {
 	return nil
 }
 
-// PGZCompressor compress by gz with buf
-type PGZCompressor struct {
-	*compressOption
+// PGZip parallel gzip compressor
+type PGZip struct {
+	*option
 	buf      *bufio.Writer
 	gzWriter *pgzip.Writer
 	writer   io.Writer
 }
 
 // WithPGzipNBlocks set compressor blocks
-func WithPGzipNBlocks(nBlock int) CompressOptFunc {
-	return func(opt *compressOption) error {
+func WithPGzipNBlocks(nBlock int) Option {
+	return func(opt *option) error {
 		if nBlock < 0 {
 			return errors.Errorf("nBlock size must greater than 0, got %d", nBlock)
 		}
@@ -144,8 +147,8 @@ func WithPGzipNBlocks(nBlock int) CompressOptFunc {
 }
 
 // WithPGzipBlockSize set compressor blocks
-func WithPGzipBlockSize(bytes int) CompressOptFunc {
-	return func(opt *compressOption) error {
+func WithPGzipBlockSize(bytes int) Option {
+	return func(opt *option) error {
 		if bytes <= 0 {
 			return errors.Errorf("block size must greater than 0, got %d", bytes)
 		}
@@ -155,22 +158,23 @@ func WithPGzipBlockSize(bytes int) CompressOptFunc {
 	}
 }
 
-// NewPGZCompressor create new PGZCompressor
-func NewPGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *PGZCompressor, err error) {
-	opt := &compressOption{
-		level:         defaultPGzCompressLevel,
-		bufSizeByte:   defaultCompressBufSizeByte,
-		nBlock:        defaultPgzCompressNBlock,
-		blockSizeByte: defaultPgzCompressBlockSize,
+// NewPGZip create new PGZCompressor
+func NewPGZip(writer io.Writer, opts ...Option) (Compressor, error) {
+	opt := &option{
+		level:         defaultPGzipLevel,
+		bufSizeByte:   defaultBufSizeByte,
+		nBlock:        defaultPgzipNBlock,
+		blockSizeByte: defaultPgzipBlockSize,
 	}
+	var err error
 	for _, of := range opts {
 		if err = of(opt); err != nil {
 			return nil, errors.Wrap(err, "set option")
 		}
 	}
-	c = &PGZCompressor{
-		writer:         writer,
-		compressOption: opt,
+	c := &PGZip{
+		writer: writer,
+		option: opt,
 	}
 	c.buf = bufio.NewWriterSize(c.writer, c.bufSizeByte)
 	if c.gzWriter, err = pgzip.NewWriterLevel(c.buf, c.level); err != nil {
@@ -184,17 +188,17 @@ func NewPGZCompressor(writer io.Writer, opts ...CompressOptFunc) (c *PGZCompress
 }
 
 // Write write bytes via compressor
-func (c *PGZCompressor) Write(d []byte) (int, error) {
+func (c *PGZip) Write(d []byte) (int, error) {
 	return c.gzWriter.Write(d)
 }
 
 // WriteString write string via compressor
-func (c *PGZCompressor) WriteString(d string) (int, error) {
+func (c *PGZip) WriteString(d string) (int, error) {
 	return c.gzWriter.Write([]byte(d))
 }
 
 // Flush flush buffer bytes into bottom writer with gz meta footer
-func (c *PGZCompressor) Flush() (err error) {
+func (c *PGZip) Flush() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
 		return err
 	}
@@ -206,7 +210,7 @@ func (c *PGZCompressor) Flush() (err error) {
 }
 
 // WriteFooter write gz footer
-func (c *PGZCompressor) WriteFooter() (err error) {
+func (c *PGZip) WriteFooter() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
 		return err
 	}
@@ -242,7 +246,7 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 				return nil, errors.Wrapf(err, "create basedir: %s", fpath)
 			}
 
-			Logger.Debug("create basedir", zap.String("path", fpath))
+			log.Shared.Debug("create basedir", zap.String("path", fpath))
 			continue
 		}
 
@@ -250,20 +254,20 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
 			return nil, errors.Wrapf(err, "mkdir: %s", fpath)
 		}
-		Logger.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
+		log.Shared.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
 
 		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			return nil, errors.Wrapf(err, "open file to write: %s", fpath)
 		}
-		Logger.Debug("create file", zap.String("path", filepath.Dir(fpath)))
-		defer CloseQuietly(outFile)
+		log.Shared.Debug("create file", zap.String("path", filepath.Dir(fpath)))
+		defer gutils.CloseQuietly(outFile)
 
 		rc, err := f.Open()
 		if err != nil {
 			return nil, errors.Wrapf(err, "read src file to write: %s", f.Name)
 		}
-		defer CloseQuietly(rc)
+		defer gutils.CloseQuietly(rc)
 
 		if _, err = io.Copy(outFile, rc); err != nil {
 			return nil, errors.Wrap(err, "copy src to dest")
@@ -286,10 +290,10 @@ func ZipFiles(output string, files []string) (err error) {
 	if newZipFile, err = os.Create(output); err != nil {
 		return err
 	}
-	defer CloseQuietly(newZipFile)
+	defer gutils.CloseQuietly(newZipFile)
 
 	zipWriter := zip.NewWriter(newZipFile)
-	defer CloseQuietly(zipWriter)
+	defer gutils.CloseQuietly(zipWriter)
 
 	// Add files to zip
 	for _, file := range files {
@@ -333,7 +337,7 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file: %s", filename)
 	}
-	defer CloseQuietly(fileToZip)
+	defer gutils.CloseQuietly(fileToZip)
 
 	var header *zip.FileHeader
 	if header, err = zip.FileInfoHeader(finfo); err != nil {
@@ -359,6 +363,6 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 		return errors.Wrap(err, "copy data")
 	}
 
-	Logger.Debug("add file to zip", zap.String("file", filename))
+	log.Shared.Debug("add file to zip", zap.String("file", filename))
 	return nil
 }

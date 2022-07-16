@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -270,7 +271,7 @@ BenchmarkClock/clock2_time_with_10us-8                  294948268               
 BenchmarkClock/clock2_time_with_10us#01-8               270614050                4.442 ns/op           0 B/op          0 allocs/op*/
 func BenchmarkClock(b *testing.B) {
 	var err error
-	if err = Logger.ChangeLevel("error"); err != nil {
+	if err = log.Shared.ChangeLevel("error"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
 	// clock 1

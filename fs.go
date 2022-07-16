@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
@@ -78,7 +79,7 @@ func CopyFile(src, dst string) (err error) {
 	if n, err = io.Copy(dstFp, srcFp); err != nil {
 		return errors.Wrap(err, "copy file")
 	}
-	Logger.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
+	log.Shared.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
 
 	return nil
 }
@@ -157,7 +158,7 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 					callback(evt)
 				}
 			case err := <-watcher.Errors:
-				Logger.Error("watch file error", zap.Error(err))
+				log.Shared.Error("watch file error", zap.Error(err))
 			case <-ctx.Done():
 				return
 			}

@@ -1,4 +1,4 @@
-package utils
+package encrypt
 
 import (
 	"crypto"
@@ -16,12 +16,17 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"strings"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/zap"
 	"github.com/cespare/xxhash"
 	"github.com/monnand/dhkx"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 )
 
 // GeneratePasswordHash generate hashed password by origin password
@@ -486,4 +491,102 @@ func (d *DHKX) GenerateKey(peerPubKey []byte) ([]byte, error) {
 	}
 
 	return k.Bytes(), nil
+}
+
+const (
+	defaultEncryptSuffix = ".enc"
+)
+
+type encryptFilesOption struct {
+	ext string
+	// suffix will append in encrypted file'name after ext as suffix
+	suffix string
+}
+
+func (o *encryptFilesOption) fillDefault() {
+	// o.ext = ".toml"
+	o.suffix = defaultEncryptSuffix
+}
+
+// EncryptFilesOption options to encrypt files in dir
+type EncryptFilesOption func(*encryptFilesOption) error
+
+// WithAESFilesInDirFileExt only encrypt files with specific ext
+func WithAESFilesInDirFileExt(ext string) EncryptFilesOption {
+	return func(opt *encryptFilesOption) error {
+		if !strings.HasPrefix(ext, ".") {
+			return errors.Errorf("ext should start with `.`")
+		}
+
+		opt.ext = ext
+		return nil
+	}
+}
+
+// WithAESFilesInDirFileSuffix will append to encrypted's filename as suffix
+//
+//   xxx.toml -> xxx.toml.enc
+func WithAESFilesInDirFileSuffix(suffix string) EncryptFilesOption {
+	return func(opt *encryptFilesOption) error {
+		if !strings.HasPrefix(suffix, ".") {
+			return errors.Errorf("suffix should start with `.`")
+		}
+
+		opt.suffix = suffix
+		return nil
+	}
+}
+
+// AESEncryptFilesInDir encrypt files in dir
+//
+// will generate new encrypted files with <suffix> after ext
+//
+//   xxx.toml -> xxx.toml.enc
+func AESEncryptFilesInDir(dir string, secret []byte, opts ...EncryptFilesOption) (err error) {
+	opt := new(encryptFilesOption)
+	opt.fillDefault()
+	for _, optf := range opts {
+		if err = optf(opt); err != nil {
+			return err
+		}
+	}
+	logger := log.Shared.With(
+		zap.String("ext", opt.ext),
+		zap.String("suffix", opt.suffix),
+	)
+
+	fs, err := gutils.ListFilesInDir(dir)
+	if err != nil {
+		return errors.Wrapf(err, "read dir `%s`", dir)
+	}
+
+	var pool errgroup.Group
+	for _, fname := range fs {
+		if !strings.HasSuffix(fname, opt.ext) {
+			continue
+		}
+
+		fname := fname
+		pool.Go(func() (err error) {
+			raw, err := ioutil.ReadFile(fname)
+			if err != nil {
+				return errors.Wrapf(err, "read file `%s`", fname)
+			}
+
+			cipher, err := EncryptByAes(secret, raw)
+			if err != nil {
+				return errors.Wrapf(err, "encrypt")
+			}
+
+			outfname := fname + opt.suffix
+			if err = ioutil.WriteFile(outfname, cipher, os.ModePerm); err != nil {
+				return errors.Wrapf(err, "write file `%s`", outfname)
+			}
+
+			logger.Info("encrypt file", zap.String("src", fname), zap.String("out", outfname))
+			return nil
+		})
+	}
+
+	return pool.Wait()
 }

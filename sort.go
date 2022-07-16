@@ -3,6 +3,7 @@ package utils
 import (
 	"sort"
 
+	"github.com/Laisky/go-utils/v2/log"
 	zap "github.com/Laisky/zap"
 )
 
@@ -29,18 +30,18 @@ type PairList []SortItemItf
 
 // Len return length of sort items
 func (p PairList) Len() int {
-	Logger.Debug("len", zap.Int("len", len(p)))
+	log.Shared.Debug("len", zap.Int("len", len(p)))
 	return len(p)
 }
 
 // Less compare two items
 func (p PairList) Less(i, j int) bool {
-	Logger.Debug("less compare", zap.Int("i", i), zap.Int("j", j))
+	log.Shared.Debug("less compare", zap.Int("i", i), zap.Int("j", j))
 	return p[i].GetValue() < p[j].GetValue()
 }
 
 // Swap change two items
 func (p PairList) Swap(i, j int) {
-	Logger.Debug("swap", zap.Int("i", i), zap.Int("j", j))
+	log.Shared.Debug("swap", zap.Int("i", i), zap.Int("j", j))
 	p[i], p[j] = p[j], p[i]
 }

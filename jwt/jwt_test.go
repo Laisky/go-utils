@@ -1,10 +1,12 @@
-package utils
+package jwt
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
@@ -30,12 +32,12 @@ type testJWTClaims struct {
 
 func ExampleJWT() {
 	secret = []byte("4738947328rh3ru23f32hf238f238fh28f")
-	j, err := NewJWT(
-		WithJWTSignMethod(SignMethodHS256),
-		WithJWTSecretByte(secret),
+	j, err := New(
+		WithSignMethod(SignMethodHS256),
+		WithSecretByte(secret),
 	)
 	if err != nil {
-		Logger.Panic("new jwt", zap.Error(err))
+		log.Shared.Panic("new jwt", zap.Error(err))
 	}
 
 	type jwtClaims struct {
@@ -51,31 +53,31 @@ func ExampleJWT() {
 	// signing
 	token, err := j.Sign(claims)
 	if err != nil {
-		Logger.Panic("sign jwt", zap.Error(err))
+		log.Shared.Panic("sign jwt", zap.Error(err))
 	}
 
 	// verify
 	claims = &jwtClaims{}
 	if err := j.ParseClaims(token, claims); err != nil {
-		Logger.Panic("sign jwt", zap.Error(err))
+		log.Shared.Panic("sign jwt", zap.Error(err))
 	}
 }
 
 func TestJWTSignAndVerify(t *testing.T) {
-	jwtES256, err := NewJWT(
-		WithJWTSignMethod(SignMethodES256),
-		WithJWTPubKeyByte(es256PubByte),
-		WithJWTPriKeyByte(es256PriByte),
+	jwtES256, err := New(
+		WithSignMethod(SignMethodES256),
+		WithPubKeyByte(es256PubByte),
+		WithPriKeyByte(es256PriByte),
 	)
 	require.NoError(t, err)
 
-	jwtHS256, err := NewJWT(
-		WithJWTSignMethod(SignMethodHS256),
-		WithJWTSecretByte(secret),
+	jwtHS256, err := New(
+		WithSignMethod(SignMethodHS256),
+		WithSecretByte(secret),
 	)
 	require.NoError(t, err)
 
-	for _, j := range []*JWT{
+	for _, j := range []JWT{
 		jwtES256,
 		jwtHS256,
 	} {
@@ -105,8 +107,8 @@ func TestJWTSignAndVerify(t *testing.T) {
 			t.Fatal()
 		}
 
-		expired := Clock.GetUTCNow().Add(-time.Hour)
-		future := Clock.GetUTCNow().Add(time.Hour)
+		expired := gutils.Clock.GetUTCNow().Add(-time.Hour)
+		future := gutils.Clock.GetUTCNow().Add(time.Hour)
 
 		// test exp
 		claims = &testJWTClaims{
@@ -150,7 +152,7 @@ func TestParseJWTTokenWithoutValidate(t *testing.T) {
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZHVuZSJdLCJzdWIiOiJsYWlza3kifQ.cYnd2OdN-i3kuPXSUc4xj1rkVk5elJnxln6zDdvlOUc"
 
 	c := new(jwt.RegisteredClaims)
-	err := ParseJWTTokenWithoutValidate(token, c)
+	err := ParseTokenWithoutValidate(token, c)
 	require.NoError(t, err)
 	require.Equal(t, "laisky", c.Subject)
 	require.Equal(t, jwt.ClaimStrings([]string{"dune"}), c.Audience)
@@ -163,9 +165,9 @@ func TestJWTAudValunerable(t *testing.T) {
 
 	// case: v3 的 aud 是 stirng，应该无法解析 []string
 	{
-		j, err := NewJWT(
-			WithJWTSignMethod(SignMethodHS256),
-			WithJWTSecretByte(secret),
+		j, err := New(
+			WithSignMethod(SignMethodHS256),
+			WithSecretByte(secret),
 		)
 		require.NoError(t, err)
 		claims := new(jwt.RegisteredClaims)
@@ -185,7 +187,7 @@ func TestJWTAudValunerable(t *testing.T) {
 	// bug: slice aud will bypass verify
 	{
 		claims := new(jwt.RegisteredClaims)
-		err := ParseJWTTokenWithoutValidate(token, claims)
+		err := ParseTokenWithoutValidate(token, claims)
 		require.NoError(t, err)
 
 		ok := claims.VerifyAudience("laisky", false)

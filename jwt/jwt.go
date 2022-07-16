@@ -1,6 +1,7 @@
-package utils
+package jwt
 
 import (
+	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/pkg/errors"
 )
@@ -15,103 +16,113 @@ var (
 	defaultSignMethod = SignMethodHS256
 )
 
-// ParseJWTTokenWithoutValidate parse and get payload without validate jwt token
-func ParseJWTTokenWithoutValidate(token string, payload jwt.Claims) (err error) {
+type JWT interface {
+	Sign(claims jwt.Claims, opts ...DivideOption) (string, error)
+	SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, error)
+	SignByES256(claims jwt.Claims, opts ...DivideOption) (string, error)
+	ParseClaims(token string, claimsPtr jwt.Claims, opts ...DivideOption) error
+	ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error
+	ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error
+	ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error
+}
+
+// ParseTokenWithoutValidate parse and get payload without validate jwt token
+func ParseTokenWithoutValidate(token string, payload jwt.Claims) (err error) {
 	_, _, err = new(jwt.Parser).ParseUnverified(token, payload)
 	return err
 }
 
-// JWT is token utils that support HS256/ES256
-type JWT struct {
+// jwtType is token utils that support HS256/ES256
+type jwtType struct {
 	secret,
 	priKey, pubKey []byte
 	signingMethod jwt.SigningMethod
 }
 
-// JWTOptFunc options to setup JWT
-type JWTOptFunc func(*JWT) error
+// Option options to setup JWT
+type Option func(*jwtType) error
 
-// WithJWTSignMethod set jwt signing method
-func WithJWTSignMethod(method jwt.SigningMethod) JWTOptFunc {
-	return func(e *JWT) error {
+// WithSignMethod set jwt signing method
+func WithSignMethod(method jwt.SigningMethod) Option {
+	return func(e *jwtType) error {
 		e.signingMethod = method
 		return nil
 	}
 }
 
-// WithJWTSecretByte set jwt symmetric signning key
-func WithJWTSecretByte(secret []byte) JWTOptFunc {
-	return func(e *JWT) error {
+// WithSecretByte set jwt symmetric signning key
+func WithSecretByte(secret []byte) Option {
+	return func(e *jwtType) error {
 		e.secret = secret
 		return nil
 	}
 }
 
-// WithJWTPriKeyByte set jwt asymmetrical private key
-func WithJWTPriKeyByte(prikey []byte) JWTOptFunc {
-	return func(e *JWT) error {
+// WithPriKeyByte set jwt asymmetrical private key
+func WithPriKeyByte(prikey []byte) Option {
+	return func(e *jwtType) error {
 		e.priKey = prikey
 		return nil
 	}
 }
 
-// WithJWTPubKeyByte set jwt asymmetrical public key
-func WithJWTPubKeyByte(pubkey []byte) JWTOptFunc {
-	return func(e *JWT) error {
+// WithPubKeyByte set jwt asymmetrical public key
+func WithPubKeyByte(pubkey []byte) Option {
+	return func(e *jwtType) error {
 		e.pubKey = pubkey
 		return nil
 	}
 }
 
-type jwtDivideOpt struct {
+type divideOpt struct {
 	priKey, pubKey,
 	secret []byte
 }
 
-// JWTDiviceOptFunc options to use separate secret for every user in parsing/signing
-type JWTDiviceOptFunc func(*jwtDivideOpt) error
+// DivideOption options to use separate secret for every user in parsing/signing
+type DivideOption func(*divideOpt) error
 
-// WithJWTDivideSecret set symmetric key for each signning/verify
-func WithJWTDivideSecret(secret []byte) JWTDiviceOptFunc {
-	return func(opt *jwtDivideOpt) error {
+// WithDivideSecret set symmetric key for each signning/verify
+func WithDivideSecret(secret []byte) DivideOption {
+	return func(opt *divideOpt) error {
 		opt.secret = secret
 		return nil
 	}
 }
 
-// WithJWTDividePriKey set asymmetrical private key for each signning/verify
-func WithJWTDividePriKey(priKey []byte) JWTDiviceOptFunc {
-	return func(opt *jwtDivideOpt) error {
+// WithDividePriKey set asymmetrical private key for each signning/verify
+func WithDividePriKey(priKey []byte) DivideOption {
+	return func(opt *divideOpt) error {
 		opt.priKey = priKey
 		return nil
 	}
 }
 
-// WithJWTDividePubKey set asymmetrical public key for each signning/verify
-func WithJWTDividePubKey(pubKey []byte) JWTDiviceOptFunc {
-	return func(opt *jwtDivideOpt) error {
+// WithDividePubKey set asymmetrical public key for each signning/verify
+func WithDividePubKey(pubKey []byte) DivideOption {
+	return func(opt *divideOpt) error {
 		opt.pubKey = pubKey
 		return nil
 	}
 }
 
-// NewJWT create new JWT utils
-func NewJWT(opts ...JWTOptFunc) (e *JWT, err error) {
-	e = &JWT{
+// New create new JWT utils
+func New(opts ...Option) (JWT, error) {
+	e := &jwtType{
 		signingMethod: defaultSignMethod,
 	}
 
 	for _, optf := range opts {
-		if err = optf(e); err != nil {
+		if err := optf(e); err != nil {
 			return nil, errors.Wrap(err, "apply option")
 		}
 	}
 
-	return
+	return e, nil
 }
 
 // Sign sign claims to token
-func (e *JWT) Sign(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
+func (e *jwtType) Sign(claims jwt.Claims, opts ...DivideOption) (string, error) {
 	switch e.signingMethod {
 	case SignMethodHS256:
 		return e.SignByHS256(claims, opts...)
@@ -123,8 +134,8 @@ func (e *JWT) Sign(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) 
 }
 
 // SignByHS256 signing claims by HS256
-func (e *JWT) SignByHS256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
-	opt := &jwtDivideOpt{
+func (e *jwtType) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, error) {
+	opt := &divideOpt{
 		secret: e.secret,
 	}
 	for _, optf := range opts {
@@ -138,8 +149,8 @@ func (e *JWT) SignByHS256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, 
 }
 
 // SignByES256 signing claims by ES256
-func (e *JWT) SignByES256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, error) {
-	opt := &jwtDivideOpt{
+func (e *jwtType) SignByES256(claims jwt.Claims, opts ...DivideOption) (string, error) {
+	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
 	}
@@ -159,8 +170,8 @@ func (e *JWT) SignByES256(claims jwt.Claims, opts ...JWTDiviceOptFunc) (string, 
 }
 
 // ParseClaims parse token to claims
-func (e *JWT) ParseClaims(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
-	if !IsPtr(claimsPtr) {
+func (e *jwtType) ParseClaims(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+	if !gutils.IsPtr(claimsPtr) {
 		return errors.New("claimsPtr must be a pointer")
 	}
 
@@ -175,8 +186,8 @@ func (e *JWT) ParseClaims(token string, claimsPtr jwt.Claims, opts ...JWTDiviceO
 }
 
 // ParseClaimsByHS256 parse token to claims by HS256
-func (e *JWT) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
-	opt := &jwtDivideOpt{
+func (e *jwtType) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+	opt := &divideOpt{
 		secret: e.secret,
 	}
 	for _, optf := range opts {
@@ -198,8 +209,8 @@ func (e *JWT) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...JWT
 }
 
 // ParseClaimsByES256 parse token to claims by ES256
-func (e *JWT) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
-	opt := &jwtDivideOpt{
+func (e *jwtType) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
 	}
@@ -228,8 +239,8 @@ func (e *JWT) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...JWT
 }
 
 // ParseClaimsByRS256 parse token to claims by rs256
-func (e *JWT) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...JWTDiviceOptFunc) error {
-	opt := &jwtDivideOpt{
+func (e *jwtType) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
 	}

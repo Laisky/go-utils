@@ -1,10 +1,9 @@
-package utils
+package config
 
 import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,12 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/encrypt"
+	"github.com/Laisky/go-utils/v2/log"
 	zap "github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 )
 
 // AtomicFieldBool is a bool field which is goroutine-safe
@@ -42,8 +43,8 @@ func (a *AtomicFieldBool) SetFalse() {
 
 const defaultConfigFileName = "settings.yml"
 
-// SettingsType type of project settings
-type SettingsType struct {
+// config type of project settings
+type config struct {
 	sync.RWMutex
 
 	v *viper.Viper
@@ -51,7 +52,7 @@ type SettingsType struct {
 	watchOnce sync.Once
 }
 
-// Settings is the settings for this project
+// Shared is the settings for this project
 //
 // enhance viper.Viper with threadsafe and richer features.
 //
@@ -59,23 +60,25 @@ type SettingsType struct {
 //
 //   import gutils "github.com/Laisky/go-utils/v2"
 //
-//	 gutils.Settings.
-var Settings = NewSettings()
+//	 gutils.Shared.
+var Shared = New()
 
-// NewSettings new settings
-func NewSettings() *SettingsType {
-	return &SettingsType{
+var S = Shared
+
+// New new settings
+func New() *config {
+	return &config{
 		v: viper.New(),
 	}
 }
 
 // BindPFlags bind pflags to settings
-func (s *SettingsType) BindPFlags(p *pflag.FlagSet) error {
+func (s *config) BindPFlags(p *pflag.FlagSet) error {
 	return s.v.BindPFlags(p)
 }
 
 // Get get setting by key
-func (s *SettingsType) Get(key string) interface{} {
+func (s *config) Get(key string) interface{} {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -83,7 +86,7 @@ func (s *SettingsType) Get(key string) interface{} {
 }
 
 // GetString get setting by key
-func (s *SettingsType) GetString(key string) string {
+func (s *config) GetString(key string) string {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -91,7 +94,7 @@ func (s *SettingsType) GetString(key string) string {
 }
 
 // GetStringSlice get setting by key
-func (s *SettingsType) GetStringSlice(key string) []string {
+func (s *config) GetStringSlice(key string) []string {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -99,7 +102,7 @@ func (s *SettingsType) GetStringSlice(key string) []string {
 }
 
 // GetBool get setting by key
-func (s *SettingsType) GetBool(key string) bool {
+func (s *config) GetBool(key string) bool {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -107,7 +110,7 @@ func (s *SettingsType) GetBool(key string) bool {
 }
 
 // GetInt get setting by key
-func (s *SettingsType) GetInt(key string) int {
+func (s *config) GetInt(key string) int {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -115,7 +118,7 @@ func (s *SettingsType) GetInt(key string) int {
 }
 
 // GetInt64 get setting by key
-func (s *SettingsType) GetInt64(key string) int64 {
+func (s *config) GetInt64(key string) int64 {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -123,7 +126,7 @@ func (s *SettingsType) GetInt64(key string) int64 {
 }
 
 // GetDuration get setting by key
-func (s *SettingsType) GetDuration(key string) time.Duration {
+func (s *config) GetDuration(key string) time.Duration {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -131,7 +134,7 @@ func (s *SettingsType) GetDuration(key string) time.Duration {
 }
 
 // Set set setting by key
-func (s *SettingsType) Set(key string, val interface{}) {
+func (s *config) Set(key string, val interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -139,7 +142,7 @@ func (s *SettingsType) Set(key string, val interface{}) {
 }
 
 // IsSet check whether exists
-func (s *SettingsType) IsSet(key string) bool {
+func (s *config) IsSet(key string) bool {
 	s.Lock()
 	defer s.Unlock()
 
@@ -148,7 +151,7 @@ func (s *SettingsType) IsSet(key string) bool {
 
 // Unmarshal unmarshals the config into a Struct. Make sure that the tags
 // on the fields of the structure are properly set.
-func (s *SettingsType) Unmarshal(obj interface{}) error {
+func (s *config) Unmarshal(obj interface{}) error {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -156,7 +159,7 @@ func (s *SettingsType) Unmarshal(obj interface{}) error {
 }
 
 // UnmarshalKey takes a single key and unmarshals it into a Struct.
-func (s *SettingsType) UnmarshalKey(key string, obj interface{}) error {
+func (s *config) UnmarshalKey(key string, obj interface{}) error {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -164,7 +167,7 @@ func (s *SettingsType) UnmarshalKey(key string, obj interface{}) error {
 }
 
 // GetStringMap return map contains interface
-func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
+func (s *config) GetStringMap(key string) map[string]interface{} {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -172,21 +175,21 @@ func (s *SettingsType) GetStringMap(key string) map[string]interface{} {
 }
 
 // GetStringMapString return map contains strings
-func (s *SettingsType) GetStringMapString(key string) map[string]string {
+func (s *config) GetStringMapString(key string) map[string]string {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.v.GetStringMapString(key)
 }
 
-func (s *SettingsType) ReadConfig(in io.Reader) error {
+func (s *config) ReadConfig(in io.Reader) error {
 	s.Lock()
 	defer s.Unlock()
 
 	return s.v.ReadConfig(in)
 }
 
-func (s *SettingsType) MergeConfig(in io.Reader) error {
+func (s *config) MergeConfig(in io.Reader) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -194,8 +197,7 @@ func (s *SettingsType) MergeConfig(in io.Reader) error {
 }
 
 // LoadFromDir load settings from dir, default fname is `settings.yml`
-func (s *SettingsType) LoadFromDir(dirPath string, opts ...SettingsOptFunc) error {
-	Logger.Info("Setup settings", zap.String("dirpath", dirPath))
+func (s *config) LoadFromDir(dirPath string, opts ...SettingsOptFunc) error {
 	fpath := filepath.Join(dirPath, defaultConfigFileName)
 	return s.LoadFromFile(fpath, opts...)
 }
@@ -288,32 +290,32 @@ func isSettingsFileEncrypted(opt *settingsOpt, fname string) bool {
 	return false
 }
 
-func (s *SettingsType) watch(opt *settingsOpt, entryFile string, files []string, opts ...SettingsOptFunc) {
+func (s *config) watch(opt *settingsOpt, entryFile string, files []string, opts ...SettingsOptFunc) {
 	s.watchOnce.Do(func() {
-		if err := WatchFileChanging(context.Background(), files, func(e fsnotify.Event) {
+		if err := gutils.WatchFileChanging(context.Background(), files, func(e fsnotify.Event) {
 			if err := s.LoadFromFile(entryFile, opts...); err != nil {
-				Logger.Error("file watcher auto reload settings", zap.Error(err))
+				log.Shared.Error("file watcher auto reload settings", zap.Error(err))
 			}
 
 			if opt.watchModifyCallback != nil {
 				opt.watchModifyCallback(e)
 			}
 		}); err != nil {
-			Logger.Error("watch file error", zap.Error(err), zap.Strings("files", files))
+			log.Shared.Error("watch file error", zap.Error(err), zap.Strings("files", files))
 		}
 
-		Logger.Debug("watching config files", zap.Strings("files", files))
+		log.Shared.Debug("watching config files", zap.Strings("files", files))
 	})
 }
 
 // LoadFromFile load settings from file
-func (s *SettingsType) LoadFromFile(entryFile string, opts ...SettingsOptFunc) (err error) {
+func (s *config) LoadFromFile(entryFile string, opts ...SettingsOptFunc) (err error) {
 	opt, err := new(settingsOpt).fillDefault().applyOptfs(opts...)
 	if err != nil {
 		return errors.Wrap(err, "apply options")
 	}
 
-	logger := Logger.With(
+	logger := log.Shared.With(
 		zap.String("file", entryFile),
 		zap.Bool("include", opt.enableInclude),
 	)
@@ -328,11 +330,11 @@ RECUR_INCLUDE_LOOP:
 		if fp, err = os.Open(curFpath); err != nil {
 			return errors.Wrapf(err, "open config file `%s`", curFpath)
 		}
-		defer CloseQuietly(fp)
+		defer gutils.CloseQuietly(fp)
 
 		s.v.SetConfigType(strings.TrimLeft(filepath.Ext(strings.TrimSuffix(curFpath, opt.encryptedSuffix)), "."))
 		if isSettingsFileEncrypted(opt, curFpath) {
-			decrptReader, err := NewAesReaderWrapper(fp, opt.aesKey)
+			decrptReader, err := encrypt.NewAesReaderWrapper(fp, opt.aesKey)
 			if err != nil {
 				return err
 			}
@@ -373,7 +375,7 @@ RECUR_INCLUDE_LOOP:
 	return nil
 }
 
-func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err error) {
+func (s *config) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err error) {
 	var (
 		filePath string
 		fp       *os.File
@@ -384,10 +386,10 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 			if fp, err = os.Open(filePath); err != nil {
 				return errors.Wrapf(err, "open config file `%s`", filePath)
 			}
-			defer CloseQuietly(fp)
+			defer gutils.CloseQuietly(fp)
 
 			if isSettingsFileEncrypted(opt, filePath) {
-				encryptedFp, err := NewAesReaderWrapper(fp, opt.aesKey)
+				encryptedFp, err := encrypt.NewAesReaderWrapper(fp, opt.aesKey)
 				if err != nil {
 					return err
 				}
@@ -413,8 +415,8 @@ func (s *SettingsType) loadConfigFiles(opt *settingsOpt, cfgFiles []string) (err
 // LoadFromConfigServer load configs from config-server,
 //
 // endpoint `{url}/{app}/{profile}/{label}`
-func (s *SettingsType) LoadFromConfigServer(url, app, profile, label string) (err error) {
-	Logger.Info("load settings from remote",
+func (s *config) LoadFromConfigServer(url, app, profile, label string) (err error) {
+	log.Shared.Info("load settings from remote",
 		zap.String("url", url),
 		zap.String("profile", profile),
 		zap.String("label", label),
@@ -434,8 +436,8 @@ func (s *SettingsType) LoadFromConfigServer(url, app, profile, label string) (er
 // endpoint `{url}/{app}/{profile}/{label}`
 //
 // load raw yaml content and parse.
-func (s *SettingsType) LoadFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
-	Logger.Info("load settings from remote",
+func (s *config) LoadFromConfigServerWithRawYaml(url, app, profile, label, key string) (err error) {
+	log.Shared.Info("load settings from remote",
 		zap.String("url", url),
 		zap.String("profile", profile),
 		zap.String("label", label),
@@ -449,7 +451,7 @@ func (s *SettingsType) LoadFromConfigServerWithRawYaml(url, app, profile, label,
 	if !ok {
 		return errors.Errorf("can not load raw cfg with key `%s`", key)
 	}
-	Logger.Debug("load raw cfg", zap.String("raw", raw))
+	log.Shared.Debug("load raw cfg", zap.String("raw", raw))
 	s.v.SetConfigType("yaml")
 	if err = s.v.ReadConfig(bytes.NewReader([]byte(raw))); err != nil {
 		return errors.Wrap(err, "try to load config file got error")
@@ -459,7 +461,7 @@ func (s *SettingsType) LoadFromConfigServerWithRawYaml(url, app, profile, label,
 }
 
 // LoadSettings load settings file
-func (s *SettingsType) LoadSettings() {
+func (s *config) LoadSettings() {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -467,98 +469,4 @@ func (s *SettingsType) LoadSettings() {
 	if err != nil {           // Handle errors reading the config file
 		panic(errors.Errorf("fatal error config file: %s", err))
 	}
-}
-
-type settingsAESEncryptOpt struct {
-	ext string
-	// suffix will append in encrypted file'name after ext as suffix
-	suffix string
-}
-
-func (o *settingsAESEncryptOpt) fillDefault() {
-	// o.ext = ".toml"
-	o.suffix = defaultEncryptSuffix
-}
-
-// SettingsEncryptOptf options to encrypt files in dir
-type SettingsEncryptOptf func(*settingsAESEncryptOpt) error
-
-// AESEncryptFilesInDirFileExt only encrypt files with specific ext
-func AESEncryptFilesInDirFileExt(ext string) SettingsEncryptOptf {
-	return func(opt *settingsAESEncryptOpt) error {
-		if !strings.HasPrefix(ext, ".") {
-			return errors.Errorf("ext should start with `.`")
-		}
-
-		opt.ext = ext
-		return nil
-	}
-}
-
-// AESEncryptFilesInDirFileSuffix will append to encrypted's filename as suffix
-//
-//   xxx.toml -> xxx.toml.enc
-func AESEncryptFilesInDirFileSuffix(suffix string) SettingsEncryptOptf {
-	return func(opt *settingsAESEncryptOpt) error {
-		if !strings.HasPrefix(suffix, ".") {
-			return errors.Errorf("suffix should start with `.`")
-		}
-
-		opt.suffix = suffix
-		return nil
-	}
-}
-
-// AESEncryptFilesInDir encrypt files in dir
-//
-// will generate new encrypted files with <suffix> after ext
-//
-//   xxx.toml -> xxx.toml.enc
-func AESEncryptFilesInDir(dir string, secret []byte, opts ...SettingsEncryptOptf) (err error) {
-	opt := new(settingsAESEncryptOpt)
-	opt.fillDefault()
-	for _, optf := range opts {
-		if err = optf(opt); err != nil {
-			return err
-		}
-	}
-	logger := Logger.With(
-		zap.String("ext", opt.ext),
-		zap.String("suffix", opt.suffix),
-	)
-
-	fs, err := ListFilesInDir(dir)
-	if err != nil {
-		return errors.Wrapf(err, "read dir `%s`", dir)
-	}
-
-	var pool errgroup.Group
-	for _, fname := range fs {
-		if !strings.HasSuffix(fname, opt.ext) {
-			continue
-		}
-
-		fname := fname
-		pool.Go(func() (err error) {
-			raw, err := ioutil.ReadFile(fname)
-			if err != nil {
-				return errors.Wrapf(err, "read file `%s`", fname)
-			}
-
-			cipher, err := EncryptByAes(secret, raw)
-			if err != nil {
-				return errors.Wrapf(err, "encrypt")
-			}
-
-			outfname := fname + opt.suffix
-			if err = ioutil.WriteFile(outfname, cipher, os.ModePerm); err != nil {
-				return errors.Wrapf(err, "write file `%s`", outfname)
-			}
-
-			logger.Info("encrypt file", zap.String("src", fname), zap.String("out", outfname))
-			return nil
-		})
-	}
-
-	return pool.Wait()
 }

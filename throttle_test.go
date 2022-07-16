@@ -113,7 +113,7 @@ func ExampleThrottle() {
 		Max:     100,
 	})
 	if err != nil {
-		Logger.Panic("new throttle")
+		panic("new throttle")
 	}
 	defer throttle.Close()
 

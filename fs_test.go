@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
@@ -29,9 +30,9 @@ func ExampleDirSize() {
 	dirPath := "."
 	size, err := DirSize(dirPath)
 	if err != nil {
-		Logger.Error("get dir size", zap.Error(err), zap.String("path", dirPath))
+		log.Shared.Error("get dir size", zap.Error(err), zap.String("path", dirPath))
 	}
-	Logger.Info("got size", zap.Int64("size", size), zap.String("path", dirPath))
+	log.Shared.Info("got size", zap.Int64("size", size), zap.String("path", dirPath))
 }
 
 func TestCopyFile(t *testing.T) {
@@ -42,7 +43,7 @@ func TestCopyFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	if err = Logger.ChangeLevel(LoggerLevelDebug); err != nil {
+	if err = log.Shared.ChangeLevel(log.LevelDebug); err != nil {
 		t.Fatal(err)
 	}
 
@@ -93,7 +94,7 @@ func TestMoveFile(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	err = Logger.ChangeLevel(LoggerLevelDebug)
+	err = log.Shared.ChangeLevel(log.LevelDebug)
 	require.NoError(t, err)
 
 	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")

@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 )
@@ -236,7 +237,7 @@ type ChildParallelCounter struct {
 
 // NewParallelCounter get new parallel counter
 func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) {
-	Logger.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
+	log.Shared.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
 	if quoteStep <= 0 {
 		quoteStep = defaultQuoteStep
 	}
@@ -254,7 +255,7 @@ func NewParallelCounter(quoteStep, rotatePoint int64) (*ParallelCounter, error) 
 
 // NewParallelCounterFromN get new parallel counter
 func NewParallelCounterFromN(n, quoteStep, rotatePoint int64) (*ParallelCounter, error) {
-	Logger.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
+	log.Shared.Debug("NewParallelCounter", zap.Int64("quoteStep", quoteStep), zap.Int64("rotatePoint", rotatePoint))
 	if quoteStep <= 0 {
 		quoteStep = defaultQuoteStep
 	}
@@ -291,7 +292,7 @@ func (c *ParallelCounter) GetQuote(step int64) (from, to int64) {
 	}
 	c.Unlock()
 
-	Logger.Debug("get quote",
+	log.Shared.Debug("get quote",
 		zap.Int64("step", step),
 		zap.Int64("from", from),
 		zap.Int64("to", to))
@@ -320,9 +321,9 @@ func (c *ChildParallelCounter) Count() (r int64) {
 	cmax := atomic.LoadInt64(&c.maxN)
 	c.RUnlock()
 	if r > cmax {
-		// Logger.Info("try acquire child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
+		// log.Shared.Info("try acquire child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
 		c.Lock()
-		// Logger.Info("acquired child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
+		// log.Shared.Info("acquired child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID))
 
 		// double check
 		r = atomic.AddInt64(&c.n, 1) % c.p.rotatePoint
@@ -334,7 +335,7 @@ func (c *ChildParallelCounter) Count() (r int64) {
 		atomic.StoreInt64(&c.maxN, cmax)
 
 		// fmt.Println(">>", r, cmax)
-		// Logger.Info("release child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID), zap.Int64("to", cmax))
+		// log.Shared.Info("release child lock", zap.Int64("r", r), zap.Int64("lid", c.lockID), zap.Int64("to", cmax))
 		c.Unlock()
 	}
 

@@ -1,6 +1,7 @@
-package utils
+package email
 
 import (
+	"github.com/Laisky/go-utils/v2/log"
 	zap "github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	gomail "gopkg.in/gomail.v2"
@@ -15,7 +16,7 @@ type Mail struct {
 
 // NewMail create Mail with SMTP host and port
 func NewMail(host string, port int) *Mail {
-	Logger.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
+	log.Shared.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
 	return &Mail{
 		host: host,
 		port: port,
@@ -24,7 +25,7 @@ func NewMail(host string, port int) *Mail {
 
 // Login login to SMTP server
 func (m *Mail) Login(username, password string) {
-	Logger.Debug("login", zap.String("username", username))
+	log.Shared.Debug("login", zap.String("username", username))
 	m.username = username
 	m.password = password
 }
@@ -71,7 +72,7 @@ func WithMailSendDialer(dialerFact func(host string, port int, username, passwd 
 // Send send email
 func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...MailSendOptFunc) (err error) {
 	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
-	Logger.Info("send email", zap.String("toName", toName))
+	log.Shared.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()
 	s.SetAddressHeader("From", frAddr, frName)
 	s.SetAddressHeader("To", toAddr, toName)

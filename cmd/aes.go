@@ -11,6 +11,8 @@ import (
 	"os"
 
 	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/config"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -46,7 +48,7 @@ var EncryptCMD = &cobra.Command{
 }
 
 func setupEncryptArgs(cmd *cobra.Command) error {
-	return gutils.Settings.BindPFlags(cmd.Flags())
+	return config.Shared.BindPFlags(cmd.Flags())
 }
 
 var (
@@ -75,16 +77,16 @@ var EncryptAESCMD = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fs, err := os.Stat(inputpath)
 		if err != nil {
-			gutils.Logger.Panic("read path", zap.Error(err))
+			log.Shared.Panic("read path", zap.Error(err))
 		}
 
 		if fs.IsDir() {
 			if err = encryptDirFileByAes(); err != nil {
-				gutils.Logger.Panic("encrypt files in dir", zap.Error(err))
+				log.Shared.Panic("encrypt files in dir", zap.Error(err))
 			}
 		} else {
 			if err = encryptFileByAes(); err != nil {
-				gutils.Logger.Panic("encrypt file", zap.Error(err))
+				log.Shared.Panic("encrypt file", zap.Error(err))
 			}
 		}
 	},
@@ -107,7 +109,7 @@ func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
 
 func encryptDirFileByAes() error {
 	secret := []byte(secret)
-	gutils.Logger.Info("encrypt files in dir", zap.String("path", inputpath))
+	log.Shared.Info("encrypt files in dir", zap.String("path", inputpath))
 
 	return gutils.AESEncryptFilesInDir(inputpath, secret)
 }
@@ -116,7 +118,7 @@ func encryptFileByAes() error {
 	in := inputpath
 	out := outputpath
 	secret := []byte(secret)
-	logger := gutils.Logger.With(
+	logger := log.Shared.With(
 		zap.String("in", in),
 		zap.String("out", out),
 	)

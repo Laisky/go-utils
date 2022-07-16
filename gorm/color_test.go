@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/go-utils/v2/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestGormLogger_Print(t *testing.T) {
 				"yo",
 			}
 		}
-		gl := NewLogger(mockFomatter, gutils.Logger)
+		gl := NewLogger(mockFomatter, log.Shared)
 		gl.Print(
 			"type",
 			"caller",

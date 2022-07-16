@@ -1,16 +1,18 @@
-package utils
+package compress
 
 import (
 	"bytes"
 	"compress/gzip"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 // func TestZipDir(t *testing.T) {
@@ -19,31 +21,31 @@ import (
 // 		[]string{"/home/laisky/test/zip"},
 // 	)
 // 	if err != nil {
-// 		t.Fatalf("%+v", err)
+// 		require.NoError(t, err)
 // 	}
 // }
 
 func TestUnzipAndZipFiles(t *testing.T) {
 	var err error
-	if err = Logger.ChangeLevel("debug"); err != nil {
-		t.Fatalf("%+v", err)
+	if err = log.Shared.ChangeLevel("debug"); err != nil {
+		require.NoError(t, err)
 	}
 
 	var dir string
 	if dir, err = ioutil.TempDir("", "compressor-test"); err != nil {
-		log.Fatal(err)
+		require.NoError(t, err)
 	}
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
 	if err = os.Mkdir(filepath.Join(dir, "src"), os.ModePerm); err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 	if err = os.Mkdir(filepath.Join(dir, "src/child"), os.ModePerm); err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 	if err = os.Mkdir(filepath.Join(dir, "dst"), os.ModePerm); err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 	files := []string{
 		filepath.Join(dir, "src", "a.txt"),
@@ -54,13 +56,13 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	var fp *os.File
 	for _, file := range files {
 		if fp, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm); err != nil {
-			t.Fatalf("%+v", err)
+			require.NoError(t, err)
 		}
 		if _, err = fp.WriteString("yoo"); err != nil {
-			t.Fatalf("%+v", err)
+			require.NoError(t, err)
 		}
 		if err = fp.Close(); err != nil {
-			t.Fatalf("%+v", err)
+			require.NoError(t, err)
 		}
 
 		t.Logf("create file `%s`", fp.Name())
@@ -68,18 +70,18 @@ func TestUnzipAndZipFiles(t *testing.T) {
 
 	// 压缩文件
 	// if err = ZipFiles(filepath.Join(dir, "src.zip"), files); err != nil {
-	// 	t.Fatalf("%+v", err)
+	// 	require.NoError(t, err)
 	// }
 
 	// 压缩文件夹
 	if err = ZipFiles(filepath.Join(dir, "src.zip"), []string{filepath.Join(dir, "src")}); err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 
 	var dstFiles []string
 	dstDir := filepath.Join(dir, "dst")
 	if dstFiles, err = Unzip(filepath.Join(dir, "src.zip"), dstDir); err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 	t.Logf("unzip files: %+v", dstFiles)
 
@@ -112,7 +114,7 @@ const (
 func TestGZCompressor(t *testing.T) {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
-	c, err := NewGZCompressor(writer)
+	c, err := NewGZip(writer)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
@@ -144,40 +146,40 @@ func ExampleGZCompressor() {
 
 	var err error
 	// writer
-	c, err := NewGZCompressor(
+	c, err := NewGZip(
 		writer,
-		WithCompressLevel(defaultGzCompressLevel),           // default
-		WithCompressBufSizeByte(defaultCompressBufSizeByte), // default
+		WithLevel(defaultGzipLevel),         // default
+		WithBufSizeByte(defaultBufSizeByte), // default
 	)
 	if err != nil {
-		Logger.Error("new compressor", zap.Error(err))
+		log.Shared.Error("new compressor", zap.Error(err))
 		return
 	}
 	if _, err = c.WriteString(originText); err != nil {
-		Logger.Error("write string to compressor", zap.Error(err))
+		log.Shared.Error("write string to compressor", zap.Error(err))
 		return
 	}
 	if err = c.Flush(); err != nil {
-		Logger.Error("flush compressor", zap.Error(err))
+		log.Shared.Error("flush compressor", zap.Error(err))
 		return
 	}
 
 	// reader
 	var gz *gzip.Reader
 	if gz, err = gzip.NewReader(writer); err != nil {
-		Logger.Error("new compressor", zap.Error(err))
+		log.Shared.Error("new compressor", zap.Error(err))
 		return
 	}
 
 	var bs []byte
 	if bs, err = ioutil.ReadAll(gz); err != nil {
-		Logger.Error("read from compressor", zap.Error(err))
+		log.Shared.Error("read from compressor", zap.Error(err))
 		return
 	}
 
 	got := string(bs)
 	if got != originText {
-		Logger.Error("extract compressed text invalidate",
+		log.Shared.Error("extract compressed text invalidate",
 			zap.String("got", got),
 			zap.ByteString("expect", bs))
 		return
@@ -187,13 +189,13 @@ func ExampleGZCompressor() {
 func TestPGZCompressor(t *testing.T) {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
-	c, err := NewPGZCompressor(
+	c, err := NewPGZip(
 		writer,
-		WithCompressLevel(defaultPGzCompressLevel),          // default
-		WithCompressBufSizeByte(defaultCompressBufSizeByte), // default
+		WithLevel(defaultPGzipLevel),        // default
+		WithBufSizeByte(defaultBufSizeByte), // default
 
-		WithPGzipBlockSize(defaultPgzCompressBlockSize), // default
-		WithPGzipNBlocks(defaultPgzCompressNBlock),      // default
+		WithPGzipBlockSize(defaultPgzipBlockSize), // default
+		WithPGzipNBlocks(defaultPgzipNBlock),      // default
 	)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
@@ -226,36 +228,36 @@ func ExamplePGZCompressor() {
 
 	var err error
 	// writer
-	c, err := NewPGZCompressor(writer)
+	c, err := NewPGZip(writer)
 	if err != nil {
-		Logger.Error("new compressor", zap.Error(err))
+		log.Shared.Error("new compressor", zap.Error(err))
 		return
 	}
 	if _, err = c.WriteString(originText); err != nil {
-		Logger.Error("write string to compressor", zap.Error(err))
+		log.Shared.Error("write string to compressor", zap.Error(err))
 		return
 	}
 	if err = c.Flush(); err != nil {
-		Logger.Error("flush compressor", zap.Error(err))
+		log.Shared.Error("flush compressor", zap.Error(err))
 		return
 	}
 
 	// reader
 	var gz *gzip.Reader
 	if gz, err = gzip.NewReader(writer); err != nil {
-		Logger.Error("new compressor", zap.Error(err))
+		log.Shared.Error("new compressor", zap.Error(err))
 		return
 	}
 
 	var bs []byte
 	if bs, err = ioutil.ReadAll(gz); err != nil {
-		Logger.Error("read from compressor", zap.Error(err))
+		log.Shared.Error("read from compressor", zap.Error(err))
 		return
 	}
 
 	got := string(bs)
 	if got != originText {
-		Logger.Error("extract compressed text invalidate",
+		log.Shared.Error("extract compressed text invalidate",
 			zap.String("got", got),
 			zap.ByteString("expect", bs))
 		return
@@ -293,10 +295,10 @@ func BenchmarkGzip(b *testing.B) {
 	defer os.Remove(fp.Name())
 	b.Logf("create file name: %v", fp.Name())
 
-	payload1K := []byte(RandomStringWithLength(1024))
-	payload10K := []byte(RandomStringWithLength(10240))
-	payload50K := []byte(RandomStringWithLength(10240 * 5))
-	payload100K := []byte(RandomStringWithLength(102400))
+	payload1K := []byte(gutils.RandomStringWithLength(1024))
+	payload10K := []byte(gutils.RandomStringWithLength(10240))
+	payload50K := []byte(gutils.RandomStringWithLength(10240 * 5))
+	payload100K := []byte(gutils.RandomStringWithLength(102400))
 	buf := &bytes.Buffer{}
 
 	gzWriter := gzip.NewWriter(buf)
@@ -520,34 +522,34 @@ func BenchmarkCompressor(b *testing.B) {
 	b.Logf("create file name: %v", fp.Name())
 
 	buf := &bytes.Buffer{}
-	gzWriter, err := NewGZCompressor(buf)
+	gzWriter, err := NewGZip(buf)
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	pgzWriterP2Size250000, err := NewPGZCompressor(buf, WithPGzipNBlocks(2), WithPGzipBlockSize(250000))
+	pgzWriterP2Size250000, err := NewPGZip(buf, WithPGzipNBlocks(2), WithPGzipBlockSize(250000))
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	pgzWriterP2Size500000, err := NewPGZCompressor(buf, WithPGzipNBlocks(2), WithPGzipBlockSize(500000))
+	pgzWriterP2Size500000, err := NewPGZip(buf, WithPGzipNBlocks(2), WithPGzipBlockSize(500000))
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	pgzWriterP4Size250000, err := NewPGZCompressor(buf, WithPGzipNBlocks(4), WithPGzipBlockSize(250000))
+	pgzWriterP4Size250000, err := NewPGZip(buf, WithPGzipNBlocks(4), WithPGzipBlockSize(250000))
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
-	pgzWriterP4Size500000, err := NewPGZCompressor(buf, WithPGzipNBlocks(4), WithPGzipBlockSize(500000))
+	pgzWriterP4Size500000, err := NewPGZip(buf, WithPGzipNBlocks(4), WithPGzipBlockSize(500000))
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
 
 	for pname, payload := range map[string][]byte{
-		"1K":   []byte(RandomStringWithLength(1024)),
-		"10K":  []byte(RandomStringWithLength(10240)),
-		"50K":  []byte(RandomStringWithLength(10240 * 5)),
-		"100K": []byte(RandomStringWithLength(102400)),
+		"1K":   []byte(gutils.RandomStringWithLength(1024)),
+		"10K":  []byte(gutils.RandomStringWithLength(10240)),
+		"50K":  []byte(gutils.RandomStringWithLength(10240 * 5)),
+		"100K": []byte(gutils.RandomStringWithLength(102400)),
 	} {
-		for name, compressWriter := range map[string]CompressorItf{
+		for name, compressWriter := range map[string]Compressor{
 			"gzCompressor":                 gzWriter,
 			"pgzCompressor-blocks2-250000": pgzWriterP2Size250000,
 			"pgzCompressor-blocks2-500000": pgzWriterP2Size500000,

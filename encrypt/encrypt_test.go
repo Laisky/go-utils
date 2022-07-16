@@ -1,4 +1,4 @@
-package utils
+package encrypt
 
 import (
 	"bytes"
@@ -12,9 +12,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +36,7 @@ func TestHashSHA128String(t *testing.T) {
 func ExampleHashSHA128String() {
 	val := testhashraw
 	got := HashSHA128String(val)
-	Logger.Info("hash", zap.String("got", got))
+	log.Shared.Info("hash", zap.String("got", got))
 }
 
 func TestHashSHA256String(t *testing.T) {
@@ -47,7 +50,7 @@ func TestHashSHA256String(t *testing.T) {
 func ExampleHashSHA256String() {
 	val := testhashraw
 	got := HashSHA256String(val)
-	Logger.Info("hash", zap.String("got", got))
+	log.Shared.Info("hash", zap.String("got", got))
 }
 
 func TestHashXxhashString(t *testing.T) {
@@ -61,7 +64,7 @@ func TestHashXxhashString(t *testing.T) {
 func ExampleHashXxhashString() {
 	val := testhashraw
 	got := HashXxhashString(val)
-	Logger.Info("hash", zap.String("got", got))
+	log.Shared.Info("hash", zap.String("got", got))
 }
 
 func TestPassword(t *testing.T) {
@@ -86,14 +89,14 @@ func ExampleGeneratePasswordHash() {
 	rawPassword := []byte("1234567890")
 	hashedPassword, err := GeneratePasswordHash(rawPassword)
 	if err != nil {
-		Logger.Error("try to generate password got error", zap.Error(err))
+		log.Shared.Error("try to generate password got error", zap.Error(err))
 		return
 	}
 	fmt.Printf("got new hashed pasword: %v\n", string(hashedPassword))
 
 	// validate passowrd
 	if !ValidatePasswordHash(hashedPassword, rawPassword) {
-		Logger.Error("password invalidate", zap.Error(err))
+		log.Shared.Error("password invalidate", zap.Error(err))
 		return
 	}
 }
@@ -307,46 +310,46 @@ func TestRSAVerify(t *testing.T) {
 func ExampleSignByECDSAWithSHA256() {
 	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		Logger.Panic("generate key", zap.Error(err))
+		log.Shared.Panic("generate key", zap.Error(err))
 	}
 	priKey2, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		Logger.Panic("generate key", zap.Error(err))
+		log.Shared.Panic("generate key", zap.Error(err))
 	}
 
 	// case: correct key
 	cnt := []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
 	r, s, err := SignByECDSAWithSHA256(priKey, cnt)
 	if err != nil {
-		Logger.Panic("sign", zap.Error(err))
+		log.Shared.Panic("sign", zap.Error(err))
 	}
 	if !VerifyByECDSAWithSHA256(&priKey.PublicKey, cnt, r, s) {
-		Logger.Panic("verify failed")
+		log.Shared.Panic("verify failed")
 	}
 
 	// generate string
 	encoded := EncodeES256SignByBase64(r, s)
 	if _, _, err = DecodeES256SignByBase64(encoded); err != nil {
-		Logger.Panic("encode and decode", zap.Error(err))
+		log.Shared.Panic("encode and decode", zap.Error(err))
 	}
 
 	// case: incorrect cnt
 	cnt = []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
 	r, s, err = SignByECDSAWithSHA256(priKey, cnt)
 	if err != nil {
-		Logger.Panic("sign", zap.Error(err))
+		log.Shared.Panic("sign", zap.Error(err))
 	}
 	if VerifyByECDSAWithSHA256(&priKey.PublicKey, append(cnt, '2'), r, s) {
-		Logger.Panic("should not verify")
+		log.Shared.Panic("should not verify")
 	}
 
 	// case: incorrect key
 	r, s, err = SignByECDSAWithSHA256(priKey2, cnt)
 	if err != nil {
-		Logger.Panic("sign", zap.Error(err))
+		log.Shared.Panic("sign", zap.Error(err))
 	}
 	if VerifyByECDSAWithSHA256(&priKey.PublicKey, cnt, r, s) {
-		Logger.Panic("should not verify")
+		log.Shared.Panic("should not verify")
 	}
 }
 
@@ -584,4 +587,33 @@ func ExampleDHKX() {
 	bobKey, _ := bob.GenerateKey(alicePub)
 	fmt.Println(reflect.DeepEqual(aliceKey, bobKey))
 	// Output: true
+}
+
+func TestAESEncryptFilesInDir(t *testing.T) {
+	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
+	require.NoError(t, err)
+	defer os.RemoveAll(dirName)
+
+	cnt := []byte("12345")
+	err = ioutil.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
+	require.NoError(t, err)
+
+	secret := []byte("laiskyfwejfewjfewlijffed")
+	err = AESEncryptFilesInDir(dirName, secret)
+	require.NoError(t, err)
+
+	for _, fname := range []string{"test1.toml.enc", "test2.toml.enc", "test3.toml.enc"} {
+		fname = filepath.Join(dirName, fname)
+		cipher, err := ioutil.ReadFile(fname)
+		require.NoError(t, err)
+
+		got, err := DecryptByAes(secret, cipher)
+		require.NoError(t, err)
+
+		require.Equal(t, cnt, got)
+	}
 }
