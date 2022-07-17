@@ -36,20 +36,20 @@ import (
 
 Contains some useful tools in different directories:
 
+- `settings`: move go [github.com/Laisky/go-config](https://github.com/Laisky/go-config)
 - `color.go`: colorful code
 - `compressor.go`: compress and extract dir/files
-- `configserver.go`: load configs from file or config-server
-- `email.go`: SMTP email sdk
-- `encrypt.go`: some tools for encrypt and decrypt,
+- `email/`: SMTP email sdk
+- `encrypt/`: some tools for encrypt and decrypt,
   support AES, RSA, ECDSA, MD5, SHA128, SHA256
+  - `configserver.go`: load configs from file or config-server
 - `fs.go`: some tools to read, move, walk dir/files
 - `http.go`: some tools to send http request
-- `jwt.go`: some tools to generate and parse JWT
-- `logger.go`: enhanched zap logger
+- `jwt/`: some tools to generate and parse JWT
+- `log/`: enhanched zap logger
 - `math.go`: some math tools to deal with int, round
 - `net.go`: some tools to deal with tcp/udp
 - `random.go`: generate random string, int
-- `settings.go`: read configs from file or config-server
 - `sort.go`: easier to sort
 - `sync.go`: some locks depends on atomic
 - `throttle.go`: faster rate limiter
