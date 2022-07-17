@@ -1,4 +1,4 @@
-package utils
+package algorithm
 
 import (
 	"container/heap"
@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -248,9 +249,9 @@ func TestPriorityQ(t *testing.T) {
 		}
 
 		if isMaxTop {
-			require.Equal(t, lastP, Max(results))
+			require.Equal(t, lastP, gutils.Max(results))
 		} else {
-			require.Equal(t, lastP, Min(results))
+			require.Equal(t, lastP, gutils.Min(results))
 		}
 
 		t.Logf("%v[%v]: %v\n", isMaxTop, len(results), results[:10])
@@ -514,14 +515,14 @@ func BenchmarkFIFOAndChan(b *testing.B) {
 func TestNewDeque(t *testing.T) {
 	t.Run("err", func(t *testing.T) {
 		var err error
-		_, err = NewDeque(WithDequeCurrentCapacity(-1))
+		_, err = NewDeque[int](WithDequeCurrentCapacity(-1))
 		require.Error(t, err)
 
-		_, err = NewDeque(WithDequeMinimalCapacity(-1))
+		_, err = NewDeque[int](WithDequeMinimalCapacity(-1))
 		require.Error(t, err)
 	})
 
-	d, err := NewDeque(
+	d, err := NewDeque[int](
 		WithDequeCurrentCapacity(0),
 		WithDequeMinimalCapacity(0),
 	)

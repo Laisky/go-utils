@@ -180,6 +180,11 @@ func CheckResp(resp *http.Response) error {
 	return c.GetError()
 }
 
+// HTTPInvalidStatusError return error about status code
+func HTTPInvalidStatusError(statusCode int) error {
+	return errors.Errorf("got http invalid status code `%d`", statusCode)
+}
+
 func checkRespStatus(c *chaining.Chain) (r interface{}, err error) {
 	resp := c.GetVal()
 	code := resp.(*http.Response).StatusCode

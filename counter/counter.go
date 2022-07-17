@@ -1,4 +1,4 @@
-package utils
+package counter
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
@@ -32,7 +33,7 @@ type Counter struct {
 func NewCounter() *Counter {
 	return &Counter{
 		n:     0,
-		lastT: UTCNow(),
+		lastT: gutils.UTCNow(),
 		lastN: 0,
 	}
 }
@@ -52,8 +53,8 @@ func (c *Counter) Get() int64 {
 // GetSpeed return increasing speed from lastest invoke `GetSpeed`
 func (c *Counter) GetSpeed() (r float64) {
 	c.Lock()
-	r = math.Round(float64(c.Get()-c.lastN)/UTCNow().Sub(c.lastT).Seconds()*100) / 100
-	c.lastT = UTCNow()
+	r = math.Round(float64(c.Get()-c.lastN)/gutils.UTCNow().Sub(c.lastT).Seconds()*100) / 100
+	c.lastT = gutils.UTCNow()
 	c.lastN = c.Get()
 	c.Unlock()
 	return r
@@ -80,7 +81,7 @@ var rotateCounterChanLength = 10000
 
 // RotateCounter rotate counter
 type RotateCounter struct {
-	Mutex
+	gutils.Mutex
 	rotateRunner   sync.Once
 	n, rotatePoint int64
 	c              chan int64

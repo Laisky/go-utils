@@ -10,7 +10,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/fsnotify/fsnotify v1.5.4
-	github.com/gammazero/deque v0.1.1
+	github.com/gammazero/deque v0.2.0
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/json-iterator/go v1.1.12

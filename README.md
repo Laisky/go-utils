@@ -7,7 +7,7 @@ Many useful golang tools
 | 1.x     | v1.13 ~ v1.17 |
 | 2.x     | >= v1.18      |
 
-**STILL UNDER HEAVY DEVELOPING, DO NOT STABLE**
+**v2 STILL UNDER HEAVY DEVELOPING, DO NOT STABLE**
 
 **WILL BE STABLE IN v2.1**
 
@@ -21,7 +21,7 @@ Many useful golang tools
 Install:
 
 ```sh
-go get github.com/Laisky/go-utils
+go get github.com/Laisky/go-utils/v2
 ```
 
 ## Usage

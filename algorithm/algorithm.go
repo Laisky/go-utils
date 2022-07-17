@@ -1,4 +1,4 @@
-package utils
+package algorithm
 
 import (
 	"container/heap"
@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	skiplist "github.com/Laisky/fast-skiplist"
+	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/gammazero/deque"
@@ -21,14 +22,14 @@ import (
 // Deque
 //
 // https://pkg.go.dev/github.com/gammazero/deque#Deque
-type Deque interface {
-	PushBack(interface{})
-	PushFront(interface{})
-	PopFront() interface{}
-	PopBack() interface{}
+type Deque[T any] interface {
+	PushBack(T)
+	PushFront(T)
+	PopFront() T
+	PopBack() T
 	Len() int
-	Front() interface{}
-	Back() interface{}
+	Front() T
+	Back() T
 }
 
 type dequeOpt struct {
@@ -74,13 +75,13 @@ func WithDequeMinimalCapacity(size int) DequeOptFunc {
 }
 
 // NewDeque new deque
-func NewDeque(optfs ...DequeOptFunc) (Deque, error) {
+func NewDeque[T any](optfs ...DequeOptFunc) (Deque[T], error) {
 	opt, err := new(dequeOpt).applyFuncs(optfs...)
 	if err != nil {
 		return nil, err
 	}
 
-	return deque.New(opt.currentCapacity, opt.minimalCapacity), nil
+	return deque.New[T](opt.currentCapacity, opt.minimalCapacity), nil
 }
 
 // -------------------------------------
@@ -99,7 +100,7 @@ func NewSkiplist() *skiplist.SkipList {
 // -------------------------------------
 
 // itemType item that need to sort
-type itemType[T Sortable] struct {
+type itemType[T gutils.Sortable] struct {
 	priority T
 	key      interface{}
 }
@@ -114,18 +115,18 @@ func (it *itemType[T]) GetPriority() T {
 	return it.priority
 }
 
-type HeapSlice[T Sortable] []HeapItemItf[T]
+type HeapSlice[T gutils.Sortable] []HeapItemItf[T]
 
 // innerHeapQ lower structure used by heap
 //
 // do not use this structure directly
-type innerHeapQ[T Sortable] struct {
+type innerHeapQ[T gutils.Sortable] struct {
 	isMaxTop bool
 	q        []HeapItemItf[T]
 }
 
 // newInnerHeapQ create new PriorityQ
-func newInnerHeapQ[T Sortable](isMaxTop bool) *innerHeapQ[T] {
+func newInnerHeapQ[T gutils.Sortable](isMaxTop bool) *innerHeapQ[T] {
 	return &innerHeapQ[T]{
 		isMaxTop: isMaxTop,
 		q:        []HeapItemItf[T]{},
@@ -202,18 +203,18 @@ func (p *innerHeapQ[T]) Pop() (popped interface{}) {
 // HeapItemItf items need to sort
 //
 // T is the type of priority
-type HeapItemItf[T Sortable] interface {
+type HeapItemItf[T gutils.Sortable] interface {
 	GetKey() interface{}
 	GetPriority() T
 }
 
 // GetLargestNItems get N highest priority items
-func GetLargestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
+func GetLargestNItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
 	return GetTopKItems(inputChan, topN, false)
 }
 
 // GetSmallestNItems get N smallest priority items
-func GetSmallestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
+func GetSmallestNItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int) ([]HeapItemItf[T], error) {
 	return GetTopKItems(inputChan, topN, true)
 }
 
@@ -221,7 +222,7 @@ func GetSmallestNItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int) ([
 //
 //   * use min-heap to calculates topN Highest items.
 //   * use max-heap to calculates topN Lowest items.
-func GetTopKItems[T Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
+func GetTopKItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
 	log.Shared.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
 		return nil, errors.Errorf("GetMostFreqWords topN must larger than 2")
@@ -295,13 +296,13 @@ LOAD_LOOP:
 	return items, nil
 }
 
-type LimitSizeHeap[T Sortable] interface {
+type LimitSizeHeap[T gutils.Sortable] interface {
 	Push(item HeapItemItf[T]) HeapItemItf[T]
 	Pop() HeapItemItf[T]
 }
 
 // limitSizeHeap heap with limit size
-type limitSizeHeap[T Sortable] struct {
+type limitSizeHeap[T gutils.Sortable] struct {
 	q             *innerHeapQ[T]
 	thresItem     HeapItemItf[T]
 	isHighest     bool
@@ -309,7 +310,7 @@ type limitSizeHeap[T Sortable] struct {
 }
 
 // NewLimitSizeHeap create new LimitSizeHeap
-func NewLimitSizeHeap[T Sortable](size int, isHighest bool) (LimitSizeHeap[T], error) {
+func NewLimitSizeHeap[T gutils.Sortable](size int, isHighest bool) (LimitSizeHeap[T], error) {
 	if size < 1 {
 		return nil, errors.Errorf("size must greater than 0")
 	}
