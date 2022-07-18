@@ -1004,6 +1004,15 @@ func EmptyAllChans[T any](chans ...chan T) {
 }
 
 // PrettyBuildInfo get build info in formatted json
+//
+// Print:
+//
+//   {
+//     "Path": "github.com/Laisky/go-ramjet",
+//     "Version": "v0.0.0-20220718014224-2b10e57735f1",
+//     "Sum": "h1:08Ty2gR+Xxz0B3djHVuV71boW4lpNdQ9hFn4ZIGrhec=",
+//     "Replace": null
+//   }
 func PrettyBuildInfo() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -1011,10 +1020,11 @@ func PrettyBuildInfo() string {
 		return ""
 	}
 
-	if ver, err := JSON.MarshalIndent(info.Main, "", "  "); err != nil {
+	ver, err := JSON.MarshalIndent(info.Main, "", "  ")
+	if err != nil {
 		log.Shared.Error("failed to marshal version", zap.Error(err))
 		return ""
-	} else {
-		return string(ver)
 	}
+
+	return string(ver)
 }

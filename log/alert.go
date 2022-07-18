@@ -57,11 +57,14 @@ func (o *alertOption) fillDefault() *alertOption {
 	return o
 }
 
-func (o *alertOption) applyOpts(opts ...AlertOption) *alertOption {
+func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
 	for _, opt := range opts {
-		opt(o)
+		if err := opt(o); err != nil {
+			return nil, err
+		}
 	}
-	return o
+
+	return o, nil
 }
 
 // AlertOption option for create AlertHook
@@ -132,7 +135,11 @@ func NewAlert(ctx context.Context,
 		return nil, errors.Errorf("pushAPI should nout empty")
 	}
 
-	opt := new(alertOption).fillDefault().applyOpts(opts...)
+	opt, err := new(alertOption).fillDefault().applyOpts(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	a = &Alert{
 		alertOption: opt,
 		stopChan:    make(chan struct{}),

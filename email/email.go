@@ -8,31 +8,39 @@ import (
 	gomail "gopkg.in/gomail.v2"
 )
 
-// Mail easy way to send basic email
-type Mail struct {
+// Mail is a simple email sender
+type Mail interface {
+	// Login login to SMTP server
+	Login(username, password string)
+	// Send send email
+	Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error)
+}
+
+// mail easy way to send basic email
+type mail struct {
 	host               string
 	port               int
 	username, password string
 }
 
 // NewMail create Mail with SMTP host and port
-func NewMail(host string, port int) *Mail {
+func NewMail(host string, port int) *mail {
 	log.Shared.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
-	return &Mail{
+	return &mail{
 		host: host,
 		port: port,
 	}
 }
 
 // Login login to SMTP server
-func (m *Mail) Login(username, password string) {
+func (m *mail) Login(username, password string) {
 	log.Shared.Debug("login", zap.String("username", username))
 	m.username = username
 	m.password = password
 }
 
 // BuildMessage implement
-func (m *Mail) BuildMessage(msg string) string {
+func (m *mail) BuildMessage(msg string) string {
 	return msg
 }
 
@@ -71,7 +79,7 @@ func WithMailSendDialer(dialerFact func(host string, port int, username, passwd 
 }
 
 // Send send email
-func (m *Mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
+func (m *mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
 	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
 	log.Shared.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()

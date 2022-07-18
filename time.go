@@ -104,11 +104,15 @@ var ( // compatable to old version
 
 // ClockItf high performance lazy clock
 type ClockItf interface {
-	GetTimeInRFC3339Nano() string
-	GetUTCNow() time.Time
-	SetupInterval(time.Duration)
-	Interval() time.Duration
 	Close()
+	runRefresh(ctx context.Context)
+	GetUTCNow() time.Time
+	GetDate() (time.Time, error)
+	GetTimeInRFC3339Nano() string
+	SetInterval(interval time.Duration)
+	GetTimeInHex() string
+	GetNanoTimeInHex() string
+	Interval() time.Duration
 }
 
 const defaultClockInterval = 10 * time.Millisecond
@@ -129,20 +133,10 @@ func SetInternalClock(interval time.Duration) {
 var (
 	// Clock high performance time utils, replace Clock1
 	Clock = NewClock(context.Background(), defaultClockInterval)
-
-	// compatable to old version
-
-	// Clock2 high performance time utils
-	Clock2 = Clock
-	// NewClock2 create new Clock
-	NewClock2 = NewClock
 )
 
-// Clock2Type high performance clock with lazy refreshing
-type Clock2Type ClockType
-
-// ClockType high performance clock with lazy refreshing
-type ClockType struct {
+// clock high performance clock with lazy refreshing
+type clock struct {
 	sync.RWMutex
 	stopChan chan struct{}
 
@@ -151,8 +145,8 @@ type ClockType struct {
 }
 
 // NewClock create new Clock
-func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockType {
-	c := &ClockType{
+func NewClock(ctx context.Context, refreshInterval time.Duration) ClockItf {
+	c := &clock{
 		interval: refreshInterval,
 		now:      UTCNow().UnixNano(),
 		stopChan: make(chan struct{}),
@@ -163,11 +157,11 @@ func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockType {
 }
 
 // Close stop Clock update
-func (c *ClockType) Close() {
+func (c *clock) Close() {
 	c.stopChan <- struct{}{}
 }
 
-func (c *ClockType) runRefresh(ctx context.Context) {
+func (c *clock) runRefresh(ctx context.Context) {
 	var interval time.Duration
 	for {
 		select {
@@ -187,22 +181,22 @@ func (c *ClockType) runRefresh(ctx context.Context) {
 }
 
 // GetUTCNow return Clock current time.Time
-func (c *ClockType) GetUTCNow() time.Time {
+func (c *clock) GetUTCNow() time.Time {
 	return ParseUnixNano2UTC(atomic.LoadInt64(&c.now))
 }
 
 // GetDate return "yyyy-mm-dd"
-func (c *ClockType) GetDate() (time.Time, error) {
+func (c *clock) GetDate() (time.Time, error) {
 	return time.Parse(TimeFormatDate, c.GetUTCNow().Format(TimeFormatDate))
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
-func (c *ClockType) GetTimeInRFC3339Nano() string {
+func (c *clock) GetTimeInRFC3339Nano() string {
 	return c.GetUTCNow().Format(time.RFC3339Nano)
 }
 
 // SetInterval setup update interval
-func (c *ClockType) SetInterval(interval time.Duration) {
+func (c *clock) SetInterval(interval time.Duration) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -210,17 +204,17 @@ func (c *ClockType) SetInterval(interval time.Duration) {
 }
 
 // GetTimeInHex return current time in hex
-func (c *ClockType) GetTimeInHex() string {
+func (c *clock) GetTimeInHex() string {
 	return strconv.FormatInt(c.GetUTCNow().Unix(), BaseHex)
 }
 
 // GetNanoTimeInHex return current time with nano in hex
-func (c *ClockType) GetNanoTimeInHex() string {
+func (c *clock) GetNanoTimeInHex() string {
 	return strconv.FormatInt(c.GetUTCNow().UnixNano(), BaseHex)
 }
 
 // Interval get current interval
-func (c *ClockType) Interval() time.Duration {
+func (c *clock) Interval() time.Duration {
 	c.RLock()
 	defer c.RUnlock()
 

@@ -125,9 +125,9 @@ func ExampleClock() {
 	c.GetUTCNow()
 }
 
-func TestClock2(t *testing.T) {
+func TestClock(t *testing.T) {
 	ctx := context.Background()
-	c := NewClock2(ctx, 100*time.Millisecond)
+	c := NewClock(ctx, 100*time.Millisecond)
 	ts := c.GetUTCNow()
 	var err error
 	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
@@ -288,7 +288,7 @@ func BenchmarkClock(b *testing.B) {
 	// })
 
 	// clock 2
-	clock2 := NewClock2(context.Background(), 500*time.Millisecond)
+	clock2 := NewClock(context.Background(), 500*time.Millisecond)
 	b.Run("clock2 time with 500ms", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			clock2.GetUTCNow()
