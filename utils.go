@@ -1002,3 +1002,19 @@ func EmptyAllChans[T any](chans ...chan T) {
 		}
 	}
 }
+
+// PrettyBuildInfo get build info in formatted json
+func PrettyBuildInfo() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		log.Shared.Error("failed to read build info")
+		return ""
+	}
+
+	if ver, err := JSON.MarshalIndent(info.Main, "", "  "); err != nil {
+		log.Shared.Error("failed to marshal version", zap.Error(err))
+		return ""
+	} else {
+		return string(ver)
+	}
+}
