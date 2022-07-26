@@ -38,7 +38,7 @@ func TestNewMail(t *testing.T) {
 			"fromName",
 			"toName",
 			"subject",
-			m.BuildMessage("content"),
+			"content",
 			WithMailSendDialer(func(host string, port int, username, passwd string) Sender {
 				return dialer
 			}),
@@ -56,7 +56,7 @@ func TestNewMail(t *testing.T) {
 			"fromName",
 			"toName",
 			"subject",
-			m.BuildMessage("content"),
+			"content",
 			WithMailSendDialer(func(host string, port int, username, passwd string) Sender {
 				return dialer
 			}),
