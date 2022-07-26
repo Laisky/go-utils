@@ -18,7 +18,7 @@ func TestNewLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	lvl := logger.Level()
-	require.Equal(t, zap.DebugLevel, lvl)
+	require.Equal(t, LevelInfo, lvl)
 
 	_, err = New()
 	require.NoError(t, err)
@@ -48,10 +48,12 @@ func TestWriteToFile(t *testing.T) {
 	logger.Info("yoo")
 	_ = logger.Sync()
 
-	content, err := ioutil.ReadFile(file)
+	cntBytes, err := ioutil.ReadFile(file)
+	content := string(cntBytes)
+	t.Logf("content:\n%s", content)
 	require.NoError(t, err)
-	require.Contains(t, string(content), "go-utils/logger_test.go")
-	require.Contains(t, string(content), "yoo\n")
+	require.Contains(t, content, "log/logger_test.go")
+	require.Contains(t, content, "yoo\n")
 }
 
 func TestSetupLogger(t *testing.T) {

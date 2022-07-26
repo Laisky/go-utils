@@ -158,37 +158,21 @@ func TestGetTopKItems(t *testing.T) {
 	itemChan = make(chan HeapItemItf[int])
 	go generate(itemChan)
 	items, err = GetTopKItems(itemChan, 3, true)
-	if err != nil {
-		t.Errorf("%+v", err)
-	}
+	require.NoError(t, err)
 
-	if items[0].GetPriority() != 15555 {
-		t.Errorf("expect 15555, got %+v", items[0].GetPriority())
-	}
-	if items[1].GetPriority() != 4441 {
-		t.Errorf("expect 4441, got %+v", items[1].GetPriority())
-	}
-	if items[2].GetPriority() != 122 {
-		t.Errorf("expect 122, got %+v", items[2].GetPriority())
-	}
+	require.Equal(t, 15555, items[0].GetPriority())
+	require.Equal(t, 4441, items[1].GetPriority())
+	require.Equal(t, 122, items[2].GetPriority())
 
 	// test lowest
 	itemChan = make(chan HeapItemItf[int])
 	go generate(itemChan)
 	items, err = GetTopKItems(itemChan, 3, false)
-	if err != nil {
-		t.Errorf("%+v", err)
-	}
+	require.NoError(t, err)
 
-	if items[0].GetPriority() != 1 {
-		t.Errorf("expect 1, got %+v", items[0].GetPriority())
-	}
-	if items[1].GetPriority() != 2 {
-		t.Errorf("expect 2, got %+v", items[1].GetPriority())
-	}
-	if items[2].GetPriority() != 3 {
-		t.Errorf("expect 3, got %+v", items[2].GetPriority())
-	}
+	require.Equal(t, 1, items[0].GetPriority())
+	require.Equal(t, 2, items[1].GetPriority())
+	require.Equal(t, 3, items[2].GetPriority())
 }
 
 func TestPriorityQ(t *testing.T) {

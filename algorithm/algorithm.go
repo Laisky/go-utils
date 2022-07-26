@@ -220,6 +220,7 @@ func GetSmallestNItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN 
 
 // GetTopKItems calculate topN by heap
 //
+// Arg isHighest:
 //   * use min-heap to calculates topN Highest items.
 //   * use max-heap to calculates topN Lowest items.
 func GetTopKItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
@@ -234,7 +235,7 @@ func GetTopKItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int, 
 		item, thresItem HeapItemItf[T]
 		items           = make([]HeapItemItf[T], topN)
 		nTotal          = 0
-		p               = newInnerHeapQ[T](!isHighest)
+		p               = newInnerHeapQ[T](isHighest)
 	)
 
 LOAD_LOOP:
