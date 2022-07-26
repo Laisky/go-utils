@@ -24,7 +24,7 @@ type mail struct {
 }
 
 // NewMail create Mail with SMTP host and port
-func NewMail(host string, port int) *mail {
+func NewMail(host string, port int) Mail {
 	log.Shared.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
 	return &mail{
 		host: host,
