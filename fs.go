@@ -150,8 +150,8 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 	}
 
 	go func() {
+		defer CloseQuietly(watcher)
 		for {
-			defer CloseQuietly(watcher)
 			select {
 			case evt := <-watcher.Events:
 				if evt.Op&fsnotify.Write == fsnotify.Write {
@@ -160,6 +160,7 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 			case err := <-watcher.Errors:
 				log.Shared.Error("watch file error", zap.Error(err))
 			case <-ctx.Done():
+				log.Shared.Debug("watcher exit", zap.Error(ctx.Err()))
 				return
 			}
 		}
