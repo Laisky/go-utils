@@ -537,7 +537,7 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 		eachGrpValsV    reflect.Value
 		iField, nFields int
 	)
-	for i := 0; i < MinInt(sv.Len(), vv.Len()); i++ {
+	for i := 0; i < Min(sv.Len(), vv.Len()); i++ {
 		eachGrpValsV = vv.Index(i)
 		if err = typeCheck("vals."+strconv.FormatInt(int64(i), 10), &eachGrpValsV); err != nil {
 			return err
@@ -548,7 +548,7 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 		default:
 			nFields = sv.Index(i).NumField()
 		}
-		for iField = 0; iField < MinInt(eachGrpValsV.Len(), nFields); iField++ {
+		for iField = 0; iField < Min(eachGrpValsV.Len(), nFields); iField++ {
 			switch sv.Index(i).Kind() {
 			case reflect.Ptr:
 				sv.Index(i).Elem().Field(iField).Set(eachGrpValsV.Index(iField))

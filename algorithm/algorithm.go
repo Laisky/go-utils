@@ -3,6 +3,7 @@ package algorithm
 import (
 	"container/heap"
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -406,8 +407,9 @@ type FIFO struct {
 	// unsafe.pointer will tell gc not to remove object in heap
 	head unsafe.Pointer
 	// tail maybe(maynot) the tail node in queue
-	tail unsafe.Pointer
-	len  int64
+	tail  unsafe.Pointer
+	len   int64
+	dummy unsafe.Pointer
 }
 
 // emptyNode is the default value to unsafe.pointer as an empty pointer
@@ -424,8 +426,9 @@ func NewFIFO() *FIFO {
 	dummyNode.next = unsafe.Pointer(emptyNode)
 
 	return &FIFO{
-		head: unsafe.Pointer(dummyNode),
-		tail: unsafe.Pointer(dummyNode),
+		head:  unsafe.Pointer(dummyNode),
+		tail:  unsafe.Pointer(dummyNode),
+		dummy: unsafe.Pointer(dummyNode),
 	}
 }
 
@@ -466,6 +469,7 @@ func (f *FIFO) Get() interface{} {
 		headNode := (*fifoNode)(headAddr)
 		if headNode.AddRef(1) < 0 {
 			headNode.AddRef(-1)
+			runtime.Gosched()
 			continue
 		}
 

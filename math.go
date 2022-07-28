@@ -21,14 +21,14 @@ type Sortable interface {
 	Number | string
 }
 
-// Min return the minimal value in collection
-func Min[T Sortable](collection []T) T {
-	if len(collection) == 0 {
-		panic("empty collection")
+// Min return the minimal value
+func Min[T Sortable](vals ...T) T {
+	if len(vals) == 0 {
+		panic("empty vals")
 	}
 
-	min := collection[0]
-	for _, v := range collection {
+	min := vals[0]
+	for _, v := range vals {
 		if v < min {
 			min = v
 		}
@@ -37,36 +37,20 @@ func Min[T Sortable](collection []T) T {
 	return min
 }
 
-// Max return the maximal value in collection
-func Max[T Sortable](collection []T) T {
-	if len(collection) == 0 {
-		panic("empty collection")
+// Max return the maximal value
+func Max[T Sortable](vals ...T) T {
+	if len(vals) == 0 {
+		panic("empty vals")
 	}
 
-	max := collection[0]
-	for _, v := range collection {
+	max := vals[0]
+	for _, v := range vals {
 		if v > max {
 			max = v
 		}
 	}
 
 	return max
-}
-
-// MaxInt get the max int of two
-func MaxInt(a, b int) int {
-	if a >= b {
-		return a
-	}
-	return b
-}
-
-// MinInt get the min int of two
-func MinInt(a, b int) int {
-	if a <= b {
-		return a
-	}
-	return b
 }
 
 // AbsInt64 abs(v)
@@ -185,7 +169,7 @@ func (c isc[T]) updateVal(idx int) (closed bool) {
 }
 
 func (c isc[T]) allEqual() bool {
-	return Max(c.vals) == Min(c.vals)
+	return Max(c.vals...) == Min(c.vals...)
 }
 
 func (c isc[T]) getSmallestTwo() (smallest, smaller iscSortItem) {

@@ -129,72 +129,22 @@ func TestHumanReadableByteCount(t *testing.T) {
 	}
 }
 
-func TestMinInt(t *testing.T) {
-	type args struct {
-		a int
-		b int
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{"0", args{1, 1}, 1},
-		{"1", args{2, 1}, 1},
-		{"2", args{2, -1}, -1},
-		{"3", args{-2, -1}, -2},
-		{"4", args{-2, 1}, -2},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := MinInt(tt.args.a, tt.args.b); got != tt.want {
-				t.Errorf("MinInt() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMaxInt(t *testing.T) {
-	type args struct {
-		a int
-		b int
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{"0", args{1, 1}, 1},
-		{"1", args{2, 1}, 2},
-		{"2", args{2, -1}, 2},
-		{"3", args{-2, -1}, -1},
-		{"4", args{-2, 1}, 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := MaxInt(tt.args.a, tt.args.b); got != tt.want {
-				t.Errorf("MaxInt() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestMin(t *testing.T) {
-	require.Equal(t, Min([]int{-1, 2, 3}), -1)
-	require.Equal(t, Min([]int{1, -2, 3}), -2)
-	require.Equal(t, Min([]uint{4, 2, 3}), uint(2))
-	require.Equal(t, Min([]float32{4, 2, 3}), float32(2))
-	require.Equal(t, Min([]string{"a", "b", "c"}), "a")
-	require.Panics(t, func() { Min([]int{}) })
+	require.Equal(t, Min(-1, 2, 3), -1)
+	require.Equal(t, Min(1, -2, 3), -2)
+	require.Equal(t, Min(4, 2, 3), 2)
+	require.Equal(t, Min(4.2, 2.0, 3.1), 2.0)
+	require.Equal(t, Min("a", "b", "c"), "a")
+	require.Panics(t, func() { Min[int]() })
 }
 
 func TestMax(t *testing.T) {
-	require.Equal(t, Max([]int{-1, 2, 3}), 3)
-	require.Equal(t, Max([]int{1, -2, 3}), 3)
-	require.Equal(t, Max([]uint{4, 2, 3}), uint(4))
-	require.Equal(t, Max([]float32{4, 2, 3}), float32(4))
-	require.Equal(t, Max([]string{"a", "b", "c"}), "c")
-	require.Panics(t, func() { Max([]int{}) })
+	require.Equal(t, Max(-1, 2, 3), 3)
+	require.Equal(t, Max(1, -2, 3), 3)
+	require.Equal(t, Max(4, 2, 3), 4)
+	require.Equal(t, Max(4.2, 2.0, 3.1), 4.2)
+	require.Equal(t, Max("a", "b", "c"), "c")
+	require.Panics(t, func() { Max[int]() })
 }
 
 func TestIntersectSortedChans(t *testing.T) {
