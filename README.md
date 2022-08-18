@@ -7,9 +7,6 @@ Many useful golang tools
 | 1.x     | v1.13 ~ v1.17 |
 | 2.x     | >= v1.18      |
 
-**v2 STILL UNDER HEAVY DEVELOPING, DO NOT STABLE**
-
-**WILL BE STABLE IN v2.1**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
