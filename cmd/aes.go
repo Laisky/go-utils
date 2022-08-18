@@ -60,7 +60,7 @@ func init() {
 
 // EncryptAESCMD encrypt files by aes
 //
-//   `go run cmd/main/main.go encrypt aes -i cmd/root.go -s 123`
+//	`go run cmd/main/main.go encrypt aes -i cmd/root.go -s 123`
 var EncryptAESCMD = &cobra.Command{
 	Use:   "aes",
 	Short: "encrypt file by aes, key's length must be 16/24/32",

@@ -12,7 +12,8 @@ import (
 // return err if remote port is not open.
 //
 // Args:
-//   addr: "scanme.nmap.org:53"
+//
+//	addr: "scanme.nmap.org:53"
 func IsRemoteUDPPortOpen(addr string) error {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {

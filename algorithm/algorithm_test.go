@@ -417,8 +417,8 @@ func TestNewFIFO(t *testing.T) {
 
 // BenchmarkFIFO
 //
-//   cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
-//   BenchmarkFIFO-8   	  368847	      3330 ns/op	      15 B/op	       0 allocs/op
+// cpu: AMD Ryzen 7 5700G with Radeon Graphics
+// BenchmarkFIFO/fifo-16         	  752448	      1654 ns/op	      12 B/op	       0 allocs/op
 func BenchmarkFIFO(b *testing.B) {
 	b.Run("fifo", func(b *testing.B) {
 		f := NewFIFO()
@@ -435,6 +435,10 @@ func BenchmarkFIFO(b *testing.B) {
 	})
 }
 
+// cpu: AMD Ryzen 7 5700G with Radeon Graphics
+// BenchmarkFIFOAndChan/fifo-16         	  733112	      1608 ns/op	      12 B/op	       0 allocs/op
+// BenchmarkFIFOAndChan/channel_struct-16         	 1809888	       653.2 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkFIFOAndChan/channel_int-16            	 1862325	       647.9 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkFIFOAndChan(b *testing.B) {
 
 	b.Run("fifo", func(b *testing.B) {

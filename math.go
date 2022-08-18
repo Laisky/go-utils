@@ -92,11 +92,12 @@ func Round(val float64, d int) float64 {
 // HumanReadableByteCount convert bytes to human readable string
 //
 // Args:
-//   * bytes:
-//   * si: `si ? 1024 : 1000`
+//   - bytes:
+//   - si: `si ? 1024 : 1000`
 //
 // Example:
-//   `HumanReadableByteCount(1005, false) -> "1.01KB"`
+//
+//	`HumanReadableByteCount(1005, false) -> "1.01KB"`
 func HumanReadableByteCount(bytes int64, si bool) (ret string) {
 	var unit float64
 	if si {

@@ -2,8 +2,6 @@ package algorithm
 
 import (
 	"container/heap"
-	"math"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -222,8 +220,8 @@ func GetSmallestNItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN 
 // GetTopKItems calculate topN by heap
 //
 // Arg isHighest:
-//   * use min-heap to calculates topN Highest items.
-//   * use max-heap to calculates topN Lowest items.
+//   - use min-heap to calculates topN Highest items.
+//   - use max-heap to calculates topN Lowest items.
 func GetTopKItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
 	log.Shared.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
@@ -383,18 +381,18 @@ type fifoNode struct {
 	next unsafe.Pointer
 	d    interface{}
 	// refcnt to avoid ABA problem
-	refcnt int32
+	// refcnt int32
 }
 
-// AddRef add ref count
-func (f *fifoNode) AddRef(n int32) int32 {
-	return atomic.AddInt32(&f.refcnt, n)
-}
+// CompareAndAdd add ref count
+// func (f *fifoNode) CompareAndAdd(expect int32) bool {
+// 	return atomic.CompareAndSwapInt32(&f.refcnt, expect, expect+1)
+// }
 
 // Refcnt get ref count
-func (f *fifoNode) Refcnt() int32 {
-	return atomic.LoadInt32(&f.refcnt)
-}
+// func (f *fifoNode) Refcnt() int32 {
+// 	return atomic.LoadInt32(&f.refcnt)
+// }
 
 // FIFO is a lock-free First-In-First-Out queue
 //
@@ -435,12 +433,16 @@ func NewFIFO() *FIFO {
 // Put put an data into queue's tail
 func (f *FIFO) Put(d interface{}) {
 	var newNode *fifoNode
-	for {
-		newNode = fifoPool.Get().(*fifoNode)
-		if newNode.Refcnt() == 0 {
-			break
-		}
-	}
+	newNode = fifoPool.Get().(*fifoNode)
+	// for {
+	// 	newNode = fifoPool.Get().(*fifoNode)
+	// 	if newNode.AddRef(1) == 1 {
+	// 		break
+	// 	}
+
+	// 	runtime.Gosched()
+	// 	continue
+	// }
 
 	newNode.d = d
 	newNode.next = unsafe.Pointer(emptyNode)
@@ -467,11 +469,11 @@ func (f *FIFO) Get() interface{} {
 	for {
 		headAddr := atomic.LoadPointer(&f.head)
 		headNode := (*fifoNode)(headAddr)
-		if headNode.AddRef(1) < 0 {
-			headNode.AddRef(-1)
-			runtime.Gosched()
-			continue
-		}
+		// if !headNode.CompareAndAdd(1) {
+		// 	// someone already get this node from pool
+		// 	runtime.Gosched()
+		// 	continue
+		// }
 
 		nextAddr := atomic.LoadPointer(&headNode.next)
 		if nextAddr == unsafe.Pointer(emptyNode) {
@@ -483,8 +485,8 @@ func (f *FIFO) Get() interface{} {
 		if atomic.CompareAndSwapPointer(&f.head, headAddr, nextAddr) {
 			// do not release refcnt
 			atomic.AddInt64(&f.len, -1)
-			atomic.StoreInt32(&headNode.refcnt, math.MinInt32)
-			fifoPool.Put(headNode)
+			// atomic.StoreInt32(&headNode.refcnt, 0)
+			// fifoPool.Put(headNode)
 			return nextNode.d
 		}
 	}

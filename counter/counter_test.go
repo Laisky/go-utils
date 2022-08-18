@@ -400,7 +400,8 @@ func BenchmarkRotateCounter(b *testing.B) {
 	})
 }
 
-/*BenchmarkAllCounter
+/*
+BenchmarkAllCounter
 
 ✗ go test -run=All -bench=AllCo -benchtime=5s -benchmem
 goos: darwin
@@ -420,7 +421,6 @@ BenchmarkAllCounter/rotateCounter_parallel-4_count_500-4            9793        
 BenchmarkAllCounter/childCounter_parallel-4_count_500-4            60672            102970 ns/op            3840 B/op         20 allocs/op
 PASS
 ok      github.com/Laisky/go-utils      82.997s
-
 */
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()

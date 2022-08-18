@@ -52,12 +52,13 @@ func init() {
 //
 // do not allow any unprocessed args
 //
-// Example
+// # Example
 //
 // use with cobra.Command:
-//   cmd = &cobra.Command{
-//       Args: NoExtraArgs,
-//   }
+//
+//	cmd = &cobra.Command{
+//	    Args: NoExtraArgs,
+//	}
 func NoExtraArgs(cmd *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		return errors.Errorf("unknown args `%v`", args)

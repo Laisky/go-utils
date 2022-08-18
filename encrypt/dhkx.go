@@ -11,16 +11,16 @@ import (
 //
 // Example
 //
-//   alice, _ := NewDHKX()
-//   bob, _ := NewDHKX()
+//	alice, _ := NewDHKX()
+//	bob, _ := NewDHKX()
 //
-//   alicePub := alice.PublicKey()
-//   bobPub := bob.PublicKey()
+//	alicePub := alice.PublicKey()
+//	bobPub := bob.PublicKey()
 //
-//   aliceKey, _ := alice.GenerateKey(bobPub)
-//   bobKey, _ := bob.GenerateKey(alicePub)
+//	aliceKey, _ := alice.GenerateKey(bobPub)
+//	bobKey, _ := bob.GenerateKey(alicePub)
 //
-//   // aliceKey == bobKey
+//	// aliceKey == bobKey
 type DHKX struct {
 	g    *dhkx.DHGroup
 	priv *dhkx.DHKey
@@ -79,7 +79,7 @@ func (d *DHKX) PublicKey() []byte {
 //
 // key like:
 //
-//   60a425ca3a4cc313db9c113a0526f3809725305afc68e1accd0e653ae8d0182c6eb05557f4b5d094f015972b9fda7d60c1b64d79f50baea7365d858ede0fb7a6571403d4b95f682144b56fa17ffcbe9e70de69dc0045672696e683c423c5b3dfc02a6916be1e50c74e60353ec08a465cc124e8ca88337fb74a0370e17a7cedb0b1e76733f43ad3db9e3d29ab43c75686a8bc4a88ee46addbd1590c8277d1b1ef42aded6cc0bfe0a7ff8933861dae772c755087f2a41021f4ca53867ba49797d111ef21b381cb6441178f4ccd3748f8e7b1a12ec3799571a49fc0aa793c05ab6e228b559f1fda2912542d7246388ccec138b4d8ce9df4a32c198891c4e33b5034
+//	60a425ca3a4cc313db9c113a0526f3809725305afc68e1accd0e653ae8d0182c6eb05557f4b5d094f015972b9fda7d60c1b64d79f50baea7365d858ede0fb7a6571403d4b95f682144b56fa17ffcbe9e70de69dc0045672696e683c423c5b3dfc02a6916be1e50c74e60353ec08a465cc124e8ca88337fb74a0370e17a7cedb0b1e76733f43ad3db9e3d29ab43c75686a8bc4a88ee46addbd1590c8277d1b1ef42aded6cc0bfe0a7ff8933861dae772c755087f2a41021f4ca53867ba49797d111ef21b381cb6441178f4ccd3748f8e7b1a12ec3799571a49fc0aa793c05ab6e228b559f1fda2912542d7246388ccec138b4d8ce9df4a32c198891c4e33b5034
 func (d *DHKX) GenerateKey(peerPubKey []byte) ([]byte, error) {
 	k, err := d.g.ComputeKey(dhkx.NewPublicKey(peerPubKey), d.priv)
 	if err != nil {

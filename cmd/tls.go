@@ -38,7 +38,7 @@ var cmdArgs = struct {
 
 // GenTLS 生成 tls 证书
 //
-//   `go run -race cmd/main/main.go gentls --host 1.2.3.4`
+//	`go run -race cmd/main/main.go gentls --host 1.2.3.4`
 //
 // 注，RSA 证书没毛病，P256 的 ES 证书 Chrome 尚不支持
 // inspired by https://golang.org/src/crypto/tls/generate_cert.go

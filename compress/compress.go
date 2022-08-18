@@ -281,9 +281,9 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 // ZipFiles compresses one or many files into a single zip archive file.
 //
 // Args:
-//   * output: is the output zip file's name.
-//   * files: is a list of files to add to the zip.
-//            files can be directory.
+//   - output: is the output zip file's name.
+//   - files: is a list of files to add to the zip.
+//     files can be directory.
 //
 // https://golangcode.com/create-zip-files-in-go/
 func ZipFiles(output string, files []string) (err error) {

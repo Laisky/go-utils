@@ -268,7 +268,8 @@ BenchmarkClock/clock2_time_with_1ms-8                   284931848               
 BenchmarkClock/clock2_time_with_500us-8                 293249996                4.167 ns/op           0 B/op          0 allocs/op
 BenchmarkClock/clock2_time_with_100us-8                 291018960                4.230 ns/op           0 B/op          0 allocs/op
 BenchmarkClock/clock2_time_with_10us-8                  294948268                4.302 ns/op           0 B/op          0 allocs/op
-BenchmarkClock/clock2_time_with_10us#01-8               270614050                4.442 ns/op           0 B/op          0 allocs/op*/
+BenchmarkClock/clock2_time_with_10us#01-8               270614050                4.442 ns/op           0 B/op          0 allocs/op
+*/
 func BenchmarkClock(b *testing.B) {
 	var err error
 	if err = log.Shared.ChangeLevel("error"); err != nil {

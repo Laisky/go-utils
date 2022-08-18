@@ -166,7 +166,7 @@ func WithAESFilesInDirFileExt(ext string) AESEncryptFilesInDirOption {
 
 // WithAESFilesInDirFileSuffix will append to encrypted's filename as suffix
 //
-//   xxx.toml -> xxx.toml.enc
+//	xxx.toml -> xxx.toml.enc
 func WithAESFilesInDirFileSuffix(suffix string) AESEncryptFilesInDirOption {
 	return func(opt *encryptFilesOption) error {
 		if !strings.HasPrefix(suffix, ".") {
@@ -182,7 +182,7 @@ func WithAESFilesInDirFileSuffix(suffix string) AESEncryptFilesInDirOption {
 //
 // will generate new encrypted files with <suffix> after ext
 //
-//   xxx.toml -> xxx.toml.enc
+//	xxx.toml -> xxx.toml.enc
 func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDirOption) (err error) {
 	opt := new(encryptFilesOption)
 	opt.fillDefault()

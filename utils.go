@@ -83,7 +83,7 @@ func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 //
 // Example
 //
-//   defer CloseQuietly(fp)
+//	defer CloseQuietly(fp)
 func CloseQuietly(v io.Closer) {
 	_ = v.Close()
 }
@@ -204,12 +204,13 @@ func MD5JSON(data interface{}) (string, error) {
 // NilInterface make sure data is nil interface or another type with nil value
 //
 // Example:
-//   type foo struct{}
-//   var f *foo
-//   var v interface{}
-//   v = f
-//   v == nil // false
-//   NilInterface(v) // true
+//
+//	type foo struct{}
+//	var f *foo
+//	var v interface{}
+//	v = f
+//	v == nil // false
+//	NilInterface(v) // true
 func NilInterface(data interface{}) bool {
 	if data == nil {
 		return true
@@ -254,8 +255,8 @@ func GetStructFieldByName(st interface{}, fieldName string) interface{} {
 // ValidateFileHash validate file content with hashed string
 //
 // Args:
-//   * filepath: file path to check
-//   * hashed: hashed string, like `sha256: xxxx`
+//   - filepath: file path to check
+//   - hashed: hashed string, like `sha256: xxxx`
 func ValidateFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")
 	if len(hs) != 2 {
@@ -1007,12 +1008,12 @@ func EmptyAllChans[T any](chans ...chan T) {
 //
 // Print:
 //
-//   {
-//     "Path": "github.com/Laisky/go-ramjet",
-//     "Version": "v0.0.0-20220718014224-2b10e57735f1",
-//     "Sum": "h1:08Ty2gR+Xxz0B3djHVuV71boW4lpNdQ9hFn4ZIGrhec=",
-//     "Replace": null
-//   }
+//	{
+//	  "Path": "github.com/Laisky/go-ramjet",
+//	  "Version": "v0.0.0-20220718014224-2b10e57735f1",
+//	  "Sum": "h1:08Ty2gR+Xxz0B3djHVuV71boW4lpNdQ9hFn4ZIGrhec=",
+//	  "Replace": null
+//	}
 func PrettyBuildInfo() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
