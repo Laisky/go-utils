@@ -383,5 +383,5 @@ func init() {
 		panic(fmt.Sprintf("create logger: %+v", err))
 	}
 
-	Shared.Info("create logger", zap.String("level", "info"))
+	// Shared.Info("create logger", zap.String("level", "info"))
 }
