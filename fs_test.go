@@ -231,8 +231,32 @@ func TestNewTmpFileForContent(t *testing.T) {
 	require.Equal(t, cnt, string(got))
 }
 
+// BenchmarkFileSHA1/md5_1MB-16         	     464	   2682812 ns/op	    4296 B/op	       7 allocs/op
+// BenchmarkFileSHA1/sha1_1MB-16        	     548	   2253516 ns/op	    4336 B/op	       7 allocs/op
+func BenchmarkFileSHA1(b *testing.B) {
+	fp, err := os.CreateTemp("", "*")
+	PanicIfErr(err)
+	defer os.Remove(fp.Name())
+	_, err = fp.WriteString(RandomStringWithLength(1024 * 1024))
+	PanicIfErr(err)
+	PanicIfErr(fp.Close())
+	b.Run("md5 1MB", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := FileMD5(fp.Name())
+			PanicIfErr(err)
+		}
+	})
+	b.Run("sha1 1MB", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := FileSHA1(fp.Name())
+			PanicIfErr(err)
+		}
+	})
+}
+
 func TestWatchFileChanging(t *testing.T) {
-	dir := os.TempDir()
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
 
 	fpath1 := filepath.Join(dir, "1")
 	fp1, err := os.OpenFile(fpath1, os.O_CREATE|os.O_RDWR, os.ModePerm)
@@ -255,11 +279,16 @@ func TestWatchFileChanging(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// wait wather start
+	time.Sleep(200 * time.Millisecond)
+
 	_, err = fp1.WriteString("yo")
 	require.NoError(t, err)
+	require.NoError(t, fp1.Close())
 
 	_, err = fp2.WriteString("yo")
 	require.NoError(t, err)
+	require.NoError(t, fp2.Close())
 
 	for {
 		mu.Lock()
@@ -288,7 +317,6 @@ func TestWatchFileChanging(t *testing.T) {
 		l := len(evts)
 		mu.Unlock()
 
-		require.NoError(t, fp1.Close())
 		require.NoError(t, os.Remove(fpath1))
 
 		fp1, err := os.OpenFile(fpath1, os.O_RDWR|os.O_CREATE, 0o644)
@@ -346,19 +374,22 @@ func TestIsFileATimeChanged(t *testing.T) {
 	fp, err := os.CreateTemp("", "*")
 	require.NoError(t, err)
 	defer os.Remove(fp.Name())
-	defer fp.Close()
+	require.NoError(t, fp.Close())
 
-	fi, err := fp.Stat()
+	fi, err := os.Stat(fp.Name())
 	require.NoError(t, err)
 	atime := fi.ModTime()
 
-	_, err = fp.Write([]byte(RandomStringWithLength(10)))
+	time.Sleep(time.Second)
+
+	err = ioutil.WriteFile(fp.Name(), []byte(RandomStringWithLength(10)), 0o644)
 	require.NoError(t, err)
 
-	fi, err = fp.Stat()
+	fi, err = os.Stat(fp.Name())
 	require.NoError(t, err)
-	require.True(t, atime.Equal(fi.ModTime()))
+	require.False(t, atime.Equal(fi.ModTime()))
 
+	time.Sleep(time.Second)
 	changed, newATime, err := IsFileATimeChanged(fp.Name(), atime)
 	require.NoError(t, err)
 	require.True(t, changed)

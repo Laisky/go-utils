@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"crypto/md5"
+	"crypto/sha1"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -116,7 +117,37 @@ func FileMD5(path string) (hashed string, err error) {
 			return "", errors.Wrapf(err, "read file %s", path)
 		}
 
-		// log.Shared.Info("md5 read", zap.ByteString("cnt", chunk[:n]))
+		// log.Shared.Info("md5 read",
+		// 	zap.String("file", path),
+		// 	zap.ByteString("cnt", chunk[:n]))
+		hasher.Write(chunk[:n])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// FileSHA1 read file and calculate sha1
+func FileSHA1(path string) (hashed string, err error) {
+	hasher := sha1.New()
+	fp, err := os.Open(path)
+	if err != nil {
+		return "", errors.Wrapf(err, "open file %s", path)
+	}
+
+	chunk := make([]byte, 4096)
+	for {
+		n, err := fp.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return "", errors.Wrapf(err, "read file %s", path)
+		}
+
+		// log.Shared.Info("sha1 read",
+		// 	zap.String("file", path),
+		// 	zap.ByteString("cnt", chunk[:n]))
 		hasher.Write(chunk[:n])
 	}
 
@@ -159,8 +190,7 @@ func ListFilesInDir(dir string) (files []string, err error) {
 
 // NewTmpFileForContent write content to tmp file and return path
 func NewTmpFileForContent(content []byte) (path string, err error) {
-	tmpDir := os.TempDir()
-	tmpFile, err := ioutil.TempFile(tmpDir, "tmp")
+	tmpFile, err := os.CreateTemp("", "*")
 	if err != nil {
 		return "", errors.Wrap(err, "create tmp file")
 	}
@@ -177,7 +207,59 @@ func NewTmpFileForContent(content []byte) (path string, err error) {
 //
 // when file changed, callback will be called,
 // callback will only received fsnotify.Write no matter what happened to changing a file.
+//
+// TODO: only calculate hash when file's folder got fsnotiy
 func WatchFileChanging(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
+	hashes := map[string]string{}
+	for _, f := range files {
+		hashed, err := FileSHA1(f)
+		if err != nil {
+			return errors.Wrapf(err, "calculate md5 for file %s", f)
+		}
+
+		hashes[f] = hashed
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for {
+			for f, hashed := range hashes {
+				newHashed, err := FileSHA1(f)
+				if err != nil {
+					continue
+				}
+
+				if newHashed != hashed {
+					hashes[f] = newHashed
+					callback(fsnotify.Event{
+						Name: f,
+						Op:   fsnotify.Write,
+					})
+				}
+			}
+
+			select {
+			case <-ticker.C:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+// WatchFileChangingByMtime watch file changing
+//
+// when file changed, callback will be called,
+// callback will only received fsnotify.Write no matter what happened to changing a file.
+//
+// BUG: Mtime is only accurate to the second
+//
+// Deprecated: use WatchFileChanging instead
+func WatchFileChangingByMtime(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
 	atimes := map[string]time.Time{}
 	for _, f := range files {
 		fi, err := os.Stat(f)
