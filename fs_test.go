@@ -3,6 +3,8 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,6 +38,11 @@ func ExampleDirSize() {
 }
 
 func TestCopyFile(t *testing.T) {
+	t.Run("not exist", func(t *testing.T) {
+		err := CopyFile(RandomStringWithLength(5), RandomStringWithLength(5))
+		require.Error(t, err)
+	})
+
 	dir, err := ioutil.TempDir("", "TestCopyFile")
 	if err != nil {
 		t.Fatal(err)
@@ -275,4 +282,62 @@ func TestWatchFileChanging(t *testing.T) {
 	require.Equal(t, got[0].Name, fpath1)
 	require.Equal(t, got[1].Op, fsnotify.Write)
 	require.Equal(t, got[1].Name, fpath2)
+}
+
+func TestFileMD5(t *testing.T) {
+	t.Run("file not exist", func(t *testing.T) {
+		_, err := FileMD5(RandomStringWithLength(10))
+		require.Error(t, err)
+	})
+
+	cnt := []byte(RandomStringWithLength(10))
+	t.Logf("write: %s", string(cnt))
+	hasher := md5.New()
+	_, err := hasher.Write(cnt)
+	require.NoError(t, err)
+
+	hashed := hex.EncodeToString(hasher.Sum(nil))
+	fpath, err := NewTmpFileForContent(cnt)
+	require.NoError(t, err)
+	defer os.Remove(fpath)
+
+	fhashed, err := FileMD5(fpath)
+	require.NoError(t, err)
+	require.Equal(t, hashed, fhashed)
+
+	fp, err := os.OpenFile(fpath, os.O_APPEND|os.O_RDWR, 0o644)
+	require.NoError(t, err)
+	fp.Write([]byte(RandomStringWithLength(10)))
+	require.NoError(t, fp.Close())
+
+	fhashed2, err := FileMD5(fpath)
+	require.NoError(t, err)
+	require.NotEqual(t, fhashed, fhashed2)
+}
+
+func TestIsFileATimeChanged(t *testing.T) {
+	t.Run("file not exist", func(t *testing.T) {
+		_, err := IsFileATimeChanged(RandomStringWithLength(10), time.Now())
+		require.Error(t, err)
+	})
+
+	fp, err := os.CreateTemp("", "*")
+	require.NoError(t, err)
+	defer os.Remove(fp.Name())
+	defer fp.Close()
+
+	fi, err := fp.Stat()
+	require.NoError(t, err)
+	atime := fi.ModTime()
+
+	_, err = fp.Write([]byte(RandomStringWithLength(10)))
+	require.NoError(t, err)
+
+	fi, err = fp.Stat()
+	require.NoError(t, err)
+	require.True(t, atime.Equal(fi.ModTime()))
+
+	changed, err := IsFileATimeChanged(fp.Name(), atime)
+	require.NoError(t, err)
+	require.True(t, changed)
 }

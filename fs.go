@@ -2,10 +2,13 @@ package utils
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
@@ -82,6 +85,43 @@ func CopyFile(src, dst string) (err error) {
 	log.Shared.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
 
 	return nil
+}
+
+// IsFileATimeChanged check is file's atime equal to expectATime
+func IsFileATimeChanged(path string, expectATime time.Time) (changed bool, err error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false, errors.Wrapf(err, "get stat of file %s", path)
+	}
+
+	t := fi.ModTime()
+	return t.Equal(expectATime), nil
+}
+
+// FileMD5 read file and calculate MD5
+func FileMD5(path string) (hashed string, err error) {
+	hasher := md5.New()
+	fp, err := os.Open(path)
+	if err != nil {
+		return "", errors.Wrapf(err, "open file %s", path)
+	}
+
+	chunk := make([]byte, 4096)
+	for {
+		n, err := fp.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return "", errors.Wrapf(err, "read file %s", path)
+		}
+
+		// log.Shared.Info("md5 read", zap.ByteString("cnt", chunk[:n]))
+		hasher.Write(chunk[:n])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // DirSize calculate directory size.
