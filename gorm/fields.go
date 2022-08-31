@@ -83,6 +83,7 @@ func (j *JSON) Scan(value interface{}) error {
 	return nil
 }
 
+// Marshal return the encoding by json
 func (j JSON) Marshal() ([]byte, error) {
 	if j == nil {
 		return []byte("null"), nil
@@ -90,6 +91,9 @@ func (j JSON) Marshal() ([]byte, error) {
 	return j, nil
 }
 
+// Unmarshal parses the JSON-encoded data and stores the result
+// in the value pointed to by v. If v is nil or not a pointer,
+// Unmarshal returns an InvalidUnmarshalError.
 func (j *JSON) Unmarshal(data []byte) error {
 	if j == nil {
 		return errors.New("null point exception")
@@ -98,10 +102,12 @@ func (j *JSON) Unmarshal(data []byte) error {
 	return nil
 }
 
+// IsNull check is value is null
 func (j JSON) IsNull() bool {
 	return len(j) == 0 || string(j) == "null"
 }
 
+// Equals check whether equal to j1
 func (j JSON) Equals(j1 JSON) bool {
 	return bytes.Equal([]byte(j), []byte(j1))
 }

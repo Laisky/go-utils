@@ -227,6 +227,8 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 // which will cause the notify tool to fail
 //
 // https://github.com/fsnotify/fsnotify/issues/255#issuecomment-407575900
+//
+// Deprecated: use WatchFileChanging instead
 func WatchFileChangingByNotify(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

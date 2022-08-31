@@ -115,6 +115,7 @@ func (it *itemType[T]) GetPriority() T {
 	return it.priority
 }
 
+// HeapSlice slice that could be used by heap
 type HeapSlice[T gutils.Sortable] []HeapItemItf[T]
 
 // innerHeapQ lower structure used by heap
@@ -223,7 +224,11 @@ func GetSmallestNItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN 
 // Arg isHighest:
 //   - use min-heap to calculates topN Highest items.
 //   - use max-heap to calculates topN Lowest items.
-func GetTopKItems[T gutils.Sortable](inputChan <-chan HeapItemItf[T], topN int, isHighest bool) ([]HeapItemItf[T], error) {
+func GetTopKItems[T gutils.Sortable](
+	inputChan <-chan HeapItemItf[T],
+	topN int,
+	isHighest bool,
+) ([]HeapItemItf[T], error) {
 	log.Shared.Debug("GetMostFreqWords for key2PriMap", zap.Int("topN", topN))
 	if topN < 2 {
 		return nil, errors.Errorf("GetMostFreqWords topN must larger than 2")
@@ -297,6 +302,7 @@ LOAD_LOOP:
 	return items, nil
 }
 
+// LimitSizeHeap heap that with limited size
 type LimitSizeHeap[T gutils.Sortable] interface {
 	Push(item HeapItemItf[T]) HeapItemItf[T]
 	Pop() HeapItemItf[T]
@@ -433,8 +439,7 @@ func NewFIFO() *FIFO {
 
 // Put put an data into queue's tail
 func (f *FIFO) Put(d interface{}) {
-	var newNode *fifoNode
-	newNode = fifoPool.Get().(*fifoNode)
+	newNode := fifoPool.Get().(*fifoNode)
 	// for {
 	// 	newNode = fifoPool.Get().(*fifoNode)
 	// 	if newNode.AddRef(1) == 1 {

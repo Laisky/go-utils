@@ -35,12 +35,22 @@ var (
 	Shared Logger
 )
 
+// Level logger level
+//
+//   - LevelInfo
+//   - LevelDebug
+//   - LevelWarn
+//   - LevelError
+//   - LevelFatal
+//   - LevelPanic
 type Level string
 
+// String convert to string
 func (l Level) String() string {
 	return string(l)
 }
 
+// Zap convert to zap level
 func (l Level) Zap() zapcore.Level {
 	zl, err := LevelToZap(l)
 	if err != nil {
@@ -51,6 +61,7 @@ func (l Level) Zap() zapcore.Level {
 }
 
 const (
+	// LevelUnspecified unknown level
 	LevelUnspecified Level = "unspecified"
 	// LevelInfo Logger level info
 	LevelInfo Level = "info"
@@ -78,6 +89,7 @@ type zapLoggerItf interface {
 	Core() zapcore.Core
 }
 
+// Logger logger interface
 type Logger interface {
 	zapLoggerItf
 	Level() Level
@@ -154,8 +166,10 @@ func (o *option) applyOpts(optfs ...Option) (*option, error) {
 	return o, nil
 }
 
+// Encoding how to print log
 type Encoding string
 
+// String convert encoding to string
 func (e Encoding) String() string {
 	return string(e)
 }
@@ -167,6 +181,7 @@ const (
 	EncodingJSON Encoding = "json"
 )
 
+// Option logger options
 type Option func(l *option) error
 
 // WithOutputPaths set output path
@@ -241,6 +256,7 @@ func LevelToZap(level Level) (zapcore.Level, error) {
 	}
 }
 
+// LevelFromZap convert from zap level
 func LevelFromZap(level zapcore.Level) (Level, error) {
 	switch level {
 	case zap.DebugLevel:

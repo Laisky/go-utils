@@ -9,8 +9,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+// AsyncTaskStatus status of async task
 type AsyncTaskStatus string
 
+// String convert status to string
 func (s AsyncTaskStatus) String() string {
 	return string(s)
 }
@@ -25,6 +27,7 @@ const (
 )
 
 var (
+	// ErrAsyncTask root error for async tasks
 	ErrAsyncTask = errors.New("async task error")
 )
 

@@ -929,6 +929,7 @@ type stopSignalOpt struct {
 	// closeFunc    func()
 }
 
+// StopSignalOptFunc options for StopSignal
 type StopSignalOptFunc func(*stopSignalOpt)
 
 // WithStopSignalCloseSignals set signals that will trigger close

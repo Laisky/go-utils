@@ -95,6 +95,7 @@ func WithAlertPushTimeout(timeout time.Duration) AlertOption {
 	}
 }
 
+// WithAlertType set type for alert hooker
 func WithAlertType(alertType string) AlertOption {
 	return func(ao *alertOption) error {
 		alertType = strings.TrimSpace(alertType)
@@ -107,6 +108,7 @@ func WithAlertType(alertType string) AlertOption {
 	}
 }
 
+// WithAlertToken set token for alert hooker
 func WithAlertToken(token string) AlertOption {
 	return func(ao *alertOption) error {
 		token = strings.TrimSpace(token)
