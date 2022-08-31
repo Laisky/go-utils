@@ -1,3 +1,4 @@
+// Package main gutils' command line tool
 package main
 
 import (

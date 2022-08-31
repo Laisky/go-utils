@@ -88,14 +88,13 @@ func CopyFile(src, dst string) (err error) {
 }
 
 // IsFileATimeChanged check is file's atime equal to expectATime
-func IsFileATimeChanged(path string, expectATime time.Time) (changed bool, err error) {
+func IsFileATimeChanged(path string, expectATime time.Time) (changed bool, newATime time.Time, err error) {
 	fi, err := os.Stat(path)
 	if err != nil {
-		return false, errors.Wrapf(err, "get stat of file %s", path)
+		return false, time.Time{}, errors.Wrapf(err, "get stat of file %s", path)
 	}
 
-	t := fi.ModTime()
-	return t.Equal(expectATime), nil
+	return !fi.ModTime().Equal(expectATime), fi.ModTime(), nil
 }
 
 // FileMD5 read file and calculate MD5
@@ -176,8 +175,59 @@ func NewTmpFileForContent(content []byte) (path string, err error) {
 
 // WatchFileChanging watch file changing
 //
-// when file changed, callback will be called
+// when file changed, callback will be called,
+// callback will only received fsnotify.Write no matter what happened to changing a file.
 func WatchFileChanging(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
+	atimes := map[string]time.Time{}
+	for _, f := range files {
+		fi, err := os.Stat(f)
+		if err != nil {
+			return errors.Wrapf(err, "get stat of file %s", f)
+		}
+
+		atimes[f] = fi.ModTime()
+	}
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+			case <-ctx.Done():
+				return
+			}
+
+			for f, atime := range atimes {
+				changed, atime, err := IsFileATimeChanged(f, atime)
+				if err != nil {
+					continue
+				}
+
+				atimes[f] = atime
+				if changed {
+					callback(fsnotify.Event{
+						Name: f,
+						Op:   fsnotify.Write,
+					})
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+// WatchFileChangingByNotify watch file changing
+//
+// when file changed, callback will be called
+//
+// BUG: Tools like vim will delete and replace files before writing,
+// which will cause the notify tool to fail
+//
+// https://github.com/fsnotify/fsnotify/issues/255#issuecomment-407575900
+func WatchFileChangingByNotify(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return errors.Wrap(err, "create watcher")

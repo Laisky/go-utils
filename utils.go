@@ -105,7 +105,7 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 	opt := new(dedentOpt).fillDefault().applyOpts(optfs...)
 	ls := strings.Split(v, "\n")
 	var (
-		firstLine      bool = true
+		firstLine      = true
 		NSpaceTobeTrim int
 		result         []string
 	)

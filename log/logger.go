@@ -161,8 +161,10 @@ func (e Encoding) String() string {
 }
 
 const (
+	// EncodingConsole is logger format for console
 	EncodingConsole Encoding = "console"
-	EncodingJSON    Encoding = "json"
+	// EncodingJSON is logger format for json
+	EncodingJSON Encoding = "json"
 )
 
 type Option func(l *option) error

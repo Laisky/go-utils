@@ -12,11 +12,13 @@ var (
 	SignMethodHS256 = jwt.SigningMethodHS256
 	// SignMethodES256 use ES256 for jwt
 	SignMethodES256 = jwt.SigningMethodES256
+	// SignMethodRS256 use RSA-256 for jwt
 	SignMethodRS256 = jwt.SigningMethodRS256
 
 	defaultSignMethod = SignMethodHS256
 )
 
+// JWT jwt tool to sign & parse(with/without verify) token
 type JWT interface {
 	Sign(claims jwt.Claims, opts ...DivideOption) (string, error)
 	SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, error)

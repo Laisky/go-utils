@@ -1,3 +1,4 @@
+// Package counter contains varias counter tools
 package counter
 
 import (

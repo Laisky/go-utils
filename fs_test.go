@@ -246,6 +246,7 @@ func TestWatchFileChanging(t *testing.T) {
 	var mu sync.Mutex
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	err = WatchFileChanging(ctx, []string{fpath1, fpath2}, func(e fsnotify.Event) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -265,23 +266,44 @@ func TestWatchFileChanging(t *testing.T) {
 		l := len(evts)
 		mu.Unlock()
 
-		if l == 2 {
+		if l >= 2 {
 			break
 		} else {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
-	cancel()
 	var got []fsnotify.Event
 	mu.Lock()
 	got = append(got, evts...)
 	mu.Unlock()
 
 	require.Equal(t, got[0].Op, fsnotify.Write)
-	require.Equal(t, got[0].Name, fpath1)
 	require.Equal(t, got[1].Op, fsnotify.Write)
-	require.Equal(t, got[1].Name, fpath2)
+	require.Contains(t, []string{fpath1, fpath2}, got[0].Name)
+	require.Contains(t, []string{fpath1, fpath2}, got[1].Name)
+
+	t.Run("delete file", func(t *testing.T) {
+		mu.Lock()
+		l := len(evts)
+		mu.Unlock()
+
+		require.NoError(t, fp1.Close())
+		require.NoError(t, os.Remove(fpath1))
+
+		fp1, err := os.OpenFile(fpath1, os.O_RDWR|os.O_CREATE, 0o644)
+		require.NoError(t, err)
+
+		_, err = fp1.Write([]byte(RandomStringWithLength(10)))
+		require.NoError(t, err)
+
+		require.NoError(t, fp1.Close())
+
+		time.Sleep(1500 * time.Millisecond)
+		mu.Lock()
+		require.Greater(t, len(evts), l)
+		mu.Unlock()
+	})
 }
 
 func TestFileMD5(t *testing.T) {
@@ -317,7 +339,7 @@ func TestFileMD5(t *testing.T) {
 
 func TestIsFileATimeChanged(t *testing.T) {
 	t.Run("file not exist", func(t *testing.T) {
-		_, err := IsFileATimeChanged(RandomStringWithLength(10), time.Now())
+		_, _, err := IsFileATimeChanged(RandomStringWithLength(10), time.Now())
 		require.Error(t, err)
 	})
 
@@ -337,7 +359,8 @@ func TestIsFileATimeChanged(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, atime.Equal(fi.ModTime()))
 
-	changed, err := IsFileATimeChanged(fp.Name(), atime)
+	changed, newATime, err := IsFileATimeChanged(fp.Name(), atime)
 	require.NoError(t, err)
 	require.True(t, changed)
+	require.True(t, newATime.Equal(fi.ModTime()))
 }
