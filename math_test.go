@@ -99,12 +99,12 @@ func TestRound(t *testing.T) {
 	}
 }
 
-func TestHumanReadableByteCount(t *testing.T) {
+func FuzzHumanReadableByteCount(f *testing.F) {
 	type args struct {
 		bytes int64
 		si    bool
 	}
-	tests := []struct {
+	for _, test := range []struct {
 		name    string
 		args    args
 		wantRet string
@@ -119,14 +119,74 @@ func TestHumanReadableByteCount(t *testing.T) {
 		{"7", args{1006, false}, "1.01KB"},
 		{"8", args{1000000, false}, "1MB"},
 		{"9", args{1005000, false}, "1.01MB"},
+	} {
+		f.Add(test.args.bytes, test.args.si)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if gotRet := HumanReadableByteCount(tt.args.bytes, tt.args.si); gotRet != tt.wantRet {
-				t.Errorf("HumanReadableByteCount() = %v, want %v", gotRet, tt.wantRet)
-			}
-		})
-	}
+
+	f.Fuzz(func(t *testing.T, bytes int64, si bool) {
+		recv := HumanReadableByteCount(bytes, si)
+		require.Contains(t, []string{"B", "KB", "MB", "GB", "TB", "PB", "EB"}, string(recv[len(recv)-1]))
+		require.Greater(t, len(recv), 0)
+	})
+
+}
+
+// func TestHumanReadableByteCount(t *testing.T) {
+// 	type args struct {
+// 		bytes int64
+// 		si    bool
+// 	}
+// 	tests := []struct {
+// 		name    string
+// 		args    args
+// 		wantRet string
+// 	}{
+// 		{"0", args{1, true}, "1B"},
+// 		{"1", args{12, true}, "12B"},
+// 		{"2", args{0, true}, "0B"},
+// 		{"3", args{1024, true}, "1KB"},
+// 		{"4", args{1025, true}, "1KB"},
+// 		{"5", args{1004, false}, "1KB"},
+// 		{"6", args{1005, false}, "1.01KB"},
+// 		{"7", args{1006, false}, "1.01KB"},
+// 		{"8", args{1000000, false}, "1MB"},
+// 		{"9", args{1005000, false}, "1.01MB"},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			if gotRet := HumanReadableByteCount(tt.args.bytes, tt.args.si); gotRet != tt.wantRet {
+// 				t.Errorf("HumanReadableByteCount() = %v, want %v", gotRet, tt.wantRet)
+// 			}
+// 		})
+// 	}
+// }
+
+func FuzzMinInt(f *testing.F) {
+	f.Add(1, 2)
+	f.Add(-1, 2)
+	f.Add(33, -2)
+
+	f.Fuzz(func(t *testing.T, arg1, arg2 int) {
+		rev1 := Min(arg1, arg2)
+		rev2 := Min(arg2, arg1)
+		require.Equal(t, rev1, rev2)
+		require.LessOrEqual(t, rev1, arg1)
+		require.LessOrEqual(t, rev1, arg2)
+	})
+}
+
+func FuzzMinStr(f *testing.F) {
+	f.Add("a", "b")
+	f.Add("4324a", "br4r")
+	f.Add("~", "&!#@*()")
+
+	f.Fuzz(func(t *testing.T, arg1, arg2 string) {
+		rev1 := Min(arg1, arg2)
+		rev2 := Min(arg2, arg1)
+		require.Equal(t, rev1, rev2)
+		require.LessOrEqual(t, rev1, arg1)
+		require.LessOrEqual(t, rev1, arg2)
+	})
 }
 
 func TestMin(t *testing.T) {

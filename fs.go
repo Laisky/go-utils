@@ -154,8 +154,9 @@ func FileSHA1(path string) (hashed string, err error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// DirSize calculate directory size.
-// https://stackoverflow.com/a/32482941/2368737
+// DirSize calculate directory size
+//
+// inspired by https://stackoverflow.com/a/32482941/2368737
 func DirSize(path string) (size int64, err error) {
 	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
