@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
+	"golang.org/x/sync/errgroup"
 )
 
 type testEmbeddedSt struct{}
@@ -393,6 +394,17 @@ func ExampleForceGCUnBlocking() {
 
 func TestForceGCUnBlocking(t *testing.T) {
 	ForceGCUnBlocking()
+
+	var pool errgroup.Group
+	for i := 0; i < 1000; i++ {
+		pool.Go(func() error {
+			ForceGCUnBlocking()
+			return nil
+		})
+	}
+
+	require.NoError(t, pool.Wait())
+	t.Error()
 }
 
 func TestReflectSet(t *testing.T) {

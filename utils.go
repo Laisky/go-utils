@@ -31,6 +31,7 @@ import (
 	"github.com/google/go-cpy/cpy"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 
 	// automaxprocs compatable with cgroup
 	_ "go.uber.org/automaxprocs"
@@ -40,6 +41,8 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 	// JSON effective json
 	JSON = json
+
+	internalSFG singleflight.Group
 )
 
 const (
@@ -340,7 +343,7 @@ func FlattenMap(data map[string]interface{}, delimiter string) {
 
 // ForceGCBlocking force to run blocking manual gc.
 func ForceGCBlocking() {
-	log.Shared.Info("force gc")
+	log.Shared.Debug("force gc")
 	runtime.GC()
 	debug.FreeOSMemory()
 }
@@ -348,7 +351,10 @@ func ForceGCBlocking() {
 // ForceGCUnBlocking trigger GC unblocking
 func ForceGCUnBlocking() {
 	go func() {
-		ForceGC()
+		internalSFG.Do("ForceGCUnBlocking", func() (interface{}, error) {
+			ForceGC()
+			return nil, nil
+		})
 	}()
 }
 
