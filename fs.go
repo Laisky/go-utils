@@ -127,6 +127,8 @@ func FileMD5(path string) (hashed string, err error) {
 }
 
 // FileSHA1 read file and calculate sha1
+//
+// return hashed string in 40 bytes
 func FileSHA1(path string) (hashed string, err error) {
 	hasher := sha1.New()
 	fp, err := os.Open(path)

@@ -48,7 +48,7 @@ func (j *GzText) Scan(value interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer gutils.CloseQuietly(r)
+	defer gutils.SilentClose(r)
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err

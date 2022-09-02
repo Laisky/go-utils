@@ -82,14 +82,24 @@ func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 	return d
 }
 
-// CloseQuietly closes `io.Closer` quietly, ignore errcheck linter
+// SilentClose close and ignore error
 //
 // Example
 //
-//	defer CloseQuietly(fp)
-func CloseQuietly(v io.Closer) {
+//	defer SilentClose(fp)
+func SilentClose(v interface{ Close() error }) {
 	_ = v.Close()
 }
+
+// SlientFlush flush and ignore error
+func SlientFlush(v interface{ Flush() error }) {
+	_ = v.Flush()
+}
+
+// CloseQuietly
+//
+// Deprecated: use SilentClose instead
+var CloseQuietly = SilentClose
 
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
@@ -351,7 +361,7 @@ func ForceGCBlocking() {
 // ForceGCUnBlocking trigger GC unblocking
 func ForceGCUnBlocking() {
 	go func() {
-		internalSFG.Do("ForceGCUnBlocking", func() (interface{}, error) {
+		_, _, _ = internalSFG.Do("ForceGCUnBlocking", func() (interface{}, error) {
 			ForceGC()
 			return nil, nil
 		})

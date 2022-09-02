@@ -262,13 +262,13 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 			return nil, errors.Wrapf(err, "open file to write: %s", fpath)
 		}
 		log.Shared.Debug("create file", zap.String("path", filepath.Dir(fpath)))
-		defer gutils.CloseQuietly(outFile)
+		defer gutils.SilentClose(outFile)
 
 		rc, err := f.Open()
 		if err != nil {
 			return nil, errors.Wrapf(err, "read src file to write: %s", f.Name)
 		}
-		defer gutils.CloseQuietly(rc)
+		defer gutils.SilentClose(rc)
 
 		if _, err = io.Copy(outFile, rc); err != nil {
 			return nil, errors.Wrap(err, "copy src to dest")
@@ -291,10 +291,10 @@ func ZipFiles(output string, files []string) (err error) {
 	if newZipFile, err = os.Create(output); err != nil {
 		return err
 	}
-	defer gutils.CloseQuietly(newZipFile)
+	defer gutils.SilentClose(newZipFile)
 
 	zipWriter := zip.NewWriter(newZipFile)
-	defer gutils.CloseQuietly(zipWriter)
+	defer gutils.SilentClose(zipWriter)
 
 	// Add files to zip
 	for _, file := range files {
@@ -338,7 +338,7 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file: %s", filename)
 	}
-	defer gutils.CloseQuietly(fileToZip)
+	defer gutils.SilentClose(fileToZip)
 
 	var header *zip.FileHeader
 	if header, err = zip.FileInfoHeader(finfo); err != nil {

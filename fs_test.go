@@ -395,3 +395,18 @@ func TestIsFileATimeChanged(t *testing.T) {
 	require.True(t, changed)
 	require.True(t, newATime.Equal(fi.ModTime()))
 }
+
+func TestFileSHA1(t *testing.T) {
+	fp, err := os.CreateTemp("", "*")
+	require.NoError(t, err)
+	defer os.Remove(fp.Name())
+
+	_, err = fp.WriteString("fwefjwefjwekjfweklfjwkl")
+	require.NoError(t, err)
+	require.NoError(t, fp.Close())
+
+	hashed, err := FileSHA1(fp.Name())
+	require.NoError(t, err)
+	require.Equal(t, "2c4dee26eca505ebd8afdad00e417efa5e5e1290", hashed)
+
+}
