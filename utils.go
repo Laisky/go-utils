@@ -91,8 +91,8 @@ func SilentClose(v interface{ Close() error }) {
 	_ = v.Close()
 }
 
-// SlientFlush flush and ignore error
-func SlientFlush(v interface{ Flush() error }) {
+// SilentFlush flush and ignore error
+func SilentFlush(v interface{ Flush() error }) {
 	_ = v.Flush()
 }
 
