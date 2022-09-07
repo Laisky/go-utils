@@ -9,11 +9,12 @@ import (
 	"os"
 	"strings"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // AesEncrypt encrypt bytes by aes with key

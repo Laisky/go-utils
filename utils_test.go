@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 type testEmbeddedSt struct{}

@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // MoveFile move file from src to dst by copy

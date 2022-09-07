@@ -10,12 +10,13 @@ import (
 	"io/ioutil"
 	"os"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/encrypt"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/encrypt"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // EncryptCMD encrypt files

@@ -17,9 +17,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 const (

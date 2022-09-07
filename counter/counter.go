@@ -9,10 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // Int64CounterItf counter for int64

@@ -3,8 +3,9 @@ package utils
 import (
 	"sort"
 
-	"github.com/Laisky/go-utils/v2/log"
 	zap "github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // SortBiggest sort from biggest to smallest

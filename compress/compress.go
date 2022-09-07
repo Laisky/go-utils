@@ -11,11 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
 	"github.com/pkg/errors"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 const (
@@ -219,11 +220,64 @@ func (c *PGZip) WriteFooter() (err error) {
 	return nil
 }
 
+type unzipOption struct {
+	maxBytes       int64
+	copyChunkBytes int64
+}
+
+func (o *unzipOption) fillDefault() *unzipOption {
+	o.copyChunkBytes = 32 * 1024
+	return o
+}
+
+func (o *unzipOption) applyOpts(optfs ...UnzipOption) (*unzipOption, error) {
+	for _, f := range optfs {
+		if err := f(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+// UnzipOption optional arguments for UnZip
+type UnzipOption func(*unzipOption) error
+
+// UnzipWithMaxBytes decompressed bytes will not exceed this limit,
+// default/0 is unlimit.
+func UnzipWithMaxBytes(bytes int64) UnzipOption {
+	return func(o *unzipOption) error {
+		if bytes < 1 {
+			return errors.Errorf("max bytes must >= 1")
+		}
+
+		o.maxBytes = gutils.Min(bytes, o.copyChunkBytes)
+		return nil
+	}
+}
+
+// UnzipWithCopyChunkBytes copy chunk by chunk from src to dst
+func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
+	return func(o *unzipOption) error {
+		if bytes < 1 {
+			return errors.Errorf("copy chunk bytes must >= 1")
+		}
+
+		o.copyChunkBytes = bytes
+		return nil
+	}
+}
+
 // Unzip will decompress a zip archive, moving all files and folders
 // within the zip file (parameter 1) to an output directory (parameter 2).
 //
 // https://golangcode.com/unzip-files-in-go/
-func Unzip(src string, dest string) (filenames []string, err error) {
+func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, err error) {
+	o, err := new(unzipOption).fillDefault().applyOpts(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	var r *zip.ReadCloser
 	if r, err = zip.OpenReader(src); err != nil {
 		return nil, errors.Wrap(err, "open src")
@@ -231,19 +285,18 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
-		// Store filename/path for returning and using later on
-		fpath := filepath.Join(dest, f.Name)
+		fpath := filepath.Join(dest, f.Name) //nolint:gosec // check zipslip below
 
 		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			return filenames, errors.Errorf("illegal file path: %s", fpath)
+			return nil, errors.Errorf("illegal file path: %s", fpath)
 		}
 
 		filenames = append(filenames, fpath)
 
 		if f.FileInfo().IsDir() {
 			// Make Folder
-			if err = os.MkdirAll(fpath, os.ModePerm); err != nil {
+			if err = os.MkdirAll(fpath, 0o751); err != nil {
 				return nil, errors.Wrapf(err, "create basedir: %s", fpath)
 			}
 
@@ -252,7 +305,7 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 		}
 
 		// Make File
-		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err = os.MkdirAll(filepath.Dir(fpath), 0o751); err != nil {
 			return nil, errors.Wrapf(err, "mkdir: %s", fpath)
 		}
 		log.Shared.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
@@ -270,8 +323,17 @@ func Unzip(src string, dest string) (filenames []string, err error) {
 		}
 		defer gutils.SilentClose(rc)
 
-		if _, err = io.Copy(outFile, rc); err != nil {
-			return nil, errors.Wrap(err, "copy src to dest")
+		var totalBytes int64
+		for {
+			n, err := io.CopyN(outFile, rc, o.copyChunkBytes)
+			if err != nil {
+				return nil, errors.Wrap(err, "copy src to dest")
+			}
+
+			totalBytes += n
+			if o.maxBytes != 0 && totalBytes > o.maxBytes {
+				return nil, errors.Errorf("uncompressed file size exceeds specified max bytes %d", o.maxBytes)
+			}
 		}
 	}
 

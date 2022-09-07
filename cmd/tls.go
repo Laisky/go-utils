@@ -21,9 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 var cmdArgs = struct {

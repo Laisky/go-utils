@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 func TestMutex(t *testing.T) {

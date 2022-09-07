@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 func TestDirSize(t *testing.T) {

@@ -7,8 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 func ExampleCounter() {

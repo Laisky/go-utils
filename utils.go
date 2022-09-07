@@ -26,12 +26,13 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/Laisky/go-utils/v2/log"
 
 	// automaxprocs compatable with cgroup
 	_ "go.uber.org/automaxprocs"

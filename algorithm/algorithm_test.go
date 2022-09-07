@@ -11,9 +11,10 @@ import (
 	"time"
 	"unsafe"
 
-	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	gutils "github.com/Laisky/go-utils/v2"
 )
 
 func TestNewSkiplist(t *testing.T) {

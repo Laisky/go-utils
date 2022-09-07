@@ -8,11 +8,12 @@ import (
 	"unsafe"
 
 	skiplist "github.com/Laisky/fast-skiplist"
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/gammazero/deque"
 	"github.com/pkg/errors"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // -------------------------------------

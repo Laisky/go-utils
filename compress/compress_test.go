@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v2"
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // func TestZipDir(t *testing.T) {

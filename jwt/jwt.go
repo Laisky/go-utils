@@ -2,9 +2,10 @@
 package jwt
 
 import (
-	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/pkg/errors"
+
+	gutils "github.com/Laisky/go-utils/v2"
 )
 
 var (

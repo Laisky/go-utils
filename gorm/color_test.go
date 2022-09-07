@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
-	"github.com/Laisky/go-utils/v2/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v2/mocks"
 )
 
 func TestGormLogger_Print(t *testing.T) {

@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/pkg/errors"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // ThrottleCfg Throttle's configuration

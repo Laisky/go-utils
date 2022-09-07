@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/pkg/errors"
+
+	"github.com/Laisky/go-utils/v2/log"
 )
 
 // AsyncTaskStatus status of async task
