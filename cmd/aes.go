@@ -7,7 +7,6 @@ package cmd
 // =====================================
 
 import (
-	"io/ioutil"
 	"os"
 
 	"github.com/Laisky/zap"
@@ -119,7 +118,7 @@ func encryptFileByAes() error {
 	)
 	logger.Info("encrypt file")
 
-	cnt, err := ioutil.ReadFile(in)
+	cnt, err := os.ReadFile(in)
 	if err != nil {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
@@ -129,7 +128,7 @@ func encryptFileByAes() error {
 		return errors.Wrap(err, "encrypt")
 	}
 
-	if err = ioutil.WriteFile(out, cipher, os.ModePerm); err != nil {
+	if err = os.WriteFile(out, cipher, os.ModePerm); err != nil {
 		return errors.Wrapf(err, "write file `%s`", out)
 	}
 

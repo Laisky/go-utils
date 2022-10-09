@@ -3,7 +3,7 @@ package compress
 import (
 	"bytes"
 	"compress/gzip"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +33,7 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	}
 
 	var dir string
-	if dir, err = ioutil.TempDir("", "compressor-test"); err != nil {
+	if dir, err = os.MkdirTemp("", "*"); err != nil {
 		require.NoError(t, err)
 	}
 	t.Logf("create directory: %v", dir)
@@ -98,7 +98,7 @@ func TestUnzipAndZipFiles(t *testing.T) {
 			t.Fatalf("unknown file: %s", fname)
 		}
 
-		if cnt, err := ioutil.ReadFile(fname); err != nil {
+		if cnt, err := os.ReadFile(fname); err != nil {
 			t.Fatalf("unknown file: %s", fname)
 		} else if string(cnt) != "yoo" {
 			t.Fatalf("unknown content for file `%s`: %s", fname, string(cnt))
@@ -131,7 +131,7 @@ func TestGZCompressor(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	if bs, err := ioutil.ReadAll(gz); err != nil {
+	if bs, err := io.ReadAll(gz); err != nil {
 		t.Fatalf("got error: %+v", err)
 	} else {
 		got := string(bs)
@@ -173,7 +173,7 @@ func ExampleNewGZip() {
 	}
 
 	var bs []byte
-	if bs, err = ioutil.ReadAll(gz); err != nil {
+	if bs, err = io.ReadAll(gz); err != nil {
 		log.Shared.Error("read from compressor", zap.Error(err))
 		return
 	}
@@ -213,7 +213,7 @@ func TestPGZCompressor(t *testing.T) {
 		t.Fatalf("got error: %+v", err)
 	}
 
-	if bs, err := ioutil.ReadAll(gz); err != nil {
+	if bs, err := io.ReadAll(gz); err != nil {
 		t.Fatalf("got error: %+v", err)
 	} else {
 		got := string(bs)
@@ -251,7 +251,7 @@ func ExamplePGZip() {
 	}
 
 	var bs []byte
-	if bs, err = ioutil.ReadAll(gz); err != nil {
+	if bs, err = io.ReadAll(gz); err != nil {
 		log.Shared.Error("read from compressor", zap.Error(err))
 		return
 	}
@@ -288,7 +288,7 @@ PASS
 ok  	github.com/Laisky/go-utils	61.515s
 */
 func BenchmarkGzip(b *testing.B) {
-	fp, err := ioutil.TempFile("", "gz-test")
+	fp, err := os.CreateTemp("", "gz-test*")
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}
@@ -514,7 +514,7 @@ ok  	github.com/Laisky/go-utils	33.127s
 Success: Benchmarks passed.
 */
 func BenchmarkCompressor(b *testing.B) {
-	fp, err := ioutil.TempFile("", "gz-test")
+	fp, err := os.CreateTemp("", "gz-test*")
 	if err != nil {
 		b.Fatalf("%+v", err)
 	}

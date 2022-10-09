@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -106,7 +105,7 @@ func TestHasField(t *testing.T) {
 }
 
 func TestValidateFileHash(t *testing.T) {
-	fp, err := ioutil.TempFile("", "go-utils-*")
+	fp, err := os.CreateTemp("", "go-utils-*")
 	require.NoError(t, err)
 	defer os.Remove(fp.Name())
 	defer fp.Close()
@@ -334,7 +333,7 @@ func TestAutoGC(t *testing.T) {
 	}
 
 	var fp *os.File
-	if fp, err = ioutil.TempFile("", "test-gc"); err != nil {
+	if fp, err = os.CreateTemp("", "test-gc*"); err != nil {
 		t.Fatalf("%+v", err)
 	}
 	defer fp.Close()
@@ -561,7 +560,7 @@ func TestRunCMD(t *testing.T) {
 
 // linux pipe has 16MB default buffer
 func TestRunCMDForHugeFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "run_cmd-*")
+	dir, err := os.MkdirTemp("", "run_cmd-*")
 	require.NoError(t, err)
 	defer os.Remove(dir)
 

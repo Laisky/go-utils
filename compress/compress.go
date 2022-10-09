@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -378,7 +377,7 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 	}
 
 	if finfo.IsDir() {
-		fs, err := ioutil.ReadDir(filename)
+		fs, err := os.ReadDir(filename)
 		if err != nil {
 			return errors.Wrapf(err, "list files in `%s`", filename)
 		}

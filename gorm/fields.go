@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"database/sql/driver"
-	"io/ioutil"
+	"io"
 
 	"github.com/pkg/errors"
 
@@ -50,7 +50,7 @@ func (j *GzText) Scan(value interface{}) error {
 		return err
 	}
 	defer gutils.SilentClose(r)
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package log
 
 import (
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -32,7 +31,7 @@ func TestNewLogger(t *testing.T) {
 }
 
 func TestWriteToFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "TestWriteToFile")
+	dir, err := os.MkdirTemp("", "TestWriteToFile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +47,7 @@ func TestWriteToFile(t *testing.T) {
 	logger.Info("yoo")
 	_ = logger.Sync()
 
-	cntBytes, err := ioutil.ReadFile(file)
+	cntBytes, err := os.ReadFile(file)
 	content := string(cntBytes)
 	t.Logf("content:\n%s", content)
 	require.NoError(t, err)

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -10,15 +11,19 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
+// RSAPrikeyBits width of rsa private key
 type RSAPrikeyBits int
 
 const (
+	// RSAPrikeyBits2048 rsa private key with 2048 bits
 	RSAPrikeyBits2048 RSAPrikeyBits = 2048
+	// RSAPrikeyBits3072 rsa private key with 3072 bits
 	RSAPrikeyBits3072 RSAPrikeyBits = 3072
 )
 
@@ -37,9 +42,13 @@ func NewRSAPrikey(bits RSAPrikeyBits) (*rsa.PrivateKey, error) {
 type ECDSACurve string
 
 const (
+	// ECDSACurveP224 ecdsa with P224
 	ECDSACurveP224 ECDSACurve = "P224"
+	// ECDSACurveP256 ecdsa with P256
 	ECDSACurveP256 ECDSACurve = "P256"
+	// ECDSACurveP384 ecdsa with P384
 	ECDSACurveP384 ECDSACurve = "P384"
+	// ECDSACurveP521 ecdsa with P521
 	ECDSACurveP521 ECDSACurve = "P521"
 )
 
@@ -60,15 +69,17 @@ func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 }
 
 // NewEd25519Prikey new ed25519 private key
-func NewEd25519Prikey() (*ed25519.PrivateKey, error) {
+func NewEd25519Prikey() (ed25519.PrivateKey, error) {
 	_, pri, err := ed25519.GenerateKey(rand.Reader)
-	return &pri, err
+	return pri, err
 }
 
 // Prikey2Der marshal private key by x509.8
-func Prikey2Der(key any) ([]byte, error) {
+func Prikey2Der(key crypto.PrivateKey) ([]byte, error) {
 	switch key.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, *ed25519.PrivateKey:
+	case *rsa.PrivateKey,
+		*ecdsa.PrivateKey,
+		ed25519.PrivateKey:
 	default:
 		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 private key")
 	}
@@ -76,13 +87,63 @@ func Prikey2Der(key any) ([]byte, error) {
 	return x509.MarshalPKCS8PrivateKey(key)
 }
 
+// Prikey2Pem marshal private key to pem
+func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
+	der, err := Prikey2Der(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return PrikeyDer2Pem(der), nil
+}
+
+// Cert2Pem marshal x509 certificate to pem
+func Cert2Pem(cert *x509.Certificate) []byte {
+	return CertDer2Pem(Cert2Der(cert))
+}
+
 // Cert2Der marshal private key by x509.8
 func Cert2Der(cert *x509.Certificate) []byte {
 	return cert.Raw
 }
 
+// Der2Cert parse certificate in der
 func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(certInDer)
+}
+
+// Pem2Cert parse certificate in pem
+func Pem2Cert(certInPem []byte) (*x509.Certificate, error) {
+	return Der2Cert(Pem2Der(certInPem))
+}
+
+// RSAPem2Prikey parse private key from x509 v1(rsa) pem
+func RSAPem2Prikey(x509v1Pem []byte) (*rsa.PrivateKey, error) {
+	return RSADer2Prikey(Pem2Der(x509v1Pem))
+}
+
+// RSADer2Prikey parse private key from x509 v1(rsa) der
+func RSADer2Prikey(x509v1Der []byte) (*rsa.PrivateKey, error) {
+	return x509.ParsePKCS1PrivateKey(x509v1Der)
+}
+
+// Pem2Prikey parse private key from x509 v8(general) pem
+func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
+	return Der2Prikey(Pem2Der(x509v8Pem))
+}
+
+// Der2Prikey parse private key from der in x509 v8/v1
+func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
+	prikey, err := x509.ParsePKCS8PrivateKey(prikeyDer)
+	if err != nil && strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
+		if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
+			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
+		}
+
+		return prikey, nil
+	}
+
+	return prikey, nil
 }
 
 // PrikeyDer2Pem convert private key in der to pem
@@ -102,11 +163,12 @@ func Pem2Der(pemBytes []byte) (derBytes []byte) {
 }
 
 type tlsCertOption struct {
-	commonName string
-	dns        []string
-	validFrom  time.Time
-	validFor   time.Duration
-	isCA       bool
+	commonName   string
+	dns          []string
+	validFrom    time.Time
+	validFor     time.Duration
+	isCA         bool
+	organization []string
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
@@ -114,6 +176,57 @@ func (o *tlsCertOption) fillDefault() *tlsCertOption {
 	o.validFor = 7 * 24 * time.Hour
 
 	return o
+}
+
+// TLSCertOption option to generate tls certificate
+type TLSCertOption func(*tlsCertOption) error
+
+// WithTLSCommonName set common name
+func WithTLSCommonName(commonName string) TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.commonName = commonName
+		return nil
+	}
+}
+
+// WithTLSOrganization set organization
+func WithTLSOrganization(organization []string) TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.organization = organization
+		return nil
+	}
+}
+
+// WithTLSDNS set dnses
+func WithTLSDNS(dns []string) TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.dns = dns
+		return nil
+	}
+}
+
+// WithTLSValidFrom set valid from
+func WithTLSValidFrom(validFrom time.Time) TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.validFrom = validFrom
+		return nil
+	}
+}
+
+// WithTLSValidFor set valid for duration
+func WithTLSValidFor(validFor time.Duration) TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.validFor = validFor
+		return nil
+	}
+}
+
+// WithTLSIsCA set is ca
+func WithTLSIsCA() TLSCertOption {
+	return func(o *tlsCertOption) error {
+		o.isCA = true
+		return nil
+	}
 }
 
 func (o *tlsCertOption) applyOpts(opts ...TLSCertOption) (*tlsCertOption, error) {
@@ -131,7 +244,7 @@ func (o *tlsCertOption) applyOpts(opts ...TLSCertOption) (*tlsCertOption, error)
 }
 
 // GetPubkeyFromPrikey get pubkey from private key
-func GetPubkeyFromPrikey(priv any) any {
+func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 	switch k := priv.(type) {
 	case *rsa.PrivateKey:
 		return &k.PublicKey
@@ -144,11 +257,8 @@ func GetPubkeyFromPrikey(priv any) any {
 	}
 }
 
-// TLSCertOption option to generate tls certificate
-type TLSCertOption func(*tlsCertOption) error
-
 // NewTLSCert new self sign tls cert
-func NewTLSCert(prikey any, opts ...TLSCertOption) (certDer []byte, err error) {
+func NewTLSCert(prikey crypto.PrivateKey, opts ...TLSCertOption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
 	}
@@ -166,9 +276,9 @@ func NewTLSCert(prikey any, opts ...TLSCertOption) (certDer []byte, err error) {
 	return certDer, nil
 }
 
-func validPrikey(prikey any) error {
+func validPrikey(prikey crypto.PrivateKey) error {
 	switch prikey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, *ed25519.PrivateKey:
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
 	default:
 		return errors.Errorf("not support this type of private key")
 	}
@@ -177,7 +287,7 @@ func validPrikey(prikey any) error {
 }
 
 // NewTLSCSR new CSR
-func NewTLSCSR(prikey any, opts ...TLSCertOption) (csrDer []byte, err error) {
+func NewTLSCSR(prikey crypto.PrivateKey, opts ...TLSCertOption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
 	}
@@ -218,7 +328,7 @@ func NewTLSTemplate(opts ...TLSCertOption) (tpl *x509.Certificate, err error) {
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   opt.commonName,
-			Organization: []string{"Acme Co"},
+			Organization: opt.organization,
 		},
 		NotBefore: opt.validFrom,
 		NotAfter:  notAfter,
@@ -238,7 +348,7 @@ func NewTLSTemplate(opts ...TLSCertOption) (tpl *x509.Certificate, err error) {
 }
 
 // SignTLSCSR sign CSR to certificate
-func SignTLSCSR(ca *x509.Certificate, prikey any, csr *x509.CertificateRequest, opts ...TLSCertOption) (certDer []byte, err error) {
+func SignTLSCSR(ca *x509.Certificate, prikey crypto.PrivateKey, csr *x509.CertificateRequest, opts ...TLSCertOption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
 	}

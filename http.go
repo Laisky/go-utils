@@ -3,7 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/tls"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -151,14 +151,14 @@ func RequestJSONWithClient(httpClient *http.Client,
 	defer func() { _ = r.Body.Close() }()
 
 	if r.StatusCode/100 != 2 {
-		respBytes, err := ioutil.ReadAll(r.Body)
+		respBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")
 		}
 		return errors.New(string(respBytes[:]))
 	}
 
-	respBytes, err := ioutil.ReadAll(r.Body)
+	respBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return errors.Wrap(err, "try to read response data error")
 	}
@@ -204,7 +204,7 @@ func checkRespBody(c *chaining.Chain) (interface{}, error) {
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	respB, err := ioutil.ReadAll(resp.Body)
+	respB, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
 	}

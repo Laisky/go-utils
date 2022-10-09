@@ -10,7 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -462,7 +462,7 @@ func TestNewAesReaderWrapper(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := ioutil.ReadAll(readerWraper)
+	got, err := io.ReadAll(readerWraper)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,16 +591,16 @@ func ExampleDHKX() {
 }
 
 func TestAESEncryptFilesInDir(t *testing.T) {
-	dirName, err := ioutil.TempDir("", "go-utils-test-settings")
+	dirName, err := os.MkdirTemp("", "go-utils-test-settings*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dirName)
 
 	cnt := []byte("12345")
-	err = ioutil.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
 	require.NoError(t, err)
 
 	secret := []byte("laiskyfwejfewjfewlijffed")
@@ -609,7 +609,7 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 
 	for _, fname := range []string{"test1.toml.enc", "test2.toml.enc", "test3.toml.enc"} {
 		fname = filepath.Join(dirName, fname)
-		cipher, err := ioutil.ReadFile(fname)
+		cipher, err := os.ReadFile(fname)
 		require.NoError(t, err)
 
 		got, err := AesDecrypt(secret, cipher)

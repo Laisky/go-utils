@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -47,7 +46,7 @@ func IsDir(path string) (bool, error) {
 // IsDirWritable if dir is writable
 func IsDirWritable(dir string) (err error) {
 	f := filepath.Join(dir, ".touch")
-	if err = ioutil.WriteFile(f, []byte(""), os.ModePerm); err != nil {
+	if err = os.WriteFile(f, []byte(""), os.ModePerm); err != nil {
 		return err
 	}
 
@@ -176,7 +175,7 @@ func DirSize(path string) (size int64, err error) {
 
 // ListFilesInDir list files in dir
 func ListFilesInDir(dir string) (files []string, err error) {
-	fs, err := ioutil.ReadDir(dir)
+	fs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir `%s`", dir)
 	}

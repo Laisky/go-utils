@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -432,7 +431,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	}
 	defer CloseQuietly(fp)
 
-	if memByte, err = ioutil.ReadAll(fp); err != nil {
+	if memByte, err = io.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")
 	}
 

@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -106,7 +105,7 @@ type AesReaderWrapper struct {
 
 // NewAesReaderWrapper wrap reader by aes
 func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
-	cipher, err := ioutil.ReadAll(in)
+	cipher, err := io.ReadAll(in)
 	if err != nil {
 		return nil, errors.Wrap(err, "read reader")
 	}
@@ -210,7 +209,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 
 		fname := fname
 		pool.Go(func() (err error) {
-			raw, err := ioutil.ReadFile(fname)
+			raw, err := os.ReadFile(fname)
 			if err != nil {
 				return errors.Wrapf(err, "read file `%s`", fname)
 			}
@@ -221,7 +220,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 			}
 
 			outfname := fname + opt.suffix
-			if err = ioutil.WriteFile(outfname, cipher, os.ModePerm); err != nil {
+			if err = os.WriteFile(outfname, cipher, os.ModePerm); err != nil {
 				return errors.Wrapf(err, "write file `%s`", outfname)
 			}
 

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -44,7 +43,7 @@ func TestCopyFile(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	dir, err := ioutil.TempDir("", "TestCopyFile")
+	dir, err := os.MkdirTemp("", "TestCopyFile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +75,7 @@ func TestCopyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := ioutil.ReadFile(dst)
+	got, err := os.ReadFile(dst)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +84,7 @@ func TestCopyFile(t *testing.T) {
 		t.Fatalf("got %s", string(got))
 	}
 
-	if got, err = ioutil.ReadFile(src); err != nil {
+	if got, err = os.ReadFile(src); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,7 +94,7 @@ func TestCopyFile(t *testing.T) {
 }
 
 func TestMoveFile(t *testing.T) {
-	dir, err := ioutil.TempDir("", "TestMoveFile")
+	dir, err := os.MkdirTemp("", "TestMoveFile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +127,7 @@ func TestMoveFile(t *testing.T) {
 	err = srcFp.Close()
 	require.NoError(t, err)
 
-	got, err := ioutil.ReadFile(dst)
+	got, err := os.ReadFile(dst)
 	require.NoError(t, err)
 
 	if !bytes.Equal(raw, got) {
@@ -141,7 +140,7 @@ func TestMoveFile(t *testing.T) {
 }
 
 func TestIsDirWritable(t *testing.T) {
-	dir, err := ioutil.TempDir("", "fs")
+	dir, err := os.MkdirTemp("", "fs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +167,7 @@ func TestIsDirWritable(t *testing.T) {
 }
 
 func TestIsDir(t *testing.T) {
-	dir, err := ioutil.TempDir("", "fs")
+	dir, err := os.MkdirTemp("", "fs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +190,7 @@ func TestIsDir(t *testing.T) {
 }
 
 func TestListFilesInDir(t *testing.T) {
-	dir, err := ioutil.TempDir("", "fs")
+	dir, err := os.MkdirTemp("", "fs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +225,7 @@ func TestNewTmpFileForContent(t *testing.T) {
 	path, err := NewTmpFileForContent([]byte(cnt))
 	require.NoError(t, err)
 
-	got, err := ioutil.ReadFile(path)
+	got, err := os.ReadFile(path)
 	require.NoError(t, err)
 
 	require.Equal(t, cnt, string(got))
@@ -383,7 +382,7 @@ func TestIsFileATimeChanged(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	err = ioutil.WriteFile(fp.Name(), []byte(RandomStringWithLength(10)), 0o644)
+	err = os.WriteFile(fp.Name(), []byte(RandomStringWithLength(10)), 0o644)
 	require.NoError(t, err)
 
 	fi, err = os.Stat(fp.Name())

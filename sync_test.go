@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -212,7 +211,7 @@ func TestRaceWithCtx(t *testing.T) {
 }
 
 func TestNewFlock(t *testing.T) {
-	dir, err := ioutil.TempDir("", "fs")
+	dir, err := os.MkdirTemp("", "fs")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)

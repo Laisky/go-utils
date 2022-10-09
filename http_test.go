@@ -3,7 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -61,7 +61,7 @@ func TestCheckResp(t *testing.T) {
 	)
 	resp = &http.Response{
 		StatusCode: 500,
-		Body:       ioutil.NopCloser(bytes.NewBufferString(`some error message`)),
+		Body:       io.NopCloser(bytes.NewBufferString(`some error message`)),
 	}
 	err = CheckResp(resp)
 	if err == nil {
