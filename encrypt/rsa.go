@@ -5,46 +5,44 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
 	"io"
 
 	"github.com/pkg/errors"
 )
 
-// EncodeRSAPrivateKey encode rsa private key to pem bytes
-func EncodeRSAPrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
-	x509Encoded := x509.MarshalPKCS1PrivateKey(privateKey)
-	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded}), nil
-}
+// // EncodeRSAPrivateKey encode rsa private key to pem bytes
+// func EncodeRSAPrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
+// 	x509Encoded := x509.MarshalPKCS1PrivateKey(privateKey)
+// 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded}), nil
+// }
 
-// EncodeRSAPublicKey encode rsa public key to pem bytes
-func EncodeRSAPublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
-	x509EncodedPub := x509.MarshalPKCS1PublicKey(publicKey)
-	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub}), nil
-}
+// // EncodeRSAPublicKey encode rsa public key to pem bytes
+// func EncodeRSAPublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
+// 	x509EncodedPub := x509.MarshalPKCS1PublicKey(publicKey)
+// 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub}), nil
+// }
 
-// DecodeRSAPrivateKey decode rsa private key from pem bytes
-func DecodeRSAPrivateKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode(pemEncoded)
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse rsa private key")
-	}
+// // DecodeRSAPrivateKey decode rsa private key from pem bytes
+// func DecodeRSAPrivateKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
+// 	block, _ := pem.Decode(pemEncoded)
+// 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "parse rsa private key")
+// 	}
 
-	return privateKey, nil
-}
+// 	return privateKey, nil
+// }
 
-// DecodeRSAPublicKey decode rsa public key from pem bytes
-func DecodeRSAPublicKey(pemEncodedPub []byte) (*rsa.PublicKey, error) {
-	blockPub, _ := pem.Decode(pemEncodedPub)
-	pubkey, err := x509.ParsePKCS1PublicKey(blockPub.Bytes)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse rsa public key")
-	}
+// // DecodeRSAPublicKey decode rsa public key from pem bytes
+// func DecodeRSAPublicKey(pemEncodedPub []byte) (*rsa.PublicKey, error) {
+// 	blockPub, _ := pem.Decode(pemEncodedPub)
+// 	pubkey, err := x509.ParsePKCS1PublicKey(blockPub.Bytes)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "parse rsa public key")
+// 	}
 
-	return pubkey, nil
-}
+// 	return pubkey, nil
+// }
 
 // SignByRSAWithSHA256 generate signature by rsa private key use sha256
 func SignByRSAWithSHA256(priKey *rsa.PrivateKey, content []byte) ([]byte, error) {

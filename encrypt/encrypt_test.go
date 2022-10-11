@@ -2,7 +2,6 @@ package encrypt
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -177,51 +176,51 @@ func TestECDSAKeySerializer(t *testing.T) {
 	// t.Error()
 }
 
-func TestRSAKeySerializer(t *testing.T) {
-	var (
-		err    error
-		priKey *rsa.PrivateKey
-	)
-	if priKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
-		t.Fatalf("%+v", err)
-	}
+// func TestRSAKeySerializer(t *testing.T) {
+// 	var (
+// 		err    error
+// 		priKey *rsa.PrivateKey
+// 	)
+// 	if priKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
 
-	var (
-		priByte, pubByte []byte
-	)
-	if pubByte, err = EncodeRSAPublicKey(&priKey.PublicKey); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("pub: %v", string(pubByte))
-	if priByte, err = EncodeRSAPrivateKey(priKey); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("pri: %v", string(priByte))
+// 	var (
+// 		priByte, pubByte []byte
+// 	)
+// 	if pubByte, err = EncodeRSAPublicKey(&priKey.PublicKey); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// 	t.Logf("pub: %v", string(pubByte))
+// 	if priByte, err = EncodeRSAPrivateKey(priKey); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// 	t.Logf("pri: %v", string(priByte))
 
-	var (
-		priKey2 *rsa.PrivateKey
-		// pubKey2 *rsa.PublicKey
-	)
-	if _, err = DecodeRSAPublicKey(pubByte); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if priKey2, err = DecodeRSAPrivateKey(priByte); err != nil {
-		t.Fatalf("%+v", err)
-	}
+// 	var (
+// 		priKey2 *rsa.PrivateKey
+// 		// pubKey2 *rsa.PublicKey
+// 	)
+// 	if _, err = DecodeRSAPublicKey(pubByte); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
+// 	if priKey2, err = DecodeRSAPrivateKey(priByte); err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
 
-	hash := sha256.Sum256([]byte("hello, world"))
-	sig, err := rsa.SignPKCS1v15(rand.Reader, priKey2, crypto.SHA256, hash[:])
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+// 	hash := sha256.Sum256([]byte("hello, world"))
+// 	sig, err := rsa.SignPKCS1v15(rand.Reader, priKey2, crypto.SHA256, hash[:])
+// 	if err != nil {
+// 		t.Fatalf("%+v", err)
+// 	}
 
-	t.Logf("generate signature: %x", sig)
-	if err = rsa.VerifyPKCS1v15(&priKey.PublicKey, crypto.SHA256, hash[:], sig); err != nil {
-		t.Fatalf("verify failed: %v", err)
-	}
+// 	t.Logf("generate signature: %x", sig)
+// 	if err = rsa.VerifyPKCS1v15(&priKey.PublicKey, crypto.SHA256, hash[:], sig); err != nil {
+// 		t.Fatalf("verify failed: %v", err)
+// 	}
 
-	// t.Error()
-}
+// 	// t.Error()
+// }
 
 func TestECDSAVerify(t *testing.T) {
 	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
