@@ -140,28 +140,28 @@ func TestECDSAKeySerializer(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	var (
-		priByte, pubByte []byte
-	)
-	if pubByte, err = EncodeECDSAPublicKey(&priKey.PublicKey); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("pub: %v", string(pubByte))
-	if priByte, err = EncodeECDSAPrivateKey(priKey); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("pri: %v", string(priByte))
+	// var (
+	// 	priByte, pubByte []byte
+	// )
+	// if pubByte, err = EncodeECDSAPublicKey(&priKey.PublicKey); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
+	// t.Logf("pub: %v", string(pubByte))
+	// if priByte, err = EncodeECDSAPrivateKey(priKey); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
+	// t.Logf("pri: %v", string(priByte))
 
 	var (
 		priKey2 *ecdsa.PrivateKey
 		// pubKey2 *ecdsa.PublicKey
 	)
-	if _, err = DecodeECDSAPublicKey(pubByte); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if priKey2, err = DecodeECDSAPrivateKey(priByte); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	// if _, err = DecodeECDSAPublicKey(pubByte); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
+	// if priKey2, err = DecodeECDSAPrivateKey(priByte); err != nil {
+	// 	t.Fatalf("%+v", err)
+	// }
 
 	hash := sha256.Sum256([]byte("hello, world"))
 	r, s, err := ecdsa.Sign(rand.Reader, priKey2, hash[:])

@@ -21,15 +21,15 @@ func TestHKDFWithSHA256(t *testing.T) {
 	for i := range results1 {
 		results1[i] = make([]byte, 20)
 	}
-	HKDFWithSHA256(key, salt, nil, results1)
+	require.NoError(t, HKDFWithSHA256(key, salt, nil, results1))
 
 	results2 := make([][]byte, 10)
 	for i := range results2 {
 		results2[i] = make([]byte, 20)
 	}
-	HKDFWithSHA256(key, salt, nil, results2)
+	require.NoError(t, HKDFWithSHA256(key, salt, nil, results2))
 
-	// same key & salt will derivate same keys
+	// same key & salt will derivative same keys
 	require.Len(t, results1[0], 20)
 	require.Len(t, results2[0], 20)
 	require.Equal(t, results1[0], results2[0])
