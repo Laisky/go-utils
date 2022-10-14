@@ -9,7 +9,7 @@ import (
 //
 // https://pkg.go.dev/github.com/monnand/dhkx
 //
-// Example
+// # Example
 //
 //	alice, _ := NewDHKX()
 //	bob, _ := NewDHKX()
