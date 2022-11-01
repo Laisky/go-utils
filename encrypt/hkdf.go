@@ -1,6 +1,7 @@
 package encrypt
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"io"
 
@@ -29,4 +30,25 @@ func HKDFWithSHA256(secret, salt, info []byte, results [][]byte) error {
 	}
 
 	return nil
+}
+
+func Salt(length int) ([]byte, error) {
+	salt := make([]byte, length)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate salt")
+	}
+
+	return salt, nil
+}
+
+// ExpandSecret expand secret to specified length
+func ExpandSecret(secret []byte, expectLen int) ([]byte, error) {
+	results := make([][]byte, 1)
+	results[0] = make([]byte, expectLen)
+	if err := HKDFWithSHA256(secret, nil, nil, results); err != nil {
+		return nil, errors.Wrap(err, "derivate key by hkdf")
+	}
+
+	return results[0], nil
 }

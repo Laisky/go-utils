@@ -3,6 +3,7 @@ package encrypt
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,4 +36,32 @@ func TestHKDFWithSHA256(t *testing.T) {
 	require.Equal(t, results1[0], results2[0])
 	require.Equal(t, results1[1], results2[1])
 	require.Equal(t, results1[2], results2[2])
+}
+
+func TestExpandSecret(t *testing.T) {
+	type args struct {
+		secret    []byte
+		expectLen int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		{"", args{[]byte("wefew"), 1}, []byte{30}, false},
+		{"", args{[]byte("wefew"), 10}, []byte{30, 118, 34, 42, 107, 205, 110, 215, 121, 114}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExpandSecret(tt.args.secret, tt.args.expectLen)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ExpandSecret() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ExpandSecret() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

@@ -67,13 +67,13 @@ func TestTLSPrivatekey(t *testing.T) {
 		require.NotNil(t, GetPubkeyFromPrikey(key))
 
 		t.Run("cert", func(t *testing.T) {
-			der, err := NewTLSCert(key,
-				WithTLSCommonName("laisky"),
-				WithTLSDNS([]string{"laisky"}),
-				WithTLSIsCA(),
-				WithTLSOrganization([]string{"laisky"}),
-				WithTLSValidFrom(time.Now()),
-				WithTLSValidFor(time.Second),
+			der, err := NewX509Cert(key,
+				WithX509CertCommonName("laisky"),
+				WithX509CertDNS([]string{"laisky"}),
+				WithX509CertIsCA(),
+				WithX509CertOrganization([]string{"laisky"}),
+				WithX509CertValidFrom(time.Now()),
+				WithX509CertValidFor(time.Second),
 			)
 			require.NoError(t, err)
 
