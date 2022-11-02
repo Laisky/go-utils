@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"net"
 	"time"
 
 	"github.com/pkg/errors"
@@ -65,6 +66,7 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		DNSNames:              opt.dns,
+		IPAddresses:           opt.ips,
 	}
 
 	if opt.isCA {
@@ -123,6 +125,7 @@ func SignX509CSR(
 type tlsCertOption struct {
 	commonName   string
 	dns          []string
+	ips          []net.IP
 	validFrom    time.Time
 	validFor     time.Duration
 	isCA         bool
@@ -155,10 +158,18 @@ func WithX509CertOrganization(organization []string) X509CertOption {
 	}
 }
 
-// WithX509CertDNS set dnses
+// WithX509CertDNS set DNS SANs
 func WithX509CertDNS(dns []string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.dns = dns
+		return nil
+	}
+}
+
+// WithX509CertIPs set IP SANs
+func WithX509CertIPs(ips []net.IP) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.ips = ips
 		return nil
 	}
 }
@@ -196,6 +207,14 @@ func (o *tlsCertOption) applyOpts(opts ...X509CertOption) (*tlsCertOption, error
 
 	if len(o.dns) == 0 {
 		o.dns = append(o.dns, o.commonName)
+	}
+
+	if len(o.ips) == 0 {
+		for _, addr := range o.dns {
+			if ip := net.ParseIP(addr); ip != nil {
+				o.ips = append(o.ips, ip)
+			}
+		}
 	}
 
 	return o, nil
