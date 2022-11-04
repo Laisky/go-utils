@@ -32,6 +32,7 @@ func HKDFWithSHA256(secret, salt, info []byte, results [][]byte) error {
 	return nil
 }
 
+// Salt generate random salt with specifiec length
 func Salt(length int) ([]byte, error) {
 	salt := make([]byte, length)
 	_, err := rand.Read(salt)
@@ -47,7 +48,7 @@ func ExpandSecret(secret []byte, expectLen int) ([]byte, error) {
 	results := make([][]byte, 1)
 	results[0] = make([]byte, expectLen)
 	if err := HKDFWithSHA256(secret, nil, nil, results); err != nil {
-		return nil, errors.Wrap(err, "derivate key by hkdf")
+		return nil, errors.Wrap(err, "derivative key by hkdf")
 	}
 
 	return results[0], nil

@@ -12,9 +12,10 @@ import (
 	"net"
 	"time"
 
-	gcounter "github.com/Laisky/go-utils/v2/counter"
 	"github.com/jinzhu/copier"
 	"github.com/pkg/errors"
+
+	gcounter "github.com/Laisky/go-utils/v2/counter"
 )
 
 var seriaCounter gcounter.Counter
