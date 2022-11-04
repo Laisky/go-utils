@@ -1,0 +1,101 @@
+package encrypt
+
+import (
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"math/big"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewX509CSR(t *testing.T) {
+	t.Run("sign by non-ca", func(t *testing.T) {
+		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		require.NoError(t, err)
+
+		prikey, err := Pem2Prikey(prikeyPem)
+		require.NoError(t, err)
+
+		csrder, err := NewX509CSR(prikey,
+			WithX509CertCommonName("laisky"),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		_, err = NewX509CertByCSR(ca, prikey, csrder,
+			WithX509CertIsCA(),
+			WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
+		)
+		require.Error(t, err)
+	})
+	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertIsCA())
+	require.NoError(t, err)
+
+	prikey, err := Pem2Prikey(prikeyPem)
+	require.NoError(t, err)
+
+	csrder, err := NewX509CSR(prikey,
+		WithX509CertCommonName("laisky"),
+	)
+	require.NoError(t, err)
+
+	ca, err := Der2Cert(certder)
+	require.NoError(t, err)
+
+	newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
+		WithX509CertIsCA(),
+		WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
+	)
+	require.NoError(t, err)
+
+	newCert, err := Der2Cert(newCertDer)
+	require.NoError(t, err)
+
+	require.Equal(t, "laisky", newCert.Subject.CommonName)
+	require.True(t, newCert.IsCA)
+
+	t.Run("verify", func(t *testing.T) {
+		// ca, err := Der2Cert(certder)
+		// require.NoError(t, err)
+		// require.False(t, ca.IsCA)
+		// require.Equal(t, x509.KeyUsage(0), ca.KeyUsage&x509.KeyUsageCertSign)
+
+		roots := x509.NewCertPool()
+		roots.AppendCertsFromPEM(CertDer2Pem(certder))
+		_, err = newCert.Verify(x509.VerifyOptions{
+			Roots: roots,
+		})
+		require.NoError(t, err)
+	})
+}
+
+func TestNewX509CRL(t *testing.T) {
+	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertIsCA())
+	require.NoError(t, err)
+
+	prikey, err := Pem2Prikey(prikeyPem)
+	require.NoError(t, err)
+
+	ca, err := Der2Cert(certder)
+	require.NoError(t, err)
+
+	crlder, err := NewX509CRL(ca, prikey,
+		[]pkix.RevokedCertificate{
+			{
+				SerialNumber: big.NewInt(2),
+			},
+		})
+	require.NoError(t, err)
+
+	crl, err := x509.ParseRevocationList(crlder)
+	require.NoError(t, err)
+
+	err = crl.CheckSignatureFrom(ca)
+	require.NoError(t, err)
+
+}

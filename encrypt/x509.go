@@ -12,10 +12,21 @@ import (
 	"net"
 	"time"
 
+	gcounter "github.com/Laisky/go-utils/v2/counter"
+	"github.com/jinzhu/copier"
 	"github.com/pkg/errors"
 )
 
+var seriaCounter gcounter.Counter
+
+func init() {
+	seriaCounter = *gcounter.NewCounterFromN(time.Now().UnixNano())
+}
+
 // NewX509CSR new CSR
+//
+// if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm,
+// default sig alg is x509.SHA256WithRSA.
 func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
@@ -28,7 +39,7 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 
 	csrTpl := &x509.CertificateRequest{
 		Subject:            tpl.Subject,
-		SignatureAlgorithm: x509.ECDSAWithSHA512,
+		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
 
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
@@ -47,14 +58,14 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	}
 
 	notAfter := opt.validFrom.Add(opt.validFor)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	// serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	// serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate serial number")
 	}
 
 	template := &x509.Certificate{
-		SerialNumber: serialNumber,
+		SerialNumber: big.NewInt(seriaCounter.Count()),
 		Subject: pkix.Name{
 			CommonName:   opt.commonName,
 			Organization: opt.organization,
@@ -69,49 +80,47 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		IPAddresses:           opt.ips,
 	}
 
-	if opt.isCA {
+	switch {
+	case opt.isCA:
 		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign
+		template.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	case opt.isCRLCA:
+		template.KeyUsage |= x509.KeyUsageCRLSign
 	}
 
 	return template, nil
 }
 
-// SignX509CSR sign CSR to certificate
-func SignX509CSR(
+// NewX509CertByCSR sign CSR to certificate
+//
+// csr's attributes will overweite option's attributes.
+// you need verify csr manually before invoke this function.
+func NewX509CertByCSR(
 	ca *x509.Certificate,
 	prikey crypto.PrivateKey,
-	csr *x509.CertificateRequest,
+	csrDer []byte,
 	opts ...X509CertOption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
 	}
 
-	opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...)
+	if !ca.IsCA || (ca.KeyUsage&x509.KeyUsageCertSign) == x509.KeyUsage(0) {
+		return nil, errors.Errorf("ca is invalid to sign cert")
+	}
+
+	csr, err := Der2CSR(csrDer)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "parse csr")
 	}
 
 	// create client certificate template
-	tpl := &x509.Certificate{
-		Signature:          csr.Signature,
-		SignatureAlgorithm: csr.SignatureAlgorithm,
-
-		PublicKeyAlgorithm: csr.PublicKeyAlgorithm,
-		PublicKey:          csr.PublicKey,
-
-		SerialNumber: big.NewInt(2),
-		Issuer:       ca.Subject,
-		Subject:      csr.Subject,
-		NotBefore:    opt.validFrom,
-		NotAfter:     opt.validFrom.Add(opt.validFor),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	tpl, err := NewX509CertTemplate(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new cert template")
 	}
-
-	if opt.isCA {
-		tpl.IsCA = opt.isCA
-		tpl.KeyUsage |= x509.KeyUsageCertSign
+	tpl.Issuer = ca.Subject
+	if err = copier.Copy(tpl, csr); err != nil {
+		return nil, errors.Wrap(err, "copy from csr")
 	}
 
 	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, GetPubkeyFromPrikey(prikey), prikey)
@@ -123,18 +132,20 @@ func SignX509CSR(
 }
 
 type tlsCertOption struct {
-	commonName   string
-	dns          []string
-	ips          []net.IP
-	validFrom    time.Time
-	validFor     time.Duration
-	isCA         bool
-	organization []string
+	commonName    string
+	dns           []string
+	ips           []net.IP
+	validFrom     time.Time
+	validFor      time.Duration
+	isCA, isCRLCA bool
+	organization  []string
+	sigAlg        x509.SignatureAlgorithm
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
 	o.validFrom = time.Now()
 	o.validFor = 7 * 24 * time.Hour
+	o.sigAlg = x509.ECDSAWithSHA512
 
 	return o
 }
@@ -146,6 +157,14 @@ type X509CertOption func(*tlsCertOption) error
 func WithX509CertCommonName(commonName string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.commonName = commonName
+		return nil
+	}
+}
+
+// WithX509CertSignatureAlgorithm set signature algorithm
+func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.sigAlg = sigAlg
 		return nil
 	}
 }
@@ -198,6 +217,14 @@ func WithX509CertIsCA() X509CertOption {
 	}
 }
 
+// WithX509CertIsCRACA set is ca to sign CRL
+func WithX509CertIsCRACA() X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.isCRLCA = true
+		return nil
+	}
+}
+
 func (o *tlsCertOption) applyOpts(opts ...X509CertOption) (*tlsCertOption, error) {
 	for _, f := range opts {
 		if err := f(o); err != nil {
@@ -236,6 +263,61 @@ func NewRSAPrikeyAndCert(rsaBits RSAPrikeyBits, opts ...X509CertOption) (prikeyP
 	return prikeyPem, certDer, errors.Wrap(err, "generate cert")
 }
 
+// Privkey2Signer convert privkey to signer
+func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
+	switch privkey := privkey.(type) {
+	case *rsa.PrivateKey:
+		return privkey
+	case *ecdsa.PrivateKey:
+		return privkey
+	case *ed25519.PrivateKey:
+		return privkey
+	default:
+		return nil
+	}
+}
+
+// NewX509CRL create and sign CRL
+//
+// # Args
+//
+// ca: CA to sign CRL
+//
+// prikey: prikey for CA
+//
+// revokeCerts: certifacates that will be revoked
+//
+// opts: some CRL's attributes.
+//
+//   - WithX509CertValidFrom set CRL's `ThisUpdate`,
+//   - WithX509CertValidFor set CRL's `NextUpdate`.
+func NewX509CRL(ca *x509.Certificate,
+	prikey crypto.PrivateKey,
+	revokeCerts []pkix.RevokedCertificate,
+	opts ...X509CertOption) (crlDer []byte, err error) {
+	if err = validPrikey(prikey); err != nil {
+		return nil, err
+	}
+
+	ctpl, err := NewX509CertTemplate(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse options")
+	}
+
+	tpl := &x509.RevocationList{
+		Number:              big.NewInt(seriaCounter.Count()),
+		Issuer:              ca.Subject,
+		SignatureAlgorithm:  ctpl.SignatureAlgorithm,
+		ThisUpdate:          ctpl.NotBefore,
+		NextUpdate:          ca.NotAfter,
+		Extensions:          ctpl.Extensions,
+		ExtraExtensions:     ca.ExtraExtensions,
+		RevokedCertificates: revokeCerts,
+	}
+
+	return x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
+}
+
 // NewX509Cert new self sign tls cert
 func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
@@ -256,11 +338,14 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 }
 
 func validPrikey(prikey crypto.PrivateKey) error {
-	switch prikey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-	default:
+	if v := Privkey2Signer(prikey); v == nil {
 		return errors.Errorf("not support this type of private key")
 	}
 
 	return nil
+}
+
+// VerifyCRL verify crl by ca
+func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
+	return crl.CheckSignatureFrom(ca)
 }

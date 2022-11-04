@@ -122,6 +122,16 @@ func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(certInDer)
 }
 
+// Der2CSR parse crl der
+func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
+	return x509.ParseCertificateRequest(csrDer)
+}
+
+// Der2CRL parse crl der
+func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
+	return x509.ParseRevocationList(crlDer)
+}
+
 // Pem2Cert parse certificate in pem
 func Pem2Cert(certInPem []byte) (*x509.Certificate, error) {
 	return Der2Cert(Pem2Der(certInPem))
