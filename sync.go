@@ -10,6 +10,8 @@ import (
 )
 
 // Race return when any goroutine returned
+//
+// Deprecated: use RaceErr instead
 func Race(gs ...func()) {
 	cond := sync.NewCond(&sync.Mutex{})
 	for i := range gs {
@@ -27,7 +29,49 @@ func Race(gs ...func()) {
 	cond.L.Unlock()
 }
 
+// RaceErr return when any goroutine returned
+func RaceErr(gs ...func() error) (err error) {
+	var once sync.Once
+	cond := sync.NewCond(&sync.Mutex{})
+	for _, g := range gs {
+		g := g
+		go func() {
+			ierr := g()
+			cond.L.Lock()
+			once.Do(func() { err = ierr })
+			cond.Signal()
+			cond.L.Unlock()
+		}()
+	}
+
+	cond.L.Lock()
+	cond.Wait()
+	cond.L.Unlock()
+
+	return err
+}
+
+// RaceErrWithCtx return when any goroutine returned or ctx canceled
+func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) (err error) {
+	var once sync.Once
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	for _, g := range gs {
+		g := g
+		go func() {
+			ierr := g(ctx)
+			once.Do(func() { err = ierr })
+			cancel()
+		}()
+	}
+
+	<-ctx.Done()
+	return err
+}
+
 // RaceWithCtx return when any goroutine returned or ctx canceled
+//
+// Deprecated: use RaceErrWithCtx instead
 func RaceWithCtx(ctx context.Context, gs ...func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

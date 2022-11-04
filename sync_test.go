@@ -3,14 +3,15 @@ package utils
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/Laisky/go-utils/v2/log"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMutex(t *testing.T) {
@@ -239,4 +240,33 @@ func TestNewFlock(t *testing.T) {
 		require.NoError(t, flock1.Unlock())
 		require.NoError(t, flock2.Unlock())
 	})
+}
+
+func TestRaceErrWithCtx(t *testing.T) {
+	var gs []func(context.Context) error
+	for i := 0; i < 1000; i++ {
+		gs = append(gs, func(ctx context.Context) error {
+			n := rand.Intn(1000)
+			time.Sleep(time.Duration(n) * time.Millisecond)
+			return errors.Errorf("%v", n)
+		})
+	}
+
+	ctx := context.Background()
+	err := RaceErrWithCtx(ctx, gs...)
+	require.Error(t, err)
+}
+
+func TestRaceErr(t *testing.T) {
+	var gs []func() error
+	for i := 0; i < 1000; i++ {
+		gs = append(gs, func() error {
+			n := rand.Intn(1000)
+			time.Sleep(time.Duration(n) * time.Millisecond)
+			return errors.Errorf("%v", n)
+		})
+	}
+
+	err := RaceErr(gs...)
+	require.Error(t, err)
 }
