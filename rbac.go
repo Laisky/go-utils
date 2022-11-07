@@ -110,7 +110,9 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 	}
 
 	for i := range p.Children {
-		p.Children[i].FillDefault(p.FullKey)
+		if err := p.Children[i].FillDefault(p.FullKey); err != nil {
+			return errors.Wrapf(err, "fill default for `%s`", p.Children[i].FullKey.String())
+		}
 	}
 
 	return nil
