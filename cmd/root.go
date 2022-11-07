@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/Laisky/go-utils/v2/log"

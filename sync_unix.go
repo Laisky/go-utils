@@ -7,7 +7,7 @@ import (
 	"io"
 	"syscall"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 )
 
 // FLock lock by file

@@ -1,6 +1,6 @@
 package utils
 
-import "github.com/pkg/errors"
+import "github.com/Laisky/errors"
 
 // JumpHash fatest consistent hashing created by google.
 // inspired by https://medium.com/@dgryski/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8

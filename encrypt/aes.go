@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	gutils "github.com/Laisky/go-utils/v2"

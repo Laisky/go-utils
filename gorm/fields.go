@@ -7,7 +7,7 @@ import (
 	"database/sql/driver"
 	"io"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 
 	gutils "github.com/Laisky/go-utils/v2"
 )

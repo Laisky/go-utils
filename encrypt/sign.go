@@ -10,7 +10,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 )
 
 // // EncodeRSAPrivateKey encode rsa private key to pem bytes

@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 )
 
 // Race return when any goroutine returned

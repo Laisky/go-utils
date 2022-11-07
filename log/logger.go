@@ -6,9 +6,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/Laisky/errors"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
-	"github.com/pkg/errors"
 )
 
 const (

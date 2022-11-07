@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/errors"
 	zap "github.com/Laisky/zap"
-	"github.com/pkg/errors"
 )
 
 func TestAlertHook(t *testing.T) {

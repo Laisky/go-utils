@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/Laisky/errors"
 	skiplist "github.com/Laisky/fast-skiplist"
 	"github.com/Laisky/zap"
 	"github.com/gammazero/deque"
-	"github.com/pkg/errors"
 
 	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/go-utils/v2/log"

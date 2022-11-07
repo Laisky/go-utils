@@ -1,8 +1,8 @@
 package encrypt
 
 import (
+	"github.com/Laisky/errors"
 	"github.com/monnand/dhkx"
-	"github.com/pkg/errors"
 )
 
 // Diffie Hellman Key-exchange algorithm

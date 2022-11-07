@@ -2,8 +2,8 @@
 package jwt
 
 import (
+	"github.com/Laisky/errors"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/pkg/errors"
 
 	gutils "github.com/Laisky/go-utils/v2"
 )

@@ -12,7 +12,7 @@ import (
 	"encoding/pem"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites

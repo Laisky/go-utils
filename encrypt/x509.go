@@ -12,8 +12,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/Laisky/errors"
 	"github.com/jinzhu/copier"
-	"github.com/pkg/errors"
 
 	gcounter "github.com/Laisky/go-utils/v2/counter"
 )

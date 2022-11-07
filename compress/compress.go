@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
-	"github.com/pkg/errors"
 
 	gutils "github.com/Laisky/go-utils/v2"
 	"github.com/Laisky/go-utils/v2/log"

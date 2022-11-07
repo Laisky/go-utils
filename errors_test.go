@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 )
 
 func TestErrorsIs(t *testing.T) {

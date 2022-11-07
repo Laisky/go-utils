@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"

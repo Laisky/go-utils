@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Laisky/errors"
 	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/buffer"
 	"github.com/Laisky/zap/zapcore"
-	"github.com/pkg/errors"
 )
 
 // ================================

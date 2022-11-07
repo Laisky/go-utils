@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors"
 
 	"github.com/Laisky/go-utils/v2/log"
 )
