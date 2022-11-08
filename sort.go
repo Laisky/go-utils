@@ -5,7 +5,7 @@ import (
 
 	zap "github.com/Laisky/zap"
 
-	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 // SortBiggest sort from biggest to smallest

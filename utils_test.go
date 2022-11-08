@@ -18,7 +18,7 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 type testEmbeddedSt struct{}
@@ -168,7 +168,7 @@ func TestIsPtr(t *testing.T) {
 func testFoo() {}
 
 func TestGetFuncName(t *testing.T) {
-	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v2.testFoo" {
+	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v3.testFoo" {
 		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
 }

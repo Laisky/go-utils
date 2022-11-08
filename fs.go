@@ -14,7 +14,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 // MoveFile move file from src to dst by copy

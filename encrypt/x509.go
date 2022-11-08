@@ -15,7 +15,7 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/jinzhu/copier"
 
-	gcounter "github.com/Laisky/go-utils/v2/counter"
+	gcounter "github.com/Laisky/go-utils/v3/counter"
 )
 
 var seriaCounter gcounter.Counter
@@ -347,8 +347,6 @@ func validPrikey(prikey crypto.PrivateKey) error {
 }
 
 // VerifyCRL verify crl by ca
-//
-// only support in go v1.19
-// func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
-// 	return crl.CheckSignatureFrom(ca)
-// }
+func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
+	return crl.CheckSignatureFrom(ca)
+}

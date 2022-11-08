@@ -12,7 +12,7 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 func TestMutex(t *testing.T) {

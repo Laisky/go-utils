@@ -31,7 +31,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/Laisky/go-utils/v2/log"
+	"github.com/Laisky/go-utils/v3/log"
 
 	// automaxprocs compatable with cgroup
 	_ "go.uber.org/automaxprocs"

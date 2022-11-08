@@ -9,8 +9,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v2"
-	"github.com/Laisky/go-utils/v2/log"
+	gutils "github.com/Laisky/go-utils/v3"
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 var (

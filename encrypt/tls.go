@@ -133,24 +133,8 @@ func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
 }
 
 // Der2CRL parse crl der
-//
-// only support go v1.19
-// func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-// 	return x509.ParseRevocationList(crlDer)
-// }
-
-// Der2CRL parse crl der
-//
-// will deprecated in go v1.19
 func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-	cs, err := x509.ParseCRL(crlDer)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse crl")
-	}
-
-	crl := new(x509.RevocationList)
-	crl.RevokedCertificates = cs.TBSCertList.RevokedCertificates
-	return crl, err
+	return x509.ParseRevocationList(crlDer)
 }
 
 // Pem2Cert parse single certificate in pem

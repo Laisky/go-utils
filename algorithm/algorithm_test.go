@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	gutils "github.com/Laisky/go-utils/v2"
+	gutils "github.com/Laisky/go-utils/v3"
 )
 
 func TestNewSkiplist(t *testing.T) {

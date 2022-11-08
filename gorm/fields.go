@@ -9,7 +9,7 @@ import (
 
 	"github.com/Laisky/errors"
 
-	gutils "github.com/Laisky/go-utils/v2"
+	gutils "github.com/Laisky/go-utils/v3"
 )
 
 // GzText store string with gzip into blob
