@@ -69,23 +69,6 @@ func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) (err
 	return err
 }
 
-// RaceWithCtx return when any goroutine returned or ctx canceled
-//
-// Deprecated: use RaceErrWithCtx instead
-func RaceWithCtx(ctx context.Context, gs ...func()) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	for _, g := range gs {
-		g := g
-		go func() {
-			g()
-			cancel()
-		}()
-	}
-
-	<-ctx.Done()
-}
-
 // RunWithTimeout run func with timeout
 func RunWithTimeout(timeout time.Duration, f func()) {
 	Race(f, func() { time.Sleep(timeout) })

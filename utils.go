@@ -96,11 +96,6 @@ func SilentFlush(v interface{ Flush() error }) {
 	_ = v.Flush()
 }
 
-// CloseQuietly
-//
-// Deprecated: use SilentClose instead
-var CloseQuietly = SilentClose
-
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
 
@@ -290,7 +285,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", filepath)
 	}
-	defer CloseQuietly(fp)
+	defer SilentClose(fp)
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return errors.Wrap(err, "read file content")
@@ -429,7 +424,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
 		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
 	}
-	defer CloseQuietly(fp)
+	defer SilentClose(fp)
 
 	if memByte, err = io.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")

@@ -1139,10 +1139,10 @@ func (f *testCloseQuitlyStruct) Close() error {
 	return nil
 }
 
-func TestCloseQuietly(t *testing.T) {
+func TestSilentClose(t *testing.T) {
 
 	f := new(testCloseQuitlyStruct)
-	CloseQuietly(f)
+	SilentClose(f)
 }
 
 func TestContains(t *testing.T) {
