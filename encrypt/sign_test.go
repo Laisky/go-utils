@@ -16,10 +16,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Laisky/go-utils/v2/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v2/log"
 )
 
 const (
@@ -152,10 +151,10 @@ func TestECDSAKeySerializer(t *testing.T) {
 	// }
 	// t.Logf("pri: %v", string(priByte))
 
-	var (
-		priKey2 *ecdsa.PrivateKey
-		// pubKey2 *ecdsa.PublicKey
-	)
+	// var (
+	// 	priKey2 *ecdsa.PrivateKey
+	// 	pubKey2 *ecdsa.PublicKey
+	// )
 	// if _, err = DecodeECDSAPublicKey(pubByte); err != nil {
 	// 	t.Fatalf("%+v", err)
 	// }
@@ -164,7 +163,7 @@ func TestECDSAKeySerializer(t *testing.T) {
 	// }
 
 	hash := sha256.Sum256([]byte("hello, world"))
-	r, s, err := ecdsa.Sign(rand.Reader, priKey2, hash[:])
+	r, s, err := ecdsa.Sign(rand.Reader, priKey, hash[:])
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
