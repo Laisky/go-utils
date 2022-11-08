@@ -117,9 +117,14 @@ func Cert2Der(cert *x509.Certificate) []byte {
 	return cert.Raw
 }
 
-// Der2Cert parse certificate in der
+// Der2Cert parse sigle certificate in der
 func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(certInDer)
+}
+
+// Der2Cert parse multiple certificates in der
+func Der2Certs(certInDer []byte) ([]*x509.Certificate, error) {
+	return x509.ParseCertificates(certInDer)
 }
 
 // Der2CSR parse crl der
@@ -128,18 +133,54 @@ func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
 }
 
 // Der2CRL parse crl der
+//
+// only support go v1.19
+// func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
+// 	return x509.ParseRevocationList(crlDer)
+// }
+
+// Der2CRL parse crl der
+//
+// will deprecated in go v1.19
 func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-	return x509.ParseRevocationList(crlDer)
+	cs, err := x509.ParseCRL(crlDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse crl")
+	}
+
+	crl := new(x509.RevocationList)
+	crl.RevokedCertificates = cs.TBSCertList.RevokedCertificates
+	return crl, err
 }
 
-// Pem2Cert parse certificate in pem
+// Pem2Cert parse single certificate in pem
 func Pem2Cert(certInPem []byte) (*x509.Certificate, error) {
-	return Der2Cert(Pem2Der(certInPem))
+	der, err := Pem2Der(certInPem)
+	if err != nil {
+		return nil, err
+	}
+
+	return Der2Cert(der)
+}
+
+// Pem2Certs parse multiple certificate in pem
+func Pem2Certs(certInPem []byte) ([]*x509.Certificate, error) {
+	der, err := Pem2Der(certInPem)
+	if err != nil {
+		return nil, err
+	}
+
+	return x509.ParseCertificates(der)
 }
 
 // RSAPem2Prikey parse private key from x509 v1(rsa) pem
 func RSAPem2Prikey(x509v1Pem []byte) (*rsa.PrivateKey, error) {
-	return RSADer2Prikey(Pem2Der(x509v1Pem))
+	der, err := Pem2Der(x509v1Pem)
+	if err != nil {
+		return nil, err
+	}
+
+	return RSADer2Prikey(der)
 }
 
 // RSADer2Prikey parse private key from x509 v1(rsa) der
@@ -149,7 +190,12 @@ func RSADer2Prikey(x509v1Der []byte) (*rsa.PrivateKey, error) {
 
 // Pem2Prikey parse private key from x509 v8(general) pem
 func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
-	return Der2Prikey(Pem2Der(x509v8Pem))
+	der, err := Pem2Der(x509v8Pem)
+	if err != nil {
+		return nil, err
+	}
+
+	return Der2Prikey(der)
 }
 
 // Der2Prikey parse private key from der in x509 v8/v1
@@ -177,9 +223,24 @@ func CertDer2Pem(certInDer []byte) (certInDem []byte) {
 }
 
 // Pem2Der convert pem to der
-func Pem2Der(pemBytes []byte) (derBytes []byte) {
-	blk, _ := pem.Decode(pemBytes)
-	return blk.Bytes
+func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
+	var (
+		data = pemBytes
+		blk  *pem.Block
+	)
+	for {
+		blk, data = pem.Decode(data)
+		if blk == nil {
+			return nil, errors.Errorf("pem format invalid")
+		}
+
+		derBytes = append(derBytes, blk.Bytes...)
+		if len(data) == 0 {
+			break
+		}
+	}
+
+	return derBytes, err
 }
 
 // GetPubkeyFromPrikey get pubkey from private key

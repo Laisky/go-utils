@@ -306,12 +306,12 @@ func NewX509CRL(ca *x509.Certificate,
 	}
 
 	tpl := &x509.RevocationList{
-		Number:              big.NewInt(seriaCounter.Count()),
-		Issuer:              ca.Subject,
-		SignatureAlgorithm:  ctpl.SignatureAlgorithm,
-		ThisUpdate:          ctpl.NotBefore,
-		NextUpdate:          ca.NotAfter,
-		Extensions:          ctpl.Extensions,
+		Number: big.NewInt(seriaCounter.Count()),
+		// Issuer:              ca.Subject,
+		SignatureAlgorithm: ctpl.SignatureAlgorithm,
+		ThisUpdate:         ctpl.NotBefore,
+		NextUpdate:         ca.NotAfter,
+		// Extensions:          ctpl.Extensions,
 		ExtraExtensions:     ca.ExtraExtensions,
 		RevokedCertificates: revokeCerts,
 	}
@@ -347,6 +347,8 @@ func validPrikey(prikey crypto.PrivateKey) error {
 }
 
 // VerifyCRL verify crl by ca
-func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
-	return crl.CheckSignatureFrom(ca)
-}
+//
+// only support in go v1.19
+// func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
+// 	return crl.CheckSignatureFrom(ca)
+// }
