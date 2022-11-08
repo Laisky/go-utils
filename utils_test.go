@@ -404,7 +404,6 @@ func TestForceGCUnBlocking(t *testing.T) {
 	}
 
 	require.NoError(t, pool.Wait())
-	t.Error()
 }
 
 func TestReflectSet(t *testing.T) {

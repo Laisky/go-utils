@@ -271,7 +271,7 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 		return privkey
 	case *ecdsa.PrivateKey:
 		return privkey
-	case *ed25519.PrivateKey:
+	case ed25519.PrivateKey:
 		return privkey
 	default:
 		return nil
