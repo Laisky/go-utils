@@ -51,7 +51,7 @@ const (
 )
 
 // CtxKeyT type of context key
-type CtxKeyT struct{}
+type CtxKeyT string
 
 var cloner = cpy.New(
 	cpy.IgnoreAllUnexported(),
