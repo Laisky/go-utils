@@ -50,9 +50,6 @@ const (
 	defaultGCMemRatio         = uint64(85)
 )
 
-// CtxKeyT type of context key
-type CtxKeyT string
-
 var cloner = cpy.New(
 	cpy.IgnoreAllUnexported(),
 )
