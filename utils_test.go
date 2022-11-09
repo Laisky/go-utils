@@ -1151,3 +1151,51 @@ func TestContains(t *testing.T) {
 	require.True(t, Contains([]int{1, 2, 3}, 2))
 	require.False(t, Contains([]int{1, 2, 3}, 4))
 }
+
+func TestCtxKey(t *testing.T) {
+	// Warning: should not use empty type as context key
+	t.Run("empty type as key", func(t *testing.T) {
+		type ctxKey struct{}
+
+		var (
+			keya, keyb ctxKey
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Equal(t, 123, ctx.Value(keyb)) // <- this is incorrect
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+
+	t.Run("string as key", func(t *testing.T) {
+		type ctxKey string
+
+		var (
+			keya ctxKey = "a"
+			keyb ctxKey = "b"
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Nil(t, ctx.Value(keyb))
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+
+	t.Run("different type string as key", func(t *testing.T) {
+		type ctxKeyA string
+		type ctxKeyB string
+
+		var (
+			keya ctxKeyA = "a"
+			keyb ctxKeyB = "a"
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Nil(t, ctx.Value(keyb))
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+}
