@@ -757,7 +757,7 @@ func (c *ExpCache) runClean(ctx context.Context) {
 				//
 				// if new expCacheItem stored just before delete,
 				// may delete item that not expired.
-				// but this condition is rare, so may just add a little cose.
+				// but this condition is rare, so may just add a little cost.
 				c.data.Delete(k)
 			}
 

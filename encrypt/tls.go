@@ -207,6 +207,8 @@ func CertDer2Pem(certInDer []byte) (certInDem []byte) {
 }
 
 // Pem2Der convert pem to der
+//
+// support one or more certs
 func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 	var (
 		data = pemBytes
@@ -225,6 +227,32 @@ func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 	}
 
 	return derBytes, err
+}
+
+// Pem2Ders convert pem to ders
+//
+// support one or more certs
+func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
+	var (
+		data = pemBytes
+		blk  *pem.Block
+	)
+	for {
+		blk, data = pem.Decode(data)
+		if blk == nil {
+			return nil, errors.Errorf("pem format invalid")
+		}
+
+		d := []byte{}
+		d = append(d, blk.Bytes...)
+
+		dersBytes = append(dersBytes, d)
+		if len(data) == 0 {
+			break
+		}
+	}
+
+	return dersBytes, err
 }
 
 // GetPubkeyFromPrikey get pubkey from private key

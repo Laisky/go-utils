@@ -39,8 +39,11 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 	}
 
 	csrTpl := &x509.CertificateRequest{
-		Subject:            tpl.Subject,
 		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	if err = copier.Copy(csrTpl, tpl); err != nil {
+		return nil, errors.Wrap(err, "copy attributes from options to template")
 	}
 
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
