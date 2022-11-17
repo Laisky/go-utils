@@ -107,6 +107,29 @@ func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
 	return PrikeyDer2Pem(der), nil
 }
 
+// Pubkey2Der marshal public key by pkix
+func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
+	switch key.(type) {
+	case *rsa.PublicKey,
+		*ecdsa.PublicKey,
+		ed25519.PublicKey:
+	default:
+		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 public key")
+	}
+
+	return x509.MarshalPKIXPublicKey(key)
+}
+
+// Pubkey2Pem marshal public key to pem
+func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
+	der, err := Pubkey2Der(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return PubkeyDer2Pem(der), nil
+}
+
 // Cert2Pem marshal x509 certificate to pem
 func Cert2Pem(cert *x509.Certificate) []byte {
 	return CertDer2Pem(Cert2Der(cert))
@@ -182,6 +205,16 @@ func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
 	return Der2Prikey(der)
 }
 
+// Pem2Pubkey parse public key from pem
+func Pem2Pubkey(pubkeyPem []byte) (crypto.PublicKey, error) {
+	der, err := Pem2Der(pubkeyPem)
+	if err != nil {
+		return nil, err
+	}
+
+	return Der2Pubkey(der)
+}
+
 // Der2Prikey parse private key from der in x509 v8/v1
 func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
 	prikey, err := x509.ParsePKCS8PrivateKey(prikeyDer)
@@ -196,9 +229,29 @@ func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
 	return prikey, nil
 }
 
+// Der2Pubkey parse public key from der in x509 pkcs1/pkix
+func Der2Pubkey(pubkeyDer []byte) (crypto.PublicKey, error) {
+	rsapubkey, err := x509.ParsePKCS1PublicKey(pubkeyDer)
+	if err != nil && strings.Contains(err.Error(), "ParsePKIXPublicKey") {
+		pubkey, err := x509.ParsePKIXPublicKey(pubkeyDer)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkix")
+		}
+
+		return pubkey, nil
+	}
+
+	return rsapubkey, nil
+}
+
 // PrikeyDer2Pem convert private key in der to pem
 func PrikeyDer2Pem(prikeyInDer []byte) (prikeyInDem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: prikeyInDer})
+}
+
+// PubkeyDer2Pem convert public key in der to pem
+func PubkeyDer2Pem(pubkeyInDer []byte) (prikeyInDem []byte) {
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubkeyInDer})
 }
 
 // CertDer2Pem convert certificate in der to pem

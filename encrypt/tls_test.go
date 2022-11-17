@@ -148,6 +148,60 @@ func TestTLSPrivatekey(t *testing.T) {
 	}
 }
 
+func TestTLSPublickey(t *testing.T) {
+	rsa2048, err := NewRSAPrikey(RSAPrikeyBits2048)
+	require.NoError(t, err)
+	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+	es224, err := NewECDSAPrikey(ECDSACurveP224)
+	require.NoError(t, err)
+	es256, err := NewECDSAPrikey(ECDSACurveP256)
+	require.NoError(t, err)
+	es384, err := NewECDSAPrikey(ECDSACurveP384)
+	require.NoError(t, err)
+	es521, err := NewECDSAPrikey(ECDSACurveP521)
+	require.NoError(t, err)
+	edkey, err := NewEd25519Prikey()
+	require.NoError(t, err)
+
+	for _, key := range []crypto.PublicKey{
+		GetPubkeyFromPrikey(rsa2048),
+		GetPubkeyFromPrikey(rsa3072),
+		GetPubkeyFromPrikey(es224),
+		GetPubkeyFromPrikey(es256),
+		GetPubkeyFromPrikey(es384),
+		GetPubkeyFromPrikey(es521),
+		GetPubkeyFromPrikey(edkey),
+	} {
+		require.NotNil(t, key)
+		der, err := Pubkey2Der(key)
+		require.NoError(t, err)
+
+		pem, err := Pubkey2Pem(key)
+		require.NoError(t, err)
+
+		der2, err := Pem2Der(pem)
+		require.NoError(t, err)
+		require.Equal(t, pem, PubkeyDer2Pem(der2))
+		require.Equal(t, der, der2)
+		der22, err := Pem2Der(pem)
+		require.NoError(t, err)
+		require.Equal(t, der, der22)
+
+		key, err = Pem2Pubkey(pem)
+		require.NoError(t, err)
+		der2, err = Pubkey2Der(key)
+		require.NoError(t, err)
+		require.Equal(t, der, der2)
+
+		key, err = Der2Pubkey(der)
+		require.NoError(t, err)
+		der2, err = Pubkey2Der(key)
+		require.NoError(t, err)
+		require.Equal(t, der, der2)
+	}
+}
+
 func TestPem2Der_multi_certs(t *testing.T) {
 	der, err := Pem2Der([]byte(testCertChain))
 	require.NoError(t, err)
