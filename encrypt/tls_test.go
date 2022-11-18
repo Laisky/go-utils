@@ -2,6 +2,9 @@ package encrypt
 
 import (
 	"crypto"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 	"time"
 
@@ -98,6 +101,20 @@ func TestTLSPrivatekey(t *testing.T) {
 		es521,
 		edkey,
 	} {
+		if rsaPrikey, ok := key.(*rsa.PrivateKey); ok {
+			prider := x509.MarshalPKCS1PrivateKey(rsaPrikey)
+			pripem := PrikeyDer2Pem(prider)
+			prider2, err := Pem2Der(pripem)
+			require.NoError(t, err)
+			require.Equal(t, prider, prider2)
+			key2, err := RSADer2Prikey(prider)
+			require.NoError(t, err)
+			require.True(t, rsaPrikey.Equal(key2))
+			key2, err = RSAPem2Prikey(pripem)
+			require.NoError(t, err)
+			require.True(t, rsaPrikey.Equal(key2))
+		}
+
 		der, err := Prikey2Der(key)
 		require.NoError(t, err)
 
@@ -111,6 +128,11 @@ func TestTLSPrivatekey(t *testing.T) {
 		der22, err := Pem2Der(pem)
 		require.NoError(t, err)
 		require.Equal(t, der, der22)
+
+		ders, err := Pem2Ders(pem)
+		require.NoError(t, err)
+		require.Equal(t, pem, PrikeyDer2Pem(ders[0]))
+		require.Equal(t, der, der2)
 
 		key, err = Pem2Prikey(pem)
 		require.NoError(t, err)
@@ -164,6 +186,9 @@ func TestTLSPublickey(t *testing.T) {
 	edkey, err := NewEd25519Prikey()
 	require.NoError(t, err)
 
+	_, err = Pubkey2Der(nil)
+	require.Error(t, err)
+
 	for _, key := range []crypto.PublicKey{
 		GetPubkeyFromPrikey(rsa2048),
 		GetPubkeyFromPrikey(rsa3072),
@@ -210,4 +235,17 @@ func TestPem2Der_multi_certs(t *testing.T) {
 
 	require.Equal(t, "sgx-coordinator-inter", cs[0].Subject.CommonName)
 	require.Equal(t, "sgx-coordinator", cs[1].Subject.CommonName)
+}
+
+func TestSecureCipherSuites(t *testing.T) {
+	raw := SecureCipherSuites(nil)
+	filtered := SecureCipherSuites(func(cs *tls.CipherSuite) bool {
+		return true
+	})
+	require.Equal(t, len(raw), len(filtered))
+
+	filtered = SecureCipherSuites(func(cs *tls.CipherSuite) bool {
+		return false
+	})
+	require.Zero(t, len(filtered))
 }
