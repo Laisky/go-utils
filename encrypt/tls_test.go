@@ -249,3 +249,21 @@ func TestSecureCipherSuites(t *testing.T) {
 	})
 	require.Zero(t, len(filtered))
 }
+
+func TestVerifyCertByPrikey(t *testing.T) {
+	prikey, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	certPem := CertDer2Pem(certDer)
+
+	err = VerifyCertByPrikey(certPem, prikey)
+	require.NoError(t, err)
+
+	t.Run("different cert", func(t *testing.T) {
+		_, certDer2, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		require.NoError(t, err)
+		certPem2 := CertDer2Pem(certDer2)
+		err = VerifyCertByPrikey(certPem2, prikey)
+		require.Error(t, err)
+	})
+}

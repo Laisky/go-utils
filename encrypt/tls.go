@@ -321,3 +321,9 @@ func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 		return nil
 	}
 }
+
+// VerifyCertByPrikey verify cert by prikey
+func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
+	_, err := tls.X509KeyPair(certPem, prikeyPem)
+	return err
+}
