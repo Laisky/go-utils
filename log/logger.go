@@ -11,6 +11,27 @@ import (
 	"github.com/Laisky/zap/zapcore"
 )
 
+// Logger logger interface
+type Logger interface {
+	zapLoggerItf
+	// Level get current level
+	Level() Level
+	// ChangeLevel change log and all its children's level
+	ChangeLevel(level Level) (err error)
+	// DebugSample debug with sample/1000
+	DebugSample(sample int, msg string, fields ...zapcore.Field)
+	// InfoSample info with sample/1000
+	InfoSample(sample int, msg string, fields ...zapcore.Field)
+	// WarnSample warn with sample/1000
+	WarnSample(sample int, msg string, fields ...zapcore.Field)
+	// Named create named child logger
+	Named(childName string) *LoggerT
+	// With with fields
+	With(fields ...zapcore.Field) *LoggerT
+	// WithOptions with options
+	WithOptions(opts ...zap.Option) *LoggerT
+}
+
 const (
 	// SampleRateDenominator sample rate = sample / SampleRateDenominator
 	SampleRateDenominator = 1000
@@ -87,19 +108,6 @@ type zapLoggerItf interface {
 	Fatal(msg string, fields ...zapcore.Field)
 	Sync() error
 	Core() zapcore.Core
-}
-
-// Logger logger interface
-type Logger interface {
-	zapLoggerItf
-	Level() Level
-	ChangeLevel(level Level) (err error)
-	DebugSample(sample int, msg string, fields ...zapcore.Field)
-	InfoSample(sample int, msg string, fields ...zapcore.Field)
-	WarnSample(sample int, msg string, fields ...zapcore.Field)
-	Named(s string) Logger
-	With(fields ...zapcore.Field) Logger
-	WithOptions(opts ...zap.Option) Logger
 }
 
 // LoggerT extend from zap.Logger
