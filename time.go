@@ -135,8 +135,8 @@ var (
 	Clock = NewClock(context.Background(), defaultClockInterval)
 )
 
-// clock high performance clock with lazy refreshing
-type clock struct {
+// ClockT high performance ClockT with lazy refreshing
+type ClockT struct {
 	sync.RWMutex
 	stopChan chan struct{}
 
@@ -145,8 +145,8 @@ type clock struct {
 }
 
 // NewClock create new Clock
-func NewClock(ctx context.Context, refreshInterval time.Duration) ClockItf {
-	c := &clock{
+func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockT {
+	c := &ClockT{
 		interval: refreshInterval,
 		now:      UTCNow().UnixNano(),
 		stopChan: make(chan struct{}),
@@ -157,11 +157,11 @@ func NewClock(ctx context.Context, refreshInterval time.Duration) ClockItf {
 }
 
 // Close stop Clock update
-func (c *clock) Close() {
+func (c *ClockT) Close() {
 	c.stopChan <- struct{}{}
 }
 
-func (c *clock) runRefresh(ctx context.Context) {
+func (c *ClockT) runRefresh(ctx context.Context) {
 	var interval time.Duration
 	for {
 		select {
@@ -181,22 +181,22 @@ func (c *clock) runRefresh(ctx context.Context) {
 }
 
 // GetUTCNow return Clock current time.Time
-func (c *clock) GetUTCNow() time.Time {
+func (c *ClockT) GetUTCNow() time.Time {
 	return ParseUnixNano2UTC(atomic.LoadInt64(&c.now))
 }
 
 // GetDate return "yyyy-mm-dd"
-func (c *clock) GetDate() (time.Time, error) {
+func (c *ClockT) GetDate() (time.Time, error) {
 	return time.Parse(TimeFormatDate, c.GetUTCNow().Format(TimeFormatDate))
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
-func (c *clock) GetTimeInRFC3339Nano() string {
+func (c *ClockT) GetTimeInRFC3339Nano() string {
 	return c.GetUTCNow().Format(time.RFC3339Nano)
 }
 
 // SetInterval setup update interval
-func (c *clock) SetInterval(interval time.Duration) {
+func (c *ClockT) SetInterval(interval time.Duration) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -204,17 +204,17 @@ func (c *clock) SetInterval(interval time.Duration) {
 }
 
 // GetTimeInHex return current time in hex
-func (c *clock) GetTimeInHex() string {
+func (c *ClockT) GetTimeInHex() string {
 	return strconv.FormatInt(c.GetUTCNow().Unix(), BaseHex)
 }
 
 // GetNanoTimeInHex return current time with nano in hex
-func (c *clock) GetNanoTimeInHex() string {
+func (c *ClockT) GetNanoTimeInHex() string {
 	return strconv.FormatInt(c.GetUTCNow().UnixNano(), BaseHex)
 }
 
 // Interval get current interval
-func (c *clock) Interval() time.Duration {
+func (c *ClockT) Interval() time.Duration {
 	c.RLock()
 	defer c.RUnlock()
 

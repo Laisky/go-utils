@@ -14,11 +14,11 @@ type EmailDialer struct {
 
 // DialAndSend provides a mock function with given fields: m
 func (_m *EmailDialer) DialAndSend(m ...*gomail.Message) error {
-	_va := make([]interface{}, len(m))
+	_va := make([]any, len(m))
 	for _i := range m {
 		_va[_i] = m[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 

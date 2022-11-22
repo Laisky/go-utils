@@ -310,6 +310,6 @@ func (p RBACPermissionElem) Value() (driver.Value, error) {
 }
 
 // Scan implement GORM interface
-func (p *RBACPermissionElem) Scan(input interface{}) error {
+func (p *RBACPermissionElem) Scan(input any) error {
 	return json.Unmarshal(input.([]byte), p)
 }

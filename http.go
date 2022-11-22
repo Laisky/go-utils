@@ -112,11 +112,11 @@ func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 // RequestData http request
 type RequestData struct {
 	Headers map[string]string
-	Data    interface{}
+	Data    any
 }
 
 // RequestJSON request JSON and return JSON by default client
-func RequestJSON(method, url string, request *RequestData, resp interface{}) (err error) {
+func RequestJSON(method, url string, request *RequestData, resp any) (err error) {
 	return RequestJSONWithClient(httpClient, method, url, request, resp)
 }
 
@@ -125,7 +125,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	method,
 	url string,
 	request *RequestData,
-	resp interface{},
+	resp any,
 ) (err error) {
 	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
 
@@ -186,7 +186,7 @@ func HTTPInvalidStatusError(statusCode int) error {
 	return errors.Errorf("got http invalid status code `%d`", statusCode)
 }
 
-func checkRespStatus(c *chaining.Chain) (r interface{}, err error) {
+func checkRespStatus(c *chaining.Chain) (r any, err error) {
 	resp := c.GetVal()
 	code := resp.(*http.Response).StatusCode
 	if code/100 != 2 {
@@ -196,7 +196,7 @@ func checkRespStatus(c *chaining.Chain) (r interface{}, err error) {
 	return resp, nil
 }
 
-func checkRespBody(c *chaining.Chain) (interface{}, error) {
+func checkRespBody(c *chaining.Chain) (any, error) {
 	upErr := c.GetError()
 	resp := c.GetVal().(*http.Response)
 	if upErr == nil {

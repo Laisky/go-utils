@@ -178,7 +178,7 @@ func ExampleGetFuncName() {
 }
 
 func TestFallBack(t *testing.T) {
-	fail := func() interface{} {
+	fail := func() any {
 		panic("got error")
 	}
 	expect := 10
@@ -189,7 +189,7 @@ func TestFallBack(t *testing.T) {
 }
 
 func ExampleFallBack() {
-	targetFunc := func() interface{} {
+	targetFunc := func() any {
 		panic("someting wrong")
 	}
 
@@ -234,7 +234,7 @@ func ExampleRegexNamedSubMatch() {
 }
 
 func TestFlattenMap(t *testing.T) {
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
 	if err := JSON.Unmarshal(j, &data); err != nil {
 		t.Fatalf("got error: %+v", err)
@@ -259,11 +259,11 @@ func TestFlattenMap(t *testing.T) {
 }
 
 func ExampleFlattenMap() {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"a": "1",
-		"b": map[string]interface{}{
+		"b": map[string]any{
 			"c": 2,
-			"d": map[string]interface{}{
+			"d": map[string]any{
 				"e": 3,
 			},
 		},
@@ -280,7 +280,7 @@ func TestTriggerGC(t *testing.T) {
 
 func TestTemplateWithMap(t *testing.T) {
 	tpl := `123${k1} + ${k2}:${k-3} 22`
-	data := map[string]interface{}{
+	data := map[string]any{
 		"k1":  41,
 		"k2":  "abc",
 		"k-3": 213.11,
@@ -632,8 +632,8 @@ func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 
 func TestInArray(t *testing.T) {
 	type args struct {
-		collection interface{}
-		ele        interface{}
+		collection any
+		ele        any
 	}
 	tests := []struct {
 		name string
@@ -710,7 +710,7 @@ func TestExpCache_Store(t *testing.T) {
 func BenchmarkExpMap(b *testing.B) {
 	cm, err := NewLRUExpiredMap(context.Background(),
 		10*time.Millisecond,
-		func() interface{} { return 1 },
+		func() any { return 1 },
 	)
 	if err != nil {
 		b.Fatalf("%+v", err)
@@ -815,7 +815,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 
 func TestNewExpiredMap(t *testing.T) {
 	ctx := context.Background()
-	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
+	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() any { return 666 })
 	require.NoError(t, err)
 
 	const key = "key"
@@ -860,51 +860,51 @@ func Benchmark_Str2Bytes(b *testing.B) {
 
 // func Test_ConvertMap(t *testing.T) {
 // 	{
-// 		input := map[interface{}]string{"123": "23"}
+// 		input := map[any]string{"123": "23"}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": "23"}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": "23"}, got))
 // 	}
 
 // 	{
-// 		input := map[interface{}]int{"123": 23}
+// 		input := map[any]int{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": 23}, got))
 // 	}
 
 // 	{
-// 		input := map[interface{}]uint{"123": 23}
+// 		input := map[any]uint{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": uint(23)}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": uint(23)}, got))
 // 	}
 
 // 	{
 // 		input := map[string]int{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": 23}, got))
 // 	}
 
 // }
 
 func TestConvert2Map(t *testing.T) {
 	type args struct {
-		inputMap interface{}
+		inputMap any
 	}
 	tests := []struct {
 		name string
 		args args
-		want map[string]interface{}
+		want map[string]any
 	}{
-		{"0", args{map[interface{}]string{"123": "23"}}, map[string]interface{}{"123": "23"}},
-		{"1", args{map[interface{}]int{"123": 23}}, map[string]interface{}{"123": 23}},
-		{"2", args{map[interface{}]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
-		{"3", args{map[string]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
-		{"4", args{map[int]uint{123: 23}}, map[string]interface{}{"123": uint(23)}},
-		{"5", args{map[float32]string{float32(123): "23"}}, map[string]interface{}{"123": "23"}},
-		{"6", args{map[float32]int{float32(123): 23}}, map[string]interface{}{"123": 23}},
+		{"0", args{map[any]string{"123": "23"}}, map[string]any{"123": "23"}},
+		{"1", args{map[any]int{"123": 23}}, map[string]any{"123": 23}},
+		{"2", args{map[any]uint{"123": 23}}, map[string]any{"123": uint(23)}},
+		{"3", args{map[string]uint{"123": 23}}, map[string]any{"123": uint(23)}},
+		{"4", args{map[int]uint{123: 23}}, map[string]any{"123": uint(23)}},
+		{"5", args{map[float32]string{float32(123): "23"}}, map[string]any{"123": "23"}},
+		{"6", args{map[float32]int{float32(123): 23}}, map[string]any{"123": 23}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1001,7 +1001,7 @@ func Benchmark_slice(b *testing.B) {
 
 func TestJSONMd5(t *testing.T) {
 	type args struct {
-		data interface{}
+		data any
 	}
 	type foo struct {
 		Name string `json:"name"`
@@ -1037,7 +1037,7 @@ func TestJSONMd5(t *testing.T) {
 func TestNilInterface(t *testing.T) {
 	type foo struct{}
 	var f *foo
-	var v interface{}
+	var v any
 	var tf foo
 
 	v = f

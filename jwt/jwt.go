@@ -36,19 +36,19 @@ func ParseTokenWithoutValidate(token string, payload jwt.Claims) (err error) {
 	return err
 }
 
-// jwtType is token utils that support HS256/ES256
-type jwtType struct {
+// Type is token utils that support HS256/ES256
+type Type struct {
 	secret,
 	priKey, pubKey []byte
 	signingMethod jwt.SigningMethod
 }
 
 // Option options to setup JWT
-type Option func(*jwtType) error
+type Option func(*Type) error
 
 // WithSignMethod set jwt signing method
 func WithSignMethod(method jwt.SigningMethod) Option {
-	return func(e *jwtType) error {
+	return func(e *Type) error {
 		e.signingMethod = method
 		return nil
 	}
@@ -56,7 +56,7 @@ func WithSignMethod(method jwt.SigningMethod) Option {
 
 // WithSecretByte set jwt symmetric signning key
 func WithSecretByte(secret []byte) Option {
-	return func(e *jwtType) error {
+	return func(e *Type) error {
 		e.secret = secret
 		return nil
 	}
@@ -64,7 +64,7 @@ func WithSecretByte(secret []byte) Option {
 
 // WithPriKeyByte set jwt asymmetrical private key
 func WithPriKeyByte(prikey []byte) Option {
-	return func(e *jwtType) error {
+	return func(e *Type) error {
 		e.priKey = prikey
 		return nil
 	}
@@ -72,7 +72,7 @@ func WithPriKeyByte(prikey []byte) Option {
 
 // WithPubKeyByte set jwt asymmetrical public key
 func WithPubKeyByte(pubkey []byte) Option {
-	return func(e *jwtType) error {
+	return func(e *Type) error {
 		e.pubKey = pubkey
 		return nil
 	}
@@ -111,8 +111,8 @@ func WithDividePubKey(pubKey []byte) DivideOption {
 }
 
 // New create new JWT utils
-func New(opts ...Option) (JWT, error) {
-	e := &jwtType{
+func New(opts ...Option) (*Type, error) {
+	e := &Type{
 		signingMethod: defaultSignMethod,
 	}
 
@@ -126,7 +126,7 @@ func New(opts ...Option) (JWT, error) {
 }
 
 // Sign sign claims to token
-func (e *jwtType) Sign(claims jwt.Claims, opts ...DivideOption) (string, error) {
+func (e *Type) Sign(claims jwt.Claims, opts ...DivideOption) (string, error) {
 	switch e.signingMethod {
 	case SignMethodHS256:
 		return e.SignByHS256(claims, opts...)
@@ -138,7 +138,7 @@ func (e *jwtType) Sign(claims jwt.Claims, opts ...DivideOption) (string, error) 
 }
 
 // SignByHS256 signing claims by HS256
-func (e *jwtType) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, error) {
+func (e *Type) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, error) {
 	opt := &divideOpt{
 		secret: e.secret,
 	}
@@ -153,7 +153,7 @@ func (e *jwtType) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, 
 }
 
 // SignByES256 signing claims by ES256
-func (e *jwtType) SignByES256(claims jwt.Claims, opts ...DivideOption) (string, error) {
+func (e *Type) SignByES256(claims jwt.Claims, opts ...DivideOption) (string, error) {
 	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
@@ -174,7 +174,7 @@ func (e *jwtType) SignByES256(claims jwt.Claims, opts ...DivideOption) (string, 
 }
 
 // ParseClaims parse token to claims
-func (e *jwtType) ParseClaims(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+func (e *Type) ParseClaims(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
 	if !gutils.IsPtr(claimsPtr) {
 		return errors.New("claimsPtr must be a pointer")
 	}
@@ -190,7 +190,7 @@ func (e *jwtType) ParseClaims(token string, claimsPtr jwt.Claims, opts ...Divide
 }
 
 // ParseClaimsByHS256 parse token to claims by HS256
-func (e *jwtType) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+func (e *Type) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
 	opt := &divideOpt{
 		secret: e.secret,
 	}
@@ -200,7 +200,7 @@ func (e *jwtType) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ..
 		}
 	}
 
-	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -213,7 +213,7 @@ func (e *jwtType) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ..
 }
 
 // ParseClaimsByES256 parse token to claims by ES256
-func (e *jwtType) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+func (e *Type) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
 	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
@@ -229,7 +229,7 @@ func (e *jwtType) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ..
 		return errors.Wrap(err, "parse es256 public key")
 	}
 
-	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -243,7 +243,7 @@ func (e *jwtType) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ..
 }
 
 // ParseClaimsByRS256 parse token to claims by rs256
-func (e *jwtType) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
+func (e *Type) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...DivideOption) error {
 	opt := &divideOpt{
 		pubKey: e.pubKey,
 		priKey: e.priKey,
@@ -259,7 +259,7 @@ func (e *jwtType) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ..
 		return errors.Wrap(err, "parse rs256 public key")
 	}
 
-	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (interface{}, error) {
+	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}

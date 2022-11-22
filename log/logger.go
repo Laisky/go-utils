@@ -32,7 +32,7 @@ var (
 	* InfoSample(sample int, msg string, fields ...zapcore.Field)
 	* WarnSample(sample int, msg string, fields ...zapcore.Field)
 	 */
-	Shared Logger
+	Shared *LoggerT
 )
 
 // Level logger level
@@ -102,8 +102,8 @@ type Logger interface {
 	WithOptions(opts ...zap.Option) Logger
 }
 
-// logger extend from zap.Logger
-type logger struct {
+// LoggerT extend from zap.Logger
+type LoggerT struct {
 	*zap.Logger
 
 	// level level of current logger
@@ -114,7 +114,7 @@ type logger struct {
 }
 
 // NewWithName create new logger with name
-func NewWithName(name string, level Level, opts ...zap.Option) (l Logger, err error) {
+func NewWithName(name string, level Level, opts ...zap.Option) (l *LoggerT, err error) {
 	return New(
 		WithName(name),
 		WithEncoding(EncodingJSON),
@@ -124,7 +124,7 @@ func NewWithName(name string, level Level, opts ...zap.Option) (l Logger, err er
 }
 
 // NewConsoleWithName create new logger with name
-func NewConsoleWithName(name string, level Level, opts ...zap.Option) (l Logger, err error) {
+func NewConsoleWithName(name string, level Level, opts ...zap.Option) (l *LoggerT, err error) {
 	return New(
 		WithName(name),
 		WithEncoding(EncodingConsole),
@@ -290,7 +290,7 @@ func WithLevel(level Level) Option {
 }
 
 // New create new logger
-func New(optfs ...Option) (l Logger, err error) {
+func New(optfs ...Option) (l *LoggerT, err error) {
 	opt, err := new(option).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func New(optfs ...Option) (l Logger, err error) {
 	}
 	zapLogger = zapLogger.Named(opt.Name)
 
-	l = &logger{
+	l = &LoggerT{
 		Logger: zapLogger,
 		level:  opt.Level,
 	}
@@ -311,7 +311,7 @@ func New(optfs ...Option) (l Logger, err error) {
 }
 
 // Level get current level of logger
-func (l *logger) Level() Level {
+func (l *LoggerT) Level() Level {
 	lvl, err := LevelFromZap(l.level.Level())
 	if err != nil {
 		panic(err)
@@ -321,7 +321,7 @@ func (l *logger) Level() Level {
 }
 
 // Zap return internal z*ap.Logger
-func (l *logger) Zap() *zap.Logger {
+func (l *LoggerT) Zap() *zap.Logger {
 	return l.Logger
 }
 
@@ -329,7 +329,7 @@ func (l *logger) Zap() *zap.Logger {
 //
 // Because all children loggers share the same level as their parent logger,
 // if you modify one logger's level, it will affect all of its parent and children loggers.
-func (l *logger) ChangeLevel(level Level) (err error) {
+func (l *LoggerT) ChangeLevel(level Level) (err error) {
 	lvl, err := LevelToZap(level)
 	if err != nil {
 		return err
@@ -342,7 +342,7 @@ func (l *logger) ChangeLevel(level Level) (err error) {
 
 // DebugSample emit debug log with propability sample/SampleRateDenominator.
 // sample could be [0, 1000], less than 0 means never, great than 1000 means certainly
-func (l *logger) DebugSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *LoggerT) DebugSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -351,7 +351,7 @@ func (l *logger) DebugSample(sample int, msg string, fields ...zapcore.Field) {
 }
 
 // InfoSample emit info log with propability sample/SampleRateDenominator
-func (l *logger) InfoSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *LoggerT) InfoSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -360,7 +360,7 @@ func (l *logger) InfoSample(sample int, msg string, fields ...zapcore.Field) {
 }
 
 // WarnSample emit warn log with propability sample/SampleRateDenominator
-func (l *logger) WarnSample(sample int, msg string, fields ...zapcore.Field) {
+func (l *LoggerT) WarnSample(sample int, msg string, fields ...zapcore.Field) {
 	if rand.Intn(SampleRateDenominator) > sample {
 		return
 	}
@@ -370,8 +370,8 @@ func (l *logger) WarnSample(sample int, msg string, fields ...zapcore.Field) {
 
 // Named adds a new path segment to the logger's name. Segments are joined by
 // periods. By default, Loggers are unnamed.
-func (l *logger) Named(s string) Logger {
-	return &logger{
+func (l *LoggerT) Named(s string) *LoggerT {
+	return &LoggerT{
 		Logger: l.Logger.Named(s),
 		level:  l.level,
 	}
@@ -379,8 +379,8 @@ func (l *logger) Named(s string) Logger {
 
 // With creates a child logger and adds structured context to it. Fields added
 // to the child don't affect the parent, and vice versa.
-func (l *logger) With(fields ...zapcore.Field) Logger {
-	return &logger{
+func (l *LoggerT) With(fields ...zapcore.Field) *LoggerT {
+	return &LoggerT{
 		Logger: l.Logger.With(fields...),
 		level:  l.level,
 	}
@@ -388,8 +388,8 @@ func (l *logger) With(fields ...zapcore.Field) Logger {
 
 // WithOptions clones the current Logger, applies the supplied Options, and
 // returns the resulting Logger. It's safe to use concurrently.
-func (l *logger) WithOptions(opts ...zap.Option) Logger {
-	return &logger{
+func (l *LoggerT) WithOptions(opts ...zap.Option) *LoggerT {
+	return &LoggerT{
 		Logger: l.Logger.WithOptions(opts...),
 		level:  l.level,
 	}

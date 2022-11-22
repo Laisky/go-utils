@@ -18,7 +18,7 @@ func TestGormLogger_Print(t *testing.T) {
 		logger.On("Debug", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		logger.On("Error", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-		for _, msg := range []interface{}{
+		for _, msg := range []any{
 			"drop",
 			"delete",
 			"insert",
@@ -28,8 +28,8 @@ func TestGormLogger_Print(t *testing.T) {
 			[]byte("drop"),
 			123,
 		} {
-			mockFomatter := func(...interface{}) []interface{} {
-				return []interface{}{
+			mockFomatter := func(...any) []any {
+				return []any{
 					"",
 					"",
 					"",
@@ -52,8 +52,8 @@ func TestGormLogger_Print(t *testing.T) {
 	})
 
 	t.Run("short", func(t *testing.T) {
-		mockFomatter := func(...interface{}) []interface{} {
-			return []interface{}{
+		mockFomatter := func(...any) []any {
+			return []any{
 				"yo",
 			}
 		}

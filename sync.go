@@ -267,7 +267,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // 	var (
 // 		query = new(acquireLockMutation)
-// 		vars  = map[string]interface{}{
+// 		vars  = map[string]any{
 // 			"lock_name":    graphql.String(lockName),
 // 			"is_renewal":   graphql.Boolean(opt.isRenewal),
 // 			"duration_sec": graphql.Int(opt.duration.Seconds()),
@@ -284,7 +284,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // func (l *LaiskyRemoteLock) renewalLock(ctx context.Context,
 // query *acquireLockMutation,
-//  vars map[string]interface{}, opt *acquireLockOption) {
+//  vars map[string]any, opt *acquireLockOption) {
 // 	var (
 // 		nRetry   = 0
 // 		err      error
@@ -321,7 +321,7 @@ type ExpiredRLock struct {
 // NewExpiredRLock new ExpiredRLock
 func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, err error) {
 	el = &ExpiredRLock{}
-	el.m, err = NewLRUExpiredMap(ctx, exp, func() interface{} {
+	el.m, err = NewLRUExpiredMap(ctx, exp, func() any {
 		return &sync.RWMutex{}
 	})
 	err = errors.Wrap(err, "new expired rlock")

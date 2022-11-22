@@ -48,7 +48,7 @@ type alertOption struct {
 
 func (o *alertOption) fillDefault() *alertOption {
 	o.encPool = &sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
 		},
 	}
@@ -188,7 +188,7 @@ func (a *Alert) runSender(ctx context.Context) {
 		payload *alertMsg
 		err     error
 		query   = new(alertMutation)
-		vars    = map[string]interface{}{}
+		vars    = map[string]any{}
 	)
 	for {
 		select {

@@ -23,7 +23,7 @@ func SortSmallest(items PairList) PairList {
 // SortItemItf interface of sort item
 type SortItemItf interface {
 	GetValue() int
-	GetData() interface{}
+	GetData() any
 }
 
 // PairList array of sort items

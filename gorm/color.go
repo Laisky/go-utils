@@ -21,11 +21,11 @@ type loggerItf interface {
 // Logger colored logger for gorm
 type Logger struct {
 	logger    loggerItf
-	formatter func(...interface{}) []interface{}
+	formatter func(...any) []any
 }
 
 // NewLogger new gorm sql logger
-func NewLogger(formatter func(...interface{}) []interface{}, logger loggerItf) *Logger {
+func NewLogger(formatter func(...any) []any, logger loggerItf) *Logger {
 	return &Logger{
 		logger:    logger,
 		formatter: formatter,
@@ -33,7 +33,7 @@ func NewLogger(formatter func(...interface{}) []interface{}, logger loggerItf) *
 }
 
 // Print print sql logger
-func (l *Logger) Print(vs ...interface{}) {
+func (l *Logger) Print(vs ...any) {
 	fvs := l.formatter(vs...)
 	var fields []zapcore.Field
 	for i, v := range vs {

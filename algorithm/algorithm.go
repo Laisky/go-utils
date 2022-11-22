@@ -103,11 +103,11 @@ func NewSkiplist() *skiplist.SkipList {
 // itemType item that need to sort
 type itemType[T gutils.Sortable] struct {
 	priority T
-	key      interface{}
+	key      any
 }
 
 // GetKey get key of item
-func (it *itemType[T]) GetKey() interface{} {
+func (it *itemType[T]) GetKey() any {
 	return it.key
 }
 
@@ -155,13 +155,13 @@ func (p *innerHeapQ[T]) Swap(i, j int) {
 }
 
 // Push push new item into heapq
-func (p *innerHeapQ[T]) Push(x interface{}) {
+func (p *innerHeapQ[T]) Push(x any) {
 	item := x.(HeapItemItf[T])
 	p.q = append(p.q, item)
 }
 
 // Remove remove an specific item
-func (p *innerHeapQ[T]) Remove(key interface{}) (ok bool) {
+func (p *innerHeapQ[T]) Remove(key any) (ok bool) {
 	for i, it := range p.q {
 		if it.GetKey() == key {
 			p.q = append(p.q[:i], p.q[i+1:]...)
@@ -173,7 +173,7 @@ func (p *innerHeapQ[T]) Remove(key interface{}) (ok bool) {
 }
 
 // Get get item by key
-func (p *innerHeapQ[T]) Get(key interface{}) HeapItemItf[T] {
+func (p *innerHeapQ[T]) Get(key any) HeapItemItf[T] {
 	for i := range p.q {
 		if p.q[i].GetKey() == key {
 			return p.q[i]
@@ -190,7 +190,7 @@ func (p *innerHeapQ[T]) GetIdx(idx int) HeapItemItf[T] {
 
 // Pop pop from the tail.
 // if `isMaxTop=True`, pop the tail(smallest) item
-func (p *innerHeapQ[T]) Pop() (popped interface{}) {
+func (p *innerHeapQ[T]) Pop() (popped any) {
 	n := len(p.q)
 	if n == 0 {
 		return nil
@@ -206,7 +206,7 @@ func (p *innerHeapQ[T]) Pop() (popped interface{}) {
 //
 // T is the type of priority
 type HeapItemItf[T gutils.Sortable] interface {
-	GetKey() interface{}
+	GetKey() any
 	GetPriority() T
 }
 
@@ -378,7 +378,7 @@ func (h *limitSizeHeap[T]) Pop() HeapItemItf[T] {
 // -------------------------------------
 
 var fifoPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &fifoNode{
 			next: unsafe.Pointer(emptyNode),
 		}
@@ -387,7 +387,7 @@ var fifoPool = sync.Pool{
 
 type fifoNode struct {
 	next unsafe.Pointer
-	d    interface{}
+	d    any
 	// refcnt to avoid ABA problem
 	// refcnt int32
 }
@@ -439,7 +439,7 @@ func NewFIFO() *FIFO {
 }
 
 // Put put an data into queue's tail
-func (f *FIFO) Put(d interface{}) {
+func (f *FIFO) Put(d any) {
 	newNode := fifoPool.Get().(*fifoNode)
 	// for {
 	// 	newNode = fifoPool.Get().(*fifoNode)
@@ -472,7 +472,7 @@ func (f *FIFO) Put(d interface{}) {
 }
 
 // Get pop data from the head of queue
-func (f *FIFO) Get() interface{} {
+func (f *FIFO) Get() any {
 	for {
 		headAddr := atomic.LoadPointer(&f.head)
 		headNode := (*fifoNode)(headAddr)

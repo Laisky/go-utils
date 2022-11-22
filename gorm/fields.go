@@ -31,7 +31,7 @@ func (j GzText) Value() (driver.Value, error) {
 }
 
 // Scan db -> val
-func (j *GzText) Scan(value interface{}) error {
+func (j *GzText) Scan(value any) error {
 	var val []byte
 	switch value := value.(type) {
 	case []byte:
@@ -71,7 +71,7 @@ func (j JSON) Value() (driver.Value, error) {
 }
 
 // Scan db -> val
-func (j *JSON) Scan(value interface{}) error {
+func (j *JSON) Scan(value any) error {
 	if value == nil {
 		*j = nil
 		return nil
