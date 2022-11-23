@@ -155,9 +155,24 @@ func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
 	return x509.ParseCertificateRequest(csrDer)
 }
 
+// CSR2Der marshal csr to der
+func CSR2Der(csr *x509.CertificateRequest) []byte {
+	return csr.Raw
+}
+
 // Der2CRL parse crl der
 func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
 	return x509.ParseRevocationList(crlDer)
+}
+
+// Pem2CSR parse csr from pem
+func Pem2CSR(csrInPem []byte) (*x509.CertificateRequest, error) {
+	csrDer, err := Pem2Der(csrInPem)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse csr pem")
+	}
+
+	return Der2CSR(csrDer)
 }
 
 // Pem2Cert parse single certificate in pem
@@ -245,18 +260,23 @@ func Der2Pubkey(pubkeyDer []byte) (crypto.PublicKey, error) {
 }
 
 // PrikeyDer2Pem convert private key in der to pem
-func PrikeyDer2Pem(prikeyInDer []byte) (prikeyInDem []byte) {
+func PrikeyDer2Pem(prikeyInDer []byte) (prikeyInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: prikeyInDer})
 }
 
 // PubkeyDer2Pem convert public key in der to pem
-func PubkeyDer2Pem(pubkeyInDer []byte) (prikeyInDem []byte) {
+func PubkeyDer2Pem(pubkeyInDer []byte) (prikeyInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubkeyInDer})
 }
 
 // CertDer2Pem convert certificate in der to pem
-func CertDer2Pem(certInDer []byte) (certInDem []byte) {
+func CertDer2Pem(certInDer []byte) (certInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certInDer})
+}
+
+// CSRDer2Pem convert CSR in der to pem
+func CSRDer2Pem(CSRInDer []byte) (CSRInPem []byte) {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: CSRInDer})
 }
 
 // Pem2Der convert pem to der

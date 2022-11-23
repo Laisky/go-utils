@@ -267,3 +267,23 @@ func TestVerifyCertByPrikey(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestDer2CSR(t *testing.T) {
+	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	csrDer, err := NewX509CSR(prikey,
+		WithX509CertCommonName("laisky"),
+	)
+	require.NoError(t, err)
+
+	csr, err := Der2CSR(csrDer)
+	require.NoError(t, err)
+
+	pem := CSRDer2Pem(csrDer)
+
+	csr2, err := Pem2CSR(pem)
+	require.NoError(t, err)
+
+	require.Equal(t, csr, csr2)
+}
