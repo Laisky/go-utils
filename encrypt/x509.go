@@ -129,7 +129,7 @@ func NewX509CertByCSR(
 		return nil, errors.Wrap(err, "copy from csr")
 	}
 
-	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, GetPubkeyFromPrikey(prikey), prikey)
+	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, csr.PublicKey, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}

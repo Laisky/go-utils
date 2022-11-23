@@ -17,7 +17,10 @@ func TestNewX509CSR(t *testing.T) {
 		prikey, err := Pem2Prikey(prikeyPem)
 		require.NoError(t, err)
 
-		csrder, err := NewX509CSR(prikey,
+		csrPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+		require.NoError(t, err)
+
+		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CertCommonName("laisky"),
 		)
 		require.NoError(t, err)
@@ -31,6 +34,7 @@ func TestNewX509CSR(t *testing.T) {
 		)
 		require.Error(t, err)
 	})
+
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertIsCA())
 	require.NoError(t, err)
@@ -38,7 +42,13 @@ func TestNewX509CSR(t *testing.T) {
 	prikey, err := Pem2Prikey(prikeyPem)
 	require.NoError(t, err)
 
-	csrder, err := NewX509CSR(prikey,
+	csrPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	csrPrikeyPem, err := Prikey2Pem(csrPrikey)
+	require.NoError(t, err)
+
+	csrder, err := NewX509CSR(csrPrikey,
 		WithX509CertCommonName("laisky"),
 	)
 	require.NoError(t, err)
@@ -69,6 +79,9 @@ func TestNewX509CSR(t *testing.T) {
 		_, err = newCert.Verify(x509.VerifyOptions{
 			Roots: roots,
 		})
+		require.NoError(t, err)
+
+		err = VerifyCertByPrikey(CertDer2Pem(newCertDer), csrPrikeyPem)
 		require.NoError(t, err)
 	})
 }
