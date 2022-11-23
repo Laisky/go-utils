@@ -71,8 +71,10 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(seriaCounter.Count()),
 		Subject: pkix.Name{
-			CommonName:   opt.commonName,
-			Organization: opt.organization,
+			CommonName:         opt.commonName,
+			Organization:       opt.organization,
+			OrganizationalUnit: opt.organizationUnit,
+			Locality:           opt.locality,
 		},
 		NotBefore: opt.validFrom,
 		NotAfter:  notAfter,
@@ -137,13 +139,15 @@ func NewX509CertByCSR(
 
 type tlsCertOption struct {
 	commonName    string
-	dns           []string
 	ips           []net.IP
 	validFrom     time.Time
 	validFor      time.Duration
 	isCA, isCRLCA bool
-	organization  []string
-	sigAlg        x509.SignatureAlgorithm
+	organization,
+	dns,
+	organizationUnit,
+	locality []string
+	sigAlg x509.SignatureAlgorithm
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
@@ -176,7 +180,23 @@ func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOpti
 // WithX509CertOrganization set organization
 func WithX509CertOrganization(organization []string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.organization = organization
+		o.organization = append(o.organization, organization...)
+		return nil
+	}
+}
+
+// WithX509CertOrganizationUnit set organization unit
+func WithX509CertOrganizationUnit(ou []string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.organizationUnit = append(o.organizationUnit, ou...)
+		return nil
+	}
+}
+
+// WithX509CertLocality set organization unit
+func WithX509CertLocality(l []string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.locality = append(o.locality, l...)
 		return nil
 	}
 }
@@ -184,7 +204,7 @@ func WithX509CertOrganization(organization []string) X509CertOption {
 // WithX509CertDNS set DNS SANs
 func WithX509CertDNS(dns []string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.dns = dns
+		o.dns = append(o.dns, dns...)
 		return nil
 	}
 }
