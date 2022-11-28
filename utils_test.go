@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -541,7 +542,7 @@ func TestRunCMD(t *testing.T) {
 		wantErr    bool
 	}{
 		{"sleep", args{"sleep", []string{"0.1"}}, []byte{}, false},
-		{"sleep-err", args{"sleep", nil}, []byte{}, true},
+		{"sleep-err", args{"sleep", nil}, []byte("sleep: missing operand"), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -550,8 +551,8 @@ func TestRunCMD(t *testing.T) {
 				t.Errorf("RunCMD() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(gotStdout, tt.wantStdout) {
-				t.Errorf("RunCMD() = %v, want %v", gotStdout, tt.wantStdout)
+			if !bytes.Contains(gotStdout, tt.wantStdout) {
+				t.Errorf("RunCMD() = %s, want %s", gotStdout, tt.wantStdout)
 			}
 		})
 	}

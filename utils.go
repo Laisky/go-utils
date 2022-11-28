@@ -652,7 +652,7 @@ func IsPtr(t any) bool {
 
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
-	return exec.CommandContext(ctx, app, args...).Output()
+	return exec.CommandContext(ctx, app, args...).CombinedOutput()
 }
 
 // Base64Encode encode bytes to string use base64
