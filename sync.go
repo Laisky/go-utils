@@ -52,21 +52,30 @@ func RaceErr(gs ...func() error) (err error) {
 }
 
 // RaceErrWithCtx return when any goroutine returned or ctx canceled
-func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) (err error) {
-	var once sync.Once
+func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	resultCh := make(chan error, 1)
 	for _, g := range gs {
 		g := g
 		go func() {
-			ierr := g(ctx)
-			once.Do(func() { err = ierr })
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			err := g(ctx)
+			select {
+			case resultCh <- err:
+			default:
+			}
+
 			cancel()
 		}()
 	}
 
-	<-ctx.Done()
-	return err
+	return <-resultCh
 }
 
 // RunWithTimeout run func with timeout
