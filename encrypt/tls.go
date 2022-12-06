@@ -233,12 +233,16 @@ func Pem2Pubkey(pubkeyPem []byte) (crypto.PublicKey, error) {
 // Der2Prikey parse private key from der in x509 v8/v1
 func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
 	prikey, err := x509.ParsePKCS8PrivateKey(prikeyDer)
-	if err != nil && strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
-		if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
-			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
+	if err != nil {
+		if strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
+			if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
+				return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
+			}
+
+			return prikey, nil
 		}
 
-		return prikey, nil
+		return nil, errors.Wrap(err, "parse by pkcs8")
 	}
 
 	return prikey, nil
