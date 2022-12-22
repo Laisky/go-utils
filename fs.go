@@ -63,6 +63,20 @@ func IsFile(path string) (bool, error) {
 	return !isdir, err
 }
 
+// FileExists is path a valid file
+func FileExists(path string) (bool, error) {
+	ok, err := IsFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, errors.Wrapf(err, "check file %q", path)
+	}
+
+	return ok, nil
+}
+
 // CopyFile copy file content from src to dst
 func CopyFile(src, dst string) (err error) {
 	if err = os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {

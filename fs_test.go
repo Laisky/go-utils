@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v3/log"
 )
 
 func TestDirSize(t *testing.T) {
@@ -409,4 +408,38 @@ func TestFileSHA1(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "2c4dee26eca505ebd8afdad00e417efa5e5e1290", hashed)
 
+}
+
+func TestFileExists(t *testing.T) {
+	dir, err := os.MkdirTemp("", "TestFileExists*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	t.Run("not exists", func(t *testing.T) {
+		fpath := filepath.Join(dir, "laisky")
+		ok, err := FileExists(fpath)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("is dir", func(t *testing.T) {
+		fpath := filepath.Join(dir, "laisky")
+		err := os.MkdirAll(fpath, 0700)
+		require.NoError(t, err)
+
+		ok, err := FileExists(fpath)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("is file", func(t *testing.T) {
+		fpath := filepath.Join(dir, "laisky123")
+		fp, err := os.Create(fpath)
+		require.NoError(t, err)
+		require.NoError(t, fp.Close())
+
+		ok, err := FileExists(fpath)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
 }
