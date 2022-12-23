@@ -111,12 +111,9 @@ func WithFileMode(perm fs.FileMode) CopyFilOptionFunc {
 }
 
 // WithFileFlag how to write dst file
-func WithFileFlag(flags ...int) CopyFilOptionFunc {
+func WithFileFlag(flag int) CopyFilOptionFunc {
 	return func(o *copyFileOption) error {
-		for _, f := range flags {
-			o.flag |= f
-		}
-
+		o.flag |= flag
 		return nil
 	}
 }
