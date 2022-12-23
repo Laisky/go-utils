@@ -133,11 +133,13 @@ func CopyFile(src, dst string, optfs ...CopyFilOptionFunc) (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", src)
 	}
+	defer SilentClose(srcFp)
 
 	dstFp, err := os.OpenFile(dst, opt.flag, opt.mode)
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", dst)
 	}
+	defer SilentClose(dstFp)
 
 	var n int64
 	if n, err = io.Copy(dstFp, srcFp); err != nil {
