@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -77,8 +78,56 @@ func FileExists(path string) (bool, error) {
 	return ok, nil
 }
 
+type copyFileOption struct {
+	mode fs.FileMode
+	flag int
+}
+
+func (o *copyFileOption) fillDefault() *copyFileOption {
+	o.mode = 0640
+	o.flag = os.O_WRONLY
+	return o
+}
+
+func (o *copyFileOption) applyOpts(optfs ...CopyFilOptionFunc) (*copyFileOption, error) {
+	for _, f := range optfs {
+		if err := f(o); err != nil {
+			return nil, errors.Wrap(err, GetFuncName(f))
+		}
+	}
+
+	return o, nil
+}
+
+// CopyFilOptionFunc set options for copy file
+type CopyFilOptionFunc func(o *copyFileOption) error
+
+// WithFileMode if create new dst file, set the file's mode
+func WithFileMode(perm fs.FileMode) CopyFilOptionFunc {
+	return func(o *copyFileOption) error {
+		o.mode = perm
+		return nil
+	}
+}
+
+// WithFileFlag how to write dst file
+func WithFileFlag(flags ...int) CopyFilOptionFunc {
+	return func(o *copyFileOption) error {
+		for _, f := range flags {
+			o.flag |= f
+		}
+
+		return nil
+	}
+}
+
 // CopyFile copy file content from src to dst
-func CopyFile(src, dst string) (err error) {
+func CopyFile(src, dst string, optfs ...CopyFilOptionFunc) (err error) {
+	opt, err := new(copyFileOption).fillDefault().applyOpts(optfs...)
+	if err != nil {
+		return errors.Wrap(err, "apply options")
+	}
+
 	if err = os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
 		return errors.Wrapf(err, "create dir `%s`", dst)
 	}
@@ -88,7 +137,7 @@ func CopyFile(src, dst string) (err error) {
 		return errors.Wrapf(err, "open file `%s`", src)
 	}
 
-	dstFp, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	dstFp, err := os.OpenFile(dst, opt.flag, opt.mode)
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", dst)
 	}
@@ -97,8 +146,11 @@ func CopyFile(src, dst string) (err error) {
 	if n, err = io.Copy(dstFp, srcFp); err != nil {
 		return errors.Wrap(err, "copy file")
 	}
-	log.Shared.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
 
+	log.Shared.Debug("file copied",
+		zap.String("src", src),
+		zap.String("dst", dst),
+		zap.Int64("len", n))
 	return nil
 }
 
