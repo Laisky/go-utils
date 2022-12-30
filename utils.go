@@ -654,7 +654,8 @@ func IsPtr(t any) bool {
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
 	stdout, err = exec.CommandContext(ctx, app, args...).CombinedOutput()
 	if err != nil {
-		return nil, errors.Wrap(err, string(stdout))
+		cmd := strings.Join(append([]string{app}, args...), " ")
+		return stdout, errors.Wrapf(err, "run %q got %q", cmd, stdout)
 	}
 
 	return stdout, nil
