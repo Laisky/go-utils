@@ -32,8 +32,14 @@ func init() {
 var md5DirCMD = &cobra.Command{
 	Use:   "md5dir",
 	Short: "move files to md5 hierachy directories",
-	Long:  "gutils md5dir -i examples/md5dir/ -o examples/md5dir/ -d",
-	Args:  NoExtraArgs,
+	Long: gutils.Dedent(`
+		Move files to hierachy directories splitted by prefix of md5
+
+			go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
+
+			gutils md5dir -i examples/md5dir/
+	`),
+	Args: NoExtraArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := checkMd5DirArg(); err != nil {
 			glog.Shared.Panic("command args invalid", zap.Error(err))
@@ -93,7 +99,11 @@ func checkMd5DirArg() (err error) {
 	}
 
 	if md5DirArg.TargetDir == "" {
-		return errors.Errorf("--output-dir should not be empty")
+		if md5DirArg.SourceDir != "" {
+			md5DirArg.TargetDir = md5DirArg.SourceDir
+		} else {
+			return errors.Errorf("--output-dir should not be empty")
+		}
 	}
 	if md5DirArg.TargetDir, err = filepath.Abs(md5DirArg.TargetDir); err != nil {
 		return errors.Wrap(err, "get abs target dir")
