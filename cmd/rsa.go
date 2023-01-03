@@ -48,7 +48,7 @@ func init() {
 
 // RSASign sign file by rsa
 var RSASign = &cobra.Command{
-	Use:   "sign by RSA & SHA256",
+	Use:   "sign",
 	Short: "sign by RSA & SHA256",
 	Args:  NoExtraArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -61,7 +61,7 @@ var RSASign = &cobra.Command{
 
 // RSAVerify verify file by rsa
 var RSAVerify = &cobra.Command{
-	Use:   "verify by RSA & SHA256",
+	Use:   "verify",
 	Short: "verify by RSA & SHA256",
 	Args:  NoExtraArgs,
 	Run: func(cmd *cobra.Command, args []string) {

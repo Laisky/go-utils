@@ -15,13 +15,45 @@ Many useful golang tools
 ![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v3)
 [![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v3/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
-Install:
+## Use as command-line tools
+
+### Install
 
 ```sh
-go get github.com/Laisky/go-utils/v3
+go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
 ```
 
-## Usage
+Add `$HOME/.go/bin` to your PATH.
+
+### Usage
+
+```sh
+# find and delete duplicate files/ similar images
+gutils remove-dup -d examples/images --dry
+
+# move files to hash-based hierach directories
+gutils md5dir -i examples/md5dir/ --dry
+
+# generate tls cert
+gutils gentls --host 1.2.3.4
+
+# encrypt by aes
+gutils encrypt aes -i <file_path> -s <password>
+
+# sign or verify by rsa
+gutils rsa sign
+gutils rsa verify
+```
+
+## Use as SDK
+
+### Install
+
+```sh
+go get github.com/Laisky/go-utils/v3@latest
+```
+
+### Usage
 
 ```go
 import (
@@ -29,7 +61,7 @@ import (
 )
 ```
 
-## Modules
+### Modules
 
 Contains some useful tools in different directories:
 
