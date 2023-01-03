@@ -18,6 +18,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.5
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
+	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/automaxprocs v1.5.1
@@ -34,6 +35,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect

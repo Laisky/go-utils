@@ -238,19 +238,58 @@ func DirSize(path string) (size int64, err error) {
 	return
 }
 
+type listFilesInDirOption struct {
+	recur bool
+}
+
+func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
+	for _, opt := range opts {
+		if err := opt(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
+
+func Recursive() ListFilesInDirOptionFunc {
+	return func(o *listFilesInDirOption) error {
+		o.recur = true
+		return nil
+	}
+}
+
 // ListFilesInDir list files in dir
-func ListFilesInDir(dir string) (files []string, err error) {
+func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []string, err error) {
+	log.Shared.Debug("ListFilesInDir", zap.String("dir", dir))
+	opt, err := new(listFilesInDirOption).applyOpts(optfs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply options")
+	}
+
 	fs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir `%s`", dir)
 	}
 
 	for _, f := range fs {
+		fpath := filepath.Join(dir, f.Name())
 		if f.IsDir() {
+			if opt.recur {
+				fs, err := ListFilesInDir(fpath, optfs...)
+				if err != nil {
+					return nil, errors.Wrapf(err, "list files in %q", fpath)
+				}
+
+				files = append(files, fs...)
+			}
+
 			continue
 		}
 
-		files = append(files, filepath.Join(dir, f.Name()))
+		files = append(files, fpath)
 	}
 
 	return
