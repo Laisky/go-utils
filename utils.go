@@ -1044,3 +1044,54 @@ func PrettyBuildInfo() string {
 
 	return string(ver)
 }
+
+// IsEmpty is empty
+func IsEmpty(val any) bool {
+	t := reflect.TypeOf(val)
+	v := reflect.ValueOf(val)
+	if t.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return true
+		}
+
+		if v.Elem().IsZero() {
+			return true
+		}
+	} else {
+		if v.IsZero() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// NotEmpty val should not be empty, with pretty error msg
+func NotEmpty(val any, name string) error {
+	t := reflect.TypeOf(val)
+	v := reflect.ValueOf(val)
+	if t.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return errors.Errorf("%q is empty pointer", name)
+		}
+
+		if v.Elem().IsZero() {
+			return errors.Errorf("%q is point to empty elem", name)
+		}
+	} else {
+		if v.IsZero() {
+			return errors.Errorf("%q is empty elem", name)
+		}
+	}
+
+	return nil
+}
+
+// OptionalVal return optionval if not empty
+func OptionalVal[T any](ptr *T, optionalVal T) T {
+	if IsEmpty(ptr) {
+		return optionalVal
+	}
+
+	return *ptr
+}

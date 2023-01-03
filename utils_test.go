@@ -1199,3 +1199,55 @@ func TestCtxKey(t *testing.T) {
 		require.Equal(t, 123, ctx.Value(keya))
 	})
 }
+
+func TestStructFieldRequired(t *testing.T) {
+	v := struct {
+		A  string
+		AP *string
+		B  int
+		BB float64
+	}{
+		A: "123",
+		B: 123,
+	}
+
+	require.NoError(t, NotEmpty(v.A, "A"))
+	require.NoError(t, NotEmpty(&v.A, "*A"))
+	require.ErrorContains(t, NotEmpty(v.AP, "AP"), "is empty pointer")
+
+	emptyString := ""
+	v.AP = &emptyString
+	require.ErrorContains(t, NotEmpty(v.AP, "AP"), "is point to empty elem")
+	require.ErrorContains(t, NotEmpty(*v.AP, "*AP"), "is empty elem")
+
+	require.NoError(t, NotEmpty(v.B, "B"))
+	require.ErrorContains(t, NotEmpty(v.BB, "BB"), "is empty elem")
+}
+
+func TestOptionalVal(t *testing.T) {
+	v := struct {
+		A  string
+		AP *string
+		B  int
+		BB float64
+	}{
+		A: "123",
+		B: 123,
+	}
+
+	optStr := "laisky"
+	optInt := 123
+	optFloat64 := float64(123)
+
+	v.A = OptionalVal(&v.A, optStr)
+	require.Equal(t, v.A, "123")
+
+	v.AP = OptionalVal(&v.AP, &optStr)
+	require.Equal(t, v.AP, &optStr)
+
+	v.B = OptionalVal(&v.B, optInt)
+	require.Equal(t, v.B, optInt)
+
+	v.BB = OptionalVal(&v.BB, optFloat64)
+	require.Equal(t, v.BB, optFloat64)
+}
