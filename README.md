@@ -84,9 +84,3 @@ Contains some useful tools in different directories:
 - `throttle.go`: faster rate limiter
 - `time.go`: faster clock (if you do not enable vdso)
 - `utils`: some useful tools
-
-# Thanks
-
-Thanks to JetBrain support OpenSource License.
-
-<https://www.jetbrains.com/community/opensource/#support>
