@@ -115,7 +115,7 @@ func VerifyFileByRSA(pubkeyPath, filePath string) error {
 		zap.String("file", filePath),
 		zap.String("sig_file", sigFile),
 		zap.ByteString("sig", sigStr),
-		zap.String("cost", fmt.Sprintf("%.2ds", time.Since(startAt)/time.Second)),
+		zap.String("cost", fmt.Sprintf("%.2fs", float64(time.Since(startAt)/time.Second))),
 	)
 
 	return nil
@@ -167,7 +167,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 		zap.String("file", filePath),
 		zap.String("sig_file", sigFile),
 		zap.String("sig", sig),
-		zap.String("cost", fmt.Sprintf("%.2ds", time.Since(startAt)/time.Second)),
+		zap.String("cost", fmt.Sprintf("%.2fs", float64(time.Since(startAt)/time.Second))),
 	)
 
 	return nil
