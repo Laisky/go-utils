@@ -85,6 +85,7 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
+	parseAndFillSans(template, opt.sans)
 
 	switch {
 	case opt.isCA:

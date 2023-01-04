@@ -48,42 +48,42 @@ func TestNewX509CSR(t *testing.T) {
 	csrPrikeyPem, err := Prikey2Pem(csrPrikey)
 	require.NoError(t, err)
 
-	csrder, err := NewX509CSR(csrPrikey,
-		WithX509CertCommonName("laisky"),
-	)
-	require.NoError(t, err)
+	t.Run("set attribtues in csr", func(t *testing.T) {
+		csrder, err := NewX509CSR(csrPrikey,
+			WithX509CertCommonName("laisky"),
+			WithX509CertSans("laisky.com"),
+		)
+		require.NoError(t, err)
 
-	ca, err := Der2Cert(certder)
-	require.NoError(t, err)
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
 
-	newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
-		WithX509CertIsCA(),
-		WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
-	)
-	require.NoError(t, err)
+		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
+			WithX509CertIsCA(),
+			WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
+		)
+		require.NoError(t, err)
 
-	newCert, err := Der2Cert(newCertDer)
-	require.NoError(t, err)
+		newCert, err := Der2Cert(newCertDer)
+		require.NoError(t, err)
 
-	require.Equal(t, "laisky", newCert.Subject.CommonName)
-	require.True(t, newCert.IsCA)
+		require.Equal(t, "laisky", newCert.Subject.CommonName)
+		require.Contains(t, newCert.DNSNames, "laisky.com")
+		require.True(t, newCert.IsCA)
 
-	t.Run("verify", func(t *testing.T) {
-		// ca, err := Der2Cert(certder)
-		// require.NoError(t, err)
-		// require.False(t, ca.IsCA)
-		// require.Equal(t, x509.KeyUsage(0), ca.KeyUsage&x509.KeyUsageCertSign)
+		t.Run("verify", func(t *testing.T) {
+			roots := x509.NewCertPool()
+			roots.AppendCertsFromPEM(CertDer2Pem(certder))
+			_, err = newCert.Verify(x509.VerifyOptions{
+				Roots: roots,
+			})
+			require.NoError(t, err)
 
-		roots := x509.NewCertPool()
-		roots.AppendCertsFromPEM(CertDer2Pem(certder))
-		_, err = newCert.Verify(x509.VerifyOptions{
-			Roots: roots,
+			err = VerifyCertByPrikey(CertDer2Pem(newCertDer), csrPrikeyPem)
+			require.NoError(t, err)
 		})
-		require.NoError(t, err)
-
-		err = VerifyCertByPrikey(CertDer2Pem(newCertDer), csrPrikeyPem)
-		require.NoError(t, err)
 	})
+
 }
 
 func TestNewX509CRL(t *testing.T) {
