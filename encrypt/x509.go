@@ -215,8 +215,10 @@ func WithX509CertLocality(l ...string) X509CertOption {
 	}
 }
 
-// WithX509CertSans set DNS SANs
-func WithX509CertSans(sans ...string) X509CertOption {
+// WithX509CertSANS set certificate SANs
+//
+// auto parse to ip/email/url/dns
+func WithX509CertSANS(sans ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.sans = append(o.sans, sans...)
 		return nil
