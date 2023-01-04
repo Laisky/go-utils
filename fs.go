@@ -79,17 +79,18 @@ func FileExists(path string) (bool, error) {
 }
 
 type copyFileOption struct {
-	mode fs.FileMode
-	flag int
+	mode      fs.FileMode
+	flag      int
+	overwrite bool
 }
 
 func (o *copyFileOption) fillDefault() *copyFileOption {
 	o.mode = 0640
-	o.flag = os.O_WRONLY
+	o.flag = os.O_WRONLY | os.O_CREATE
 	return o
 }
 
-func (o *copyFileOption) applyOpts(optfs ...CopyFilOptionFunc) (*copyFileOption, error) {
+func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption, error) {
 	for _, f := range optfs {
 		if err := f(o); err != nil {
 			return nil, errors.Wrap(err, GetFuncName(f))
@@ -99,11 +100,11 @@ func (o *copyFileOption) applyOpts(optfs ...CopyFilOptionFunc) (*copyFileOption,
 	return o, nil
 }
 
-// CopyFilOptionFunc set options for copy file
-type CopyFilOptionFunc func(o *copyFileOption) error
+// CopyFileOptionFunc set options for copy file
+type CopyFileOptionFunc func(o *copyFileOption) error
 
 // WithFileMode if create new dst file, set the file's mode
-func WithFileMode(perm fs.FileMode) CopyFilOptionFunc {
+func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.mode = perm
 		return nil
@@ -111,15 +112,23 @@ func WithFileMode(perm fs.FileMode) CopyFilOptionFunc {
 }
 
 // WithFileFlag how to write dst file
-func WithFileFlag(flag int) CopyFilOptionFunc {
+func WithFileFlag(flag int) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.flag |= flag
 		return nil
 	}
 }
 
+func Overwrite() CopyFileOptionFunc {
+	return func(o *copyFileOption) error {
+		o.overwrite = true
+		o.flag |= os.O_TRUNC
+		return nil
+	}
+}
+
 // CopyFile copy file content from src to dst
-func CopyFile(src, dst string, optfs ...CopyFilOptionFunc) (err error) {
+func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 	opt, err := new(copyFileOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return errors.Wrap(err, "apply options")
@@ -134,6 +143,14 @@ func CopyFile(src, dst string, optfs ...CopyFilOptionFunc) (err error) {
 		return errors.Wrapf(err, "open file `%s`", src)
 	}
 	defer SilentClose(srcFp)
+
+	if !opt.overwrite {
+		if ok, err := FileExists(dst); err != nil {
+			return errors.Wrapf(err, "check file %q", dst)
+		} else if ok {
+			return errors.Errorf("file %q exists", dst)
+		}
+	}
 
 	dstFp, err := os.OpenFile(dst, opt.flag, opt.mode)
 	if err != nil {

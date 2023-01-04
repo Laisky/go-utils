@@ -16,7 +16,7 @@ import (
 	"github.com/Laisky/go-utils/v3/log"
 )
 
-// AesEncrypt encrypt bytes by aes with key
+// AesEncrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
@@ -59,7 +59,7 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, cnt, nil), nil
 }
 
-// AesDecrypt encrypt bytes by aes with key
+// AesDecrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //

@@ -21,7 +21,7 @@ func TestDirSize(t *testing.T) {
 	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
 	size, err := DirSize(".")
 	if err != nil {
-		t.Fatalf("%+v", err)
+		require.NoError(t, err)
 	}
 	t.Logf("size: %v", size)
 	// t.Error()
@@ -43,60 +43,70 @@ func TestCopyFile(t *testing.T) {
 	})
 
 	dir, err := os.MkdirTemp("", "TestCopyFile")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	if err = log.Shared.ChangeLevel(log.LevelDebug); err != nil {
-		t.Fatal(err)
-	}
+	err = log.Shared.ChangeLevel(log.LevelDebug)
+	require.NoError(t, err)
 
-	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
 	src := filepath.Join(dir, "src")
-	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer srcFp.Close()
+	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
+	t.Run("prepare src file", func(t *testing.T) {
+		srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
+		require.NoError(t, err)
+		defer srcFp.Close()
 
-	if _, err = srcFp.Write(raw); err != nil {
-		t.Fatal(err)
-	}
+		_, err = srcFp.Write(raw)
+		require.NoError(t, err)
+	})
 
 	dst := filepath.Join(dir, "dst")
-	if err = CopyFile(src, dst); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("copy new file", func(t *testing.T) {
+		err = CopyFile(src, dst)
+		require.NoError(t, err)
 
-	if err = srcFp.Close(); err != nil {
-		t.Fatal(err)
-	}
+		got, err := os.ReadFile(dst)
+		require.NoError(t, err)
 
-	got, err := os.ReadFile(dst)
-	if err != nil {
-		t.Fatal(err)
-	}
+		if !bytes.Equal(raw, got) {
+			require.NoError(t, err)
+		}
 
-	if !bytes.Equal(raw, got) {
-		t.Fatalf("got %s", string(got))
-	}
+		got, err = os.ReadFile(src)
+		require.NoError(t, err)
 
-	if got, err = os.ReadFile(src); err != nil {
-		t.Fatal(err)
-	}
+		if !bytes.Equal(raw, got) {
+			require.NoError(t, err)
+		}
+	})
 
-	if !bytes.Equal(raw, got) {
-		t.Fatalf("got %s", string(got))
-	}
+	raw = []byte(RandomStringWithLength(100))
+	t.Run("copy overwrite", func(t *testing.T) {
+
+		err = CopyFile(src, dst)
+		require.ErrorContains(t, err, "exists")
+
+		fp, err := os.OpenFile(src, os.O_TRUNC|os.O_WRONLY, 0644)
+		require.NoError(t, err)
+
+		_, err = fp.Write(raw)
+		require.NoError(t, err)
+		require.NoError(t, fp.Close())
+
+		// overwrite by new content
+		err = CopyFile(src, dst, Overwrite())
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(dst)
+		require.NoError(t, err)
+		require.Equal(t, raw, got)
+	})
 }
 
 func TestMoveFile(t *testing.T) {
 	dir, err := os.MkdirTemp("", "TestMoveFile")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
@@ -106,14 +116,11 @@ func TestMoveFile(t *testing.T) {
 	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
 	src := filepath.Join(dir, "src")
 	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer srcFp.Close()
 
-	if _, err = srcFp.Write(raw); err != nil {
-		t.Fatal(err)
-	}
+	_, err = srcFp.Write(raw)
+	require.NoError(t, err)
 
 	dst := filepath.Join(dir, "dst")
 	err = MoveFile(src, dst)
@@ -129,47 +136,36 @@ func TestMoveFile(t *testing.T) {
 	got, err := os.ReadFile(dst)
 	require.NoError(t, err)
 
-	if !bytes.Equal(raw, got) {
-		t.Fatalf("got %s", string(got))
-	}
+	require.Equal(t, raw, got)
 
-	if _, err = os.Stat(src); !os.IsNotExist(err) {
-		t.Fatal(err)
-	}
+	_, err = os.Stat(src)
+	require.True(t, os.IsNotExist(err))
 }
 
 func TestIsDirWritable(t *testing.T) {
 	dir, err := os.MkdirTemp("", "fs")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
 	dirWritable := filepath.Join(dir, "writable")
-	if err = os.Mkdir(dirWritable, os.ModePerm|os.ModeDir); err != nil {
-		t.Fatalf("mkdir %+v", err)
-	}
+	err = os.Mkdir(dirWritable, os.ModePerm|os.ModeDir)
+	require.NoError(t, err)
 
 	dirNotWritable := filepath.Join(dir, "notwritable")
-	if err = os.Mkdir(dirNotWritable, os.FileMode(0444)|os.ModeDir); err != nil {
-		t.Fatalf("mkdir %+v", err)
-	}
+	err = os.Mkdir(dirNotWritable, os.FileMode(0444)|os.ModeDir)
+	require.NoError(t, err)
 
-	if err := IsDirWritable(dirWritable); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	err = IsDirWritable(dirWritable)
+	require.NoError(t, err)
 
-	if err := IsDirWritable(dirNotWritable); err == nil {
-		t.Fatal()
-	}
+	err = IsDirWritable(dirNotWritable)
+	require.NoError(t, err)
 }
 
 func TestIsDir(t *testing.T) {
 	dir, err := os.MkdirTemp("", "fs")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
@@ -190,9 +186,7 @@ func TestIsDir(t *testing.T) {
 
 func TestListFilesInDir(t *testing.T) {
 	dir, err := os.MkdirTemp("", "fs")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
