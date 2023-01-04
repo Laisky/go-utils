@@ -10,6 +10,8 @@ import (
 	"crypto/x509/pkix"
 	"math/big"
 	"net"
+	"net/mail"
+	"net/url"
 	"time"
 
 	"github.com/Laisky/errors"
@@ -82,8 +84,6 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		DNSNames:              opt.dns,
-		IPAddresses:           opt.ips,
 	}
 
 	switch {
@@ -95,6 +95,20 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	}
 
 	return template, nil
+}
+
+func parseAndFillSans(tpl *x509.Certificate, sans []string) {
+	for i := range sans {
+		if ip := net.ParseIP(sans[i]); ip != nil {
+			tpl.IPAddresses = append(tpl.IPAddresses, ip)
+		} else if email, err := mail.ParseAddress(sans[i]); err == nil && email != nil {
+			tpl.EmailAddresses = append(tpl.EmailAddresses, email.Address)
+		} else if uri, err := url.ParseRequestURI(sans[i]); err == nil && uri != nil {
+			tpl.URIs = append(tpl.URIs, uri)
+		} else {
+			tpl.DNSNames = append(tpl.DNSNames, sans[i])
+		}
+	}
 }
 
 // NewX509CertByCSR sign CSR to certificate
@@ -139,14 +153,13 @@ func NewX509CertByCSR(
 
 type tlsCertOption struct {
 	commonName    string
-	ips           []net.IP
 	validFrom     time.Time
 	validFor      time.Duration
 	isCA, isCRLCA bool
 	organization,
-	dns,
 	organizationUnit,
 	locality []string
+	sans   []string
 	sigAlg x509.SignatureAlgorithm
 }
 
@@ -178,7 +191,7 @@ func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOpti
 }
 
 // WithX509CertOrganization set organization
-func WithX509CertOrganization(organization []string) X509CertOption {
+func WithX509CertOrganization(organization ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.organization = append(o.organization, organization...)
 		return nil
@@ -186,7 +199,7 @@ func WithX509CertOrganization(organization []string) X509CertOption {
 }
 
 // WithX509CertOrganizationUnit set organization unit
-func WithX509CertOrganizationUnit(ou []string) X509CertOption {
+func WithX509CertOrganizationUnit(ou ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.organizationUnit = append(o.organizationUnit, ou...)
 		return nil
@@ -194,25 +207,17 @@ func WithX509CertOrganizationUnit(ou []string) X509CertOption {
 }
 
 // WithX509CertLocality set organization unit
-func WithX509CertLocality(l []string) X509CertOption {
+func WithX509CertLocality(l ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.locality = append(o.locality, l...)
 		return nil
 	}
 }
 
-// WithX509CertDNS set DNS SANs
-func WithX509CertDNS(dns []string) X509CertOption {
+// WithX509CertSans set DNS SANs
+func WithX509CertSans(sans ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.dns = append(o.dns, dns...)
-		return nil
-	}
-}
-
-// WithX509CertIPs set IP SANs
-func WithX509CertIPs(ips []net.IP) X509CertOption {
-	return func(o *tlsCertOption) error {
-		o.ips = ips
+		o.sans = append(o.sans, sans...)
 		return nil
 	}
 }
@@ -253,18 +258,6 @@ func (o *tlsCertOption) applyOpts(opts ...X509CertOption) (*tlsCertOption, error
 	for _, f := range opts {
 		if err := f(o); err != nil {
 			return nil, err
-		}
-	}
-
-	if len(o.dns) == 0 {
-		o.dns = append(o.dns, o.commonName)
-	}
-
-	if len(o.ips) == 0 {
-		for _, addr := range o.dns {
-			if ip := net.ParseIP(addr); ip != nil {
-				o.ips = append(o.ips, ip)
-			}
 		}
 	}
 
