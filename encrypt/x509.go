@@ -81,18 +81,14 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		NotBefore: opt.validFrom,
 		NotAfter:  notAfter,
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		KeyUsage:              opt.keyUsage,
+		ExtKeyUsage:           opt.extKeyUsage,
 		BasicConstraintsValid: true,
 	}
 	parseAndFillSans(template, opt.sans)
 
-	switch {
-	case opt.isCA:
+	if opt.isCA {
 		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
-	case opt.isCRLCA:
-		template.KeyUsage |= x509.KeyUsageCRLSign
 	}
 
 	return template, nil
@@ -160,14 +156,18 @@ type tlsCertOption struct {
 	organization,
 	organizationUnit,
 	locality []string
-	sans   []string
-	sigAlg x509.SignatureAlgorithm
+	sans        []string
+	sigAlg      x509.SignatureAlgorithm
+	keyUsage    x509.KeyUsage
+	extKeyUsage []x509.ExtKeyUsage
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
 	o.validFrom = time.Now()
 	o.validFor = 7 * 24 * time.Hour
 	o.sigAlg = x509.ECDSAWithSHA512
+	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
 
 	return o
 }
@@ -179,6 +179,22 @@ type X509CertOption func(*tlsCertOption) error
 func WithX509CertCommonName(commonName string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.commonName = commonName
+		return nil
+	}
+}
+
+// WithX509CertKeyUsage add key usage
+func WithX509CertKeyUsage(usage x509.KeyUsage) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.keyUsage |= usage
+		return nil
+	}
+}
+
+// WithX509ExtCertKeyUsage add key usage
+func WithX509ExtCertKeyUsage(usage ...x509.ExtKeyUsage) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.extKeyUsage = append(o.extKeyUsage, usage...)
 		return nil
 	}
 }
@@ -245,6 +261,7 @@ func WithX509CertValidFor(validFor time.Duration) X509CertOption {
 func WithX509CertIsCA() X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.isCA = true
+		o.keyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		return nil
 	}
 }
@@ -253,6 +270,7 @@ func WithX509CertIsCA() X509CertOption {
 func WithX509CertIsCRACA() X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.isCRLCA = true
+		o.keyUsage |= x509.KeyUsageCRLSign
 		return nil
 	}
 }
