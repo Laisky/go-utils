@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/Laisky/errors"
-	gutils "github.com/Laisky/go-utils/v3"
-	glog "github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/rivo/duplo"
 	"github.com/spf13/cobra"
+
+	gutils "github.com/Laisky/go-utils/v3"
+	glog "github.com/Laisky/go-utils/v3/log"
 )
 
 var removeDupArg struct {
@@ -72,7 +73,7 @@ func removeDuplicate(dry bool, dir string) error {
 
 		glog.Shared.Debug("check duplicate by similar images", zap.String("file", fpath))
 		if err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
-			return errors.Wrapf(err, "check similary for images %q", fpath)
+			return errors.Wrapf(err, "check similarly for images %q", fpath)
 		}
 	}
 
@@ -135,7 +136,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
 			zap.Float64("score", otherFile.Score),
 			zap.String("keep", keepPath),
 			zap.String("remove", deletePath))
-		// jsut submit suggestion, do not real delete files
+		// just submit suggestion, do not real delete files
 		// if !dry {
 		// 	return removeFile(deletePath)
 		// }

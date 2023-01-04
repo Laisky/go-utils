@@ -145,6 +145,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 	}
 
 	sigFile := filePath + ".sig"
+	//nolint:gosec // G302: Expect file permissions to be 0600 or less
 	sigFp, err := os.OpenFile(sigFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
 	if err != nil {
 		return errors.Wrapf(err, "generate signature file %q", sigFile)

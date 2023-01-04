@@ -51,7 +51,7 @@ func TestNewX509CSR(t *testing.T) {
 	t.Run("set attribtues in csr", func(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CertCommonName("laisky"),
-			WithX509CertSans("laisky.com"),
+			WithX509CertSANS("laisky.com"),
 		)
 		require.NoError(t, err)
 

@@ -119,6 +119,7 @@ func WithFileFlag(flag int) CopyFileOptionFunc {
 	}
 }
 
+// Overwrite overwrite file if target existed
 func Overwrite() CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.overwrite = true
@@ -269,6 +270,7 @@ func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*lis
 	return o, nil
 }
 
+// ListFilesInDirOptionFunc options for ListFilesInDir
 type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
 
 func Recursive() ListFilesInDirOptionFunc {

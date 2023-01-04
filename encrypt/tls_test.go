@@ -151,7 +151,7 @@ func TestTLSPrivatekey(t *testing.T) {
 		t.Run("cert", func(t *testing.T) {
 			der, err := NewX509Cert(key,
 				WithX509CertCommonName("laisky"),
-				WithX509CertSans("laisky"),
+				WithX509CertSANS("laisky"),
 				WithX509CertIsCA(),
 				WithX509CertOrganization("laisky"),
 				WithX509CertValidFrom(time.Now()),

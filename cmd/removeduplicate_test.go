@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	gutils "github.com/Laisky/go-utils/v3"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v3"
 )
 
 func Test_removeDuplicate(t *testing.T) {

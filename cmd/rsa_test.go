@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	gutils "github.com/Laisky/go-utils/v3"
 	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_signFileByRSA(t *testing.T) {

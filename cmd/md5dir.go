@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 
 	"github.com/Laisky/errors"
-	gutils "github.com/Laisky/go-utils/v3"
-	glog "github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
+
+	gutils "github.com/Laisky/go-utils/v3"
+	glog "github.com/Laisky/go-utils/v3/log"
 )
 
 var md5DirArg struct {
@@ -31,9 +32,9 @@ func init() {
 // md5DirCMD encrypt files
 var md5DirCMD = &cobra.Command{
 	Use:   "md5dir",
-	Short: "move files to md5 hierachy directories",
+	Short: "move files to md5 hierarchy directories",
 	Long: gutils.Dedent(`
-		Move files to hierachy directories splitted by prefix of md5
+		Move files to hierarchy directories splitted by prefix of md5
 
 			go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
 
