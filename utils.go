@@ -664,7 +664,7 @@ func RunCMDWithEnv(ctx context.Context, app string,
 	cmd := exec.CommandContext(ctx, app, args...)
 
 	if len(envs) != 0 {
-		cmd.Env = append(os.Environ(), envs...)
+		cmd.Env = append(cmd.Env, envs...)
 	}
 
 	stdout, err = cmd.CombinedOutput()
