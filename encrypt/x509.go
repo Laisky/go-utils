@@ -153,10 +153,13 @@ type tlsCertOption struct {
 	organization,
 	organizationUnit,
 	locality []string
-	sans               []string
-	sigAlg             x509.SignatureAlgorithm
-	keyUsage           x509.KeyUsage
-	extKeyUsage        []x509.ExtKeyUsage
+	sans        []string
+	sigAlg      x509.SignatureAlgorithm
+	keyUsage    x509.KeyUsage
+	extKeyUsage []x509.ExtKeyUsage
+	// signatureAlgorithm specific signature algorithm manually
+	//
+	// default to auto choose algorithm depends on certificate's algorithm
 	signatureAlgorithm x509.SignatureAlgorithm
 }
 
@@ -166,7 +169,6 @@ func (o *tlsCertOption) fillDefault() *tlsCertOption {
 	o.sigAlg = x509.ECDSAWithSHA512
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
-	o.signatureAlgorithm = x509.SHA256WithRSA
 
 	return o
 }

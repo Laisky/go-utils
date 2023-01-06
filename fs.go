@@ -273,6 +273,7 @@ func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*lis
 // ListFilesInDirOptionFunc options for ListFilesInDir
 type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
 
+// Recursive list files recursively
 func Recursive() ListFilesInDirOptionFunc {
 	return func(o *listFilesInDirOption) error {
 		o.recur = true

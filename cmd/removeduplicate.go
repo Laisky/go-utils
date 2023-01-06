@@ -67,23 +67,27 @@ func removeDuplicate(dry bool, dir string) error {
 	fileHashes := map[string]*dupFile{}
 	for _, fpath := range files {
 		glog.Shared.Debug("check duplicate by content hash", zap.String("file", fpath))
-		if err := checkDupByHash(dry, fileHashes, fpath); err != nil {
+		if deleted, err := checkDupByHash(dry, fileHashes, fpath); err != nil {
 			return errors.Wrapf(err, "check hash duplicate for file %q", fpath)
+		} else if deleted {
+			continue
 		}
 
 		glog.Shared.Debug("check duplicate by similar images", zap.String("file", fpath))
-		if err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
+		if deleted, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
 			return errors.Wrapf(err, "check similarly for images %q", fpath)
+		} else if deleted {
+			continue
 		}
 	}
 
 	return nil
 }
 
-func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
+func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted bool, err error) {
 	fp, err := os.Open(fpath)
 	if err != nil {
-		return errors.Wrapf(err, "open file %q", fpath)
+		return false, errors.Wrapf(err, "open file %q", fpath)
 	}
 	defer gutils.SilentClose(fp)
 
@@ -91,19 +95,19 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
 	switch strings.ToLower(filepath.Ext(fpath)) {
 	case ".jpeg", ".jpg":
 		if img, err = jpeg.Decode(fp); err != nil {
-			return errors.Wrapf(err, "decode jpeg file %q", fpath)
+			return false, errors.Wrapf(err, "decode jpeg file %q", fpath)
 		}
 	case ".png":
 		if img, err = png.Decode(fp); err != nil {
-			return errors.Wrapf(err, "decode png file %q", fpath)
+			return false, errors.Wrapf(err, "decode png file %q", fpath)
 		}
 	case ".gif":
 		if img, err = gif.Decode(fp); err != nil {
-			return errors.Wrapf(err, "decode gif file %q", fpath)
+			return false, errors.Wrapf(err, "decode gif file %q", fpath)
 		}
 	default:
 		glog.Shared.Debug("skip for unsupported image", zap.String("file", fpath))
-		return nil
+		return false, nil
 	}
 
 	glog.Shared.Debug("check similar for images", zap.String("file", fpath))
@@ -120,7 +124,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
 		otherFp := otherFile.ID.(string)
 		keepCurrentFile, err := fileSizeBiggerThan(fpath, otherFp)
 		if err != nil {
-			return errors.Wrap(err, "compare file size")
+			return false, errors.Wrap(err, "compare file size")
 		}
 
 		deletePath := fpath
@@ -138,7 +142,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
 			zap.String("remove", deletePath))
 		// just submit suggestion, do not real delete files
 		// if !dry {
-		// 	return removeFile(deletePath)
+		// 	return true, removeFile(deletePath)
 		// }
 
 		break
@@ -148,8 +152,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) error {
 		store.Add(fpath, hash)
 	}
 
-	return nil
-
+	return false, nil
 }
 
 func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
@@ -166,15 +169,15 @@ func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
 	return finfo1.Size() > finfo2.Size(), nil
 }
 
-func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) error {
+func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) (deleted bool, err error) {
 	fhash, err := gutils.FileSHA1(fpath)
 	if err != nil {
-		return errors.Wrapf(err, "get hash of file %q", fpath)
+		return false, errors.Wrapf(err, "get hash of file %q", fpath)
 	}
 
 	fstat, err := os.Stat(fpath)
 	if err != nil {
-		return errors.Wrapf(err, "get stat of file %q", fpath)
+		return false, errors.Wrapf(err, "get stat of file %q", fpath)
 	}
 
 	if raw, ok := hashes[fhash]; ok {
@@ -183,10 +186,10 @@ func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) error {
 			zap.String("keep", raw.path),
 		)
 		if !dry {
-			return removeFile(fpath)
+			return true, removeFile(fpath)
 		}
 
-		return nil
+		return false, nil
 	}
 
 	hashes[fhash] = &dupFile{
@@ -195,7 +198,7 @@ func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) error {
 		sizeBytes: fstat.Size(),
 	}
 
-	return nil
+	return false, nil
 }
 
 func removeFile(fpath string) error {

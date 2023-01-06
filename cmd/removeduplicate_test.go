@@ -15,6 +15,7 @@ func Test_removeDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
+	// prepare files in dir
 	err = os.WriteFile(filepath.Join(dir, "a.txt"), []byte("123"), 0600)
 	require.NoError(t, err)
 	err = os.WriteFile(filepath.Join(dir, "b.txt"), []byte("123"), 0600)
@@ -22,6 +23,7 @@ func Test_removeDuplicate(t *testing.T) {
 	err = os.WriteFile(filepath.Join(dir, "c.txt"), []byte("1234"), 0600)
 	require.NoError(t, err)
 
+	// prepare files in dir/laisky
 	dir2 := filepath.Join(dir, "laisky")
 	require.NoError(t, os.MkdirAll(dir2, 0777))
 	err = os.WriteFile(filepath.Join(dir2, "a.txt"), []byte("123"), 0600)
