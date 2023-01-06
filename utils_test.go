@@ -14,12 +14,11 @@ import (
 	"time"
 
 	"github.com/Laisky/errors"
+	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/Laisky/go-utils/v3/log"
 )
 
 type testEmbeddedSt struct{}
@@ -1251,4 +1250,36 @@ func TestOptionalVal(t *testing.T) {
 
 	v.BB = OptionalVal(&v.BB, optFloat64)
 	require.Equal(t, v.BB, optFloat64)
+}
+
+func TestRunCMDWithEnv(t *testing.T) {
+	ctx := context.Background()
+
+	type args struct {
+		ctx  context.Context
+		app  string
+		args []string
+		envs []string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantStdout []byte
+		wantErr    bool
+	}{
+		// {"", args{ctx, `/bin/env`, nil, []string{"FOO=BAR"}}, []byte("BAR"), false},
+		{"", args{ctx, `/bin/bash`, []string{"-c", "echo $FOO"}, []string{"FOO=BAR"}}, []byte("BAR\n"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotStdout, err := RunCMDWithEnv(tt.args.ctx, tt.args.app, tt.args.args, tt.args.envs)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RunCMDWithEnv() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(gotStdout, tt.wantStdout) {
+				t.Errorf("RunCMDWithEnv() = %q, want %q", string(gotStdout), string(tt.wantStdout))
+			}
+		})
+	}
 }

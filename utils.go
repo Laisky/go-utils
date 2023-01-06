@@ -652,7 +652,22 @@ func IsPtr(t any) bool {
 
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
-	stdout, err = exec.CommandContext(ctx, app, args...).CombinedOutput()
+	return RunCMDWithEnv(ctx, app, args, nil)
+}
+
+// RunCMDWithEnv run command with environments
+//
+// # Args
+//   - envs: []string{"FOO=BAR"}
+func RunCMDWithEnv(ctx context.Context, app string,
+	args []string, envs []string) (stdout []byte, err error) {
+	cmd := exec.CommandContext(ctx, app, args...)
+
+	if len(envs) != 0 {
+		cmd.Env = append(os.Environ(), envs...)
+	}
+
+	stdout, err = cmd.CombinedOutput()
 	if err != nil {
 		cmd := strings.Join(append([]string{app}, args...), " ")
 		return stdout, errors.Wrapf(err, "run %q got %q", cmd, stdout)

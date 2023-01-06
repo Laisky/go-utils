@@ -29,6 +29,9 @@ func init() {
 // NewX509CSR new CSR
 //
 // if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm.
+//
+// Warning: CSR do not support set IsCA / KeyUsage / ExtKeyUsage,
+// you should set these attributes in NewX509CertByCSR.
 func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
@@ -37,6 +40,10 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 	tpl, err := NewX509CertTemplate(opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	if tpl.IsCA {
+		return nil, errors.Errorf("CSR do not support CA, should set CA in NewX509CertByCSR")
 	}
 
 	csrTpl := &x509.CertificateRequest{}
@@ -81,13 +88,9 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		KeyUsage:              opt.keyUsage,
 		ExtKeyUsage:           opt.extKeyUsage,
 		BasicConstraintsValid: true,
+		IsCA:                  opt.isCA,
 	}
 	parseAndFillSans(template, opt.sans)
-
-	if opt.isCA {
-		template.IsCA = true
-	}
-
 	return template, nil
 }
 

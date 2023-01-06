@@ -35,6 +35,7 @@ func TestNewX509CSR(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	// generate root-ca
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertIsCA())
 	require.NoError(t, err)
@@ -48,10 +49,11 @@ func TestNewX509CSR(t *testing.T) {
 	csrPrikeyPem, err := Prikey2Pem(csrPrikey)
 	require.NoError(t, err)
 
-	t.Run("set attribtues in csr", func(t *testing.T) {
+	t.Run("sign ca-csr", func(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CertCommonName("laisky"),
 			WithX509CertSANS("laisky.com"),
+			WithX509CertIsCA(),
 		)
 		require.NoError(t, err)
 
@@ -59,7 +61,6 @@ func TestNewX509CSR(t *testing.T) {
 		require.NoError(t, err)
 
 		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
-			WithX509CertIsCA(),
 			WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
 		)
 		require.NoError(t, err)
@@ -70,6 +71,29 @@ func TestNewX509CSR(t *testing.T) {
 		require.Equal(t, "laisky", newCert.Subject.CommonName)
 		require.Contains(t, newCert.DNSNames, "laisky.com")
 		require.True(t, newCert.IsCA)
+	})
+
+	t.Run("set attribtues in non-ca csr", func(t *testing.T) {
+		csrder, err := NewX509CSR(csrPrikey,
+			WithX509CertCommonName("laisky"),
+			WithX509CertSANS("laisky.com"),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
+			WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
+		)
+		require.NoError(t, err)
+
+		newCert, err := Der2Cert(newCertDer)
+		require.NoError(t, err)
+
+		require.Equal(t, "laisky", newCert.Subject.CommonName)
+		require.Contains(t, newCert.DNSNames, "laisky.com")
+		require.False(t, newCert.IsCA)
 
 		t.Run("verify", func(t *testing.T) {
 			roots := x509.NewCertPool()
