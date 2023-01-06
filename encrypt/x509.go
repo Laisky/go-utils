@@ -20,16 +20,15 @@ import (
 	gcounter "github.com/Laisky/go-utils/v3/counter"
 )
 
-var seriaCounter gcounter.Counter
+var seriaCounter gcounter.Int64CounterItf
 
 func init() {
-	seriaCounter = *gcounter.NewCounterFromN(time.Now().UnixNano())
+	seriaCounter = gcounter.NewCounterFromN(time.Now().UnixNano())
 }
 
 // NewX509CSR new CSR
 //
-// if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm,
-// default sig alg is x509.SHA256WithRSA.
+// if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm.
 func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
@@ -40,10 +39,7 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 		return nil, err
 	}
 
-	csrTpl := &x509.CertificateRequest{
-		SignatureAlgorithm: x509.SHA256WithRSA,
-	}
-
+	csrTpl := &x509.CertificateRequest{}
 	if err = copier.Copy(csrTpl, tpl); err != nil {
 		return nil, errors.Wrap(err, "copy attributes from options to template")
 	}
@@ -71,7 +67,8 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	}
 
 	template := &x509.Certificate{
-		SerialNumber: big.NewInt(seriaCounter.Count()),
+		SignatureAlgorithm: opt.signatureAlgorithm,
+		SerialNumber:       big.NewInt(seriaCounter.Count()),
 		Subject: pkix.Name{
 			CommonName:         opt.commonName,
 			Organization:       opt.organization,
@@ -156,18 +153,20 @@ type tlsCertOption struct {
 	organization,
 	organizationUnit,
 	locality []string
-	sans        []string
-	sigAlg      x509.SignatureAlgorithm
-	keyUsage    x509.KeyUsage
-	extKeyUsage []x509.ExtKeyUsage
+	sans               []string
+	sigAlg             x509.SignatureAlgorithm
+	keyUsage           x509.KeyUsage
+	extKeyUsage        []x509.ExtKeyUsage
+	signatureAlgorithm x509.SignatureAlgorithm
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
-	o.validFrom = time.Now()
+	o.validFrom = time.Now().UTC()
 	o.validFor = 7 * 24 * time.Hour
 	o.sigAlg = x509.ECDSAWithSHA512
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
+	o.signatureAlgorithm = x509.SHA256WithRSA
 
 	return o
 }
@@ -266,8 +265,8 @@ func WithX509CertIsCA() X509CertOption {
 	}
 }
 
-// WithX509CertIsCRACA set is ca to sign CRL
-func WithX509CertIsCRACA() X509CertOption {
+// WithX509CertIsCRLCA set is ca to sign CRL
+func WithX509CertIsCRLCA() X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.isCRLCA = true
 		o.keyUsage |= x509.KeyUsageCRLSign
@@ -319,16 +318,9 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 //
 // # Args
 //
-// ca: CA to sign CRL
-//
-// prikey: prikey for CA
-//
-// revokeCerts: certifacates that will be revoked
-//
-// opts: some CRL's attributes.
-//
-//   - WithX509CertValidFrom set CRL's `ThisUpdate`,
-//   - WithX509CertValidFor set CRL's `NextUpdate`.
+//   - ca: CA to sign CRL
+//   - prikey: prikey for CA
+//   - revokeCerts: certifacates that will be revoked
 func NewX509CRL(ca *x509.Certificate,
 	prikey crypto.PrivateKey,
 	revokeCerts []pkix.RevokedCertificate,
