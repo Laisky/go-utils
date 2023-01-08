@@ -91,9 +91,13 @@ func removeDuplicate(dry bool, dir string) error {
 		}
 
 		glog.Shared.Debug("check duplicate by similar images", zap.String("file", fpath))
+		// maybe some day, there will add some other checker
+		//nolint: staticcheck // SA4006: this value of `deleted` is never used
 		if deleted, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
 			glog.Shared.Error("checkDupByImageSimilar", zap.String("file", fpath), zap.Error(err))
-			continue
+			if deleted {
+				continue
+			}
 			// return errors.Wrapf(err, "check similarly for images %q", fpath)
 		} else if deleted {
 			continue
@@ -114,7 +118,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	ext := strings.ToLower(filepath.Ext(fpath))
 	switch ext {
 	case ".jpeg", ".jpg", ".jfif":
-		ext = ".jpg"
+		ext = ".jpg" //nolint: ineffassign
 		if img, err = jpeg.Decode(fp); err != nil {
 			return false, errors.Wrapf(err, "decode jpeg file %q", fpath)
 		}
@@ -134,38 +138,38 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	glog.Shared.Debug("check similar for images", zap.String("file", fpath))
 	hash, _ := duplo.CreateHash(img)
 	matched := store.Query(hash)
+	if len(matched) == 0 {
+		return false, nil
+	}
+
 	sort.Sort(matched)
+	otherFile := matched[0]
+	if otherFile.Score > -60 { // experience threshold
+		return false, nil
+	}
 
-	for _, otherFile := range matched {
-		if otherFile.Score > -60 { // FIXME experience value
-			break
-		}
+	deleted = true
+	otherFp := otherFile.ID.(string)
+	keepCurrentFile, err := fileSizeBiggerThan(fpath, otherFp)
+	if err != nil {
+		return false, errors.Wrap(err, "compare file size")
+	}
 
-		deleted = true
-		otherFp := otherFile.ID.(string)
-		keepCurrentFile, err := fileSizeBiggerThan(fpath, otherFp)
-		if err != nil {
-			return false, errors.Wrap(err, "compare file size")
-		}
+	deletePath := fpath
+	keepPath := otherFp
+	if keepCurrentFile {
+		store.Delete(otherFile)
+		store.Add(fpath, hash)
+		deletePath = otherFp
+		keepPath = fpath
+	}
 
-		deletePath := fpath
-		keepPath := otherFp
-		if keepCurrentFile {
-			store.Delete(otherFile)
-			store.Add(fpath, hash)
-			deletePath = otherFp
-			keepPath = fpath
-		}
-
-		glog.Shared.Info("remove similar image",
-			zap.Float64("score", otherFile.Score),
-			zap.String("keep", keepPath),
-			zap.String("remove", deletePath))
-		if !dry {
-			return deleted, removeFile(deletePath)
-		}
-
-		break
+	glog.Shared.Info("remove similar image",
+		zap.Float64("score", otherFile.Score),
+		zap.String("keep", keepPath),
+		zap.String("remove", deletePath))
+	if !dry {
+		return deleted, removeFile(deletePath)
 	}
 
 	if !deleted {

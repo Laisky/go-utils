@@ -10,6 +10,18 @@ import (
 	gutils "github.com/Laisky/go-utils/v3"
 )
 
+func Test_switch(t *testing.T) {
+	v := "a"
+	switch v {
+	case "a", "b", "c":
+		v = "c"
+	default:
+		v = "213"
+	}
+
+	require.Equal(t, v, "c")
+}
+
 func Test_removeDuplicate(t *testing.T) {
 	dir, err := os.MkdirTemp("", "removeDuplicate*")
 	require.NoError(t, err)
