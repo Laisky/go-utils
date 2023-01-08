@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"fmt"
 	"image"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
@@ -65,17 +68,33 @@ func removeDuplicate(dry bool, dir string) error {
 	glog.Shared.Info("list files", zap.Int("n", len(files)))
 	similarStore := duplo.New()
 	fileHashes := map[string]*dupFile{}
-	for _, fpath := range files {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for i, fpath := range files {
+		select {
+		case <-ticker.C:
+			glog.Shared.Info("scanning...",
+				zap.String("n", fmt.Sprintf("%d/%d", i, len(files))),
+				zap.String("ratio", fmt.Sprintf("%.2f%%", float64(i)/float64(len(files)))))
+		default:
+		}
+
 		glog.Shared.Debug("check duplicate by content hash", zap.String("file", fpath))
 		if deleted, err := checkDupByHash(dry, fileHashes, fpath); err != nil {
-			return errors.Wrapf(err, "check hash duplicate for file %q", fpath)
+			glog.Shared.Error("checkDupByHash", zap.String("file", fpath), zap.Error(err))
+			if deleted {
+				continue
+			}
+			// return errors.Wrapf(err, "check hash duplicate for file %q", fpath)
 		} else if deleted {
 			continue
 		}
 
 		glog.Shared.Debug("check duplicate by similar images", zap.String("file", fpath))
 		if deleted, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
-			return errors.Wrapf(err, "check similarly for images %q", fpath)
+			glog.Shared.Error("checkDupByImageSimilar", zap.String("file", fpath), zap.Error(err))
+			continue
+			// return errors.Wrapf(err, "check similarly for images %q", fpath)
 		} else if deleted {
 			continue
 		}
@@ -92,8 +111,10 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	defer gutils.SilentClose(fp)
 
 	var img image.Image
-	switch strings.ToLower(filepath.Ext(fpath)) {
-	case ".jpeg", ".jpg":
+	ext := strings.ToLower(filepath.Ext(fpath))
+	switch ext {
+	case ".jpeg", ".jpg", ".jfif":
+		ext = ".jpg"
 		if img, err = jpeg.Decode(fp); err != nil {
 			return false, errors.Wrapf(err, "decode jpeg file %q", fpath)
 		}
@@ -106,21 +127,21 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 			return false, errors.Wrapf(err, "decode gif file %q", fpath)
 		}
 	default:
-		glog.Shared.Debug("skip for unsupported image", zap.String("file", fpath))
+		glog.Shared.Warn("skip for unsupported image", zap.String("file", fpath))
 		return false, nil
 	}
 
 	glog.Shared.Debug("check similar for images", zap.String("file", fpath))
 	hash, _ := duplo.CreateHash(img)
 	matched := store.Query(hash)
+	sort.Sort(matched)
 
-	var dup bool
 	for _, otherFile := range matched {
-		if otherFile.Score > -50 { // FIXME experience value
-			continue
+		if otherFile.Score > -60 { // FIXME experience value
+			break
 		}
 
-		dup = true
+		deleted = true
 		otherFp := otherFile.ID.(string)
 		keepCurrentFile, err := fileSizeBiggerThan(fpath, otherFp)
 		if err != nil {
@@ -136,23 +157,22 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 			keepPath = fpath
 		}
 
-		glog.Shared.Info("suggest remove similar image",
+		glog.Shared.Info("remove similar image",
 			zap.Float64("score", otherFile.Score),
 			zap.String("keep", keepPath),
 			zap.String("remove", deletePath))
-		// just submit suggestion, do not real delete files
-		// if !dry {
-		// 	return true, removeFile(deletePath)
-		// }
+		if !dry {
+			return deleted, removeFile(deletePath)
+		}
 
 		break
 	}
 
-	if !dup {
+	if !deleted {
 		store.Add(fpath, hash)
 	}
 
-	return false, nil
+	return deleted, nil
 }
 
 func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
@@ -189,7 +209,7 @@ func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) (deleted
 			return true, removeFile(fpath)
 		}
 
-		return false, nil
+		return true, nil
 	}
 
 	hashes[fhash] = &dupFile{

@@ -15,7 +15,8 @@ Many useful golang tools
 ![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v3)
 [![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v3/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
-## Use as command-line tools
+
+## Use as command-line executable binary
 
 ### Install
 
@@ -29,7 +30,7 @@ Add `$HOME/.go/bin` to your PATH.
 
 ```sh
 # find and delete duplicate files/ similar images
-gutils remove-dup -d examples/images --dry
+gutils remove-dup examples/images --dry
 
 # move files to hash-based hierach directories
 gutils md5dir -i examples/md5dir/ --dry

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
@@ -16,7 +17,7 @@ import (
 var md5DirArg struct {
 	SourceDir    string
 	TargetDir    string
-	DeleteSource bool
+	RemainSource bool
 }
 
 func init() {
@@ -25,8 +26,8 @@ func init() {
 		"input-dir", "i", "", "source directory")
 	md5DirCMD.PersistentFlags().StringVarP(&md5DirArg.TargetDir,
 		"output-dir", "o", "", "target directory")
-	md5DirCMD.PersistentFlags().BoolVarP(&md5DirArg.DeleteSource,
-		"delete-source", "d", false, "delete source after move")
+	md5DirCMD.PersistentFlags().BoolVarP(&md5DirArg.RemainSource,
+		"remain", "r", false, "do not delete source after move")
 }
 
 // md5DirCMD encrypt files
@@ -71,7 +72,7 @@ var md5DirCMD = &cobra.Command{
 				glog.Shared.Panic("mkdir", zap.String("dir", outputDir), zap.Error(err))
 			}
 
-			target := filepath.Join(outputDir, hashed+filepath.Ext(f))
+			target := filepath.Join(outputDir, hashed+strings.ToLower(filepath.Ext(f)))
 			if err = gutils.CopyFile(f, target,
 				gutils.WithFileFlag(os.O_CREATE|os.O_WRONLY),
 				gutils.WithFileMode(0644),
@@ -82,7 +83,7 @@ var md5DirCMD = &cobra.Command{
 			}
 
 			glog.Shared.Info("moved file", zap.String("from", f), zap.String("to", target))
-			if md5DirArg.DeleteSource {
+			if !md5DirArg.RemainSource {
 				if err = os.Remove(f); err != nil {
 					glog.Shared.Panic("remove file", zap.Error(err), zap.String("file", f))
 				}
