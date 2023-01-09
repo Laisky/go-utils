@@ -1110,3 +1110,8 @@ func OptionalVal[T any](ptr *T, optionalVal T) T {
 
 	return *ptr
 }
+
+// CostSecs convert duration to string like `0.25s`
+func CostSecs(cost time.Duration) string {
+	return fmt.Sprintf("%.2fs", float64(cost)/float64(time.Second))
+}

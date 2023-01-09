@@ -14,12 +14,11 @@ import (
 	"time"
 
 	"github.com/Laisky/errors"
+	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 	_ "go.uber.org/automaxprocs"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/Laisky/go-utils/v3/log"
 )
 
 type testEmbeddedSt struct{}
@@ -1283,4 +1282,10 @@ func TestRunCMDWithEnv(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCostSecs(t *testing.T) {
+	d := time.Millisecond * 351
+	v := CostSecs(d)
+	require.Equal(t, "0.35s", v)
 }
