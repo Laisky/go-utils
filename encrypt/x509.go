@@ -188,9 +188,12 @@ func WithX509CertCommonName(commonName string) X509CertOption {
 }
 
 // WithX509CertKeyUsage add key usage
-func WithX509CertKeyUsage(usage x509.KeyUsage) X509CertOption {
+func WithX509CertKeyUsage(usage ...x509.KeyUsage) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.keyUsage |= usage
+		for i := range usage {
+			o.keyUsage |= usage[i]
+		}
+
 		return nil
 	}
 }
