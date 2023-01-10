@@ -111,7 +111,7 @@ func VerifyFileByRSA(pubkeyPath, filePath string) error {
 		return errors.Wrap(err, "verify signature")
 	}
 
-	log.Shared.Info("succeed verify signature for file",
+	log.Shared.Debug("succeed verify signature for file",
 		zap.String("file", filePath),
 		zap.String("sig_file", sigFile),
 		zap.ByteString("sig", sigStr),
@@ -164,7 +164,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 		return errors.Wrapf(err, "write signature to sig file %q", sigFile)
 	}
 
-	log.Shared.Info("succeed generate signature for file",
+	log.Shared.Debug("succeed generate signature for file",
 		zap.String("file", filePath),
 		zap.String("sig_file", sigFile),
 		zap.String("sig", sig),
