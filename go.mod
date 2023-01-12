@@ -21,6 +21,7 @@ require (
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.8.0
+	github.com/xlzd/gotp v0.1.0
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/crypto v0.1.0
 	golang.org/x/sync v0.1.0
