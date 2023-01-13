@@ -4,13 +4,16 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"strings"
+
+	// TODO: replaced by crypto/ecdh in Go v1.20
+	//  https://words.filippo.io/dispatches/go-1-20-cryptography/
+	"crypto/elliptic"
 
 	"github.com/Laisky/errors"
 )
@@ -53,6 +56,8 @@ type ECDSACurve string
 
 const (
 	// ECDSACurveP224 ecdsa with P224
+	//
+	// Deprecated: use ECDSACurveP256 instead
 	ECDSACurveP224 ECDSACurve = "P224"
 	// ECDSACurveP256 ecdsa with P256
 	ECDSACurveP256 ECDSACurve = "P256"
@@ -74,7 +79,7 @@ func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 	case ECDSACurveP521:
 		return ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	default:
-		return nil, errors.Errorf("unknown curve %s", curve)
+		return nil, errors.Errorf("unsupport curve %s", curve)
 	}
 }
 

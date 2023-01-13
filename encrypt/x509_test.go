@@ -53,7 +53,6 @@ func TestNewX509CSR(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CertCommonName("laisky"),
 			WithX509CertSANS("laisky.com"),
-			WithX509CertIsCA(),
 		)
 		require.NoError(t, err)
 
@@ -61,6 +60,7 @@ func TestNewX509CSR(t *testing.T) {
 		require.NoError(t, err)
 
 		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
+			WithX509CertIsCA(),
 			WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
 		)
 		require.NoError(t, err)
