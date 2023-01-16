@@ -34,7 +34,6 @@ type Alert struct {
 	stopChan   chan struct{}
 	senderChan chan *alertMsg
 
-	token, alertType,
 	pushAPI string
 }
 
@@ -72,7 +71,7 @@ type AlertOption func(*alertOption) error
 
 // WithAlertHookLevel level to trigger AlertHook
 func WithAlertHookLevel(level zapcore.Level) AlertOption {
-	return func(ao *alertOption) error {
+	return func(o *alertOption) error {
 		if level.Enabled(zap.DebugLevel) {
 			// because Alert will use `debug` logger,
 			// hook with debug will cause infinite recursive
@@ -82,41 +81,41 @@ func WithAlertHookLevel(level zapcore.Level) AlertOption {
 			Shared.Warn("level is better higher than warn")
 		}
 
-		ao.level = level
+		o.level = level
 		return nil
 	}
 }
 
 // WithAlertPushTimeout set Alert HTTP timeout
 func WithAlertPushTimeout(timeout time.Duration) AlertOption {
-	return func(a *alertOption) error {
-		a.timeout = timeout
+	return func(o *alertOption) error {
+		o.timeout = timeout
 		return nil
 	}
 }
 
 // WithAlertType set type for alert hooker
 func WithAlertType(alertType string) AlertOption {
-	return func(ao *alertOption) error {
+	return func(o *alertOption) error {
 		alertType = strings.TrimSpace(alertType)
 		if alertType == "" {
 			return errors.Errorf("alertType should not be empty")
 		}
 
-		ao.alertType = alertType
+		o.alertType = alertType
 		return nil
 	}
 }
 
 // WithAlertToken set token for alert hooker
 func WithAlertToken(token string) AlertOption {
-	return func(ao *alertOption) error {
+	return func(o *alertOption) error {
 		token = strings.TrimSpace(token)
 		if token == "" {
 			return errors.Errorf("token should not be empty")
 		}
 
-		ao.alertToken = token
+		o.alertToken = token
 		return nil
 	}
 }
@@ -219,7 +218,7 @@ func (a *Alert) runSender(ctx context.Context) {
 
 // Send send with default alertType and pushToken
 func (a *Alert) Send(msg string) (err error) {
-	return a.SendWithType(a.alertType, a.token, msg)
+	return a.SendWithType(a.alertType, a.alertToken, msg)
 }
 
 // GetZapHook get hook for zap logger

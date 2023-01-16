@@ -7,18 +7,18 @@ import (
 
 	"github.com/Laisky/errors"
 	zap "github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAlertHook(t *testing.T) {
 	pusher, err := NewAlert(
 		context.Background(),
-		"https://blog.laisky.com/graphql/query/",
+		"https://gq.laisky.com/query/",
 		WithAlertType("hello"),
 		WithAlertToken("rwkpVuAgaBZQBASKndHK"),
 	)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	require.NoError(t, err)
+
 	defer pusher.Close()
 	logger := Shared.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
@@ -36,9 +36,10 @@ func TestAlertHook(t *testing.T) {
 func ExampleAlert() {
 	pusher, err := NewAlert(
 		context.Background(),
-		"https://blog.laisky.com/graphql/query/",
+		"https://gq.laisky.com/query/",
 		WithAlertType("hello"),
 		WithAlertToken("rwkpVuAgaBZQBASKndHK"),
+		WithAlertHookLevel(zap.InfoLevel),
 	)
 	if err != nil {
 		Shared.Panic("create alert pusher", zap.Error(err))
