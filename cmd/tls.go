@@ -15,7 +15,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"net"
 	"os"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
+	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
 	"github.com/Laisky/go-utils/v3/log"
 )
 
@@ -134,14 +134,13 @@ func generateTLSCert() {
 	}
 
 	notAfter := notBefore.Add(validFor)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	serialNum, err := gencrypt.RandomSerialNumber()
 	if err != nil {
-		log.Shared.Panic("Failed to generate serial number", zap.Error(err))
+		log.Shared.Panic("generate serial number", zap.Error(err))
 	}
 
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
+		SerialNumber: serialNum,
 		Subject: pkix.Name{
 			CommonName:   host,
 			Organization: []string{"Acme Co"},

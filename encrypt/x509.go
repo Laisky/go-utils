@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"math"
 	"math/big"
 	"net"
 	"net/mail"
@@ -16,17 +17,11 @@ import (
 
 	"github.com/Laisky/errors"
 	"github.com/jinzhu/copier"
-
-	gcounter "github.com/Laisky/go-utils/v3/counter"
 )
 
-var seriaCounter gcounter.Int64CounterItf
-
-func init() {
-	seriaCounter = gcounter.NewCounterFromN(time.Now().UnixNano())
-}
-
 // NewX509CSR new CSR
+//
+// # Arguments
 //
 // if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm.
 //
@@ -59,6 +54,11 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 	return csrDer, nil
 }
 
+// RandomSerialNumber generate random serial number
+func RandomSerialNumber() (*big.Int, error) {
+	return rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+}
+
 // NewX509CertTemplate new tls template
 func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err error) {
 	opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...)
@@ -67,15 +67,9 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	}
 
 	notAfter := opt.validFrom.Add(opt.validFor)
-	// serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	// serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate serial number")
-	}
-
 	template := &x509.Certificate{
 		SignatureAlgorithm: opt.signatureAlgorithm,
-		SerialNumber:       big.NewInt(seriaCounter.Count()),
+		SerialNumber:       opt.serialNumber,
 		Subject: pkix.Name{
 			CommonName:         opt.commonName,
 			Organization:       opt.organization,
@@ -149,6 +143,8 @@ func NewX509CertByCSR(
 }
 
 type tlsCertOption struct {
+	err error
+
 	commonName    string
 	validFrom     time.Time
 	validFor      time.Duration
@@ -156,9 +152,12 @@ type tlsCertOption struct {
 	organization,
 	organizationUnit,
 	locality []string
-	sans        []string
-	keyUsage    x509.KeyUsage
-	extKeyUsage []x509.ExtKeyUsage
+	sans         []string
+	keyUsage     x509.KeyUsage
+	extKeyUsage  []x509.ExtKeyUsage
+	serialNumber *big.Int
+	// customSerialNum 不是自动生成的随机序列号，而是外部传入的用户指定的序列号
+	customSerialNum bool
 	// signatureAlgorithm specific signature algorithm manually
 	//
 	// default to auto choose algorithm depends on certificate's algorithm
@@ -171,6 +170,10 @@ func (o *tlsCertOption) fillDefault() *tlsCertOption {
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
 
+	if o.serialNumber, o.err = RandomSerialNumber(); o.err != nil {
+		o.err = errors.Wrap(o.err, "generate random serial number")
+	}
+
 	return o
 }
 
@@ -181,6 +184,25 @@ type X509CertOption func(*tlsCertOption) error
 func WithX509CertCommonName(commonName string) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.commonName = commonName
+		return nil
+	}
+}
+
+// WithX509CertSeriaNumber set certificate/CRL's serial number
+//
+// # Args
+//
+// seriaNumber:
+//   - (optional): generate certificate
+//   - (required): generate CRL
+func WithX509CertSeriaNumber(serialNumber *big.Int) X509CertOption {
+	return func(o *tlsCertOption) error {
+		if serialNumber == nil {
+			return errors.Errorf("serial number shoule not be empty")
+		}
+
+		o.customSerialNum = true
+		o.serialNumber = serialNumber
 		return nil
 	}
 }
@@ -281,6 +303,10 @@ func WithX509CertIsCRLCA() X509CertOption {
 }
 
 func (o *tlsCertOption) applyOpts(opts ...X509CertOption) (*tlsCertOption, error) {
+	if o.err != nil {
+		return nil, o.err
+	}
+
 	for _, f := range opts {
 		if err := f(o); err != nil {
 			return nil, err
@@ -324,9 +350,15 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 //
 // # Args
 //
-//   - ca: CA to sign CRL
-//   - prikey: prikey for CA
-//   - revokeCerts: certifacates that will be revoked
+//   - ca: CA to sign CRL.
+//   - prikey: prikey for CA.
+//   - revokeCerts: certifacates that will be revoked.
+//   - WithX509CertSeriaNumber() is required for NewX509CRL.
+//
+// according to [RFC5280 5.2.3], X.509 v3 CRL could have a
+// monotonically increasing sequence number as serial number.
+//
+// [RFC5280 5.2.3]: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
 func NewX509CRL(ca *x509.Certificate,
 	prikey crypto.PrivateKey,
 	revokeCerts []pkix.RevokedCertificate,
@@ -335,13 +367,19 @@ func NewX509CRL(ca *x509.Certificate,
 		return nil, err
 	}
 
+	if opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...); err != nil {
+		return nil, err
+	} else if !opt.customSerialNum {
+		return nil, errors.Errorf("WithX509CertSeriaNumber() is required for NewX509CRL")
+	}
+
 	ctpl, err := NewX509CertTemplate(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse options")
 	}
 
 	tpl := &x509.RevocationList{
-		Number: big.NewInt(seriaCounter.Count()),
+		Number: ctpl.SerialNumber,
 		// Issuer:              ca.Subject,
 		SignatureAlgorithm: ctpl.SignatureAlgorithm,
 		ThisUpdate:         ctpl.NotBefore,

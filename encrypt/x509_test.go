@@ -3,7 +3,6 @@ package encrypt
 import (
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,13 +120,33 @@ func TestNewX509CRL(t *testing.T) {
 	ca, err := Der2Cert(certder)
 	require.NoError(t, err)
 
-	crlder, err := NewX509CRL(ca, prikey,
-		[]pkix.RevokedCertificate{
-			{
-				SerialNumber: big.NewInt(2),
-			},
-		})
+	serialNum, err := RandomSerialNumber()
 	require.NoError(t, err)
+
+	var crlder []byte
+	t.Run("without crl serial number", func(t *testing.T) {
+		var err error
+		crlder, err = NewX509CRL(ca, prikey,
+			[]pkix.RevokedCertificate{
+				{
+					SerialNumber: serialNum,
+				},
+			})
+		require.ErrorContains(t, err, "WithX509CertSeriaNumber() is required for NewX509CRL")
+	})
+
+	t.Run("with crl serial number", func(t *testing.T) {
+		var err error
+		crlder, err = NewX509CRL(ca, prikey,
+			[]pkix.RevokedCertificate{
+				{
+					SerialNumber: serialNum,
+				},
+			},
+			WithX509CertSeriaNumber(serialNum),
+		)
+		require.NoError(t, err)
+	})
 
 	crl, err := Der2CRL(crlder)
 	require.NoError(t, err)
