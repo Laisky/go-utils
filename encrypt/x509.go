@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"math"
 	"math/big"
 	"net"
@@ -83,6 +84,9 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 		ExtKeyUsage:           opt.extKeyUsage,
 		BasicConstraintsValid: true,
 		IsCA:                  opt.isCA,
+		PolicyIdentifiers:     opt.policies,
+		CRLDistributionPoints: opt.crls,
+		OCSPServer:            opt.ocsps,
 	}
 	parseAndFillSans(template, opt.sans)
 	return template, nil
@@ -162,6 +166,14 @@ type tlsCertOption struct {
 	//
 	// default to auto choose algorithm depends on certificate's algorithm
 	signatureAlgorithm x509.SignatureAlgorithm
+	// policies certificate policies
+	//
+	// refer to RFC-5280 4.2.1.4
+	policies []asn1.ObjectIdentifier
+	// crls crl endpoints
+	crls []string
+	// ocsps ocsp servers
+	ocsps []string
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
@@ -188,7 +200,25 @@ func WithX509CertCommonName(commonName string) X509CertOption {
 	}
 }
 
+// WithX509CertPolicies set certificate policies
+func WithX509CertPolicies(policies ...asn1.ObjectIdentifier) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.policies = append(o.policies, policies...)
+		return nil
+	}
+}
+
+// WithX509CertOCSPServers set ocsp servers
+func WithX509CertOCSPServers(ocsp ...string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.ocsps = append(o.ocsps, ocsp...)
+		return nil
+	}
+}
+
 // WithX509CertSeriaNumber set certificate/CRL's serial number
+//
+// refer to RFC-5280 5.2.3 &
 //
 // # Args
 //
@@ -218,7 +248,15 @@ func WithX509CertKeyUsage(usage ...x509.KeyUsage) X509CertOption {
 	}
 }
 
-// WithX509ExtCertKeyUsage add key usage
+// WithX509CertCRLs add crl endpoints
+func WithX509CertCRLs(crlEndpoint ...string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.crls = append(o.crls, crlEndpoint...)
+		return nil
+	}
+}
+
+// WithX509ExtCertKeyUsage add ext key usage
 func WithX509ExtCertKeyUsage(usage ...x509.ExtKeyUsage) X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.extKeyUsage = append(o.extKeyUsage, usage...)
@@ -259,6 +297,8 @@ func WithX509CertLocality(l ...string) X509CertOption {
 }
 
 // WithX509CertSANS set certificate SANs
+//
+// refer to RFC-5280 4.2.1.6
 //
 // auto parse to ip/email/url/dns
 func WithX509CertSANS(sans ...string) X509CertOption {
