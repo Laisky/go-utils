@@ -1290,3 +1290,14 @@ func TestCostSecs(t *testing.T) {
 	v := CostSecs(d)
 	require.Equal(t, "0.35s", v)
 }
+
+func TestPipeline(t *testing.T) {
+	f1 := func(v *int) error { (*v)++; return nil }
+	f2 := func(v *int) error { (*v) += 2; return nil }
+	v := 0
+
+	gotv, err := Pipeline([]func(*int) error{f1, f2}, &v)
+	require.NoError(t, err)
+	require.Equal(t, 3, v)
+	require.Equal(t, 3, *gotv)
+}

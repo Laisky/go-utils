@@ -179,7 +179,7 @@ func ParseOTPUri(uri string) (arg OTPArgs, err error) {
 	if err != nil {
 		return arg, errors.Wrap(err, "unescape digit")
 	}
-	if gutils.InArray([]string{"0", "6", ""}, digit) {
+	if gutils.Contains([]string{"0", "6", ""}, digit) {
 		arg.Digits = 6
 	} else {
 		v, err := strconv.Atoi(digit)
@@ -194,7 +194,7 @@ func ParseOTPUri(uri string) (arg OTPArgs, err error) {
 	if err != nil {
 		return arg, errors.Wrap(err, "unescape period")
 	}
-	if gutils.InArray([]string{"0", "30", ""}, period) {
+	if gutils.Contains([]string{"0", "30", ""}, period) {
 		arg.PeriodSecs = 30
 	} else {
 		v, err := strconv.Atoi(period)

@@ -14,10 +14,13 @@ import (
 	"net"
 	"net/mail"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/jinzhu/copier"
+
+	gutils "github.com/Laisky/go-utils/v3"
 )
 
 // NewX509CSR new CSR
@@ -464,10 +467,36 @@ func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
 	return crl.CheckSignatureFrom(ca)
 }
 
+type oidContainsOption struct {
+	prefix bool
+}
+
+func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) *oidContainsOption {
+	o, _ = gutils.Pipeline(fs, o)
+	return o
+}
+
+// MatchPrefix treat prefix inclusion as a match as well
+//
+//	`1.2.3.4` contains `1.2.3`
+func MatchPrefix() func(o *oidContainsOption) error {
+	return func(o *oidContainsOption) error {
+		o.prefix = true
+		return nil
+	}
+}
+
 // OIDContains is oid in oids
-func OIDContains(oids []asn1.ObjectIdentifier, oid asn1.ObjectIdentifier) bool {
+func OIDContains(oids []asn1.ObjectIdentifier,
+	oid asn1.ObjectIdentifier, opts ...func(o *oidContainsOption) error) bool {
+	opt := new(oidContainsOption).applyfs(opts...)
+
 	for i := range oids {
 		if oids[i].Equal(oid) {
+			return true
+		}
+
+		if opt.prefix && strings.HasPrefix(oid.String(), oids[i].String()) {
 			return true
 		}
 	}

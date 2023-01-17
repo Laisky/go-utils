@@ -1115,3 +1115,14 @@ func OptionalVal[T any](ptr *T, optionalVal T) T {
 func CostSecs(cost time.Duration) string {
 	return fmt.Sprintf("%.2fs", float64(cost)/float64(time.Second))
 }
+
+// Pipeline run f(v) for all funcs
+func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
+	for _, f := range funcs {
+		if err := f(v); err != nil {
+			return v, err
+		}
+	}
+
+	return v, nil
+}
