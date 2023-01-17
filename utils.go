@@ -620,7 +620,7 @@ func Contains[V comparable](collection []V, ele V) bool {
 
 // InArray if collection contains ele
 //
-// Depracated: use Contains instead
+// Deprecated: use Contains instead
 func InArray(collection any, ele any) bool {
 	targetValue := reflect.ValueOf(collection)
 	switch reflect.TypeOf(collection).Kind() {
