@@ -3,6 +3,7 @@ package encrypt
 import (
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -155,4 +156,28 @@ func TestNewX509CRL(t *testing.T) {
 
 	err = crl.CheckSignatureFrom(ca)
 	require.NoError(t, err)
+}
+
+func Test_OIDs(t *testing.T) {
+	a1 := asn1.ObjectIdentifier{1, 2, 3}
+	a2 := asn1.ObjectIdentifier{1, 2, 3}
+	a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
+	require.Equal(t, a1, a2)
+	require.NotEqual(t, a1, a3)
+	require.NotEqual(t, a2, a3)
+
+	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertPolicies(a1, a2),
+	)
+	require.NoError(t, err)
+
+	ca, err := Der2Cert(certder)
+	require.NoError(t, err)
+
+	require.Contains(t, ca.PolicyIdentifiers, a1)
+	require.Contains(t, ca.PolicyIdentifiers, a2)
+	require.NotContains(t, ca.PolicyIdentifiers, a3)
+	require.True(t, OIDContains(ca.PolicyIdentifiers, a1))
+	require.True(t, OIDContains(ca.PolicyIdentifiers, a2))
+	require.False(t, OIDContains(ca.PolicyIdentifiers, a3))
 }

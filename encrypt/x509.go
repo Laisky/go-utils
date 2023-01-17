@@ -463,3 +463,14 @@ func validPrikey(prikey crypto.PrivateKey) error {
 func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
 	return crl.CheckSignatureFrom(ca)
 }
+
+// OIDContains is oid in oids
+func OIDContains(oids []asn1.ObjectIdentifier, oid asn1.ObjectIdentifier) bool {
+	for i := range oids {
+		if oids[i].Equal(oid) {
+			return true
+		}
+	}
+
+	return false
+}
