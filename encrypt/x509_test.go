@@ -180,5 +180,5 @@ func Test_OIDs(t *testing.T) {
 	require.True(t, OIDContains(ca.PolicyIdentifiers, a1))
 	require.True(t, OIDContains(ca.PolicyIdentifiers, a2))
 	require.False(t, OIDContains(ca.PolicyIdentifiers, a3))
-	require.True(t, OIDContains(ca.PolicyIdentifiers, a3, MatchPrefix()))
+	require.True(t, OIDContains(ca.PolicyIdentifiers, asn1.ObjectIdentifier{1, 2}, MatchPrefix()))
 }

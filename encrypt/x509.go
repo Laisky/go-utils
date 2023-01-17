@@ -478,7 +478,7 @@ func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) *oid
 
 // MatchPrefix treat prefix inclusion as a match as well
 //
-//	`1.2.3.4` contains `1.2.3`
+//	`1.2.3` contains `1.2.3.4`
 func MatchPrefix() func(o *oidContainsOption) error {
 	return func(o *oidContainsOption) error {
 		o.prefix = true
@@ -496,7 +496,7 @@ func OIDContains(oids []asn1.ObjectIdentifier,
 			return true
 		}
 
-		if opt.prefix && strings.HasPrefix(oid.String(), oids[i].String()) {
+		if opt.prefix && strings.HasPrefix(oids[i].String(), oid.String()) {
 			return true
 		}
 	}
