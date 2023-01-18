@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/sha1"
@@ -9,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"text/template"
 	"time"
 
 	"github.com/Laisky/errors"
@@ -376,4 +378,30 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 	}()
 
 	return nil
+}
+
+// RenderTemplate render template with args
+func RenderTemplate(tplContent string, args any) ([]byte, error) {
+	tpl, err := template.New("gutils").Parse(tplContent)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse template")
+	}
+
+	var out bytes.Buffer
+	if err := tpl.Execute(&out, args); err != nil {
+		return nil, errors.Wrap(err, "execute with args")
+	}
+
+	return out.Bytes(), nil
+
+}
+
+// RenderTemplateFile render template file with args
+func RenderTemplateFile(tplFile string, args any) ([]byte, error) {
+	cnt, err := os.ReadFile(tplFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "read template file %q", tplFile)
+	}
+
+	return RenderTemplate(string(cnt), args)
 }

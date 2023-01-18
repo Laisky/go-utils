@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v3/log"
 )
 
 func TestDirSize(t *testing.T) {
@@ -437,4 +436,21 @@ func TestFileExists(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+func TestRenderTemplate(t *testing.T) {
+	const tpl = `hello, {{.Name}}`
+	arg := struct{ Name string }{"laisky"}
+
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	fpath := filepath.Join(dir, "tpl")
+	err = os.WriteFile(fpath, []byte(tpl), 0400)
+	require.NoError(t, err)
+
+	got, err := RenderTemplateFile(fpath, arg)
+	require.NoError(t, err)
+	require.Equal(t, "hello, laisky", string(got))
 }
