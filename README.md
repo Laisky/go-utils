@@ -2,11 +2,10 @@
 
 Many useful golang tools
 
-| Version | Support Go    |
-| ------- | ------------- |
-| 1.x     | v1.13 ~ v1.17 |
-| 2.x     | >= v1.18      |
-
+| Version | Support Go |
+| ------- | ---------- |
+| 1.x     | >= v1.16   |
+| 2.x     | >= v1.18   |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
