@@ -45,11 +45,11 @@ func (_m *LoggerItf) Core() zapcore.Core {
 
 // DPanic provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) DPanic(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -57,11 +57,11 @@ func (_m *LoggerItf) DPanic(msg string, fields ...zapcore.Field) {
 
 // Debug provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Debug(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -69,11 +69,11 @@ func (_m *LoggerItf) Debug(msg string, fields ...zapcore.Field) {
 
 // DebugSample provides a mock function with given fields: sample, msg, fields
 func (_m *LoggerItf) DebugSample(sample int, msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, sample, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -81,11 +81,11 @@ func (_m *LoggerItf) DebugSample(sample int, msg string, fields ...zapcore.Field
 
 // Error provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Error(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -93,11 +93,11 @@ func (_m *LoggerItf) Error(msg string, fields ...zapcore.Field) {
 
 // Fatal provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Fatal(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -105,11 +105,11 @@ func (_m *LoggerItf) Fatal(msg string, fields ...zapcore.Field) {
 
 // Info provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Info(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -117,11 +117,11 @@ func (_m *LoggerItf) Info(msg string, fields ...zapcore.Field) {
 
 // InfoSample provides a mock function with given fields: sample, msg, fields
 func (_m *LoggerItf) InfoSample(sample int, msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, sample, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -143,11 +143,11 @@ func (_m *LoggerItf) Level() zapcore.Level {
 
 // Panic provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Panic(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -169,11 +169,11 @@ func (_m *LoggerItf) Sync() error {
 
 // Warn provides a mock function with given fields: msg, fields
 func (_m *LoggerItf) Warn(msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
@@ -181,11 +181,11 @@ func (_m *LoggerItf) Warn(msg string, fields ...zapcore.Field) {
 
 // WarnSample provides a mock function with given fields: sample, msg, fields
 func (_m *LoggerItf) WarnSample(sample int, msg string, fields ...zapcore.Field) {
-	_va := make([]interface{}, len(fields))
+	_va := make([]any, len(fields))
 	for _i := range fields {
 		_va[_i] = fields[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, sample, msg)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)

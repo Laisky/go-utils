@@ -2,18 +2,22 @@
 package cmd
 
 import (
+	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	"github.com/Laisky/go-utils/v2/log"
+	gutils "github.com/Laisky/go-utils/v2"
+	glog "github.com/Laisky/go-utils/v2/log"
 )
 
 var (
-	cmdDebug bool
+	cmdDebug   bool
+	cmdVersion bool
 )
 
 var rootCmd = &cobra.Command{
@@ -21,6 +25,25 @@ var rootCmd = &cobra.Command{
 	Short: "go-utils",
 	Long:  `go-utils`,
 	Args:  NoExtraArgs,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if cmdVersion {
+			fmt.Println(gutils.PrettyBuildInfo())
+			os.Exit(0)
+		}
+
+		defer func() {
+			_ = glog.Shared.Sync()
+		}()
+		rand.Seed(time.Now().UnixNano())
+
+		if cmdDebug {
+			glog.Shared.Info("run in debug mode")
+			if err := glog.Shared.ChangeLevel(glog.LevelDebug); err != nil {
+				glog.Shared.Panic("change logger level to debug", zap.Error(err))
+			}
+		}
+
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 
 	},
@@ -29,24 +52,14 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	defer func() {
-		_ = log.Shared.Sync()
-	}()
-	rand.Seed(time.Now().UnixNano())
-
-	if cmdDebug {
-		if err := log.Shared.ChangeLevel(log.LevelDebug); err != nil {
-			log.Shared.Panic("change logger level to debug", zap.Error(err))
-		}
-	}
-
 	if err := rootCmd.Execute(); err != nil {
-		log.Shared.Panic("parse command line arguments", zap.Error(err))
+		glog.Shared.Panic("parse command line arguments", zap.Error(err))
 	}
 }
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&cmdDebug, "debug", false, "debug")
+	rootCmd.PersistentFlags().BoolVarP(&cmdVersion, "version", "v", false, "print version")
 }
 
 // NoExtraArgs make sure every args has been processed

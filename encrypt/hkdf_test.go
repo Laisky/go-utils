@@ -2,7 +2,6 @@ package encrypt
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"reflect"
 	"testing"
 
@@ -14,8 +13,7 @@ func TestHKDFWithSHA256(t *testing.T) {
 	_, err := rand.Read(key)
 	require.NoError(t, err)
 
-	salt := make([]byte, sha256.Size)
-	_, err = rand.Read(salt)
+	salt, err := Salt(16)
 	require.NoError(t, err)
 
 	results1 := make([][]byte, 10)
@@ -54,7 +52,7 @@ func TestExpandSecret(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ExpandSecret(tt.args.secret, tt.args.expectLen)
+			got, err := DeriveKey(tt.args.secret, tt.args.expectLen)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ExpandSecret() error = %v, wantErr %v", err, tt.wantErr)
 				return

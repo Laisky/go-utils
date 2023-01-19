@@ -8,26 +8,29 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
+	"math"
 	"math/big"
 	"net"
+	"net/mail"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/jinzhu/copier"
 
-	gcounter "github.com/Laisky/go-utils/v2/counter"
+	gutils "github.com/Laisky/go-utils/v2"
 )
-
-var seriaCounter gcounter.Counter
-
-func init() {
-	seriaCounter = *gcounter.NewCounterFromN(time.Now().UnixNano())
-}
 
 // NewX509CSR new CSR
 //
-// if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm,
-// default sig alg is x509.SHA256WithRSA.
+// # Arguments
+//
+// if prikey is not RSA private key, you must set SignatureAlgorithm by WithX509CertSignatureAlgorithm.
+//
+// Warning: CSR do not support set IsCA / KeyUsage / ExtKeyUsage,
+// you should set these attributes in NewX509CertByCSR.
 func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
@@ -38,9 +41,13 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 		return nil, err
 	}
 
-	csrTpl := &x509.CertificateRequest{
-		Subject:            tpl.Subject,
-		SignatureAlgorithm: x509.SHA256WithRSA,
+	if tpl.IsCA {
+		return nil, errors.Errorf("CSR do not support CA, should set CA in NewX509CertByCSR")
+	}
+
+	csrTpl := &x509.CertificateRequest{}
+	if err = copier.Copy(csrTpl, tpl); err != nil {
+		return nil, errors.Wrap(err, "copy attributes from options to template")
 	}
 
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
@@ -51,6 +58,11 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CertOption) (csrDer []byte
 	return csrDer, nil
 }
 
+// RandomSerialNumber generate random serial number
+func RandomSerialNumber() (*big.Int, error) {
+	return rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+}
+
 // NewX509CertTemplate new tls template
 func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err error) {
 	opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...)
@@ -59,37 +71,42 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 	}
 
 	notAfter := opt.validFrom.Add(opt.validFor)
-	// serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	// serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate serial number")
-	}
-
 	template := &x509.Certificate{
-		SerialNumber: big.NewInt(seriaCounter.Count()),
+		SignatureAlgorithm: opt.signatureAlgorithm,
+		SerialNumber:       opt.serialNumber,
 		Subject: pkix.Name{
-			CommonName:   opt.commonName,
-			Organization: opt.organization,
+			CommonName:         opt.commonName,
+			Organization:       opt.organization,
+			OrganizationalUnit: opt.organizationUnit,
+			Locality:           opt.locality,
 		},
 		NotBefore: opt.validFrom,
 		NotAfter:  notAfter,
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		KeyUsage:              opt.keyUsage,
+		ExtKeyUsage:           opt.extKeyUsage,
 		BasicConstraintsValid: true,
-		DNSNames:              opt.dns,
-		IPAddresses:           opt.ips,
+		IsCA:                  opt.isCA,
+		PolicyIdentifiers:     opt.policies,
+		CRLDistributionPoints: opt.crls,
+		OCSPServer:            opt.ocsps,
 	}
-
-	switch {
-	case opt.isCA:
-		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
-	case opt.isCRLCA:
-		template.KeyUsage |= x509.KeyUsageCRLSign
-	}
-
+	parseAndFillSans(template, opt.sans)
 	return template, nil
+}
+
+func parseAndFillSans(tpl *x509.Certificate, sans []string) {
+	for i := range sans {
+		if ip := net.ParseIP(sans[i]); ip != nil {
+			tpl.IPAddresses = append(tpl.IPAddresses, ip)
+		} else if email, err := mail.ParseAddress(sans[i]); err == nil && email != nil {
+			tpl.EmailAddresses = append(tpl.EmailAddresses, email.Address)
+		} else if uri, err := url.ParseRequestURI(sans[i]); err == nil && uri != nil {
+			tpl.URIs = append(tpl.URIs, uri)
+		} else {
+			tpl.DNSNames = append(tpl.DNSNames, sans[i])
+		}
+	}
 }
 
 // NewX509CertByCSR sign CSR to certificate
@@ -124,7 +141,7 @@ func NewX509CertByCSR(
 		return nil, errors.Wrap(err, "copy from csr")
 	}
 
-	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, GetPubkeyFromPrikey(prikey), prikey)
+	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, csr.PublicKey, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}
@@ -133,20 +150,44 @@ func NewX509CertByCSR(
 }
 
 type tlsCertOption struct {
+	err error
+
 	commonName    string
-	dns           []string
-	ips           []net.IP
 	validFrom     time.Time
 	validFor      time.Duration
 	isCA, isCRLCA bool
-	organization  []string
-	sigAlg        x509.SignatureAlgorithm
+	organization,
+	organizationUnit,
+	locality []string
+	sans         []string
+	keyUsage     x509.KeyUsage
+	extKeyUsage  []x509.ExtKeyUsage
+	serialNumber *big.Int
+	// customSerialNum 不是自动生成的随机序列号，而是外部传入的用户指定的序列号
+	customSerialNum bool
+	// signatureAlgorithm specific signature algorithm manually
+	//
+	// default to auto choose algorithm depends on certificate's algorithm
+	signatureAlgorithm x509.SignatureAlgorithm
+	// policies certificate policies
+	//
+	// refer to RFC-5280 4.2.1.4
+	policies []asn1.ObjectIdentifier
+	// crls crl endpoints
+	crls []string
+	// ocsps ocsp servers
+	ocsps []string
 }
 
 func (o *tlsCertOption) fillDefault() *tlsCertOption {
-	o.validFrom = time.Now()
+	o.validFrom = time.Now().UTC()
 	o.validFor = 7 * 24 * time.Hour
-	o.sigAlg = x509.ECDSAWithSHA512
+	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
+
+	if o.serialNumber, o.err = RandomSerialNumber(); o.err != nil {
+		o.err = errors.Wrap(o.err, "generate random serial number")
+	}
 
 	return o
 }
@@ -162,34 +203,110 @@ func WithX509CertCommonName(commonName string) X509CertOption {
 	}
 }
 
+// WithX509CertPolicies set certificate policies
+func WithX509CertPolicies(policies ...asn1.ObjectIdentifier) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.policies = append(o.policies, policies...)
+		return nil
+	}
+}
+
+// WithX509CertOCSPServers set ocsp servers
+func WithX509CertOCSPServers(ocsp ...string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.ocsps = append(o.ocsps, ocsp...)
+		return nil
+	}
+}
+
+// WithX509CertSeriaNumber set certificate/CRL's serial number
+//
+// refer to RFC-5280 5.2.3 &
+//
+// # Args
+//
+// seriaNumber:
+//   - (optional): generate certificate
+//   - (required): generate CRL
+func WithX509CertSeriaNumber(serialNumber *big.Int) X509CertOption {
+	return func(o *tlsCertOption) error {
+		if serialNumber == nil {
+			return errors.Errorf("serial number shoule not be empty")
+		}
+
+		o.customSerialNum = true
+		o.serialNumber = serialNumber
+		return nil
+	}
+}
+
+// WithX509CertKeyUsage add key usage
+func WithX509CertKeyUsage(usage ...x509.KeyUsage) X509CertOption {
+	return func(o *tlsCertOption) error {
+		for i := range usage {
+			o.keyUsage |= usage[i]
+		}
+
+		return nil
+	}
+}
+
+// WithX509CertCRLs add crl endpoints
+func WithX509CertCRLs(crlEndpoint ...string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.crls = append(o.crls, crlEndpoint...)
+		return nil
+	}
+}
+
+// WithX509ExtCertKeyUsage add ext key usage
+func WithX509ExtCertKeyUsage(usage ...x509.ExtKeyUsage) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.extKeyUsage = append(o.extKeyUsage, usage...)
+		return nil
+	}
+}
+
 // WithX509CertSignatureAlgorithm set signature algorithm
 func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.sigAlg = sigAlg
+		o.signatureAlgorithm = sigAlg
 		return nil
 	}
 }
 
 // WithX509CertOrganization set organization
-func WithX509CertOrganization(organization []string) X509CertOption {
+func WithX509CertOrganization(organization ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.organization = organization
+		o.organization = append(o.organization, organization...)
 		return nil
 	}
 }
 
-// WithX509CertDNS set DNS SANs
-func WithX509CertDNS(dns []string) X509CertOption {
+// WithX509CertOrganizationUnit set organization unit
+func WithX509CertOrganizationUnit(ou ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.dns = dns
+		o.organizationUnit = append(o.organizationUnit, ou...)
 		return nil
 	}
 }
 
-// WithX509CertIPs set IP SANs
-func WithX509CertIPs(ips []net.IP) X509CertOption {
+// WithX509CertLocality set organization unit
+func WithX509CertLocality(l ...string) X509CertOption {
 	return func(o *tlsCertOption) error {
-		o.ips = ips
+		o.locality = append(o.locality, l...)
+		return nil
+	}
+}
+
+// WithX509CertSANS set certificate SANs
+//
+// refer to RFC-5280 4.2.1.6
+//
+// auto parse to ip/email/url/dns
+func WithX509CertSANS(sans ...string) X509CertOption {
+	return func(o *tlsCertOption) error {
+		o.sans = append(o.sans, sans...)
 		return nil
 	}
 }
@@ -214,34 +331,28 @@ func WithX509CertValidFor(validFor time.Duration) X509CertOption {
 func WithX509CertIsCA() X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.isCA = true
+		o.keyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		return nil
 	}
 }
 
-// WithX509CertIsCRACA set is ca to sign CRL
-func WithX509CertIsCRACA() X509CertOption {
+// WithX509CertIsCRLCA set is ca to sign CRL
+func WithX509CertIsCRLCA() X509CertOption {
 	return func(o *tlsCertOption) error {
 		o.isCRLCA = true
+		o.keyUsage |= x509.KeyUsageCRLSign
 		return nil
 	}
 }
 
 func (o *tlsCertOption) applyOpts(opts ...X509CertOption) (*tlsCertOption, error) {
+	if o.err != nil {
+		return nil, o.err
+	}
+
 	for _, f := range opts {
 		if err := f(o); err != nil {
 			return nil, err
-		}
-	}
-
-	if len(o.dns) == 0 {
-		o.dns = append(o.dns, o.commonName)
-	}
-
-	if len(o.ips) == 0 {
-		for _, addr := range o.dns {
-			if ip := net.ParseIP(addr); ip != nil {
-				o.ips = append(o.ips, ip)
-			}
 		}
 	}
 
@@ -282,16 +393,15 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 //
 // # Args
 //
-// ca: CA to sign CRL
+//   - ca: CA to sign CRL.
+//   - prikey: prikey for CA.
+//   - revokeCerts: certifacates that will be revoked.
+//   - WithX509CertSeriaNumber() is required for NewX509CRL.
 //
-// prikey: prikey for CA
+// according to [RFC5280 5.2.3], X.509 v3 CRL could have a
+// monotonically increasing sequence number as serial number.
 //
-// revokeCerts: certifacates that will be revoked
-//
-// opts: some CRL's attributes.
-//
-//   - WithX509CertValidFrom set CRL's `ThisUpdate`,
-//   - WithX509CertValidFor set CRL's `NextUpdate`.
+// [RFC5280 5.2.3]: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
 func NewX509CRL(ca *x509.Certificate,
 	prikey crypto.PrivateKey,
 	revokeCerts []pkix.RevokedCertificate,
@@ -300,13 +410,19 @@ func NewX509CRL(ca *x509.Certificate,
 		return nil, err
 	}
 
+	if opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...); err != nil {
+		return nil, err
+	} else if !opt.customSerialNum {
+		return nil, errors.Errorf("WithX509CertSeriaNumber() is required for NewX509CRL")
+	}
+
 	ctpl, err := NewX509CertTemplate(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse options")
 	}
 
 	tpl := &x509.RevocationList{
-		Number: big.NewInt(seriaCounter.Count()),
+		Number: ctpl.SerialNumber,
 		// Issuer:              ca.Subject,
 		SignatureAlgorithm: ctpl.SignatureAlgorithm,
 		ThisUpdate:         ctpl.NotBefore,
@@ -347,8 +463,43 @@ func validPrikey(prikey crypto.PrivateKey) error {
 }
 
 // VerifyCRL verify crl by ca
+func VerifyCRL(ca *x509.Certificate, crl *pkix.CertificateList) error {
+	return ca.CheckCRLSignature(crl)
+}
+
+type oidContainsOption struct {
+	prefix bool
+}
+
+func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) *oidContainsOption {
+	o, _ = gutils.Pipeline(fs, o)
+	return o
+}
+
+// MatchPrefix treat prefix inclusion as a match as well
 //
-// only support in go v1.19
-// func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
-// 	return crl.CheckSignatureFrom(ca)
-// }
+//	`1.2.3` contains `1.2.3.4`
+func MatchPrefix() func(o *oidContainsOption) error {
+	return func(o *oidContainsOption) error {
+		o.prefix = true
+		return nil
+	}
+}
+
+// OIDContains is oid in oids
+func OIDContains(oids []asn1.ObjectIdentifier,
+	oid asn1.ObjectIdentifier, opts ...func(o *oidContainsOption) error) bool {
+	opt := new(oidContainsOption).applyfs(opts...)
+
+	for i := range oids {
+		if oids[i].Equal(oid) {
+			return true
+		}
+
+		if opt.prefix && strings.HasPrefix(oids[i].String(), oid.String()) {
+			return true
+		}
+	}
+
+	return false
+}

@@ -6,21 +6,54 @@ Many useful golang tools
 | ------- | ---------- |
 | 1.x     | >= v1.16   |
 | 2.x     | >= v1.18   |
+| 3.x     | >= v1.19   |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils/v2)](https://goreportcard.com/report/github.com/Laisky/go-utils/v2)
 [![GoDoc](https://godoc.org/github.com/Laisky/go-utils/v2?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils/v2)
-![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v2)
-[![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v2/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
+![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v3)
+[![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v3/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
-Install:
+## Use as command-line executable binary
+
+### Install
 
 ```sh
-go get github.com/Laisky/go-utils/v2
+go install github.com/Laisky/go-utils/v2/cmd/gutils@latest
 ```
 
-## Usage
+Add `$HOME/.go/bin` to your PATH.
+
+### Usage
+
+```sh
+# find and delete duplicate files/ similar images
+gutils remove-dup examples/images --dry
+
+# move files to hash-based hierach directories
+gutils md5dir -i examples/md5dir/ --dry
+
+# generate tls cert
+gutils gentls --host 1.2.3.4
+
+# encrypt by aes
+gutils encrypt aes -i <file_path> -s <password>
+
+# sign or verify by rsa
+gutils rsa sign
+gutils rsa verify
+```
+
+## Use as SDK
+
+### Install
+
+```sh
+go get github.com/Laisky/go-utils/v2@latest
+```
+
+### Usage
 
 ```go
 import (
@@ -28,7 +61,7 @@ import (
 )
 ```
 
-## Modules
+### Modules
 
 Contains some useful tools in different directories:
 
@@ -51,9 +84,3 @@ Contains some useful tools in different directories:
 - `throttle.go`: faster rate limiter
 - `time.go`: faster clock (if you do not enable vdso)
 - `utils`: some useful tools
-
-# Thanks
-
-Thanks to JetBrain support OpenSource License.
-
-<https://www.jetbrains.com/community/opensource/#support>

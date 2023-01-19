@@ -2,9 +2,14 @@
 package encrypt
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
+	"io"
 	"math/big"
 
+	"github.com/Laisky/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -34,26 +39,6 @@ func FormatBig2Base64(b *big.Int) string {
 	return base64.URLEncoding.EncodeToString(b.Bytes())
 }
 
-// expandAesSecret expand or strip aes secret
-//
-// Deprecated: dangerous, do not use
-// func expandAesSecret(secret []byte) []byte {
-// 	var n int
-// 	if len(secret) <= 16 {
-// 		n = 16 - len(secret)
-// 	} else if len(secret) <= 24 {
-// 		n = 24 - len(secret)
-// 	} else if len(secret) <= 32 {
-// 		n = 32 - len(secret)
-// 	} else {
-// 		return secret[:32]
-// 	}
-
-// 	Logger.Debug("expand secuet", zap.Int("raw", len(secret)), zap.Int("expand", n))
-// 	newSec := secret[:len(secret):len(secret)]
-// 	return append(newSec, make([]byte, n)...)
-// }
-
 // ParseBase642Big parse base64 string to big
 func ParseBase642Big(raw string) (*big.Int, error) {
 	bb, err := base64.URLEncoding.DecodeString(raw)
@@ -64,4 +49,58 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	b := new(big.Int)
 	b.SetBytes(bb)
 	return b, nil
+}
+
+// RSAEncrypt encrypt by PKCS1v15
+//
+// canbe decrypt by RSADecrypt
+func RSAEncrypt(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
+	chunk := make([]byte, pubkey.Size()-11) // will padding 11 bytes
+	reader := bytes.NewReader(plain)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, errors.Wrap(err, "read chunk")
+		}
+
+		cipherChunk, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, chunk[:n])
+		if err != nil {
+			return nil, errors.Wrap(err, "encrypt chunkd")
+		}
+
+		cipher = append(cipher, cipherChunk...)
+	}
+
+	return cipher, nil
+}
+
+// RSADecrypt decrypt by rsa PKCS1v15
+//
+// only accept cipher encrypted by RSAEncrypt
+func RSADecrypt(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
+	chunk := make([]byte, prikey.Size())
+	reader := bytes.NewReader(cipher)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, errors.Wrap(err, "read chunk")
+		}
+
+		plainChunk, err := rsa.DecryptPKCS1v15(rand.Reader, prikey, chunk[:n])
+		if err != nil {
+			return nil, errors.Wrap(err, "encrypt chunkd")
+		}
+
+		plain = append(plain, plainChunk...)
+	}
+
+	return plain, nil
 }

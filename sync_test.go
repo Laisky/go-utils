@@ -200,12 +200,22 @@ func TestRace(t *testing.T) {
 func TestRaceWithCtx(t *testing.T) {
 	t.Run("fatest task", func(t *testing.T) {
 		startAt := time.Now()
-		RaceWithCtx(
+		err := RaceErrWithCtx(
 			context.Background(),
-			func() { time.Sleep(time.Millisecond) },
-			func() { time.Sleep(time.Second) },
-			func() { time.Sleep(time.Minute) },
+			func(context.Context) error {
+				time.Sleep(time.Millisecond)
+				return nil
+			},
+			func(context.Context) error {
+				time.Sleep(time.Second)
+				return nil
+			},
+			func(context.Context) error {
+				time.Sleep(time.Minute)
+				return nil
+			},
 		)
+		require.NoError(t, err)
 
 		require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)
 		require.Less(t, time.Since(startAt), time.Second)
@@ -213,7 +223,7 @@ func TestRaceWithCtx(t *testing.T) {
 }
 
 func TestNewFlock(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs")
+	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)

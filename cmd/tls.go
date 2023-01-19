@@ -15,7 +15,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"net"
 	"os"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
+	gencrypt "github.com/Laisky/go-utils/v2/encrypt"
 	"github.com/Laisky/go-utils/v2/log"
 )
 
@@ -73,7 +73,7 @@ func init() {
 	GenTLS.Flags().BoolVar(&cmdArgs.ed25519, "ed25519", false, "Generate an Ed25519 key")
 }
 
-func publicKey(priv interface{}) interface{} {
+func publicKey(priv any) any {
 	switch k := priv.(type) {
 	case *rsa.PrivateKey:
 		return &k.PublicKey
@@ -99,7 +99,7 @@ func generateTLSCert() {
 		log.Shared.Panic("Missing required --host parameter")
 	}
 
-	var priv interface{}
+	var priv any
 	var err error
 	switch ecdsaCurve {
 	case "":
@@ -134,14 +134,13 @@ func generateTLSCert() {
 	}
 
 	notAfter := notBefore.Add(validFor)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	serialNum, err := gencrypt.RandomSerialNumber()
 	if err != nil {
-		log.Shared.Panic("Failed to generate serial number", zap.Error(err))
+		log.Shared.Panic("generate serial number", zap.Error(err))
 	}
 
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
+		SerialNumber: serialNum,
 		Subject: pkix.Name{
 			CommonName:   host,
 			Organization: []string{"Acme Co"},

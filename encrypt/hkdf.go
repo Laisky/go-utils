@@ -43,11 +43,11 @@ func Salt(length int) ([]byte, error) {
 	return salt, nil
 }
 
-// ExpandSecret expand secret to specified length
-func ExpandSecret(secret []byte, expectLen int) ([]byte, error) {
+// DeriveKey expand secret to specified length
+func DeriveKey(rawKey []byte, expectLen int) (newKey []byte, err error) {
 	results := make([][]byte, 1)
 	results[0] = make([]byte, expectLen)
-	if err := HKDFWithSHA256(secret, nil, nil, results); err != nil {
+	if err := HKDFWithSHA256(rawKey, nil, nil, results); err != nil {
 		return nil, errors.Wrap(err, "derivative key by hkdf")
 	}
 

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -178,7 +179,7 @@ func ExampleGetFuncName() {
 }
 
 func TestFallBack(t *testing.T) {
-	fail := func() interface{} {
+	fail := func() any {
 		panic("got error")
 	}
 	expect := 10
@@ -189,7 +190,7 @@ func TestFallBack(t *testing.T) {
 }
 
 func ExampleFallBack() {
-	targetFunc := func() interface{} {
+	targetFunc := func() any {
 		panic("someting wrong")
 	}
 
@@ -234,7 +235,7 @@ func ExampleRegexNamedSubMatch() {
 }
 
 func TestFlattenMap(t *testing.T) {
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
 	if err := JSON.Unmarshal(j, &data); err != nil {
 		t.Fatalf("got error: %+v", err)
@@ -259,11 +260,11 @@ func TestFlattenMap(t *testing.T) {
 }
 
 func ExampleFlattenMap() {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"a": "1",
-		"b": map[string]interface{}{
+		"b": map[string]any{
 			"c": 2,
-			"d": map[string]interface{}{
+			"d": map[string]any{
 				"e": 3,
 			},
 		},
@@ -280,7 +281,7 @@ func TestTriggerGC(t *testing.T) {
 
 func TestTemplateWithMap(t *testing.T) {
 	tpl := `123${k1} + ${k2}:${k-3} 22`
-	data := map[string]interface{}{
+	data := map[string]any{
 		"k1":  41,
 		"k2":  "abc",
 		"k-3": 213.11,
@@ -541,7 +542,7 @@ func TestRunCMD(t *testing.T) {
 		wantErr    bool
 	}{
 		{"sleep", args{"sleep", []string{"0.1"}}, []byte{}, false},
-		{"sleep-err", args{"sleep", nil}, []byte{}, true},
+		{"sleep-err", args{"sleep", nil}, []byte("sleep: missing operand"), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -550,8 +551,8 @@ func TestRunCMD(t *testing.T) {
 				t.Errorf("RunCMD() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(gotStdout, tt.wantStdout) {
-				t.Errorf("RunCMD() = %v, want %v", gotStdout, tt.wantStdout)
+			if !bytes.Contains(gotStdout, tt.wantStdout) {
+				t.Errorf("RunCMD() = %s, want %s", gotStdout, tt.wantStdout)
 			}
 		})
 	}
@@ -632,8 +633,8 @@ func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 
 func TestInArray(t *testing.T) {
 	type args struct {
-		collection interface{}
-		ele        interface{}
+		collection any
+		ele        any
 	}
 	tests := []struct {
 		name string
@@ -710,7 +711,7 @@ func TestExpCache_Store(t *testing.T) {
 func BenchmarkExpMap(b *testing.B) {
 	cm, err := NewLRUExpiredMap(context.Background(),
 		10*time.Millisecond,
-		func() interface{} { return 1 },
+		func() any { return 1 },
 	)
 	if err != nil {
 		b.Fatalf("%+v", err)
@@ -815,7 +816,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 
 func TestNewExpiredMap(t *testing.T) {
 	ctx := context.Background()
-	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() interface{} { return 666 })
+	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() any { return 666 })
 	require.NoError(t, err)
 
 	const key = "key"
@@ -860,51 +861,51 @@ func Benchmark_Str2Bytes(b *testing.B) {
 
 // func Test_ConvertMap(t *testing.T) {
 // 	{
-// 		input := map[interface{}]string{"123": "23"}
+// 		input := map[any]string{"123": "23"}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": "23"}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": "23"}, got))
 // 	}
 
 // 	{
-// 		input := map[interface{}]int{"123": 23}
+// 		input := map[any]int{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": 23}, got))
 // 	}
 
 // 	{
-// 		input := map[interface{}]uint{"123": 23}
+// 		input := map[any]uint{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": uint(23)}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": uint(23)}, got))
 // 	}
 
 // 	{
 // 		input := map[string]int{"123": 23}
 // 		got := ConvertMap(input)
 // 		t.Log(got)
-// 		require.True(t, reflect.DeepEqual(map[string]interface{}{"123": 23}, got))
+// 		require.True(t, reflect.DeepEqual(map[string]any{"123": 23}, got))
 // 	}
 
 // }
 
 func TestConvert2Map(t *testing.T) {
 	type args struct {
-		inputMap interface{}
+		inputMap any
 	}
 	tests := []struct {
 		name string
 		args args
-		want map[string]interface{}
+		want map[string]any
 	}{
-		{"0", args{map[interface{}]string{"123": "23"}}, map[string]interface{}{"123": "23"}},
-		{"1", args{map[interface{}]int{"123": 23}}, map[string]interface{}{"123": 23}},
-		{"2", args{map[interface{}]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
-		{"3", args{map[string]uint{"123": 23}}, map[string]interface{}{"123": uint(23)}},
-		{"4", args{map[int]uint{123: 23}}, map[string]interface{}{"123": uint(23)}},
-		{"5", args{map[float32]string{float32(123): "23"}}, map[string]interface{}{"123": "23"}},
-		{"6", args{map[float32]int{float32(123): 23}}, map[string]interface{}{"123": 23}},
+		{"0", args{map[any]string{"123": "23"}}, map[string]any{"123": "23"}},
+		{"1", args{map[any]int{"123": 23}}, map[string]any{"123": 23}},
+		{"2", args{map[any]uint{"123": 23}}, map[string]any{"123": uint(23)}},
+		{"3", args{map[string]uint{"123": 23}}, map[string]any{"123": uint(23)}},
+		{"4", args{map[int]uint{123: 23}}, map[string]any{"123": uint(23)}},
+		{"5", args{map[float32]string{float32(123): "23"}}, map[string]any{"123": "23"}},
+		{"6", args{map[float32]int{float32(123): 23}}, map[string]any{"123": 23}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1001,7 +1002,7 @@ func Benchmark_slice(b *testing.B) {
 
 func TestJSONMd5(t *testing.T) {
 	type args struct {
-		data interface{}
+		data any
 	}
 	type foo struct {
 		Name string `json:"name"`
@@ -1037,7 +1038,7 @@ func TestJSONMd5(t *testing.T) {
 func TestNilInterface(t *testing.T) {
 	type foo struct{}
 	var f *foo
-	var v interface{}
+	var v any
 	var tf foo
 
 	v = f
@@ -1139,10 +1140,10 @@ func (f *testCloseQuitlyStruct) Close() error {
 	return nil
 }
 
-func TestCloseQuietly(t *testing.T) {
+func TestSilentClose(t *testing.T) {
 
 	f := new(testCloseQuitlyStruct)
-	CloseQuietly(f)
+	SilentClose(f)
 }
 
 func TestContains(t *testing.T) {
@@ -1150,4 +1151,153 @@ func TestContains(t *testing.T) {
 	require.False(t, Contains([]string{"1", "2", "3"}, "4"))
 	require.True(t, Contains([]int{1, 2, 3}, 2))
 	require.False(t, Contains([]int{1, 2, 3}, 4))
+}
+
+func TestCtxKey(t *testing.T) {
+	// Warning: should not use empty type as context key
+	t.Run("empty type as key", func(t *testing.T) {
+		type ctxKey struct{}
+
+		var (
+			keya, keyb ctxKey
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Equal(t, 123, ctx.Value(keyb)) // <- this is incorrect
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+
+	t.Run("string as key", func(t *testing.T) {
+		type ctxKey string
+
+		var (
+			keya ctxKey = "a"
+			keyb ctxKey = "b"
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Nil(t, ctx.Value(keyb))
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+
+	t.Run("different type string as key", func(t *testing.T) {
+		type ctxKeyA string
+		type ctxKeyB string
+
+		var (
+			keya ctxKeyA = "a"
+			keyb ctxKeyB = "a"
+		)
+
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, keya, 123)
+
+		require.Nil(t, ctx.Value(keyb))
+		require.Equal(t, 123, ctx.Value(keya))
+	})
+}
+
+func TestStructFieldRequired(t *testing.T) {
+	v := struct {
+		A  string
+		AP *string
+		B  int
+		BB float64
+	}{
+		A: "123",
+		B: 123,
+	}
+
+	require.NoError(t, NotEmpty(v.A, "A"))
+	require.NoError(t, NotEmpty(&v.A, "*A"))
+	require.ErrorContains(t, NotEmpty(v.AP, "AP"), "is empty pointer")
+
+	emptyString := ""
+	v.AP = &emptyString
+	require.ErrorContains(t, NotEmpty(v.AP, "AP"), "is point to empty elem")
+	require.ErrorContains(t, NotEmpty(*v.AP, "*AP"), "is empty elem")
+
+	require.NoError(t, NotEmpty(v.B, "B"))
+	require.ErrorContains(t, NotEmpty(v.BB, "BB"), "is empty elem")
+}
+
+func TestOptionalVal(t *testing.T) {
+	v := struct {
+		A  string
+		AP *string
+		B  int
+		BB float64
+	}{
+		A: "123",
+		B: 123,
+	}
+
+	optStr := "laisky"
+	optInt := 123
+	optFloat64 := float64(123)
+
+	v.A = OptionalVal(&v.A, optStr)
+	require.Equal(t, v.A, "123")
+
+	v.AP = OptionalVal(&v.AP, &optStr)
+	require.Equal(t, v.AP, &optStr)
+
+	v.B = OptionalVal(&v.B, optInt)
+	require.Equal(t, v.B, optInt)
+
+	v.BB = OptionalVal(&v.BB, optFloat64)
+	require.Equal(t, v.BB, optFloat64)
+}
+
+func TestRunCMDWithEnv(t *testing.T) {
+	ctx := context.Background()
+
+	type args struct {
+		ctx  context.Context
+		app  string
+		args []string
+		envs []string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantStdout []byte
+		wantErr    bool
+	}{
+		// {"", args{ctx, `/bin/env`, nil, []string{"FOO=BAR"}}, []byte("BAR"), false},
+		{"", args{ctx, `/bin/bash`, []string{"-c", "echo $FOO"}, []string{"FOO=BAR"}}, []byte("BAR\n"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotStdout, err := RunCMDWithEnv(tt.args.ctx, tt.args.app, tt.args.args, tt.args.envs)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RunCMDWithEnv() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(gotStdout, tt.wantStdout) {
+				t.Errorf("RunCMDWithEnv() = %q, want %q", string(gotStdout), string(tt.wantStdout))
+			}
+		})
+	}
+}
+
+func TestCostSecs(t *testing.T) {
+	d := time.Millisecond * 351
+	v := CostSecs(d)
+	require.Equal(t, "0.35s", v)
+}
+
+func TestPipeline(t *testing.T) {
+	f1 := func(v *int) error { (*v)++; return nil }
+	f2 := func(v *int) error { (*v) += 2; return nil }
+	v := 0
+
+	gotv, err := Pipeline([]func(*int) error{f1, f2}, &v)
+	require.NoError(t, err)
+	require.Equal(t, 3, v)
+	require.Equal(t, 3, *gotv)
 }

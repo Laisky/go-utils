@@ -44,11 +44,11 @@ func TestNewSkiplist(t *testing.T) {
 // heapItem item that need to sort
 type heapItem struct {
 	p int
-	k interface{}
+	k any
 }
 
 // GetKey get key of item
-func (it *heapItem) GetKey() interface{} {
+func (it *heapItem) GetKey() any {
 	return it.k
 }
 
@@ -373,7 +373,7 @@ func TestNewFIFO(t *testing.T) {
 
 	var mu sync.Mutex
 	var cnt int32
-	var got []interface{}
+	var got []any
 
 	for i := 0; i < 100; i++ {
 		pool.Go(func() error {

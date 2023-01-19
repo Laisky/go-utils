@@ -2,6 +2,9 @@ package encrypt
 
 import (
 	"crypto"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 	"time"
 
@@ -98,6 +101,20 @@ func TestTLSPrivatekey(t *testing.T) {
 		es521,
 		edkey,
 	} {
+		if rsaPrikey, ok := key.(*rsa.PrivateKey); ok {
+			prider := x509.MarshalPKCS1PrivateKey(rsaPrikey)
+			pripem := PrikeyDer2Pem(prider)
+			prider2, err := Pem2Der(pripem)
+			require.NoError(t, err)
+			require.Equal(t, prider, prider2)
+			key2, err := RSADer2Prikey(prider)
+			require.NoError(t, err)
+			require.True(t, rsaPrikey.Equal(key2))
+			key2, err = RSAPem2Prikey(pripem)
+			require.NoError(t, err)
+			require.True(t, rsaPrikey.Equal(key2))
+		}
+
 		der, err := Prikey2Der(key)
 		require.NoError(t, err)
 
@@ -111,6 +128,11 @@ func TestTLSPrivatekey(t *testing.T) {
 		der22, err := Pem2Der(pem)
 		require.NoError(t, err)
 		require.Equal(t, der, der22)
+
+		ders, err := Pem2Ders(pem)
+		require.NoError(t, err)
+		require.Equal(t, pem, PrikeyDer2Pem(ders[0]))
+		require.Equal(t, der, der2)
 
 		key, err = Pem2Prikey(pem)
 		require.NoError(t, err)
@@ -129,9 +151,9 @@ func TestTLSPrivatekey(t *testing.T) {
 		t.Run("cert", func(t *testing.T) {
 			der, err := NewX509Cert(key,
 				WithX509CertCommonName("laisky"),
-				WithX509CertDNS([]string{"laisky"}),
+				WithX509CertSANS("laisky"),
 				WithX509CertIsCA(),
-				WithX509CertOrganization([]string{"laisky"}),
+				WithX509CertOrganization("laisky"),
 				WithX509CertValidFrom(time.Now()),
 				WithX509CertValidFor(time.Second),
 			)
@@ -148,6 +170,63 @@ func TestTLSPrivatekey(t *testing.T) {
 	}
 }
 
+func TestTLSPublickey(t *testing.T) {
+	rsa2048, err := NewRSAPrikey(RSAPrikeyBits2048)
+	require.NoError(t, err)
+	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+	es224, err := NewECDSAPrikey(ECDSACurveP224)
+	require.NoError(t, err)
+	es256, err := NewECDSAPrikey(ECDSACurveP256)
+	require.NoError(t, err)
+	es384, err := NewECDSAPrikey(ECDSACurveP384)
+	require.NoError(t, err)
+	es521, err := NewECDSAPrikey(ECDSACurveP521)
+	require.NoError(t, err)
+	edkey, err := NewEd25519Prikey()
+	require.NoError(t, err)
+
+	_, err = Pubkey2Der(nil)
+	require.Error(t, err)
+
+	for _, key := range []crypto.PublicKey{
+		GetPubkeyFromPrikey(rsa2048),
+		GetPubkeyFromPrikey(rsa3072),
+		GetPubkeyFromPrikey(es224),
+		GetPubkeyFromPrikey(es256),
+		GetPubkeyFromPrikey(es384),
+		GetPubkeyFromPrikey(es521),
+		GetPubkeyFromPrikey(edkey),
+	} {
+		require.NotNil(t, key)
+		der, err := Pubkey2Der(key)
+		require.NoError(t, err)
+
+		pem, err := Pubkey2Pem(key)
+		require.NoError(t, err)
+
+		der2, err := Pem2Der(pem)
+		require.NoError(t, err)
+		require.Equal(t, pem, PubkeyDer2Pem(der2))
+		require.Equal(t, der, der2)
+		der22, err := Pem2Der(pem)
+		require.NoError(t, err)
+		require.Equal(t, der, der22)
+
+		key, err = Pem2Pubkey(pem)
+		require.NoError(t, err)
+		der2, err = Pubkey2Der(key)
+		require.NoError(t, err)
+		require.Equal(t, der, der2)
+
+		key, err = Der2Pubkey(der)
+		require.NoError(t, err)
+		der2, err = Pubkey2Der(key)
+		require.NoError(t, err)
+		require.Equal(t, der, der2)
+	}
+}
+
 func TestPem2Der_multi_certs(t *testing.T) {
 	der, err := Pem2Der([]byte(testCertChain))
 	require.NoError(t, err)
@@ -156,4 +235,55 @@ func TestPem2Der_multi_certs(t *testing.T) {
 
 	require.Equal(t, "sgx-coordinator-inter", cs[0].Subject.CommonName)
 	require.Equal(t, "sgx-coordinator", cs[1].Subject.CommonName)
+}
+
+func TestSecureCipherSuites(t *testing.T) {
+	raw := SecureCipherSuites(nil)
+	filtered := SecureCipherSuites(func(cs *tls.CipherSuite) bool {
+		return true
+	})
+	require.Equal(t, len(raw), len(filtered))
+
+	filtered = SecureCipherSuites(func(cs *tls.CipherSuite) bool {
+		return false
+	})
+	require.Zero(t, len(filtered))
+}
+
+func TestVerifyCertByPrikey(t *testing.T) {
+	prikey, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	certPem := CertDer2Pem(certDer)
+
+	err = VerifyCertByPrikey(certPem, prikey)
+	require.NoError(t, err)
+
+	t.Run("different cert", func(t *testing.T) {
+		_, certDer2, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		require.NoError(t, err)
+		certPem2 := CertDer2Pem(certDer2)
+		err = VerifyCertByPrikey(certPem2, prikey)
+		require.Error(t, err)
+	})
+}
+
+func TestDer2CSR(t *testing.T) {
+	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	csrDer, err := NewX509CSR(prikey,
+		WithX509CertCommonName("laisky"),
+	)
+	require.NoError(t, err)
+
+	csr, err := Der2CSR(csrDer)
+	require.NoError(t, err)
+
+	pem := CSRDer2Pem(csrDer)
+
+	csr2, err := Pem2CSR(pem)
+	require.NoError(t, err)
+
+	require.Equal(t, csr, csr2)
 }

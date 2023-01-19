@@ -73,7 +73,7 @@ func WithLevel(n int) Option {
 }
 
 // NewGZip create new GZCompressor
-func NewGZip(writer io.Writer, opts ...Option) (Compressor, error) {
+func NewGZip(writer io.Writer, opts ...Option) (*Gzip, error) {
 	opt := &option{
 		level:       defaultGzipLevel,
 		bufSizeByte: defaultBufSizeByte,
@@ -160,7 +160,7 @@ func WithPGzipBlockSize(bytes int) Option {
 }
 
 // NewPGZip create new PGZCompressor
-func NewPGZip(writer io.Writer, opts ...Option) (Compressor, error) {
+func NewPGZip(writer io.Writer, opts ...Option) (*PGZip, error) {
 	opt := &option{
 		level:         defaultPGzipLevel,
 		bufSizeByte:   defaultBufSizeByte,

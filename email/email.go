@@ -17,31 +17,31 @@ type Mail interface {
 	Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error)
 }
 
-// mail easy way to send basic email
-type mail struct {
+// MailT easy way to send basic email
+type MailT struct {
 	host               string
 	port               int
 	username, password string
 }
 
 // NewMail create Mail with SMTP host and port
-func NewMail(host string, port int) Mail {
+func NewMail(host string, port int) *MailT {
 	log.Shared.Debug("try to send mail", zap.String("host", host), zap.Int("port", port))
-	return &mail{
+	return &MailT{
 		host: host,
 		port: port,
 	}
 }
 
 // Login login to SMTP server
-func (m *mail) Login(username, password string) {
+func (m *MailT) Login(username, password string) {
 	log.Shared.Debug("login", zap.String("username", username))
 	m.username = username
 	m.password = password
 }
 
 // BuildMessage implement
-func (m *mail) BuildMessage(msg string) string {
+func (m *MailT) BuildMessage(msg string) string {
 	return msg
 }
 
@@ -80,7 +80,7 @@ func WithMailSendDialer(dialerFact func(host string, port int, username, passwd 
 }
 
 // Send send email
-func (m *mail) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
+func (m *MailT) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
 	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
 	log.Shared.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()

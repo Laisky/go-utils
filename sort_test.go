@@ -13,7 +13,7 @@ func (i *Item) GetValue() int {
 	return i.v
 }
 
-func (i *Item) GetData() interface{} {
+func (i *Item) GetData() any {
 	return i.k
 }
 

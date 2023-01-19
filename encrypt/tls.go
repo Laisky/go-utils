@@ -4,13 +4,17 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"strings"
+
+	// TODO: replaced by crypto/ecdh in Go v1.20
+	//  https://words.filippo.io/dispatches/go-1-20-cryptography/
+	"crypto/elliptic"
 
 	"github.com/Laisky/errors"
 )
@@ -53,6 +57,8 @@ type ECDSACurve string
 
 const (
 	// ECDSACurveP224 ecdsa with P224
+	//
+	// Deprecated: use ECDSACurveP256 instead
 	ECDSACurveP224 ECDSACurve = "P224"
 	// ECDSACurveP256 ecdsa with P256
 	ECDSACurveP256 ECDSACurve = "P256"
@@ -74,7 +80,7 @@ func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 	case ECDSACurveP521:
 		return ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	default:
-		return nil, errors.Errorf("unknown curve %s", curve)
+		return nil, errors.Errorf("unsupport curve %s", curve)
 	}
 }
 
@@ -107,6 +113,29 @@ func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
 	return PrikeyDer2Pem(der), nil
 }
 
+// Pubkey2Der marshal public key by pkix
+func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
+	switch key.(type) {
+	case *rsa.PublicKey,
+		*ecdsa.PublicKey,
+		ed25519.PublicKey:
+	default:
+		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 public key")
+	}
+
+	return x509.MarshalPKIXPublicKey(key)
+}
+
+// Pubkey2Pem marshal public key to pem
+func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
+	der, err := Pubkey2Der(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return PubkeyDer2Pem(der), nil
+}
+
 // Cert2Pem marshal x509 certificate to pem
 func Cert2Pem(cert *x509.Certificate) []byte {
 	return CertDer2Pem(Cert2Der(cert))
@@ -132,25 +161,24 @@ func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
 	return x509.ParseCertificateRequest(csrDer)
 }
 
-// Der2CRL parse crl der
-//
-// only support go v1.19
-// func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-// 	return x509.ParseRevocationList(crlDer)
-// }
+// CSR2Der marshal csr to der
+func CSR2Der(csr *x509.CertificateRequest) []byte {
+	return csr.Raw
+}
 
-// Der2CRL parse crl der
-//
-// will deprecated in go v1.19
-func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-	cs, err := x509.ParseCRL(crlDer)
+// Der2CRL parse crl der or pem
+func Der2CRL(crlBytes []byte) (*pkix.CertificateList, error) {
+	return x509.ParseCRL(crlBytes)
+}
+
+// Pem2CSR parse csr from pem
+func Pem2CSR(csrInPem []byte) (*x509.CertificateRequest, error) {
+	csrDer, err := Pem2Der(csrInPem)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse crl")
+		return nil, errors.Wrap(err, "parse csr pem")
 	}
 
-	crl := new(x509.RevocationList)
-	crl.RevokedCertificates = cs.TBSCertList.RevokedCertificates
-	return crl, err
+	return Der2CSR(csrDer)
 }
 
 // Pem2Cert parse single certificate in pem
@@ -198,31 +226,72 @@ func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
 	return Der2Prikey(der)
 }
 
+// Pem2Pubkey parse public key from pem
+func Pem2Pubkey(pubkeyPem []byte) (crypto.PublicKey, error) {
+	der, err := Pem2Der(pubkeyPem)
+	if err != nil {
+		return nil, err
+	}
+
+	return Der2Pubkey(der)
+}
+
 // Der2Prikey parse private key from der in x509 v8/v1
 func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
 	prikey, err := x509.ParsePKCS8PrivateKey(prikeyDer)
-	if err != nil && strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
-		if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
-			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
+	if err != nil {
+		if strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
+			if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
+				return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
+			}
+
+			return prikey, nil
 		}
 
-		return prikey, nil
+		return nil, errors.Wrap(err, "parse by pkcs8")
 	}
 
 	return prikey, nil
 }
 
+// Der2Pubkey parse public key from der in x509 pkcs1/pkix
+func Der2Pubkey(pubkeyDer []byte) (crypto.PublicKey, error) {
+	rsapubkey, err := x509.ParsePKCS1PublicKey(pubkeyDer)
+	if err != nil && strings.Contains(err.Error(), "ParsePKIXPublicKey") {
+		pubkey, err := x509.ParsePKIXPublicKey(pubkeyDer)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkix")
+		}
+
+		return pubkey, nil
+	}
+
+	return rsapubkey, nil
+}
+
 // PrikeyDer2Pem convert private key in der to pem
-func PrikeyDer2Pem(prikeyInDer []byte) (prikeyInDem []byte) {
+func PrikeyDer2Pem(prikeyInDer []byte) (prikeyInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: prikeyInDer})
 }
 
+// PubkeyDer2Pem convert public key in der to pem
+func PubkeyDer2Pem(pubkeyInDer []byte) (prikeyInPem []byte) {
+	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubkeyInDer})
+}
+
 // CertDer2Pem convert certificate in der to pem
-func CertDer2Pem(certInDer []byte) (certInDem []byte) {
+func CertDer2Pem(certInDer []byte) (certInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certInDer})
 }
 
+// CSRDer2Pem convert CSR in der to pem
+func CSRDer2Pem(CSRInDer []byte) (CSRInPem []byte) {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: CSRInDer})
+}
+
 // Pem2Der convert pem to der
+//
+// support one or more certs
 func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 	var (
 		data = pemBytes
@@ -243,6 +312,32 @@ func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 	return derBytes, err
 }
 
+// Pem2Ders convert pem to ders
+//
+// support one or more certs
+func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
+	var (
+		data = pemBytes
+		blk  *pem.Block
+	)
+	for {
+		blk, data = pem.Decode(data)
+		if blk == nil {
+			return nil, errors.Errorf("pem format invalid")
+		}
+
+		d := []byte{}
+		d = append(d, blk.Bytes...)
+
+		dersBytes = append(dersBytes, d)
+		if len(data) == 0 {
+			break
+		}
+	}
+
+	return dersBytes, err
+}
+
 // GetPubkeyFromPrikey get pubkey from private key
 func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 	switch k := priv.(type) {
@@ -255,4 +350,10 @@ func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 	default:
 		return nil
 	}
+}
+
+// VerifyCertByPrikey verify cert by prikey
+func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
+	_, err := tls.X509KeyPair(certPem, prikeyPem)
+	return err
 }

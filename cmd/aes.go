@@ -128,7 +128,7 @@ func encryptFileByAes() error {
 		return errors.Wrap(err, "encrypt")
 	}
 
-	if err = os.WriteFile(out, cipher, os.ModePerm); err != nil {
+	if err = os.WriteFile(out, cipher, 0640); err != nil {
 		return errors.Wrapf(err, "write file `%s`", out)
 	}
 

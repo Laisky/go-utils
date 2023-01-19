@@ -44,7 +44,7 @@ gutils.JSON.UnmarshalFromString
 ## IsHasField
 
 ```go
-func IsHasField(st interface{}, fieldName string) bool
+func IsHasField(st any, fieldName string) bool
 ```
 
 判断 struct 中是否包含某个 field
@@ -53,7 +53,7 @@ func IsHasField(st interface{}, fieldName string) bool
 ## IsHasMethod
 
 ```go
-IsHasMethod(st interface{}, methodName string) bool
+IsHasMethod(st any, methodName string) bool
 ```
 
 判断 struct 中是否包含某个 method
@@ -73,7 +73,7 @@ ValidateFileHash(filepath string, hashed string) error
 ## GetFuncName
 
 ```go
-GetFuncName(f interface{}) string
+GetFuncName(f any) string
 ```
 
 获取函数名
@@ -82,7 +82,7 @@ GetFuncName(f interface{}) string
 ## FallBack
 
 ```go
-FallBack(orig func() interface{}, fallback interface{}) (ret interface{})
+FallBack(orig func() any, fallback any) (ret any)
 ```
 
 有时候需要调用一些可能会 panic 的函数，但是我们可以容忍这个函数调用失败。
@@ -119,18 +119,18 @@ func ExampleRegexNamedSubMatch() {
 ## FlattenMap
 
 ```go
-FlattenMap(data map[string]interface{}, delimiter string)
+FlattenMap(data map[string]any, delimiter string)
 ```
 
 把嵌套 map 展平，将父 key + delimiter + 子 key 作为新的 key 名。
 
 ```go
 func ExampleFlattenMap() {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"a": "1",
-		"b": map[string]interface{}{
+		"b": map[string]any{
 			"c": 2,
-			"d": map[string]interface{}{
+			"d": map[string]any{
 				"e": 3,
 			},
 		},
@@ -167,7 +167,7 @@ AutoGC(ctx context.Context, opts ...GcOptFunc) (err error)
 ## TemplateWithMap
 
 ```go
-TemplateWithMap(tpl string, data map[string]interface{}) string
+TemplateWithMap(tpl string, data map[string]any) string
 ```
 
 将 tpl 中的 `"${key}"` 替换为 data 中该 key 所对应的值。
@@ -184,7 +184,7 @@ URLMasking(url, mask string) string
 ## SetStructFieldsBySlice
 
 ```go
-SetStructFieldsBySlice(structs, vals interface{}) (err error)
+SetStructFieldsBySlice(structs, vals any) (err error)
 ```
 
 用 slices 给 struct 赋值。
@@ -217,7 +217,7 @@ TrimEleSpaceAndRemoveEmpty(vs []string) (r []string)
 ## InArray
 
 ```go
-InArray(collection interface{}, ele interface{}) bool
+InArray(collection any, ele any) bool
 ```
 
 判断元素是否在 array/slice 中
@@ -225,7 +225,7 @@ InArray(collection interface{}, ele interface{}) bool
 ## IsPtr
 
 ```go
-IsPtr(t interface{}) bool
+IsPtr(t any) bool
 ```
 
 是否是指针
@@ -256,8 +256,8 @@ NewExpCache(ctx context.Context, ttl time.Duration) *ExpCache
 ExpCache 是一个带过期时间的 map，有两个方法：
 
 ```go
-func (c *ExpCache) Store(key, val interface{})
-func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool)
+func (c *ExpCache) Store(key, val any)
+func (c *ExpCache) Load(key any) (data any, ok bool)
 ```
 
 存储（store）的时候，会自动为该 key 计算一个 expiration = now() + ttl。
@@ -266,7 +266,7 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool)
 ## ExpiredMap
 
 ```go
-NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{}) (el *ExpiredMap, err error)
+NewExpiredMap(ctx context.Context, ttl time.Duration, new func() any) (el *ExpiredMap, err error)
 ```
 
 类似于 ExpCache，也是一个带 ttl 的 map。
@@ -276,5 +276,5 @@ NewExpiredMap(ctx context.Context, ttl time.Duration, new func() interface{}) (e
 当 Get 一个不存在的 key 时，会调用初始化时传入的 `new()` 方法生成一个新对象并返回。
 
 ```go
-func (e *ExpiredMap) Get(key string) interface{}
+func (e *ExpiredMap) Get(key string) any
 ```

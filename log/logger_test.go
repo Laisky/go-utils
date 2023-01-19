@@ -31,7 +31,7 @@ func TestNewLogger(t *testing.T) {
 }
 
 func TestWriteToFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "TestWriteToFile")
+	dir, err := os.MkdirTemp("", "TestWriteToFile*")
 	if err != nil {
 		t.Fatal(err)
 	}

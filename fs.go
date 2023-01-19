@@ -1,13 +1,16 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"text/template"
 	"time"
 
 	"github.com/Laisky/errors"
@@ -46,7 +49,7 @@ func IsDir(path string) (bool, error) {
 // IsDirWritable if dir is writable
 func IsDirWritable(dir string) (err error) {
 	f := filepath.Join(dir, ".touch")
-	if err = os.WriteFile(f, []byte(""), os.ModePerm); err != nil {
+	if err = os.WriteFile(f, []byte(""), 0600); err != nil {
 		return err
 	}
 
@@ -63,9 +66,78 @@ func IsFile(path string) (bool, error) {
 	return !isdir, err
 }
 
+// FileExists is path a valid file
+func FileExists(path string) (bool, error) {
+	ok, err := IsFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, errors.Wrapf(err, "check file %q", path)
+	}
+
+	return ok, nil
+}
+
+type copyFileOption struct {
+	mode      fs.FileMode
+	flag      int
+	overwrite bool
+}
+
+func (o *copyFileOption) fillDefault() *copyFileOption {
+	o.mode = 0640
+	o.flag = os.O_WRONLY | os.O_CREATE
+	return o
+}
+
+func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption, error) {
+	for _, f := range optfs {
+		if err := f(o); err != nil {
+			return nil, errors.Wrap(err, GetFuncName(f))
+		}
+	}
+
+	return o, nil
+}
+
+// CopyFileOptionFunc set options for copy file
+type CopyFileOptionFunc func(o *copyFileOption) error
+
+// WithFileMode if create new dst file, set the file's mode
+func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
+	return func(o *copyFileOption) error {
+		o.mode = perm
+		return nil
+	}
+}
+
+// WithFileFlag how to write dst file
+func WithFileFlag(flag int) CopyFileOptionFunc {
+	return func(o *copyFileOption) error {
+		o.flag |= flag
+		return nil
+	}
+}
+
+// Overwrite overwrite file if target existed
+func Overwrite() CopyFileOptionFunc {
+	return func(o *copyFileOption) error {
+		o.overwrite = true
+		o.flag |= os.O_TRUNC
+		return nil
+	}
+}
+
 // CopyFile copy file content from src to dst
-func CopyFile(src, dst string) (err error) {
-	if err = os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
+func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
+	opt, err := new(copyFileOption).fillDefault().applyOpts(optfs...)
+	if err != nil {
+		return errors.Wrap(err, "apply options")
+	}
+
+	if err = os.MkdirAll(filepath.Dir(dst), 0751); err != nil {
 		return errors.Wrapf(err, "create dir `%s`", dst)
 	}
 
@@ -73,18 +145,31 @@ func CopyFile(src, dst string) (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", src)
 	}
+	defer SilentClose(srcFp)
 
-	dstFp, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if !opt.overwrite {
+		if ok, err := FileExists(dst); err != nil {
+			return errors.Wrapf(err, "check file %q", dst)
+		} else if ok {
+			return errors.Errorf("file %q exists", dst)
+		}
+	}
+
+	dstFp, err := os.OpenFile(dst, opt.flag, opt.mode)
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", dst)
 	}
+	defer SilentClose(dstFp)
 
 	var n int64
 	if n, err = io.Copy(dstFp, srcFp); err != nil {
 		return errors.Wrap(err, "copy file")
 	}
-	log.Shared.Debug("copy file", zap.String("dst", dst), zap.Int64("len", n))
 
+	log.Shared.Debug("file copied",
+		zap.String("src", src),
+		zap.String("dst", dst),
+		zap.Int64("len", n))
 	return nil
 }
 
@@ -173,19 +258,60 @@ func DirSize(path string) (size int64, err error) {
 	return
 }
 
+type listFilesInDirOption struct {
+	recur bool
+}
+
+func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
+	for _, opt := range opts {
+		if err := opt(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+// ListFilesInDirOptionFunc options for ListFilesInDir
+type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
+
+// Recursive list files recursively
+func Recursive() ListFilesInDirOptionFunc {
+	return func(o *listFilesInDirOption) error {
+		o.recur = true
+		return nil
+	}
+}
+
 // ListFilesInDir list files in dir
-func ListFilesInDir(dir string) (files []string, err error) {
+func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []string, err error) {
+	log.Shared.Debug("ListFilesInDir", zap.String("dir", dir))
+	opt, err := new(listFilesInDirOption).applyOpts(optfs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply options")
+	}
+
 	fs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read dir `%s`", dir)
 	}
 
 	for _, f := range fs {
+		fpath := filepath.Join(dir, f.Name())
 		if f.IsDir() {
+			if opt.recur {
+				fs, err := ListFilesInDir(fpath, optfs...)
+				if err != nil {
+					return nil, errors.Wrapf(err, "list files in %q", fpath)
+				}
+
+				files = append(files, fs...)
+			}
+
 			continue
 		}
 
-		files = append(files, filepath.Join(dir, f.Name()))
+		files = append(files, fpath)
 	}
 
 	return
@@ -197,7 +323,7 @@ func NewTmpFileForContent(content []byte) (path string, err error) {
 	if err != nil {
 		return "", errors.Wrap(err, "create tmp file")
 	}
-	defer CloseQuietly(tmpFile)
+	defer SilentClose(tmpFile)
 
 	if _, err = tmpFile.Write(content); err != nil {
 		return "", errors.Wrap(err, "write to tmp file")
@@ -254,94 +380,28 @@ func WatchFileChanging(ctx context.Context, files []string, callback func(fsnoti
 	return nil
 }
 
-// WatchFileChangingByMtime watch file changing
-//
-// when file changed, callback will be called,
-// callback will only received fsnotify.Write no matter what happened to changing a file.
-//
-// BUG: Mtime is only accurate to the second
-//
-// Deprecated: use WatchFileChanging instead
-func WatchFileChangingByMtime(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
-	atimes := map[string]time.Time{}
-	for _, f := range files {
-		fi, err := os.Stat(f)
-		if err != nil {
-			return errors.Wrapf(err, "get stat of file %s", f)
-		}
-
-		atimes[f] = fi.ModTime()
+// RenderTemplate render template with args
+func RenderTemplate(tplContent string, args any) ([]byte, error) {
+	tpl, err := template.New("gutils").Parse(tplContent)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse template")
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
+	var out bytes.Buffer
+	if err := tpl.Execute(&out, args); err != nil {
+		return nil, errors.Wrap(err, "execute with args")
+	}
 
-		for {
-			select {
-			case <-ticker.C:
-			case <-ctx.Done():
-				return
-			}
+	return out.Bytes(), nil
 
-			for f, atime := range atimes {
-				changed, atime, err := IsFileATimeChanged(f, atime)
-				if err != nil {
-					continue
-				}
-
-				atimes[f] = atime
-				if changed {
-					callback(fsnotify.Event{
-						Name: f,
-						Op:   fsnotify.Write,
-					})
-				}
-			}
-		}
-	}()
-
-	return nil
 }
 
-// WatchFileChangingByNotify watch file changing
-//
-// when file changed, callback will be called
-//
-// BUG: Tools like vim will delete and replace files before writing,
-// which will cause the notify tool to fail
-//
-// https://github.com/fsnotify/fsnotify/issues/255#issuecomment-407575900
-//
-// Deprecated: use WatchFileChanging instead
-func WatchFileChangingByNotify(ctx context.Context, files []string, callback func(fsnotify.Event)) error {
-	watcher, err := fsnotify.NewWatcher()
+// RenderTemplateFile render template file with args
+func RenderTemplateFile(tplFile string, args any) ([]byte, error) {
+	cnt, err := os.ReadFile(tplFile)
 	if err != nil {
-		return errors.Wrap(err, "create watcher")
+		return nil, errors.Wrapf(err, "read template file %q", tplFile)
 	}
 
-	for _, f := range files {
-		if err = watcher.Add(f); err != nil {
-			return errors.Wrapf(err, "add file `%s` to watcher", f)
-		}
-	}
-
-	go func() {
-		defer CloseQuietly(watcher)
-		for {
-			select {
-			case evt := <-watcher.Events:
-				if evt.Op&fsnotify.Write == fsnotify.Write {
-					callback(evt)
-				}
-			case err := <-watcher.Errors:
-				log.Shared.Error("watch file error", zap.Error(err))
-			case <-ctx.Done():
-				log.Shared.Debug("watcher exit", zap.Error(ctx.Err()))
-				return
-			}
-		}
-	}()
-
-	return nil
+	return RenderTemplate(string(cnt), args)
 }

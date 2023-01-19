@@ -52,38 +52,30 @@ func RaceErr(gs ...func() error) (err error) {
 }
 
 // RaceErrWithCtx return when any goroutine returned or ctx canceled
-func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) (err error) {
-	var once sync.Once
+func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	resultCh := make(chan error, 1)
 	for _, g := range gs {
 		g := g
 		go func() {
-			ierr := g(ctx)
-			once.Do(func() { err = ierr })
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			err := g(ctx)
+			select {
+			case resultCh <- err:
+			default:
+			}
+
 			cancel()
 		}()
 	}
 
-	<-ctx.Done()
-	return err
-}
-
-// RaceWithCtx return when any goroutine returned or ctx canceled
-//
-// Deprecated: use RaceErrWithCtx instead
-func RaceWithCtx(ctx context.Context, gs ...func()) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	for _, g := range gs {
-		g := g
-		go func() {
-			g()
-			cancel()
-		}()
-	}
-
-	<-ctx.Done()
+	return <-resultCh
 }
 
 // RunWithTimeout run func with timeout
@@ -284,7 +276,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // 	var (
 // 		query = new(acquireLockMutation)
-// 		vars  = map[string]interface{}{
+// 		vars  = map[string]any{
 // 			"lock_name":    graphql.String(lockName),
 // 			"is_renewal":   graphql.Boolean(opt.isRenewal),
 // 			"duration_sec": graphql.Int(opt.duration.Seconds()),
@@ -301,7 +293,7 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // func (l *LaiskyRemoteLock) renewalLock(ctx context.Context,
 // query *acquireLockMutation,
-//  vars map[string]interface{}, opt *acquireLockOption) {
+//  vars map[string]any, opt *acquireLockOption) {
 // 	var (
 // 		nRetry   = 0
 // 		err      error
@@ -338,7 +330,7 @@ type ExpiredRLock struct {
 // NewExpiredRLock new ExpiredRLock
 func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, err error) {
 	el = &ExpiredRLock{}
-	el.m, err = NewLRUExpiredMap(ctx, exp, func() interface{} {
+	el.m, err = NewLRUExpiredMap(ctx, exp, func() any {
 		return &sync.RWMutex{}
 	})
 	err = errors.Wrap(err, "new expired rlock")

@@ -50,9 +50,6 @@ const (
 	defaultGCMemRatio         = uint64(85)
 )
 
-// CtxKeyT type of context key
-type CtxKeyT struct{}
-
 var cloner = cpy.New(
 	cpy.IgnoreAllUnexported(),
 )
@@ -60,7 +57,7 @@ var cloner = cpy.New(
 // DeepClone deep clone a struct
 //
 // will ignore all unexported fields
-func DeepClone(src interface{}) (dst interface{}) {
+func DeepClone(src any) (dst any) {
 	return cloner.Copy(src)
 }
 
@@ -95,11 +92,6 @@ func SilentClose(v interface{ Close() error }) {
 func SilentFlush(v interface{ Flush() error }) {
 	_ = v.Flush()
 }
-
-// CloseQuietly
-//
-// Deprecated: use SilentClose instead
-var CloseQuietly = SilentClose
 
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
@@ -169,7 +161,7 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 // HasField check is struct has field
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
-func HasField(st interface{}, fieldName string) bool {
+func HasField(st any, fieldName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer
@@ -186,7 +178,7 @@ func HasField(st interface{}, fieldName string) bool {
 // HasMethod check is struct has method
 //
 // inspired by https://mrwaggel.be/post/golang-reflect-if-initialized-struct-has-member-method-or-fields/
-func HasMethod(st interface{}, methodName string) bool {
+func HasMethod(st any, methodName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer
@@ -201,7 +193,7 @@ func HasMethod(st interface{}, methodName string) bool {
 }
 
 // MD5JSON calculate md5(jsonify(data))
-func MD5JSON(data interface{}) (string, error) {
+func MD5JSON(data any) (string, error) {
 	if NilInterface(data) {
 		return "", errors.New("data is nil")
 	}
@@ -220,11 +212,11 @@ func MD5JSON(data interface{}) (string, error) {
 //
 //	type foo struct{}
 //	var f *foo
-//	var v interface{}
+//	var v any
 //	v = f
 //	v == nil // false
 //	NilInterface(v) // true
-func NilInterface(data interface{}) bool {
+func NilInterface(data any) bool {
 	if data == nil {
 		return true
 	}
@@ -238,7 +230,7 @@ func NilInterface(data interface{}) bool {
 }
 
 // GetStructFieldByName get struct field by name
-func GetStructFieldByName(st interface{}, fieldName string) interface{} {
+func GetStructFieldByName(st any, fieldName string) any {
 	stv := reflect.ValueOf(st)
 	if IsPtr(st) {
 		stv = stv.Elem()
@@ -290,7 +282,7 @@ func ValidateFileHash(filepath string, hashed string) error {
 	if err != nil {
 		return errors.Wrapf(err, "open file `%s`", filepath)
 	}
-	defer CloseQuietly(fp)
+	defer SilentClose(fp)
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return errors.Wrap(err, "read file content")
@@ -305,13 +297,13 @@ func ValidateFileHash(filepath string, hashed string) error {
 }
 
 // GetFuncName return the name of func
-func GetFuncName(f interface{}) string {
+func GetFuncName(f any) string {
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 }
 
 // FallBack return the fallback when orig got error
-// utils.FallBack(func() interface{} { return getIOStatMetric(fs) }, &IOStat{}).(*IOStat)
-func FallBack(orig func() interface{}, fallback interface{}) (ret interface{}) {
+// utils.FallBack(func() any { return getIOStatMetric(fs) }, &IOStat{}).(*IOStat)
+func FallBack(orig func() any, fallback any) (ret any) {
 	defer func() {
 		if recover() != nil {
 			ret = fallback
@@ -339,9 +331,9 @@ func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]str
 }
 
 // FlattenMap make embedded map into flatten map
-func FlattenMap(data map[string]interface{}, delimiter string) {
+func FlattenMap(data map[string]any, delimiter string) {
 	for k, vi := range data {
-		if v2i, ok := vi.(map[string]interface{}); ok {
+		if v2i, ok := vi.(map[string]any); ok {
 			FlattenMap(v2i, delimiter)
 			for k3, v3i := range v2i {
 				data[k+delimiter+k3] = v3i
@@ -361,7 +353,7 @@ func ForceGCBlocking() {
 // ForceGCUnBlocking trigger GC unblocking
 func ForceGCUnBlocking() {
 	go func() {
-		_, _, _ = internalSFG.Do("ForceGCUnBlocking", func() (interface{}, error) {
+		_, _, _ = internalSFG.Do("ForceGCUnBlocking", func() (any, error) {
 			ForceGC()
 			return nil, nil
 		})
@@ -429,7 +421,7 @@ func AutoGC(ctx context.Context, opts ...GcOptFunc) (err error) {
 	if fp, err = os.Open(opt.memLimitFilePath); err != nil {
 		return errors.Wrapf(err, "open file got error: %+v", opt.memLimitFilePath)
 	}
-	defer CloseQuietly(fp)
+	defer SilentClose(fp)
 
 	if memByte, err = io.ReadAll(fp); err != nil {
 		return errors.Wrap(err, "read cgroup mem limit file")
@@ -488,15 +480,15 @@ var (
 var defaultTemplateWithMappReg = regexp.MustCompile(`(?sm)\$\{([^}]+)\}`)
 
 // TemplateWithMap replace `${var}` in template string
-func TemplateWithMap(tpl string, data map[string]interface{}) string {
+func TemplateWithMap(tpl string, data map[string]any) string {
 	return TemplateWithMapAndRegexp(defaultTemplateWithMappReg, tpl, data)
 }
 
 // TemplateWithMapAndRegexp replace `${var}` in template string
-func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string]interface{}) string {
+func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string]any) string {
 	var (
 		k, vs string
-		vi    interface{}
+		vi    any
 	)
 	for _, kg := range tplReg.FindAllStringSubmatch(tpl, -1) {
 		k = kg[1]
@@ -529,7 +521,7 @@ func URLMasking(url, mask string) string {
 }
 
 // SetStructFieldsBySlice set field value of structs slice by values slice
-func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
+func SetStructFieldsBySlice(structs, vals any) (err error) {
 	sv := reflect.ValueOf(structs)
 	vv := reflect.ValueOf(vals)
 
@@ -628,8 +620,8 @@ func Contains[V comparable](collection []V, ele V) bool {
 
 // InArray if collection contains ele
 //
-// Depracated: use Contains instead
-func InArray(collection interface{}, ele interface{}) bool {
+// Deprecated: use Contains instead
+func InArray(collection any, ele any) bool {
 	targetValue := reflect.ValueOf(collection)
 	switch reflect.TypeOf(collection).Kind() {
 	case reflect.Slice, reflect.Array:
@@ -654,13 +646,34 @@ func InArray(collection interface{}, ele interface{}) bool {
 }
 
 // IsPtr check if t is pointer
-func IsPtr(t interface{}) bool {
+func IsPtr(t any) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
 }
 
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
-	return exec.CommandContext(ctx, app, args...).Output()
+	return RunCMDWithEnv(ctx, app, args, nil)
+}
+
+// RunCMDWithEnv run command with environments
+//
+// # Args
+//   - envs: []string{"FOO=BAR"}
+func RunCMDWithEnv(ctx context.Context, app string,
+	args []string, envs []string) (stdout []byte, err error) {
+	cmd := exec.CommandContext(ctx, app, args...)
+
+	if len(envs) != 0 {
+		cmd.Env = append(cmd.Env, envs...)
+	}
+
+	stdout, err = cmd.CombinedOutput()
+	if err != nil {
+		cmd := strings.Join(append([]string{app}, args...), " ")
+		return stdout, errors.Wrapf(err, "run %q got %q", cmd, stdout)
+	}
+
+	return stdout, nil
 }
 
 // Base64Encode encode bytes to string use base64
@@ -677,7 +690,7 @@ func Base64Decode(encoded string) ([]byte, error) {
 type SingleItemExpCache struct {
 	expiredAt time.Time
 	ttl       time.Duration
-	data      interface{}
+	data      any
 	mu        sync.RWMutex
 }
 
@@ -689,7 +702,7 @@ func NewSingleItemExpCache(ttl time.Duration) *SingleItemExpCache {
 }
 
 // Set set data and refresh expires
-func (c *SingleItemExpCache) Set(data interface{}) {
+func (c *SingleItemExpCache) Set(data any) {
 	c.mu.Lock()
 	c.data = data
 	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
@@ -699,7 +712,7 @@ func (c *SingleItemExpCache) Set(data interface{}) {
 // Get get data
 //
 // if data is expired, ok=false
-func (c *SingleItemExpCache) Get() (data interface{}, ok bool) {
+func (c *SingleItemExpCache) Get() (data any, ok bool) {
 	c.mu.RLock()
 	data = c.data
 
@@ -711,7 +724,7 @@ func (c *SingleItemExpCache) Get() (data interface{}, ok bool) {
 
 // GetString same as Get, but return string
 func (c *SingleItemExpCache) GetString() (data string, ok bool) {
-	var itf interface{}
+	var itf any
 	if itf, ok = c.Get(); !ok {
 		return "", false
 	}
@@ -721,7 +734,7 @@ func (c *SingleItemExpCache) GetString() (data string, ok bool) {
 
 // GetUintSlice same as Get, but return []uint
 func (c *SingleItemExpCache) GetUintSlice() (data []uint, ok bool) {
-	var itf interface{}
+	var itf any
 	if itf, ok = c.Get(); !ok {
 		return nil, false
 	}
@@ -739,7 +752,7 @@ type ExpCache struct {
 
 type expCacheItem struct {
 	exp  time.Time
-	data interface{}
+	data any
 }
 
 // NewExpCache new cache manager
@@ -759,13 +772,13 @@ func (c *ExpCache) runClean(ctx context.Context) {
 		default:
 		}
 
-		c.data.Range(func(k, v interface{}) bool {
+		c.data.Range(func(k, v any) bool {
 			if v.(*expCacheItem).exp.After(Clock.GetUTCNow()) {
 				// expired
 				//
 				// if new expCacheItem stored just before delete,
 				// may delete item that not expired.
-				// but this condition is rare, so may just add a little cose.
+				// but this condition is rare, so may just add a little cost.
 				c.data.Delete(k)
 			}
 
@@ -777,7 +790,7 @@ func (c *ExpCache) runClean(ctx context.Context) {
 }
 
 // Store store new key and val into cache
-func (c *ExpCache) Store(key, val interface{}) {
+func (c *ExpCache) Store(key, val any) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
 		exp:  Clock.GetUTCNow().Add(c.ttl),
@@ -785,12 +798,12 @@ func (c *ExpCache) Store(key, val interface{}) {
 }
 
 // Delete remove key
-func (c *ExpCache) Delete(key interface{}) {
+func (c *ExpCache) Delete(key any) {
 	c.data.Delete(key)
 }
 
 // Load load val from cache
-func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
+func (c *ExpCache) Load(key any) (data any, ok bool) {
 	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
 		return data.(*expCacheItem).data, ok
 	} else if ok {
@@ -803,7 +816,7 @@ func (c *ExpCache) Load(key interface{}) (data interface{}, ok bool) {
 
 type expiredMapItem struct {
 	sync.RWMutex
-	data interface{}
+	data any
 	t    *int64
 }
 
@@ -821,13 +834,13 @@ func (e *expiredMapItem) refreshTime() {
 type LRUExpiredMap struct {
 	m   sync.Map
 	ttl time.Duration
-	new func() interface{}
+	new func() any
 }
 
 // NewLRUExpiredMap new ExpiredMap
 func NewLRUExpiredMap(ctx context.Context,
 	ttl time.Duration,
-	new func() interface{}) (el *LRUExpiredMap, err error) {
+	new func() any) (el *LRUExpiredMap, err error) {
 	el = &LRUExpiredMap{
 		ttl: ttl,
 		new: new,
@@ -845,7 +858,7 @@ func (e *LRUExpiredMap) clean(ctx context.Context) {
 		default:
 		}
 
-		e.m.Range(func(k, v interface{}) bool {
+		e.m.Range(func(k, v any) bool {
 			if v.(*expiredMapItem).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
 				return true
 			}
@@ -869,7 +882,7 @@ func (e *LRUExpiredMap) clean(ctx context.Context) {
 // Get get item
 //
 // will auto refresh key's ttl
-func (e *LRUExpiredMap) Get(key string) interface{} {
+func (e *LRUExpiredMap) Get(key string) any {
 	l, _ := e.m.Load(key)
 	if l == nil {
 		t := Clock.GetUTCNow().Unix()
@@ -902,14 +915,14 @@ func Bytes2Str(b []byte) string {
 	return *(*string)(unsafe.Pointer(&sp))
 }
 
-// ConvertMap2StringKey convert any map to `map[string]interface{}`
-func ConvertMap2StringKey(inputMap interface{}) map[string]interface{} {
+// ConvertMap2StringKey convert any map to `map[string]any`
+func ConvertMap2StringKey(inputMap any) map[string]any {
 	v := reflect.ValueOf(inputMap)
 	if v.Kind() != reflect.Map {
 		return nil
 	}
 
-	m2 := map[string]interface{}{}
+	m2 := map[string]any{}
 	ks := v.MapKeys()
 	for _, k := range ks {
 		if k.Kind() == reflect.Interface {
@@ -1045,4 +1058,71 @@ func PrettyBuildInfo() string {
 	}
 
 	return string(ver)
+}
+
+// IsEmpty is empty
+func IsEmpty(val any) bool {
+	t := reflect.TypeOf(val)
+	v := reflect.ValueOf(val)
+	if t.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return true
+		}
+
+		if v.Elem().IsZero() {
+			return true
+		}
+	} else {
+		if v.IsZero() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// NotEmpty val should not be empty, with pretty error msg
+func NotEmpty(val any, name string) error {
+	t := reflect.TypeOf(val)
+	v := reflect.ValueOf(val)
+	if t.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return errors.Errorf("%q is empty pointer", name)
+		}
+
+		if v.Elem().IsZero() {
+			return errors.Errorf("%q is point to empty elem", name)
+		}
+	} else {
+		if v.IsZero() {
+			return errors.Errorf("%q is empty elem", name)
+		}
+	}
+
+	return nil
+}
+
+// OptionalVal return optionval if not empty
+func OptionalVal[T any](ptr *T, optionalVal T) T {
+	if IsEmpty(ptr) {
+		return optionalVal
+	}
+
+	return *ptr
+}
+
+// CostSecs convert duration to string like `0.25s`
+func CostSecs(cost time.Duration) string {
+	return fmt.Sprintf("%.2fs", float64(cost)/float64(time.Second))
+}
+
+// Pipeline run f(v) for all funcs
+func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
+	for _, f := range funcs {
+		if err := f(v); err != nil {
+			return v, err
+		}
+	}
+
+	return v, nil
 }

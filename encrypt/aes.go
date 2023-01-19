@@ -16,7 +16,7 @@ import (
 	"github.com/Laisky/go-utils/v2/log"
 )
 
-// AesEncrypt encrypt bytes by aes with key
+// AesEncrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
@@ -59,7 +59,7 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, cnt, nil), nil
 }
 
-// AesDecrypt encrypt bytes by aes with key
+// AesDecrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
@@ -220,7 +220,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 			}
 
 			outfname := fname + opt.suffix
-			if err = os.WriteFile(outfname, cipher, os.ModePerm); err != nil {
+			if err = os.WriteFile(outfname, cipher, 0640); err != nil {
 				return errors.Wrapf(err, "write file `%s`", outfname)
 			}
 
