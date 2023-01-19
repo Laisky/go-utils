@@ -156,6 +156,7 @@ func TestNewX509CRL(t *testing.T) {
 
 	err = crl.CheckSignatureFrom(ca)
 	require.NoError(t, err)
+
 }
 
 func Test_OIDs(t *testing.T) {

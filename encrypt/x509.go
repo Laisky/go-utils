@@ -462,6 +462,11 @@ func validPrikey(prikey crypto.PrivateKey) error {
 	return nil
 }
 
+// VerifyCRLPkix verify crl by ca
+func VerifyCRLPkix(ca *x509.Certificate, crl *pkix.CertificateList) error {
+	return ca.CheckCRLSignature(crl)
+}
+
 // VerifyCRL verify crl by ca
 func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
 	return crl.CheckSignatureFrom(ca)

@@ -2,11 +2,11 @@
 
 Many useful golang tools
 
-| Version | Support Go    |
-| ------- | ------------- |
-| 1.x     | v1.13 ~ v1.17 |
-| 2.x     | >= v1.18      |
-| 3.x     | >= v1.19      |
+| Version | Support Go |
+| ------- | ---------- |
+| 1.x     | >= v1.16   |
+| 2.x     | >= v1.18   |
+| 3.x     | >= v1.19   |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
@@ -14,7 +14,6 @@ Many useful golang tools
 [![GoDoc](https://godoc.org/github.com/Laisky/go-utils/v3?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils/v3)
 ![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v3)
 [![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v3/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
-
 
 ## Use as command-line executable binary
 

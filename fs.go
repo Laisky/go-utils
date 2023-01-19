@@ -49,7 +49,7 @@ func IsDir(path string) (bool, error) {
 // IsDirWritable if dir is writable
 func IsDirWritable(dir string) (err error) {
 	f := filepath.Join(dir, ".touch")
-	if err = os.WriteFile(f, []byte(""), os.ModePerm); err != nil {
+	if err = os.WriteFile(f, []byte(""), 0600); err != nil {
 		return err
 	}
 
@@ -137,7 +137,7 @@ func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 		return errors.Wrap(err, "apply options")
 	}
 
-	if err = os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
+	if err = os.MkdirAll(filepath.Dir(dst), 0751); err != nil {
 		return errors.Wrapf(err, "create dir `%s`", dst)
 	}
 

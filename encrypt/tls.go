@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"strings"
 
@@ -163,6 +164,11 @@ func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
 // CSR2Der marshal csr to der
 func CSR2Der(csr *x509.CertificateRequest) []byte {
 	return csr.Raw
+}
+
+// Der2CRLPkix parse crl der or pem
+func Der2CRLPkix(crlBytes []byte) (*pkix.CertificateList, error) {
+	return x509.ParseCRL(crlBytes)
 }
 
 // Der2CRL parse crl der

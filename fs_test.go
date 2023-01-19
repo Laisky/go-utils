@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 func TestDirSize(t *testing.T) {
@@ -42,7 +43,7 @@ func TestCopyFile(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	dir, err := os.MkdirTemp("", "TestCopyFile")
+	dir, err := os.MkdirTemp("", "TestCopyFile*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -53,7 +54,7 @@ func TestCopyFile(t *testing.T) {
 	src := filepath.Join(dir, "src")
 	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
 	t.Run("prepare src file", func(t *testing.T) {
-		srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
+		srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, 0644)
 		require.NoError(t, err)
 		defer srcFp.Close()
 
@@ -105,7 +106,7 @@ func TestCopyFile(t *testing.T) {
 }
 
 func TestMoveFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "TestMoveFile")
+	dir, err := os.MkdirTemp("", "TestMoveFile*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -115,7 +116,7 @@ func TestMoveFile(t *testing.T) {
 
 	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
 	src := filepath.Join(dir, "src")
-	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 	defer srcFp.Close()
 
@@ -143,17 +144,17 @@ func TestMoveFile(t *testing.T) {
 }
 
 func TestIsDirWritable(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs")
+	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
 	dirWritable := filepath.Join(dir, "writable")
-	err = os.Mkdir(dirWritable, os.ModePerm|os.ModeDir)
+	err = os.Mkdir(dirWritable, 0751)
 	require.NoError(t, err)
 
 	dirNotWritable := filepath.Join(dir, "notwritable")
-	err = os.Mkdir(dirNotWritable, os.FileMode(0444)|os.ModeDir)
+	err = os.Mkdir(dirNotWritable, 0751)
 	require.NoError(t, err)
 
 	err = IsDirWritable(dirWritable)
@@ -164,7 +165,7 @@ func TestIsDirWritable(t *testing.T) {
 }
 
 func TestIsDir(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs")
+	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -185,15 +186,15 @@ func TestIsDir(t *testing.T) {
 }
 
 func TestListFilesInDir(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs")
+	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	err = os.MkdirAll(filepath.Join(dir, "dir1", "dir2"), os.ModePerm)
+	err = os.MkdirAll(filepath.Join(dir, "dir1", "dir2"), 0751)
 	require.NoError(t, err)
 
-	_, err = os.OpenFile(filepath.Join(dir, "dir1", "file1"), os.O_CREATE, os.ModePerm)
+	_, err = os.OpenFile(filepath.Join(dir, "dir1", "file1"), os.O_CREATE, 0644)
 	require.NoError(t, err)
 
 	// case: exist
@@ -252,11 +253,11 @@ func TestWatchFileChanging(t *testing.T) {
 	require.NoError(t, err)
 
 	fpath1 := filepath.Join(dir, "1")
-	fp1, err := os.OpenFile(fpath1, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	fp1, err := os.OpenFile(fpath1, os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
 	fpath2 := filepath.Join(dir, "2")
-	fp2, err := os.OpenFile(fpath2, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	fp2, err := os.OpenFile(fpath2, os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
 	var evts []fsnotify.Event
@@ -375,7 +376,7 @@ func TestIsFileATimeChanged(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	err = os.WriteFile(fp.Name(), []byte(RandomStringWithLength(10)), 0o644)
+	err = os.WriteFile(fp.Name(), []byte(RandomStringWithLength(10)), 0644)
 	require.NoError(t, err)
 
 	fi, err = os.Stat(fp.Name())

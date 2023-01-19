@@ -39,13 +39,13 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
 
-	if err = os.Mkdir(filepath.Join(dir, "src"), os.ModePerm); err != nil {
+	if err = os.Mkdir(filepath.Join(dir, "src"), 0751); err != nil {
 		require.NoError(t, err)
 	}
-	if err = os.Mkdir(filepath.Join(dir, "src/child"), os.ModePerm); err != nil {
+	if err = os.Mkdir(filepath.Join(dir, "src/child"), 0751); err != nil {
 		require.NoError(t, err)
 	}
-	if err = os.Mkdir(filepath.Join(dir, "dst"), os.ModePerm); err != nil {
+	if err = os.Mkdir(filepath.Join(dir, "dst"), 0751); err != nil {
 		require.NoError(t, err)
 	}
 	files := []string{
@@ -56,7 +56,7 @@ func TestUnzipAndZipFiles(t *testing.T) {
 
 	var fp *os.File
 	for _, file := range files {
-		if fp, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm); err != nil {
+		if fp, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0751); err != nil {
 			require.NoError(t, err)
 		}
 		if _, err = fp.WriteString("yoo"); err != nil {

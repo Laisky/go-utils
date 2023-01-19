@@ -220,7 +220,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 			}
 
 			outfname := fname + opt.suffix
-			if err = os.WriteFile(outfname, cipher, os.ModePerm); err != nil {
+			if err = os.WriteFile(outfname, cipher, 0600); err != nil {
 				return errors.Wrapf(err, "write file `%s`", outfname)
 			}
 

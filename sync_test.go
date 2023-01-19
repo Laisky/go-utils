@@ -223,7 +223,7 @@ func TestRaceWithCtx(t *testing.T) {
 }
 
 func TestNewFlock(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs")
+	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)

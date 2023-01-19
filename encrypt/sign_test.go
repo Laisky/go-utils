@@ -595,11 +595,11 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 	defer os.RemoveAll(dirName)
 
 	cnt := []byte("12345")
-	err = os.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, 0640)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, 0640)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, os.ModePerm)
+	err = os.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, 0640)
 	require.NoError(t, err)
 
 	secret := []byte("laiskyfwejfewjfewlijffed")
