@@ -669,7 +669,7 @@ func TestInArray(t *testing.T) {
 }
 
 func ExampleExpCache() {
-	cc := NewExpCache(context.Background(), 100*time.Millisecond)
+	cc := NewExpCache[string](context.Background(), 100*time.Millisecond)
 	cc.Store("key", "val")
 	cc.Load("key") // return "val"
 
@@ -684,15 +684,15 @@ func ExampleExpCache() {
 }
 
 func TestExpCache_Store(t *testing.T) {
-	cm := NewExpCache(context.Background(), 100*time.Millisecond)
+	cm := NewExpCache[string](context.Background(), 100*time.Millisecond)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
 	for i := 0; i < 5; i++ {
-		if vali, ok := cm.Load(key); !ok {
+		if val, ok := cm.Load(key); !ok {
 			t.Fatal("should ok")
-		} else if vali.(string) != val {
-			t.Fatalf("got: %+v", vali)
+		} else if val != val {
+			t.Fatalf("got: %+v", val)
 		}
 	}
 

@@ -63,7 +63,7 @@ func RandomSerialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
 }
 
-// NewX509CertTemplate new tls template
+// NewX509CertTemplate new tls template with common default values
 func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err error) {
 	opt, err := new(tlsCertOption).fillDefault().applyOpts(opts...)
 	if err != nil {

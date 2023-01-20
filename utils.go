@@ -745,7 +745,7 @@ func (c *SingleItemExpCache) GetUintSlice() (data []uint, ok bool) {
 // ExpCache cache with expires
 //
 // can Store/Load like map
-type ExpCache struct {
+type ExpCache[T any] struct {
 	data sync.Map
 	ttl  time.Duration
 }
@@ -756,15 +756,21 @@ type expCacheItem struct {
 }
 
 // NewExpCache new cache manager
-func NewExpCache(ctx context.Context, ttl time.Duration) *ExpCache {
-	c := &ExpCache{
+//
+// use with generic:
+//
+//	cc := NewExpCache[string](context.Background(), 100*time.Millisecond)
+//	cc.Store("key", "val")
+//	val, ok := cc.Load("key")
+func NewExpCache[T any](ctx context.Context, ttl time.Duration) *ExpCache[T] {
+	c := &ExpCache[T]{
 		ttl: ttl,
 	}
 	go c.runClean(ctx)
 	return c
 }
 
-func (c *ExpCache) runClean(ctx context.Context) {
+func (c *ExpCache[T]) runClean(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -790,7 +796,7 @@ func (c *ExpCache) runClean(ctx context.Context) {
 }
 
 // Store store new key and val into cache
-func (c *ExpCache) Store(key, val any) {
+func (c *ExpCache[T]) Store(key string, val T) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
 		exp:  Clock.GetUTCNow().Add(c.ttl),
@@ -798,20 +804,29 @@ func (c *ExpCache) Store(key, val any) {
 }
 
 // Delete remove key
-func (c *ExpCache) Delete(key any) {
+func (c *ExpCache[T]) Delete(key string) {
 	c.data.Delete(key)
 }
 
+// LoadAndDelete load and delete val from cache
+func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
+	if datai, ok := c.data.LoadAndDelete(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
+		return datai.(*expCacheItem).data.(T), ok
+	}
+
+	return data, false
+}
+
 // Load load val from cache
-func (c *ExpCache) Load(key any) (data any, ok bool) {
-	if data, ok = c.data.Load(key); ok && Clock.GetUTCNow().Before(data.(*expCacheItem).exp) {
-		return data.(*expCacheItem).data, ok
+func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
+	if datai, ok := c.data.Load(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
+		return datai.(*expCacheItem).data.(T), ok
 	} else if ok {
 		// delete expired
 		c.data.Delete(key)
 	}
 
-	return nil, false
+	return data, false
 }
 
 type expiredMapItem struct {
