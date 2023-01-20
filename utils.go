@@ -755,6 +755,18 @@ type expCacheItem struct {
 	data any
 }
 
+// ExpCacheInterface cache with expire duration
+type ExpCacheInterface[T any] interface {
+	// Store store new key and val into cache
+	Store(key string, val T)
+	// Delete remove key
+	Delete(key string)
+	// LoadAndDelete load and delete val from cache
+	LoadAndDelete(key string) (data T, ok bool)
+	// Load load val from cache
+	Load(key string) (data T, ok bool)
+}
+
 // NewExpCache new cache manager
 //
 // use with generic:
