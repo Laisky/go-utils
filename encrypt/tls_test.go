@@ -65,7 +65,8 @@ WQjpFVscMRBKZp/QbpaGPv71K8ZyqxvO8GTMS6g5t5s7O5ZgJeafxftgVeFZC+6o
 4cOdHScy5GiqDvuHfybhQ7B/9U7XNvrPXuA9zhghO7FB5axp8KdXslhFc2rMUHC6
 689h6LJZOpVsoUN+8qpzvcGOjlM/m4IIppnq2jKAx8aSCf05B/1yLn+KIa81wYap
 emCoppSZz2o5Go8jmqJYBJJEv0lst+cGTuUErhx08DoADfUveAQkgzVdE9/z
------END CERTIFICATE-----`
+-----END CERTIFICATE-----
+`
 )
 
 func TestTLSPrivatekey(t *testing.T) {
@@ -119,6 +120,9 @@ func TestTLSPrivatekey(t *testing.T) {
 		require.NoError(t, err)
 
 		pem, err := Prikey2Pem(key)
+		require.NoError(t, err)
+
+		_, err = Pem2Der(append(pem, '\n'))
 		require.NoError(t, err)
 
 		der2, err := Pem2Der(pem)

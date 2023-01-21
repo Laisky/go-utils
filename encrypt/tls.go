@@ -1,6 +1,7 @@
 package encrypt
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -298,6 +299,7 @@ func CSRDer2Pem(CSRInDer []byte) (CSRInPem []byte) {
 //
 // support one or more certs
 func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
+	pemBytes = bytes.Trim(pemBytes, " \n")
 	var (
 		data = pemBytes
 		blk  *pem.Block
@@ -321,6 +323,7 @@ func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 //
 // support one or more certs
 func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
+	pemBytes = bytes.Trim(pemBytes, " \n")
 	var (
 		data = pemBytes
 		blk  *pem.Block
