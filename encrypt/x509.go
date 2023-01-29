@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/Laisky/errors"
-	"github.com/jinzhu/copier"
 
 	gutils "github.com/Laisky/go-utils/v3"
 )
@@ -217,6 +216,10 @@ func NewX509CertTemplate(opts ...X509CertOption) (tpl *x509.Certificate, err err
 			Organization:       opt.organization,
 			OrganizationalUnit: opt.organizationUnit,
 			Locality:           opt.locality,
+			Country:            opt.country,
+			Province:           opt.province,
+			StreetAddress:      opt.streetAddrs,
+			PostalCode:         opt.PostalCode,
 		},
 		NotBefore: opt.validFrom,
 		NotAfter:  notAfter,
@@ -262,17 +265,168 @@ func parseSans(sans []string) (tpl sansTemp) {
 	return tpl
 }
 
-// NewX509CertByCSR sign CSR to certificate
+type signCSROption struct {
+	err error
+
+	validFrom     time.Time
+	validFor      time.Duration
+	isCA, isCRLCA bool
+	keyUsage      x509.KeyUsage
+	extKeyUsage   []x509.ExtKeyUsage
+	serialNumber  *big.Int
+	// customSerialNum 不是自动生成的随机序列号，而是外部传入的用户指定的序列号
+	customSerialNum bool
+	// policies certificate policies
+	//
+	// refer to RFC-5280 4.2.1.4
+	policies []asn1.ObjectIdentifier
+	// crls crl endpoints
+	crls []string
+	// ocsps ocsp servers
+	ocsps []string
+}
+
+func (o *signCSROption) fillDefault() *signCSROption {
+	o.validFrom = time.Now().UTC()
+	o.validFor = 7 * 24 * time.Hour
+	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
+
+	if o.serialNumber, o.err = RandomSerialNumber(); o.err != nil {
+		o.err = errors.Wrap(o.err, "generate random serial number")
+	}
+
+	return o
+}
+
+func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error) {
+	if o.err != nil {
+		return nil, errors.WithStack(o.err)
+	}
+
+	for _, f := range opts {
+		if err := f(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+// SignCSROption options for create certificate from CRL
+type SignCSROption func(*signCSROption) error
+
+// WithX509SignCSRPolicies set certificate policies
+func WithX509SignCSRPolicies(policies ...asn1.ObjectIdentifier) SignCSROption {
+	return func(o *signCSROption) error {
+		o.policies = append(o.policies, policies...)
+		return nil
+	}
+}
+
+// WithX509SignCSROCSPServers set ocsp servers
+func WithX509SignCSROCSPServers(ocsp ...string) SignCSROption {
+	return func(o *signCSROption) error {
+		o.ocsps = append(o.ocsps, ocsp...)
+		return nil
+	}
+}
+
+// WithX509SignCSRSeriaNumber set certificate/CRL's serial number
 //
-// csr's attributes will overweite option's attributes.
-// you need verify csr manually before invoke this function.
+// refer to RFC-5280 5.2.3 &
+//
+// # Args
+//
+// seriaNumber:
+//   - (optional): generate certificate
+//   - (required): generate CRL
+func WithX509SignCSRSeriaNumber(serialNumber *big.Int) SignCSROption {
+	return func(o *signCSROption) error {
+		if serialNumber == nil {
+			return errors.Errorf("serial number shoule not be empty")
+		}
+
+		o.customSerialNum = true
+		o.serialNumber = serialNumber
+		return nil
+	}
+}
+
+// WithX509SignCSRKeyUsage add key usage
+func WithX509SignCSRKeyUsage(usage ...x509.KeyUsage) SignCSROption {
+	return func(o *signCSROption) error {
+		for i := range usage {
+			o.keyUsage |= usage[i]
+		}
+
+		return nil
+	}
+}
+
+// WithX509SignCSRCRLs add crl endpoints
+func WithX509SignCSRCRLs(crlEndpoint ...string) SignCSROption {
+	return func(o *signCSROption) error {
+		o.crls = append(o.crls, crlEndpoint...)
+		return nil
+	}
+}
+
+// WithX509SignCSRExtKeyUsage add ext key usage
+func WithX509SignCSRExtKeyUsage(usage ...x509.ExtKeyUsage) SignCSROption {
+	return func(o *signCSROption) error {
+		o.extKeyUsage = append(o.extKeyUsage, usage...)
+		return nil
+	}
+}
+
+// WithX509SignCSRValidFrom set valid from
+func WithX509SignCSRValidFrom(validFrom time.Time) SignCSROption {
+	return func(o *signCSROption) error {
+		o.validFrom = validFrom
+		return nil
+	}
+}
+
+// WithX509SignCSRValidFor set valid for duration
+func WithX509SignCSRValidFor(validFor time.Duration) SignCSROption {
+	return func(o *signCSROption) error {
+		o.validFor = validFor
+		return nil
+	}
+}
+
+// WithX509SignCSRIsCA set is ca
+func WithX509SignCSRIsCA() SignCSROption {
+	return func(o *signCSROption) error {
+		o.isCA = true
+		o.keyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+		return nil
+	}
+}
+
+// WithX509SignCSRIsCRLCA set is ca to sign CRL
+func WithX509SignCSRIsCRLCA() SignCSROption {
+	return func(o *signCSROption) error {
+		o.isCRLCA = true
+		o.keyUsage |= x509.KeyUsageCRLSign
+		return nil
+	}
+}
+
+// NewX509CertByCSR sign CSR to certificate
 func NewX509CertByCSR(
 	ca *x509.Certificate,
 	prikey crypto.PrivateKey,
 	csrDer []byte,
-	opts ...X509CertOption) (certDer []byte, err error) {
+	opts ...SignCSROption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, err
+	}
+
+	opt, err := new(signCSROption).fillDefault().applyOpts(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply options")
 	}
 
 	if !ca.IsCA || (ca.KeyUsage&x509.KeyUsageCertSign) == x509.KeyUsage(0) {
@@ -284,14 +438,29 @@ func NewX509CertByCSR(
 		return nil, errors.Wrap(err, "parse csr")
 	}
 
-	// create client certificate template
-	tpl, err := NewX509CertTemplate(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "new cert template")
-	}
-	tpl.Issuer = ca.Subject
-	if err = copier.Copy(tpl, csr); err != nil {
-		return nil, errors.Wrap(err, "copy from csr")
+	notAfter := opt.validFrom.Add(opt.validFor)
+	tpl := &x509.Certificate{
+		Issuer:             ca.Subject,
+		SignatureAlgorithm: csr.SignatureAlgorithm,
+		PublicKeyAlgorithm: csr.PublicKeyAlgorithm,
+		SerialNumber:       opt.serialNumber,
+		Subject:            csr.Subject,
+
+		NotBefore: opt.validFrom,
+		NotAfter:  notAfter,
+
+		KeyUsage:              opt.keyUsage,
+		ExtKeyUsage:           opt.extKeyUsage,
+		BasicConstraintsValid: true,
+		IsCA:                  opt.isCA,
+		PolicyIdentifiers:     opt.policies,
+		CRLDistributionPoints: opt.crls,
+		OCSPServer:            opt.ocsps,
+
+		DNSNames:       csr.DNSNames,
+		EmailAddresses: csr.EmailAddresses,
+		IPAddresses:    csr.IPAddresses,
+		URIs:           csr.URIs,
 	}
 
 	certDer, err = x509.CreateCertificate(rand.Reader, tpl, ca, csr.PublicKey, prikey)
@@ -305,34 +474,8 @@ func NewX509CertByCSR(
 type x509V3CertOption struct {
 	err error
 
-	commonName string
-	organization, organizationUnit,
-	locality, country, province, streetAddrs, PostalCode []string
-	validFrom     time.Time
-	validFor      time.Duration
-	isCA, isCRLCA bool
-	sans          []string
-	keyUsage      x509.KeyUsage
-	extKeyUsage   []x509.ExtKeyUsage
-	serialNumber  *big.Int
-	// customSerialNum 不是自动生成的随机序列号，而是外部传入的用户指定的序列号
-	customSerialNum bool
-	// signatureAlgorithm specific signature algorithm manually
-	//
-	// default to auto choose algorithm depends on certificate's algorithm
-	signatureAlgorithm x509.SignatureAlgorithm
-	// publicKeyAlgorithm specific publick key algorithm manually
-	//
-	// default to auto choose algorithm depends on certificate's algorithm
-	publicKeyAlgorithm x509.PublicKeyAlgorithm
-	// policies certificate policies
-	//
-	// refer to RFC-5280 4.2.1.4
-	policies []asn1.ObjectIdentifier
-	// crls crl endpoints
-	crls []string
-	// ocsps ocsp servers
-	ocsps []string
+	signCSROption
+	x509CSROption
 }
 
 func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
@@ -415,8 +558,8 @@ func WithX509CertCRLs(crlEndpoint ...string) X509CertOption {
 	}
 }
 
-// WithX509ExtCertKeyUsage add ext key usage
-func WithX509ExtCertKeyUsage(usage ...x509.ExtKeyUsage) X509CertOption {
+// WithX509CertExtKeyUsage add ext key usage
+func WithX509CertExtKeyUsage(usage ...x509.ExtKeyUsage) X509CertOption {
 	return func(o *x509V3CertOption) error {
 		o.extKeyUsage = append(o.extKeyUsage, usage...)
 		return nil
@@ -601,6 +744,7 @@ func NewX509CRL(ca *x509.Certificate,
 	if opt, err := new(x509V3CertOption).fillDefault().applyOpts(opts...); err != nil {
 		return nil, err
 	} else if !opt.customSerialNum {
+		// do not use random serial number for CRL
 		return nil, errors.Errorf("WithX509CertSeriaNumber() is required for NewX509CRL")
 	}
 
