@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"fmt"
 	"math"
 	"math/big"
 	"net"
@@ -839,4 +840,108 @@ func OIDContains(oids []asn1.ObjectIdentifier,
 	}
 
 	return false
+}
+
+// ReadableX509Cert convert x509 certificate to readable jsonable map
+func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
+	return map[string]any{
+		"subject": map[string]any{
+			"country":             cert.Subject.Country,
+			"organization":        cert.Subject.Organization,
+			"organizational_unit": cert.Subject.OrganizationalUnit,
+			"locality":            cert.Subject.Locality,
+			"province":            cert.Subject.Province,
+			"street_address":      cert.Subject.StreetAddress,
+			"postal_code":         cert.Subject.PostalCode,
+			"serial_number":       cert.Subject.SerialNumber,
+			"common_name":         cert.Subject.CommonName,
+		},
+		"issuer": map[string]any{
+			"country":             cert.Issuer.Country,
+			"organization":        cert.Issuer.Organization,
+			"organizational_unit": cert.Issuer.OrganizationalUnit,
+			"locality":            cert.Issuer.Locality,
+			"province":            cert.Issuer.Province,
+			"street_address":      cert.Issuer.StreetAddress,
+			"postal_code":         cert.Issuer.PostalCode,
+			"serial_number":       cert.Issuer.SerialNumber,
+			"common_name":         cert.Issuer.CommonName,
+		},
+		"signature_algorithm": cert.SignatureAlgorithm.String(),
+		"publicKey_algorithm": cert.PublicKeyAlgorithm.String(),
+		"not_before":          cert.NotBefore.Format(time.RFC3339),
+		"not_after":           cert.NotAfter.Format(time.RFC3339),
+		"key_usage":           ReadableX509KeyUsage(cert.KeyUsage),
+		"ext_key_usage":       ReadableX509ExtKeyUsage(cert.ExtKeyUsage),
+		"is_ca":               fmt.Sprintf("%t", cert.IsCA),
+		"serial_number":       cert.SerialNumber.String(),
+		"sans": map[string]any{
+			"dns_names":       cert.DNSNames,
+			"email_addresses": cert.EmailAddresses,
+			"ip_addresses":    cert.IPAddresses,
+			"uris":            cert.URIs,
+		},
+		"ocsps":              cert.OCSPServer,
+		"cris":               cert.CRLDistributionPoints,
+		"policy_identifiers": ReadableOIDs(cert.PolicyIdentifiers),
+	}, nil
+}
+
+// ReadableX509KeyUsage convert x509 certificate key usages to readable strings
+func ReadableX509KeyUsage(usage x509.KeyUsage) (usageNames []string) {
+	for name, u := range map[string]x509.KeyUsage{
+		"KeyUsageDigitalSignature":  x509.KeyUsageDigitalSignature,
+		"KeyUsageContentCommitment": x509.KeyUsageContentCommitment,
+		"KeyUsageKeyEncipherment":   x509.KeyUsageKeyEncipherment,
+		"KeyUsageDataEncipherment":  x509.KeyUsageDataEncipherment,
+		"KeyUsageKeyAgreement":      x509.KeyUsageKeyAgreement,
+		"KeyUsageCertSign":          x509.KeyUsageCertSign,
+		"KeyUsageCRLSign":           x509.KeyUsageCRLSign,
+		"KeyUsageEncipherOnly":      x509.KeyUsageEncipherOnly,
+		"KeyUsageDecipherOnly":      x509.KeyUsageDecipherOnly,
+	} {
+		if usage&u != 0 {
+			usageNames = append(usageNames, name)
+		}
+	}
+
+	return usageNames
+}
+
+// ReadableX509ExtKeyUsage convert x509 certificate ext key usages to readable strings
+func ReadableX509ExtKeyUsage(usages []x509.ExtKeyUsage) (usageNames []string) {
+	for _, u1 := range usages {
+		for name, u2 := range map[string]x509.ExtKeyUsage{
+			"ExtKeyUsageAny":                            x509.ExtKeyUsageAny,
+			"ExtKeyUsageServerAuth":                     x509.ExtKeyUsageServerAuth,
+			"ExtKeyUsageClientAuth":                     x509.ExtKeyUsageClientAuth,
+			"ExtKeyUsageCodeSigning":                    x509.ExtKeyUsageCodeSigning,
+			"ExtKeyUsageEmailProtection":                x509.ExtKeyUsageEmailProtection,
+			"ExtKeyUsageIPSECEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
+			"ExtKeyUsageIPSECTunnel":                    x509.ExtKeyUsageIPSECTunnel,
+			"ExtKeyUsageIPSECUser":                      x509.ExtKeyUsageIPSECUser,
+			"ExtKeyUsageTimeStamping":                   x509.ExtKeyUsageTimeStamping,
+			"ExtKeyUsageOCSPSigning":                    x509.ExtKeyUsageOCSPSigning,
+			"ExtKeyUsageMicrosoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+			"ExtKeyUsageNetscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
+			"ExtKeyUsageMicrosoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+			"ExtKeyUsageMicrosoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+		} {
+			if u1 == u2 {
+				usageNames = append(usageNames, name)
+				break
+			}
+		}
+	}
+
+	return usageNames
+}
+
+// ReadableX509ExtKeyUsage convert objectids to readable strings
+func ReadableOIDs(oids []asn1.ObjectIdentifier) (names []string) {
+	for i := range oids {
+		names = append(names, oids[i].String())
+	}
+
+	return names
 }

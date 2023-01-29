@@ -1,19 +1,20 @@
 package utils
 
 import (
+	"errors"
 	"io"
 	"testing"
 
-	"github.com/Laisky/errors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestErrorsIs(t *testing.T) {
-	errEOF := errors.WithStack(io.EOF)
-	if errEOF == io.EOF {
-		t.Fatal()
-	}
+	rawErr := io.EOF
+	wrappedErr := Wrap(rawErr, "wrap")
 
-	if !errors.Is(errEOF, io.EOF) {
-		t.Fatal()
-	}
+	ok := errors.Is(wrappedErr, rawErr)
+	require.True(t, ok)
+
+	t.Logf("%+v", wrappedErr)
+	t.Error()
 }
