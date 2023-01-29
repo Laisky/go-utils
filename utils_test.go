@@ -679,27 +679,32 @@ func ExampleExpCache() {
 	fmt.Println(data)
 	fmt.Println(ok)
 
-	// Output: <nil>
+	// Output:
 	// false
 }
 
 func TestExpCache_Store(t *testing.T) {
-	cm := NewExpCache[string](context.Background(), 100*time.Millisecond)
+	Clock.SetInterval(10 * time.Millisecond)
+	startAt := Clock.GetUTCNow()
+	ttl := 100 * time.Millisecond
+	cm := NewExpCache[string](context.Background(), ttl)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
-	for i := 0; i < 5; i++ {
-		if val, ok := cm.Load(key); !ok {
-			t.Fatal("should ok")
-		} else if val != val {
-			t.Fatalf("got: %+v", val)
+	for {
+		now := Clock.GetUTCNow()
+		if gotV, ok := cm.Load(key); ok {
+			require.Equal(t, val, gotV)
+			require.Less(t, now.Sub(startAt), ttl)
+			time.Sleep(10 * time.Millisecond)
+		} else {
+			require.Greater(t, now.Sub(startAt), ttl)
+			break
 		}
 	}
 
-	time.Sleep(200 * time.Millisecond)
-	if _, ok := cm.Load(key); ok {
-		t.Fatal("should not ok")
-	}
+	_, ok := cm.Load(key)
+	require.False(t, ok)
 }
 
 // goos: linux

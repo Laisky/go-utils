@@ -791,8 +791,8 @@ func (c *ExpCache[T]) runClean(ctx context.Context) {
 		}
 
 		c.data.Range(func(k, v any) bool {
-			if v.(*expCacheItem).exp.After(Clock.GetUTCNow()) {
-				// expired
+			if v.(*expCacheItem).exp.Before(Clock.GetUTCNow()) {
+				// delete expired
 				//
 				// if new expCacheItem stored just before delete,
 				// may delete item that not expired.
