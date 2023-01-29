@@ -277,7 +277,7 @@ func TestDer2CSR(t *testing.T) {
 	require.NoError(t, err)
 
 	csrDer, err := NewX509CSR(prikey,
-		WithX509CertCommonName("laisky"),
+		WithX509CSRCommonName("laisky"),
 	)
 	require.NoError(t, err)
 

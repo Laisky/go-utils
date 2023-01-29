@@ -21,7 +21,7 @@ func TestNewX509CSR(t *testing.T) {
 		require.NoError(t, err)
 
 		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CertCommonName("laisky"),
+			WithX509CSRCommonName("laisky"),
 		)
 		require.NoError(t, err)
 
@@ -51,8 +51,8 @@ func TestNewX509CSR(t *testing.T) {
 
 	t.Run("sign ca-csr", func(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CertCommonName("laisky"),
-			WithX509CertSANS("laisky.com"),
+			WithX509CSRCommonName("laisky"),
+			WithX509CSRSANS("laisky.com"),
 		)
 		require.NoError(t, err)
 
@@ -75,8 +75,8 @@ func TestNewX509CSR(t *testing.T) {
 
 	t.Run("set attribtues in non-ca csr", func(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CertCommonName("laisky"),
-			WithX509CertSANS("laisky.com"),
+			WithX509CSRCommonName("laisky"),
+			WithX509CSRSANS("laisky.com"),
 		)
 		require.NoError(t, err)
 

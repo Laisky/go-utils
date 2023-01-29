@@ -1301,3 +1301,12 @@ func TestPipeline(t *testing.T) {
 	require.Equal(t, 3, v)
 	require.Equal(t, 3, *gotv)
 }
+
+func Test_singleflight(t *testing.T) {
+	var n int
+	key := RandomStringWithLength(10)
+	internalSFG.Do(key, func() (interface{}, error) { n++; return nil, nil })
+	internalSFG.Do(key, func() (interface{}, error) { n++; return nil, nil })
+	internalSFG.Do(key, func() (interface{}, error) { n++; return nil, nil })
+	require.Equal(t, 3, n)
+}
