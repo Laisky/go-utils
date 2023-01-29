@@ -75,6 +75,7 @@ var md5DirCMD = &cobra.Command{
 			target := filepath.Join(outputDir, hashed+strings.ToLower(filepath.Ext(f)))
 			if err = gutils.CopyFile(f, target,
 				gutils.WithFileFlag(os.O_CREATE|os.O_WRONLY),
+				gutils.Overwrite(),
 				gutils.WithFileMode(0644),
 			); err != nil {
 				glog.Shared.Panic("copy file", zap.Error(err),
