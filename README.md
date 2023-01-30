@@ -34,8 +34,9 @@ gutils remove-dup examples/images --dry
 # move files to hash-based hierach directories
 gutils md5dir -i examples/md5dir/ --dry
 
-# generate tls cert
-gutils gentls --host 1.2.3.4
+# show x509 certificate details
+gutils certinfo -r blog.laisky.com:443
+gutils certinfo -f ./cert.pem
 
 # encrypt by aes
 gutils encrypt aes -i <file_path> -s <password>
