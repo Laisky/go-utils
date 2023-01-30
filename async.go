@@ -2,34 +2,49 @@ package utils
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
+	"github.com/google/uuid"
 
 	"github.com/Laisky/go-utils/v3/log"
 )
 
 // AsyncTaskStatus status of async task
-type AsyncTaskStatus string
+type AsyncTaskStatus uint
 
 // String convert status to string
 func (s AsyncTaskStatus) String() string {
-	return string(s)
+	switch s {
+	case AsyncTaskStatusPending:
+		return "pending"
+	case AsyncTaskStatusDone:
+		return "done"
+	case AsyncTaskStatusFailed:
+		return "failed"
+	default:
+		return "unspecified"
+	}
 }
 
 const (
+	// AsyncTaskStatusUnspecified unknown
+	AsyncTaskStatusUnspecified AsyncTaskStatus = iota
 	// AsyncTaskStatusPending task pending
-	AsyncTaskStatusPending AsyncTaskStatus = "pending"
+	AsyncTaskStatusPending
 	// AsyncTaskStatusDone task done
-	AsyncTaskStatusDone AsyncTaskStatus = "done"
+	AsyncTaskStatusDone
 	// AsyncTaskStatusFailed task failed
-	AsyncTaskStatusFailed AsyncTaskStatus = "failed"
+	AsyncTaskStatusFailed
 )
 
 var (
 	// ErrAsyncTask root error for async tasks
 	ErrAsyncTask = errors.New("async task error")
+
+	_ AsyncTaskInterface = new(AsyncTask)
 )
 
 // AsyncTaskResult result of async task
@@ -40,18 +55,71 @@ type AsyncTaskResult struct {
 	Err    string          `json:"err"`
 }
 
-// AsyncTaskStore persistency storage for async task
-type AsyncTaskStore interface {
+// AsyncTaskStoreInterface persistency storage for async task
+type AsyncTaskStoreInterface interface {
 	// New create new AsyncTaskResult with id
 	New(ctx context.Context) (result *AsyncTaskResult, err error)
-	// Set set AsyncTaskResult
+	// Set AsyncTaskResult
 	Set(ctx context.Context, taskID string, result *AsyncTaskResult) (err error)
 	// Heartbeat refresh async task's updated time to mark this task is still alive
 	Heartbeat(ctx context.Context, taskID string) (alived bool, err error)
+	// Get task by id
+	Get(ctx context.Context, taskID string) (result *AsyncTaskResult, err error)
+	// Delete task by id
+	Delete(ctx context.Context, taskID string) (err error)
+}
+
+// AsyncTaskStoreMemory example store in memory
+type AsyncTaskStoreMemory struct {
+	store sync.Map
+}
+
+// NewAsyncTaskStoreMemory new default memory store
+func NewAsyncTaskStoreMemory() *AsyncTaskStoreMemory {
+	return &AsyncTaskStoreMemory{
+		store: sync.Map{},
+	}
+}
+
+// New create new AsyncTaskResult with id
+func (s *AsyncTaskStoreMemory) New(ctx context.Context) (result *AsyncTaskResult, err error) {
+	t := &AsyncTaskResult{
+		TaskID: uuid.NewString(),
+		Status: AsyncTaskStatusPending,
+	}
+	s.store.Store(t.TaskID, t)
+	return t, nil
+}
+
+// Get get task by id
+func (s *AsyncTaskStoreMemory) Get(ctx context.Context, taskID string) (result *AsyncTaskResult, err error) {
+	ri, ok := s.store.Load(taskID)
+	if !ok {
+		return nil, errors.Errorf("task %q notfound", taskID)
+	}
+
+	return ri.(*AsyncTaskResult), nil
+}
+
+// Delete task by id
+func (s *AsyncTaskStoreMemory) Delete(ctx context.Context, taskID string) (err error) {
+	s.store.Delete(taskID)
+	return nil
+}
+
+// Set set AsyncTaskResult
+func (s *AsyncTaskStoreMemory) Set(ctx context.Context, taskID string, result *AsyncTaskResult) (err error) {
+	s.store.Store(taskID, result)
+	return nil
+}
+
+// Heartbeat refresh async task's updated time to mark this task is still alive
+func (s *AsyncTaskStoreMemory) Heartbeat(ctx context.Context, taskID string) (alived bool, err error) {
+	return true, nil
 }
 
 // asyncTask async task
-type AsyncTask interface {
+type AsyncTaskInterface interface {
 	// ID get task id
 	ID() string
 	// Status get task status, pending/done/failed
@@ -62,15 +130,19 @@ type AsyncTask interface {
 	SetError(ctx context.Context, errMsg string) (err error)
 }
 
-type asyncTask struct {
+// AsyncTask async task manager
+type AsyncTask struct {
 	id     string
-	store  AsyncTaskStore
+	store  AsyncTaskStoreInterface
 	result *AsyncTaskResult
 	cancel func()
 }
 
 // NewTask new async task
-func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (AsyncTask, error) {
+//
+// ctx must keep alive for whole lifecycle of AsyncTask
+func NewAsyncTask(ctx context.Context, store AsyncTaskStoreInterface) (
+	*AsyncTask, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	go func() {
 		<-ctx.Done()
@@ -83,7 +155,7 @@ func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (AsyncTask, error) 
 	}
 
 	result.Status = AsyncTaskStatusPending
-	t := &asyncTask{
+	t := &AsyncTask{
 		id:     result.TaskID,
 		store:  store,
 		result: result,
@@ -98,7 +170,7 @@ func NewAsyncTask(ctx context.Context, store AsyncTaskStore) (AsyncTask, error) 
 	return t, nil
 }
 
-func (t *asyncTask) heartbeat(ctx context.Context) {
+func (t *AsyncTask) heartbeat(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,17 +189,17 @@ func (t *asyncTask) heartbeat(ctx context.Context) {
 }
 
 // ID get task id
-func (t *asyncTask) ID() string {
+func (t *AsyncTask) ID() string {
 	return t.id
 }
 
 // Status get task status
-func (t *asyncTask) Status() AsyncTaskStatus {
+func (t *AsyncTask) Status() AsyncTaskStatus {
 	return t.result.Status
 }
 
 // SetDone set task done with result data
-func (t *asyncTask) SetDone(ctx context.Context, data string) (err error) {
+func (t *AsyncTask) SetDone(ctx context.Context, data string) (err error) {
 	if t.result.Status != AsyncTaskStatusPending {
 		return errors.Errorf("task already %s", t.result.Status.String())
 	}
@@ -144,7 +216,7 @@ func (t *asyncTask) SetDone(ctx context.Context, data string) (err error) {
 }
 
 // SetError set task error with err message
-func (t *asyncTask) SetError(ctx context.Context, errMsg string) (err error) {
+func (t *AsyncTask) SetError(ctx context.Context, errMsg string) (err error) {
 	if t.result.Status != AsyncTaskStatusPending {
 		return errors.Errorf("task already %s", t.result.Status.String())
 	}

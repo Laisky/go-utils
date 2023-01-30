@@ -1022,28 +1022,8 @@ func OIDContains(oids []asn1.ObjectIdentifier,
 // ReadableX509Cert convert x509 certificate to readable jsonable map
 func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 	return map[string]any{
-		"subject": map[string]any{
-			"country":             cert.Subject.Country,
-			"organization":        cert.Subject.Organization,
-			"organizational_unit": cert.Subject.OrganizationalUnit,
-			"locality":            cert.Subject.Locality,
-			"province":            cert.Subject.Province,
-			"street_address":      cert.Subject.StreetAddress,
-			"postal_code":         cert.Subject.PostalCode,
-			"serial_number":       cert.Subject.SerialNumber,
-			"common_name":         cert.Subject.CommonName,
-		},
-		"issuer": map[string]any{
-			"country":             cert.Issuer.Country,
-			"organization":        cert.Issuer.Organization,
-			"organizational_unit": cert.Issuer.OrganizationalUnit,
-			"locality":            cert.Issuer.Locality,
-			"province":            cert.Issuer.Province,
-			"street_address":      cert.Issuer.StreetAddress,
-			"postal_code":         cert.Issuer.PostalCode,
-			"serial_number":       cert.Issuer.SerialNumber,
-			"common_name":         cert.Issuer.CommonName,
-		},
+		"subject":               ReadablePkixName(cert.Subject),
+		"issuer":                ReadablePkixName(cert.Issuer),
 		"subject_key_id_base64": gutils.Base64Encode(cert.SubjectKeyId),
 		"signature_algorithm":   cert.SignatureAlgorithm.String(),
 		"publicKey_algorithm":   cert.PublicKeyAlgorithm.String(),
@@ -1068,15 +1048,15 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 // ReadableX509KeyUsage convert x509 certificate key usages to readable strings
 func ReadableX509KeyUsage(usage x509.KeyUsage) (usageNames []string) {
 	for name, u := range map[string]x509.KeyUsage{
-		"KeyUsageDigitalSignature":  x509.KeyUsageDigitalSignature,
-		"KeyUsageContentCommitment": x509.KeyUsageContentCommitment,
-		"KeyUsageKeyEncipherment":   x509.KeyUsageKeyEncipherment,
-		"KeyUsageDataEncipherment":  x509.KeyUsageDataEncipherment,
-		"KeyUsageKeyAgreement":      x509.KeyUsageKeyAgreement,
-		"KeyUsageCertSign":          x509.KeyUsageCertSign,
-		"KeyUsageCRLSign":           x509.KeyUsageCRLSign,
-		"KeyUsageEncipherOnly":      x509.KeyUsageEncipherOnly,
-		"KeyUsageDecipherOnly":      x509.KeyUsageDecipherOnly,
+		"DigitalSignature":  x509.KeyUsageDigitalSignature,
+		"ContentCommitment": x509.KeyUsageContentCommitment,
+		"KeyEncipherment":   x509.KeyUsageKeyEncipherment,
+		"DataEncipherment":  x509.KeyUsageDataEncipherment,
+		"KeyAgreement":      x509.KeyUsageKeyAgreement,
+		"CertSign":          x509.KeyUsageCertSign,
+		"CRLSign":           x509.KeyUsageCRLSign,
+		"EncipherOnly":      x509.KeyUsageEncipherOnly,
+		"DecipherOnly":      x509.KeyUsageDecipherOnly,
 	} {
 		if usage&u != 0 {
 			usageNames = append(usageNames, name)
@@ -1086,24 +1066,39 @@ func ReadableX509KeyUsage(usage x509.KeyUsage) (usageNames []string) {
 	return usageNames
 }
 
+// ReadablePkixName convert pkix.Name to readable map with strings
+func ReadablePkixName(name pkix.Name) map[string]any {
+	return map[string]any{
+		"country":             name.Country,
+		"organization":        name.Organization,
+		"organizational_unit": name.OrganizationalUnit,
+		"locality":            name.Locality,
+		"province":            name.Province,
+		"street_address":      name.StreetAddress,
+		"postal_code":         name.PostalCode,
+		"serial_number":       name.SerialNumber,
+		"common_name":         name.CommonName,
+	}
+}
+
 // ReadableX509ExtKeyUsage convert x509 certificate ext key usages to readable strings
 func ReadableX509ExtKeyUsage(usages []x509.ExtKeyUsage) (usageNames []string) {
 	for _, u1 := range usages {
 		for name, u2 := range map[string]x509.ExtKeyUsage{
-			"ExtKeyUsageAny":                            x509.ExtKeyUsageAny,
-			"ExtKeyUsageServerAuth":                     x509.ExtKeyUsageServerAuth,
-			"ExtKeyUsageClientAuth":                     x509.ExtKeyUsageClientAuth,
-			"ExtKeyUsageCodeSigning":                    x509.ExtKeyUsageCodeSigning,
-			"ExtKeyUsageEmailProtection":                x509.ExtKeyUsageEmailProtection,
-			"ExtKeyUsageIPSECEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
-			"ExtKeyUsageIPSECTunnel":                    x509.ExtKeyUsageIPSECTunnel,
-			"ExtKeyUsageIPSECUser":                      x509.ExtKeyUsageIPSECUser,
-			"ExtKeyUsageTimeStamping":                   x509.ExtKeyUsageTimeStamping,
-			"ExtKeyUsageOCSPSigning":                    x509.ExtKeyUsageOCSPSigning,
-			"ExtKeyUsageMicrosoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
-			"ExtKeyUsageNetscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
-			"ExtKeyUsageMicrosoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
-			"ExtKeyUsageMicrosoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+			"Any":                            x509.ExtKeyUsageAny,
+			"ServerAuth":                     x509.ExtKeyUsageServerAuth,
+			"ClientAuth":                     x509.ExtKeyUsageClientAuth,
+			"CodeSigning":                    x509.ExtKeyUsageCodeSigning,
+			"EmailProtection":                x509.ExtKeyUsageEmailProtection,
+			"IPSECEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
+			"IPSECTunnel":                    x509.ExtKeyUsageIPSECTunnel,
+			"IPSECUser":                      x509.ExtKeyUsageIPSECUser,
+			"TimeStamping":                   x509.ExtKeyUsageTimeStamping,
+			"OCSPSigning":                    x509.ExtKeyUsageOCSPSigning,
+			"MicrosoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+			"NetscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
+			"MicrosoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+			"MicrosoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
 		} {
 			if u1 == u2 {
 				usageNames = append(usageNames, name)
