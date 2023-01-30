@@ -16,5 +16,5 @@ func TestErrorsIs(t *testing.T) {
 	require.True(t, ok)
 
 	t.Logf("%+v", wrappedErr)
-	t.Error()
+	// t.Error()
 }

@@ -178,7 +178,8 @@ func TestNewX509CSR(t *testing.T) {
 			roots := x509.NewCertPool()
 			roots.AppendCertsFromPEM(CertDer2Pem(certder))
 			_, err = newCert.Verify(x509.VerifyOptions{
-				Roots: roots,
+				Roots:     roots,
+				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 			})
 			require.NoError(t, err)
 
@@ -190,8 +191,33 @@ func TestNewX509CSR(t *testing.T) {
 }
 
 func TestNewX509CRL(t *testing.T) {
+	t.Run("ca without crl sign key usage", func(t *testing.T) {
+
+		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertIsCA())
+		require.NoError(t, err)
+
+		prikey, err := Pem2Prikey(prikeyPem)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		serialNum, err := RandomSerialNumber()
+		require.NoError(t, err)
+
+		_, err = NewX509CRL(ca, prikey, serialNum,
+			[]pkix.RevokedCertificate{
+				{
+					SerialNumber: serialNum,
+				},
+			},
+		)
+		require.ErrorContains(t, err, "issuer must have the crlSign key usage bit set")
+	})
+
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-		WithX509CertIsCA())
+		WithX509CertIsCRLCA())
 	require.NoError(t, err)
 
 	prikey, err := Pem2Prikey(prikeyPem)
@@ -206,24 +232,23 @@ func TestNewX509CRL(t *testing.T) {
 	var crlder []byte
 	t.Run("without crl serial number", func(t *testing.T) {
 		var err error
-		crlder, err = NewX509CRL(ca, prikey,
+		crlder, err = NewX509CRL(ca, prikey, nil,
 			[]pkix.RevokedCertificate{
 				{
 					SerialNumber: serialNum,
 				},
 			})
-		require.ErrorContains(t, err, "WithX509CertSeriaNumber() is required for NewX509CRL")
+		require.ErrorContains(t, err, "seriaNumber is empty")
 	})
 
 	t.Run("with crl serial number", func(t *testing.T) {
 		var err error
-		crlder, err = NewX509CRL(ca, prikey,
+		crlder, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
 				{
 					SerialNumber: serialNum,
 				},
 			},
-			WithX509CertSeriaNumber(serialNum),
 		)
 		require.NoError(t, err)
 	})
@@ -231,7 +256,7 @@ func TestNewX509CRL(t *testing.T) {
 	crl, err := Der2CRL(crlder)
 	require.NoError(t, err)
 
-	t.Log(crl)
+	// t.Log(crl)
 
 	err = VerifyCRL(ca, crl)
 	require.NoError(t, err)
@@ -342,5 +367,186 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 		require.Contains(t, cert.CRLDistributionPoints, "crl")
 		require.Contains(t, cert.OCSPServer, "ocsp")
 		require.True(t, OIDContains([]asn1.ObjectIdentifier{{1, 2, 3, 4}}, cert.PolicyIdentifiers[0]))
+	})
+}
+
+func TestReadableX509Cert(t *testing.T) {
+	validFrom := time.Unix(time.Now().Unix(), 0).UTC()
+	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertCommonName("laisky"),
+		WithX509CertSANS("laisky.com"),
+		WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
+		WithX509CertOrganization("laisky-o"),
+		WithX509CertOrganizationUnit("laisky-u"),
+		WithX509CertLocality("local"),
+		WithX509CertCountry("country"),
+		WithX509CertProvince("province"),
+		WithX509CertStreetAddrs("st-1", "st-2"),
+		WithX509CertPostalCode("200233"),
+		WithX509CertIsCA(),
+		WithX509CertIsCRLCA(),
+		WithX509CertSeriaNumber(big.NewInt(489238432420)),
+		WithX509CertKeyUsage(x509.KeyUsageCRLSign),
+		WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
+		WithX509CertValidFrom(validFrom),
+		WithX509CertValidFor(time.Hour),
+		WithX509CertCRLs("crl"),
+		WithX509CertOCSPServers("ocsp"),
+		WithX509CertPolicies(asn1.ObjectIdentifier{1, 2, 3, 4}),
+	)
+	require.NoError(t, err)
+
+	cert, err := Der2Cert(certder)
+	require.NoError(t, err)
+
+	m, err := ReadableX509Cert(cert)
+	require.NoError(t, err)
+
+	require.Equal(t, "laisky", m["subject"].(map[string]any)["common_name"])
+}
+
+func Test_ExtKeyUsage(t *testing.T) {
+	t.Run("empty ext key usage", func(t *testing.T) {
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		root := x509.NewCertPool()
+		root.AddCert(cert)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots:     root,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ext key usage not match", func(t *testing.T) {
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
+		)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		root := x509.NewCertPool()
+		root.AddCert(cert)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots:     root,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		})
+		require.ErrorContains(t, err, "certificate specifies an incompatible key usage")
+	})
+
+	t.Run("ext key usage match", func(t *testing.T) {
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
+		)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		root := x509.NewCertPool()
+		root.AddCert(cert)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots:     root,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ext key usage match any", func(t *testing.T) {
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
+		)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		root := x509.NewCertPool()
+		root.AddCert(cert)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots: root,
+			KeyUsages: []x509.ExtKeyUsage{
+				x509.ExtKeyUsageCodeSigning,
+				x509.ExtKeyUsageServerAuth,
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("not all cert in chain match ext key usage", func(t *testing.T) {
+		// new ca
+		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertIsCA(),
+			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
+		)
+		require.NoError(t, err)
+		ca, err := Der2Cert(caDer)
+		require.NoError(t, err)
+		cakey, err := Pem2Prikey(cakeyPem)
+		require.NoError(t, err)
+
+		// new leaf cert
+		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+		require.NoError(t, err)
+		csrDer, err := NewX509CSR(prikey)
+		require.NoError(t, err)
+		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
+			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
+		)
+		require.NoError(t, err)
+		cert, err := Der2Cert(certDer)
+		require.NoError(t, err)
+
+		// verify
+		root := x509.NewCertPool()
+		root.AddCert(ca)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots: root,
+			KeyUsages: []x509.ExtKeyUsage{
+				x509.ExtKeyUsageServerAuth,
+			},
+		})
+		require.ErrorContains(t, err, "certificate specifies an incompatible key usage")
+	})
+
+	t.Run("all cert in chain match ext key usage", func(t *testing.T) {
+		// new ca
+		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+		ca, err := Der2Cert(caDer)
+		require.NoError(t, err)
+		cakey, err := Pem2Prikey(cakeyPem)
+		require.NoError(t, err)
+
+		// new leaf cert
+		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+		require.NoError(t, err)
+		csrDer, err := NewX509CSR(prikey)
+		require.NoError(t, err)
+		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
+			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
+		)
+		require.NoError(t, err)
+		cert, err := Der2Cert(certDer)
+		require.NoError(t, err)
+
+		// verify
+		root := x509.NewCertPool()
+		root.AddCert(ca)
+		_, err = cert.Verify(x509.VerifyOptions{
+			Roots: root,
+			KeyUsages: []x509.ExtKeyUsage{
+				x509.ExtKeyUsageServerAuth,
+			},
+		})
+		require.NoError(t, err)
 	})
 }
