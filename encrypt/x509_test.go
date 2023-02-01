@@ -502,6 +502,9 @@ func Test_ExtKeyUsage(t *testing.T) {
 		require.NoError(t, err)
 		cert, err := Der2Cert(certDer)
 		require.NoError(t, err)
+		prikeyPem, err := Prikey2Pem(prikey)
+		require.NoError(t, err)
+		require.NoError(t, VerifyCertByPrikey(CertDer2Pem(certDer), prikeyPem))
 
 		// verify
 		root := x509.NewCertPool()
