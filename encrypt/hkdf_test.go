@@ -2,9 +2,9 @@ package encrypt
 
 import (
 	"crypto/rand"
-	"reflect"
 	"testing"
 
+	gutils "github.com/Laisky/go-utils/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ func TestHKDFWithSHA256(t *testing.T) {
 	require.Equal(t, results1[2], results2[2])
 }
 
-func TestExpandSecret(t *testing.T) {
+func TestDeriveKey(t *testing.T) {
 	type args struct {
 		secret    []byte
 		expectLen int
@@ -44,22 +44,84 @@ func TestExpandSecret(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []byte
+		want    string
 		wantErr bool
 	}{
-		{"", args{[]byte("wefew"), 1}, []byte{30}, false},
-		{"", args{[]byte("wefew"), 10}, []byte{30, 118, 34, 42, 107, 205, 110, 215, 121, 114}, false},
+		{"0", args{[]byte("wefew"), 1}, "Hg==", false},
+		{"1", args{[]byte("wefew"), 10}, "HnYiKmvNbtd5cg==", false},
+		{"2", args{[]byte("dqwdq"), 10}, "NVj26CZZyWBZeQ==", false},
+		{"3", args{[]byte("dqwdq"), 10}, "NVj26CZZyWBZeQ==", false},
+		{"5", args{[]byte("dqwde"), 10}, "ZOMpRJ3GeNQF4w==", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := DeriveKey(tt.args.secret, tt.args.expectLen)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ExpandSecret() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if !tt.wantErr {
+				require.NoErrorf(t, err, "[%s]", tt.name)
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ExpandSecret() = %v, want %v", got, tt.want)
+
+			require.Lenf(t, got, tt.args.expectLen, "[%s]", tt.name)
+			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
+		})
+	}
+}
+
+func TestDeriveKeyByHKDF(t *testing.T) {
+	type args struct {
+		secret, salt []byte
+		expectLen    int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{"0", args{[]byte("wefew"), nil, 1}, "Hg==", false},
+		{"1", args{[]byte("wefew"), nil, 10}, "HnYiKmvNbtd5cg==", false},
+		{"2", args{[]byte("dqwdq"), []byte("dqwdq"), 10}, "F5a7I4KXb-zYoQ==", false},
+		{"3", args{[]byte("dqwdq"), []byte("dqwdq"), 10}, "F5a7I4KXb-zYoQ==", false},
+		{"4", args{[]byte("dqwdq"), []byte("dqwde"), 10}, "ZXuIt9wvOADp7A==", false},
+		{"5", args{[]byte("dqwde"), []byte("dqwdq"), 10}, "tR9B7aMZl6prFA==", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DeriveKeyByHKDF(tt.args.secret, tt.args.salt, tt.args.expectLen)
+			if !tt.wantErr {
+				require.NoErrorf(t, err, "[%s]", tt.name)
 			}
+
+			require.Lenf(t, got, tt.args.expectLen, "[%s]", tt.name)
+			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
+		})
+	}
+}
+
+func TestDeriveKeyBySMHF(t *testing.T) {
+	type args struct {
+		secret, salt []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{"0", args{[]byte("wefew"), nil}, "8WhliJaHIKLFH26MJxNbrt-EeS1E9gRcJy_Rgn8reaM=", false},
+		{"1", args{[]byte("wefew"), nil}, "8WhliJaHIKLFH26MJxNbrt-EeS1E9gRcJy_Rgn8reaM=", false},
+		{"2", args{[]byte("dqwdq"), []byte("dqwdq")}, "oJoV1zG4OD3DacQMKSUuR7pEuC_3KOAVxbA2g17H-H0=", false},
+		{"3", args{[]byte("dqwdq"), []byte("dqwdq")}, "oJoV1zG4OD3DacQMKSUuR7pEuC_3KOAVxbA2g17H-H0=", false},
+		{"4", args{[]byte("dqwdq"), []byte("dqwde")}, "iARWAZNeqM7KCaUaKMiFK4LxV0OGTOq5IT-m3VscZGg=", false},
+		{"5", args{[]byte("dqwde"), []byte("dqwdq")}, "6x06Uy39lid583AXwDdDcLDAKSrgjPHOKdrrcHxKdOY=", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DeriveKeyBySMHF(tt.args.secret, tt.args.salt)
+			if !tt.wantErr {
+				require.NoErrorf(t, err, "[%s]", tt.name)
+			}
+
+			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
 		})
 	}
 }

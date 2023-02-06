@@ -676,15 +676,32 @@ func RunCMDWithEnv(ctx context.Context, app string,
 	return stdout, nil
 }
 
-// Base64Encode encode bytes to string use base64
-func Base64Encode(raw []byte) string {
+// Base64Encode encode bytes to string by base64
+//
+// Deprecated: use EncodeByBase64 instead
+var Base64Encode = EncodeByBase64
+
+// EncodeByBase64 encode bytes to string by base64
+func EncodeByBase64(raw []byte) string {
 	return base64.URLEncoding.EncodeToString(raw)
 }
 
-// Base64Decode decode string to bytes use base64
-func Base64Decode(encoded string) ([]byte, error) {
+// Base64Decode decode string to bytes by base64
+//
+// Deprecated: use DecodeByBase64 instead
+var Base64Decode = DecodeByBase64
+
+// DecodeByBase64 decode string to bytes by base64
+func DecodeByBase64(encoded string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(encoded)
 }
+
+var (
+	// EncodeByHex encode bytes to string by hex
+	EncodeByHex = hex.EncodeToString
+	// DecodeByHex decode string to bytes by hex
+	DecodeByHex = hex.DecodeString
+)
 
 // SingleItemExpCache single item with expires
 type SingleItemExpCache struct {
