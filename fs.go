@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -19,6 +20,71 @@ import (
 
 	"github.com/Laisky/go-utils/v3/log"
 )
+
+// ReplaceFile replace file with content atomatically
+//
+// this function is not goroutine-safe
+func ReplaceFile(path string, content []byte, perm os.FileMode) error {
+	dir, fname := filepath.Split(path)
+	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
+	swapFpath := filepath.Join(dir, swapFname)
+
+	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
+	if err != nil {
+		return errors.Wrapf(err, "create swap file %q", swapFpath)
+	}
+	defer os.RemoveAll(swapFpath)
+	defer SilentClose(fp)
+
+	_, err = fp.Write(content)
+	if err != nil {
+		return errors.Wrapf(err, "write to file %q", swapFpath)
+	}
+
+	if err = os.Rename(swapFpath, path); err != nil {
+		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
+	}
+
+	return nil
+}
+
+// ReplaceFileStream replace file with content atomatically
+//
+// this function is not goroutine-safe
+func ReplaceFileStream(path string, in io.ReadCloser, perm os.FileMode) error {
+	dir, fname := filepath.Split(path)
+	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
+	swapFpath := filepath.Join(dir, swapFname)
+
+	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
+	if err != nil {
+		return errors.Wrapf(err, "create swap file %q", swapFpath)
+	}
+	defer os.RemoveAll(swapFpath)
+	defer SilentClose(fp)
+
+	chunk := make([]byte, 4096)
+	for {
+		if _, err = in.Read(chunk); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return errors.Wrap(err, "read from input")
+		}
+
+		_, err = fp.Write(chunk)
+		if err != nil {
+			return errors.Wrapf(err, "write chunk to file %q", swapFpath)
+		}
+	}
+
+	if err = os.Rename(swapFpath, path); err != nil {
+		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
+	}
+
+	return nil
+}
 
 // MoveFile move file from src to dst by copy
 //

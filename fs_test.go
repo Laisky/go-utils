@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v3/log"
 )
 
 func TestDirSize(t *testing.T) {
@@ -454,4 +453,78 @@ func TestRenderTemplate(t *testing.T) {
 	got, err := RenderTemplateFile(fpath, arg)
 	require.NoError(t, err)
 	require.Equal(t, "hello, laisky", string(got))
+}
+
+func TestReplaceFile(t *testing.T) {
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	t.Run("replace exists file", func(t *testing.T) {
+		fpath := filepath.Join(dir, "fpath")
+		err := os.WriteFile(fpath, []byte(RandomStringWithLength(432)), 0600)
+		require.NoError(t, err)
+
+		cnt, err := RandomBytesWithLength(1024 * 1024)
+		require.NoError(t, err)
+		err = ReplaceFile(fpath, cnt, 0640)
+		require.NoError(t, err)
+
+		finfo, err := os.Stat(fpath)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0640), finfo.Mode())
+
+		got, err := os.ReadFile(fpath)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
+
+	t.Run("replace non-exists file", func(t *testing.T) {
+		fpath := filepath.Join(dir, "nonexists")
+		cnt, err := RandomBytesWithLength(1024 * 1024)
+		require.NoError(t, err)
+
+		err = ReplaceFile(fpath, cnt, 0640)
+		require.NoError(t, err)
+
+		finfo, err := os.Stat(fpath)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0640), finfo.Mode())
+
+		got, err := os.ReadFile(fpath)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
+}
+
+func TestReplaceFileStream(t *testing.T) {
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	dst := filepath.Join(dir, "dst")
+	err = os.WriteFile(dst, []byte(RandomStringWithLength(432)), 0600)
+	require.NoError(t, err)
+
+	src := filepath.Join(dir, "src")
+	cnt, err := RandomBytesWithLength(1024 * 1024)
+	require.NoError(t, err)
+
+	err = os.WriteFile(src, cnt, 0644)
+	require.NoError(t, err)
+
+	srcfp, err := os.Open(src)
+	require.NoError(t, err)
+	defer srcfp.Close()
+
+	err = ReplaceFileStream(dst, srcfp, 0640)
+	require.NoError(t, err)
+
+	finfo, err := os.Stat(dst)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0640), finfo.Mode())
+
+	got, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	require.Equal(t, cnt, got)
 }
