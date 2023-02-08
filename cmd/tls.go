@@ -101,20 +101,21 @@ func showPemFileX509CertInfo(fpath string) error {
 }
 
 func prettyPrintCerts(certs []*x509.Certificate) error {
-	for i, cert := range certs {
-		fmt.Printf("--------------- certificate-[%d] ---------------\n", i)
-		rc, err := gencrypt.ReadableX509Cert(cert)
+	var parsedCerts []map[string]any
+	for i := range certs {
+		rc, err := gencrypt.ReadableX509Cert(certs[i])
 		if err != nil {
 			return errors.Wrap(err, "readable cert")
 		}
 
-		out, err := json.MarshalIndent(rc, "", "    ")
-		if err != nil {
-			return errors.Wrap(err, "marshal cert")
-		}
-
-		fmt.Println(string(out))
+		parsedCerts = append(parsedCerts, rc)
 	}
 
+	out, err := json.MarshalIndent(parsedCerts, "", "    ")
+	if err != nil {
+		return errors.Wrap(err, "marshal cert")
+	}
+
+	fmt.Println(string(out))
 	return nil
 }

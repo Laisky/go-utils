@@ -33,8 +33,7 @@ import (
 
 	"github.com/Laisky/go-utils/v3/log"
 
-	// automaxprocs compatable with cgroup
-	_ "go.uber.org/automaxprocs"
+	"go.uber.org/automaxprocs/maxprocs"
 )
 
 var (
@@ -49,6 +48,12 @@ const (
 	defaultCgroupMemLimitPath = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
 	defaultGCMemRatio         = uint64(85)
 )
+
+func init() {
+	maxprocs.Set(maxprocs.Logger(func(s string, i ...interface{}) {
+		log.Shared.Debug(fmt.Sprintf(s, i...))
+	}))
+}
 
 var cloner = cpy.New(
 	cpy.IgnoreAllUnexported(),

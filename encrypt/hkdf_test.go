@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"testing"
 
-	gutils "github.com/Laisky/go-utils/v3"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v3"
 )
 
 func TestHKDFWithSHA256(t *testing.T) {
