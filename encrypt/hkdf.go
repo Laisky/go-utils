@@ -57,6 +57,7 @@ func DeriveKey(rawKey []byte, newKeyLength int) (newKey []byte, err error) {
 	return results[0], nil
 }
 
+// DeriveKeyByHKDF derive key by hkdf
 func DeriveKeyByHKDF(rawKey, salt []byte, newKeyLength int) (newKey []byte, err error) {
 	results := make([][]byte, 1)
 	results[0] = make([]byte, newKeyLength)

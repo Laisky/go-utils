@@ -50,9 +50,11 @@ const (
 )
 
 func init() {
-	maxprocs.Set(maxprocs.Logger(func(s string, i ...interface{}) {
+	if _, err := maxprocs.Set(maxprocs.Logger(func(s string, i ...interface{}) {
 		log.Shared.Debug(fmt.Sprintf(s, i...))
-	}))
+	})); err != nil {
+		log.Shared.Error("auto set maxprocs", zap.Error(err))
+	}
 }
 
 var cloner = cpy.New(

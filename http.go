@@ -139,6 +139,10 @@ func RequestJSONWithClient(httpClient *http.Client,
 	log.Shared.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
 	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return errors.Wrap(err, "new request")
+	}
+
 	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
 	for k, v := range request.Headers {
 		req.Header.Set(k, v)

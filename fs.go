@@ -33,7 +33,7 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer os.RemoveAll(swapFpath)
+	defer os.Remove(swapFpath) //nolint: errcheck
 	defer SilentClose(fp)
 
 	_, err = fp.Write(content)
@@ -60,7 +60,7 @@ func ReplaceFileStream(path string, in io.ReadCloser, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer os.RemoveAll(swapFpath)
+	defer os.Remove(swapFpath) //nolint: errcheck
 	defer SilentClose(fp)
 
 	chunk := make([]byte, 4096)

@@ -1024,8 +1024,8 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 	return map[string]any{
 		"subject":                 ReadablePkixName(cert.Subject),
 		"issuer":                  ReadablePkixName(cert.Issuer),
-		"subject_key_id_base64":   gutils.Base64Encode(cert.SubjectKeyId),
-		"authority_key_id_base64": gutils.Base64Encode(cert.AuthorityKeyId),
+		"subject_key_id_base64":   gutils.EncodeByBase64(cert.SubjectKeyId),
+		"authority_key_id_base64": gutils.EncodeByBase64(cert.AuthorityKeyId),
 		"signature_algorithm":     cert.SignatureAlgorithm.String(),
 		"publicKey_algorithm":     cert.PublicKeyAlgorithm.String(),
 		"not_before":              cert.NotBefore.Format(time.RFC3339),
