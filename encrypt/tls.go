@@ -40,12 +40,14 @@ const (
 	RSAPrikeyBits2048 RSAPrikeyBits = 2048
 	// RSAPrikeyBits3072 rsa private key with 3072 bits
 	RSAPrikeyBits3072 RSAPrikeyBits = 3072
+	// RSAPrikeyBits4096 rsa private key with 4096 bits
+	RSAPrikeyBits4096 RSAPrikeyBits = 4096
 )
 
 // NewRSAPrikey new rsa privat ekey
 func NewRSAPrikey(bits RSAPrikeyBits) (*rsa.PrivateKey, error) {
 	switch bits {
-	case RSAPrikeyBits2048, RSAPrikeyBits3072:
+	case RSAPrikeyBits2048, RSAPrikeyBits3072, RSAPrikeyBits4096:
 	default:
 		return nil, errors.Errorf("not support bits %d", bits)
 	}

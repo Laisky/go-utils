@@ -252,3 +252,17 @@ func TestIntersectSortedChans(t *testing.T) {
 	require.True(t, got.Equal(expect))
 	// t.Error()
 }
+
+func TestFallTr(t *testing.T) {
+	a := "a"
+	var got string
+	switch a {
+	case "a":
+		got = "a"
+		fallthrough
+	case "b":
+		got = "b"
+	}
+
+	require.Equal(t, "b", got)
+}

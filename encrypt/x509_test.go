@@ -192,7 +192,6 @@ func TestNewX509CSR(t *testing.T) {
 
 func TestNewX509CRL(t *testing.T) {
 	t.Run("ca without crl sign key usage", func(t *testing.T) {
-
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertIsCA())
 		require.NoError(t, err)
@@ -551,5 +550,124 @@ func Test_ExtKeyUsage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+	})
+}
+
+// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+// BenchmarkRSA_bits/2048-16         	     116	  10240150 ns/op	   27944 B/op	     221 allocs/op
+// BenchmarkRSA_bits/3072-16         	      46	  25347501 ns/op	   40680 B/op	     249 allocs/op
+// BenchmarkRSA_bits/4096-16         	      26	  44732755 ns/op	   46312 B/op	     249 allocs/op
+func BenchmarkRSA_bits(b *testing.B) {
+	prikey2048, err := NewRSAPrikey(RSAPrikeyBits2048)
+	require.NoError(b, err)
+	b.Run("2048", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			csr, err := NewX509CSR(prikey2048, WithX509CSRCommonName("laisky"))
+			require.NoError(b, err)
+			require.NotNil(b, csr)
+		}
+	})
+
+	prikey3072, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(b, err)
+	b.Run("3072", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			csr, err := NewX509CSR(prikey3072, WithX509CSRCommonName("laisky"))
+			require.NoError(b, err)
+			require.NotNil(b, csr)
+		}
+	})
+
+	prikey4096, err := NewRSAPrikey(RSAPrikeyBits4096)
+	require.NoError(b, err)
+	b.Run("4096", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			csr, err := NewX509CSR(prikey4096, WithX509CSRCommonName("laisky"))
+			require.NoError(b, err)
+			require.NotNil(b, csr)
+		}
+	})
+}
+
+func Test_CrossSign(t *testing.T) {
+	prikeyRootCA1Pem, rootca1Der, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+		WithX509CertCommonName("root_ca_1"),
+		WithX509CertIsCA(),
+	)
+	require.NoError(t, err)
+	prikeyRootCA1, err := Pem2Prikey(prikeyRootCA1Pem)
+	require.NoError(t, err)
+	rootca1, err := Der2Cert(rootca1Der)
+	require.NoError(t, err)
+
+	prikeyRootCA2Pem, rootca2Der, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertCommonName("root_ca_1"),
+		WithX509CertIsCA(),
+	)
+	require.NoError(t, err)
+	prikeyRootCA2, err := Pem2Prikey(prikeyRootCA2Pem)
+	require.NoError(t, err)
+	rootca2, err := Der2Cert(rootca2Der)
+	require.NoError(t, err)
+
+	interPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	intercsr, err := NewX509CSR(interPrikey, WithX509CSRCommonName("intermedia"))
+	require.NoError(t, err)
+
+	// use same csr to cross sign multiple intermedia certificates
+	interca1Der, err := NewX509CertByCSR(rootca1, prikeyRootCA1, intercsr, WithX509SignCSRIsCA())
+	require.NoError(t, err)
+	interca1, err := Der2Cert(interca1Der)
+	require.NoError(t, err)
+	interca2Der, err := NewX509CertByCSR(rootca2, prikeyRootCA2, intercsr, WithX509SignCSRIsCA())
+	require.NoError(t, err)
+	interca2, err := Der2Cert(interca2Der)
+	require.NoError(t, err)
+
+	// use cross-sign intermedia ca to sign leaf certificate
+	leafPrikey, err := NewRSAPrikey(RSAPrikeyBits4096)
+	require.NoError(t, err)
+	leafCSR, err := NewX509CSR(leafPrikey, WithX509CSRCommonName("leaf"))
+	leafcertDer, err := NewX509CertByCSR(interca1, interPrikey, leafCSR)
+	require.NoError(t, err)
+	leafCert, err := Der2Cert(leafcertDer)
+	require.NoError(t, err)
+
+	t.Run("verify by intermedia ca 1", func(t *testing.T) {
+		opt := x509.VerifyOptions{
+			Roots:         x509.NewCertPool(),
+			Intermediates: x509.NewCertPool(),
+		}
+		opt.Roots.AddCert(rootca1)
+		opt.Intermediates.AddCert(interca1)
+		_, err := leafCert.Verify(opt)
+		require.NoError(t, err)
+	})
+
+	t.Run("verify by intermedia ca 2", func(t *testing.T) {
+		opt := x509.VerifyOptions{
+			Roots:         x509.NewCertPool(),
+			Intermediates: x509.NewCertPool(),
+		}
+		opt.Roots.AddCert(rootca2)
+		opt.Intermediates.AddCert(interca2)
+		_, err := leafCert.Verify(opt)
+		require.NoError(t, err)
+	})
+
+	t.Run("multiple certificate path", func(t *testing.T) {
+		opt := x509.VerifyOptions{
+			Roots:         x509.NewCertPool(),
+			Intermediates: x509.NewCertPool(),
+		}
+		opt.Roots.AddCert(rootca1)
+		opt.Roots.AddCert(rootca2)
+		opt.Intermediates.AddCert(interca1)
+		opt.Intermediates.AddCert(interca2)
+		chains, err := leafCert.Verify(opt)
+		require.NoError(t, err)
+		require.Len(t, chains, 2)
 	})
 }
