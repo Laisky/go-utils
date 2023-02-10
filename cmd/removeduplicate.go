@@ -74,8 +74,7 @@ func removeDuplicate(dry bool, dir string) error {
 		select {
 		case <-ticker.C:
 			glog.Shared.Info("scanning...",
-				zap.String("n", fmt.Sprintf("%d/%d", i, len(files))),
-				zap.String("ratio", fmt.Sprintf("%.2f%%", float64(i)/float64(len(files)))))
+				zap.String("ratio", fmt.Sprintf("%d/%d", i, len(files))))
 		default:
 		}
 
