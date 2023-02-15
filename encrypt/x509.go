@@ -451,7 +451,7 @@ func WithX509SignCSRValidFor(validFor time.Duration) SignCSROption {
 func WithX509SignCSRIsCA() SignCSROption {
 	return func(o *signCSROption) error {
 		o.isCA = true
-		o.keyUsage |= x509.KeyUsageCertSign
+		o.keyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		return nil
 	}
 }
@@ -765,7 +765,7 @@ func WithX509CertValidFor(validFor time.Duration) X509CertOption {
 func WithX509CertIsCA() X509CertOption {
 	return func(o *x509V3CertOption) error {
 		o.isCA = true
-		o.keyUsage |= x509.KeyUsageCertSign
+		o.keyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		return nil
 	}
 }
