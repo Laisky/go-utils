@@ -82,13 +82,8 @@ func NewAsyncTaskStoreMemory() *AsyncTaskStoreMemory {
 
 // New create new AsyncTaskResult with id
 func (s *AsyncTaskStoreMemory) New(ctx context.Context) (result *AsyncTaskResult, err error) {
-	uid, err := UUID1()
-	if err != nil {
-		return nil, errors.Wrap(err, "new task id")
-	}
-
 	t := &AsyncTaskResult{
-		TaskID: uid,
+		TaskID: UUID1(),
 		Status: AsyncTaskStatusPending,
 	}
 	s.store.Store(t.TaskID, t)

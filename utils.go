@@ -1180,11 +1180,11 @@ func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
 }
 
 // UUID1 get uuid version 1
-func UUID1() (string, error) {
+func UUID1() string {
 	uid, err := uuid.NewUUID()
-	if err != nil {
-		return "", errors.Wrap(err, "new uuid")
+	if err != nil { // in fact never return error
+		log.Shared.Panic("new uuid1", zap.Error(err))
 	}
 
-	return uid.String(), nil
+	return uid.String()
 }

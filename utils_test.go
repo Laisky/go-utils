@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"github.com/Laisky/errors"
-	"github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Laisky/go-utils/v3/log"
 )
 
 type testEmbeddedSt struct{}
@@ -1327,10 +1328,7 @@ func TestUUID1(t *testing.T) {
 		var pool errgroup.Group
 		for i := 0; i < 10000; i++ {
 			pool.Go(func() error {
-				uid, err := UUID1()
-				if err != nil {
-					return err
-				}
+				uid := UUID1()
 
 				mu.Lock()
 				uids = append(uids, uid)
@@ -1349,8 +1347,7 @@ func TestUUID1(t *testing.T) {
 	t.Run("monotonically time", func(t *testing.T) {
 		var uids []string
 		for i := 0; i < 10000; i++ {
-			uid, err := UUID1()
-			require.NoError(t, err)
+			uid := UUID1()
 			uids = append(uids, uid)
 		}
 
