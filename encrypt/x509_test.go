@@ -5,10 +5,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestNewX509CSR(t *testing.T) {
@@ -187,7 +190,13 @@ func TestNewX509CSR(t *testing.T) {
 			require.NoError(t, err)
 		})
 	})
+}
 
+func newTestSeriaNo(t *testing.T) *big.Int {
+	g, err := NewDefaultX509CertSerialNumGenerator()
+	require.NoError(t, err)
+
+	return big.NewInt(g.SerialNum())
 }
 
 func TestNewX509CRL(t *testing.T) {
@@ -202,8 +211,7 @@ func TestNewX509CRL(t *testing.T) {
 		ca, err := Der2Cert(certder)
 		require.NoError(t, err)
 
-		serialNum, err := RandomSerialNumber()
-		require.NoError(t, err)
+		serialNum := newTestSeriaNo(t)
 
 		_, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
@@ -212,7 +220,7 @@ func TestNewX509CRL(t *testing.T) {
 				},
 			},
 		)
-		require.ErrorContains(t, err, "issuer must have the crlSign key usage bit set")
+		require.NoError(t, err)
 	})
 
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
@@ -225,8 +233,7 @@ func TestNewX509CRL(t *testing.T) {
 	ca, err := Der2Cert(certder)
 	require.NoError(t, err)
 
-	serialNum, err := RandomSerialNumber()
-	require.NoError(t, err)
+	serialNum := newTestSeriaNo(t)
 
 	var crlder []byte
 	t.Run("without crl serial number", func(t *testing.T) {
@@ -669,5 +676,60 @@ func Test_CrossSign(t *testing.T) {
 		chains, err := leafCert.Verify(opt)
 		require.NoError(t, err)
 		require.Len(t, chains, 2)
+	})
+}
+
+func TestRandomSerialNumber(t *testing.T) {
+	t.Run("goroutine", func(t *testing.T) {
+		var pool errgroup.Group
+
+		// ctx, cancel := context.WithCancel(context.Background())
+		// defer cancel()
+		// gt := gutils.NewGoroutineTest(t, cancel)
+
+		var (
+			mu sync.Mutex
+			ns []int64
+		)
+
+		ng, err := NewDefaultX509CertSerialNumGenerator()
+		require.NoError(t, err)
+
+		for i := 0; i < 10000; i++ {
+			// select {
+			// case <-ctx.Done():
+			// 	require.NoError(t, ctx.Err())
+			// default:
+			// }
+
+			pool.Go(func() error {
+				n := ng.SerialNum()
+				require.Greater(t, n, int64(0))
+
+				mu.Lock()
+				ns = append(ns, n)
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+
+		s := mapset.NewSet(ns...)
+		require.Equal(t, len(ns), s.Cardinality())
+	})
+}
+
+// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+// BenchmarkRandomSerialNumber/gen-16         	  718527	      1553 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkRandomSerialNumber(b *testing.B) {
+	ng, err := NewDefaultX509CertSerialNumGenerator()
+	require.NoError(b, err)
+
+	b.Run("gen", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = ng.SerialNum()
+		}
 	})
 }

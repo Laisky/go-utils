@@ -11,7 +11,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
-	"math"
 	"math/big"
 	"net"
 	"net/mail"
@@ -22,16 +21,13 @@ import (
 	"github.com/Laisky/errors"
 
 	gutils "github.com/Laisky/go-utils/v3"
+	gcounter "github.com/Laisky/go-utils/v3/counter"
+	glog "github.com/Laisky/go-utils/v3/log"
 )
 
-// depends on RFC-5280 4.2.1.12, empty ext key usage is as same as any key usage.
-// so do not set any default ext key usages.
-//
-//  - https://github.com/golang/go/blob/1e9ff255a130200fcc4ec5e911d28181fce947d5/src/crypto/x509/verify.go#L1118
-//
-// but key usage is required in many cases:
-//
-//  - https://github.com/golang/go/blob/e04be8b24c20816f3429a8193c324ea67892e61f/src/crypto/x509/x509.go#L2165
+type X509CertSeriaNumberGenerator interface {
+	SerialNum() int64
+}
 
 type x509CSROption struct {
 	err error
@@ -193,6 +189,10 @@ func WithX509CSRSANS(sans ...string) X509CSROption {
 	}
 }
 
+func (o *x509CSROption) fillDefault() *x509CSROption {
+	return o
+}
+
 func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error) {
 	if o.err != nil {
 		return nil, o.err
@@ -244,9 +244,26 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 	return csrDer, nil
 }
 
-// RandomSerialNumber generate random serial number
-func RandomSerialNumber() (*big.Int, error) {
-	return rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+// DefaultX509CertSerialNumGenerator default cert serial number generator base on epoch time and random int
+type DefaultX509CertSerialNumGenerator struct {
+	counter *gcounter.RotateCounter
+}
+
+// NewDefaultX509CertSerialNumGenerator new DefaultX509CertSerialNumGenerator
+func NewDefaultX509CertSerialNumGenerator() (*DefaultX509CertSerialNumGenerator, error) {
+	serialCounter, err := gcounter.NewRotateCounter(10000)
+	if err != nil {
+		return nil, errors.Wrap(err, "new counter")
+	}
+
+	return &DefaultX509CertSerialNumGenerator{
+		counter: serialCounter,
+	}, nil
+}
+
+// SerialNum get randon serial number
+func (g *DefaultX509CertSerialNumGenerator) SerialNum() int64 {
+	return int64(time.Since(time.Time{})/time.Millisecond*10000) + g.counter.Count()
 }
 
 // NewX509CertTemplate new tls template with common default values
@@ -315,8 +332,6 @@ func parseSans(sans []string) (tpl sansTemp) {
 }
 
 type signCSROption struct {
-	err error
-
 	validFrom    time.Time
 	validFor     time.Duration
 	isCA         bool
@@ -333,7 +348,8 @@ type signCSROption struct {
 	ocsps []string
 
 	// pubkey csr will specific csr's pubkey, not use ca's pubkey
-	pubkey crypto.PublicKey
+	pubkey             crypto.PublicKey
+	serialNumGenerator X509CertSeriaNumberGenerator
 }
 
 func (o *signCSROption) fillDefault() *signCSROption {
@@ -341,25 +357,32 @@ func (o *signCSROption) fillDefault() *signCSROption {
 	o.validFor = 7 * 24 * time.Hour
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 
-	// empty ext key usage is as same as all
-	// o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
-
-	if o.serialNumber, o.err = RandomSerialNumber(); o.err != nil {
-		o.err = errors.Wrap(o.err, "generate random serial number")
-	}
-
 	return o
 }
 
 func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error) {
-	if o.err != nil {
-		return nil, errors.WithStack(o.err)
-	}
-
 	for _, f := range opts {
 		if err := f(o); err != nil {
 			return nil, err
 		}
+	}
+
+	switch { // fill serial number
+	case o.serialNumGenerator != nil && o.serialNumber != nil:
+		return nil, errors.Errorf("serialNumGenerator and serialNumber should not appear in the same time")
+	case o.serialNumGenerator != nil && o.serialNumber == nil:
+		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
+	case o.serialNumGenerator == nil && o.serialNumber == nil:
+		sg, err := NewDefaultX509CertSerialNumGenerator()
+		if err != nil {
+			return nil, errors.Wrap(err, "new default x509 cert serial number generator")
+		}
+
+		o.serialNumber = big.NewInt(sg.SerialNum())
+	}
+
+	if o.serialNumber == nil {
+		glog.Shared.Panic("serial number should not be empty")
 	}
 
 	return o, nil
@@ -367,6 +390,14 @@ func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error)
 
 // SignCSROption options for create certificate from CRL
 type SignCSROption func(*signCSROption) error
+
+// WithX509SerialNumGenerator set serial number generator
+func WithX509SerialNumGenerator(gen X509CertSeriaNumberGenerator) SignCSROption {
+	return func(o *signCSROption) error {
+		o.serialNumGenerator = gen
+		return nil
+	}
+}
 
 // WithX509SignCSRPolicies set certificate policies
 func WithX509SignCSRPolicies(policies ...asn1.ObjectIdentifier) SignCSROption {
@@ -466,6 +497,15 @@ func WithX509SignCSRIsCRLCA() SignCSROption {
 }
 
 // NewX509CertByCSR sign CSR to certificate
+//
+// Depends on RFC-5280 4.2.1.12, empty ext key usage is as same as any key usage.
+// so do not set any default ext key usages.
+//
+//   - https://github.com/golang/go/blob/1e9ff255a130200fcc4ec5e911d28181fce947d5/src/crypto/x509/verify.go#L1118
+//
+// but key usage is required in many cases:
+//
+//   - https://github.com/golang/go/blob/e04be8b24c20816f3429a8193c324ea67892e61f/src/crypto/x509/x509.go#L2165
 func NewX509CertByCSR(
 	ca *x509.Certificate,
 	prikey crypto.PrivateKey,
@@ -509,27 +549,22 @@ func NewX509CertByCSR(
 	if opt.isCA {
 		certOpts = append(certOpts, WithX509CertIsCA())
 	}
+	if opt.serialNumGenerator != nil {
+		certOpts = append(certOpts, WithX509CertSerialNumGenerator(opt.serialNumGenerator))
+	}
 
 	return NewX509Cert(prikey, certOpts...)
 }
 
 type x509V3CertOption struct {
-	err error
-
 	parent *x509.Certificate
 	signCSROption
 	x509CSROption
 }
 
 func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
-	o.validFrom = time.Now().UTC()
-	o.validFor = 7 * 24 * time.Hour
-	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
-	// o.extKeyUsage = append(o.extKeyUsage, x509.ExtKeyUsageServerAuth)
-
-	if o.serialNumber, o.err = RandomSerialNumber(); o.err != nil {
-		o.err = errors.Wrap(o.err, "generate random serial number")
-	}
+	o.signCSROption.fillDefault()
+	o.x509CSROption.fillDefault()
 
 	return o
 }
@@ -577,6 +612,18 @@ func WithX509CertSeriaNumber(serialNumber *big.Int) X509CertOption {
 		}
 
 		o.serialNumber = serialNumber
+		return nil
+	}
+}
+
+// WithX509CertSerialNumGenerator set serial number generator
+func WithX509CertSerialNumGenerator(gen X509CertSeriaNumberGenerator) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		if gen == nil {
+			return errors.Errorf("serial number generator shoule not be empty")
+		}
+
+		o.serialNumGenerator = gen
 		return nil
 	}
 }
@@ -800,6 +847,24 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (*x509V3CertOption,
 		if err := f(o); err != nil {
 			return nil, err
 		}
+	}
+
+	switch { // fill serial number
+	case o.serialNumGenerator != nil && o.serialNumber != nil:
+		return nil, errors.Errorf("serialNumGenerator and serialNumber should not appear in the same time")
+	case o.serialNumGenerator != nil && o.serialNumber == nil:
+		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
+	case o.serialNumGenerator == nil && o.serialNumber == nil:
+		sg, err := NewDefaultX509CertSerialNumGenerator()
+		if err != nil {
+			return nil, errors.Wrap(err, "new default x509 cert serial number generator")
+		}
+
+		o.serialNumber = big.NewInt(sg.SerialNum())
+	}
+
+	if o.serialNumber == nil {
+		glog.Shared.Panic("serial number should not be empty")
 	}
 
 	return o, nil
