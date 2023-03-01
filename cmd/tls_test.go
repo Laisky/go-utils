@@ -11,13 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v3"
-	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
+	gcrypto "github.com/Laisky/go-utils/v3/crypto"
+	glog "github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/zap"
 )
 
 func Test_showPemFileX509CertInfo(t *testing.T) {
-	_, certDer, err := gencrypt.NewRSAPrikeyAndCert(gencrypt.RSAPrikeyBits3072)
+	_, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072)
 	require.NoError(t, err)
-	certPem := gencrypt.CertDer2Pem(certDer)
+	certPem := gcrypto.CertDer2Pem(certDer)
 
 	dir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
@@ -39,9 +41,9 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	prikeyPem, certDer, err := gencrypt.NewRSAPrikeyAndCert(gencrypt.RSAPrikeyBits3072)
+	prikeyPem, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072)
 	require.NoError(t, err)
-	prikey, err := gencrypt.Pem2Prikey(prikeyPem)
+	prikey, err := gcrypto.Pem2Prikey(prikeyPem)
 	require.NoError(t, err)
 
 	readyCtx, readyCancel := context.WithCancel(ctx)
@@ -80,7 +82,7 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 						return
 					}
 
-					t.Logf("got %q", string(cnt))
+					glog.Shared.Info("got", zap.ByteString("cnt", cnt))
 				}
 			}()
 		}

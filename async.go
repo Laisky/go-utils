@@ -7,7 +7,6 @@ import (
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
-	"github.com/google/uuid"
 
 	"github.com/Laisky/go-utils/v3/log"
 )
@@ -84,7 +83,7 @@ func NewAsyncTaskStoreMemory() *AsyncTaskStoreMemory {
 // New create new AsyncTaskResult with id
 func (s *AsyncTaskStoreMemory) New(ctx context.Context) (result *AsyncTaskResult, err error) {
 	t := &AsyncTaskResult{
-		TaskID: uuid.NewString(),
+		TaskID: UUID1(),
 		Status: AsyncTaskStatusPending,
 	}
 	s.store.Store(t.TaskID, t)

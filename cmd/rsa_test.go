@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v3"
-	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
+	gcrypto "github.com/Laisky/go-utils/v3/crypto"
 )
 
 func Test_signFileByRSA(t *testing.T) {
@@ -20,15 +20,15 @@ func Test_signFileByRSA(t *testing.T) {
 	pubkeyFile := filepath.Join(dir, "pub")
 
 	t.Run("prepare keys", func(t *testing.T) {
-		prikey, err := gencrypt.NewRSAPrikey(gencrypt.RSAPrikeyBits3072)
+		prikey, err := gcrypto.NewRSAPrikey(gcrypto.RSAPrikeyBits3072)
 		require.NoError(t, err)
 
-		prikeyPem, err := gencrypt.Prikey2Pem(prikey)
+		prikeyPem, err := gcrypto.Prikey2Pem(prikey)
 		require.NoError(t, err)
 		err = os.WriteFile(prikeyFile, prikeyPem, 0644)
 		require.NoError(t, err)
 
-		pubkeyPem, err := gencrypt.Pubkey2Pem(&prikey.PublicKey)
+		pubkeyPem, err := gcrypto.Pubkey2Pem(&prikey.PublicKey)
 		require.NoError(t, err)
 		err = os.WriteFile(pubkeyFile, pubkeyPem, 0644)
 		require.NoError(t, err)

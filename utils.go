@@ -28,6 +28,7 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/sync/singleflight"
 
@@ -1176,4 +1177,14 @@ func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
 	}
 
 	return v, nil
+}
+
+// UUID1 get uuid version 1
+func UUID1() string {
+	uid, err := uuid.NewUUID()
+	if err != nil { // in fact never return error
+		log.Shared.Panic("new uuid1", zap.Error(err))
+	}
+
+	return uid.String()
 }

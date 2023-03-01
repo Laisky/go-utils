@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
+	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -1313,4 +1316,53 @@ func Test_singleflight(t *testing.T) {
 	internalSFG.Do(key, func() (interface{}, error) { n++; return nil, nil })
 	internalSFG.Do(key, func() (interface{}, error) { n++; return nil, nil })
 	require.Equal(t, 3, n)
+}
+
+func TestUUID1(t *testing.T) {
+	t.Run("goroutine", func(t *testing.T) {
+		var (
+			mu   sync.Mutex
+			uids []string
+		)
+
+		var pool errgroup.Group
+		for i := 0; i < 10000; i++ {
+			pool.Go(func() error {
+				uid := UUID1()
+
+				mu.Lock()
+				uids = append(uids, uid)
+				mu.Unlock()
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+		require.Len(t, uids, 10000)
+
+		st := mapset.NewSet(uids...)
+		require.Equal(t, len(uids), st.Cardinality())
+	})
+
+	t.Run("monotonically time", func(t *testing.T) {
+		var uids []string
+		for i := 0; i < 10000; i++ {
+			uid := UUID1()
+			uids = append(uids, uid)
+		}
+
+		var lastTime time.Time
+		for i := range uids {
+			uid, err := uuid.Parse(uids[i])
+			require.NoError(t, err)
+
+			ct := time.Unix(uid.Time().UnixTime())
+			if lastTime.IsZero() {
+				lastTime = ct
+				continue
+			}
+
+			require.GreaterOrEqual(t, ct, lastTime)
+		}
+	})
 }

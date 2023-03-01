@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	gutils "github.com/Laisky/go-utils/v3"
-	"github.com/Laisky/go-utils/v3/encrypt"
+	gcrypto "github.com/Laisky/go-utils/v3/crypto"
 	"github.com/Laisky/go-utils/v3/log"
 )
 
@@ -105,7 +105,7 @@ func encryptDirFileByAes() error {
 	secret := []byte(secret)
 	log.Shared.Info("encrypt files in dir", zap.String("path", inputpath))
 
-	return encrypt.AESEncryptFilesInDir(inputpath, secret)
+	return gcrypto.AESEncryptFilesInDir(inputpath, secret)
 }
 
 func encryptFileByAes() error {
@@ -123,7 +123,7 @@ func encryptFileByAes() error {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
 
-	cipher, err := encrypt.AesEncrypt(secret, cnt)
+	cipher, err := gcrypto.AesEncrypt(secret, cnt)
 	if err != nil {
 		return errors.Wrap(err, "encrypt")
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 
 	gutils "github.com/Laisky/go-utils/v3"
-	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
+	gcrypto "github.com/Laisky/go-utils/v3/crypto"
 	"github.com/Laisky/go-utils/v3/log"
 )
 
@@ -92,7 +92,7 @@ func showPemFileX509CertInfo(fpath string) error {
 		return errors.Wrapf(err, "read file %q", fpath)
 	}
 
-	certs, err := gencrypt.Pem2Certs(certsPem)
+	certs, err := gcrypto.Pem2Certs(certsPem)
 	if err != nil {
 		return errors.Wrap(err, "parse certs")
 	}
@@ -103,7 +103,7 @@ func showPemFileX509CertInfo(fpath string) error {
 func prettyPrintCerts(certs []*x509.Certificate) error {
 	var parsedCerts []map[string]any
 	for i := range certs {
-		rc, err := gencrypt.ReadableX509Cert(certs[i])
+		rc, err := gcrypto.ReadableX509Cert(certs[i])
 		if err != nil {
 			return errors.Wrap(err, "readable cert")
 		}

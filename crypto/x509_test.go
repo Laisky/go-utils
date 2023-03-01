@@ -1,4 +1,4 @@
-package encrypt
+package crypto
 
 import (
 	"crypto/x509"
