@@ -82,8 +82,8 @@ func TestTLSPrivatekey(t *testing.T) {
 	require.NoError(t, err)
 	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
 	require.NoError(t, err)
-	es224, err := NewECDSAPrikey(ECDSACurveP224)
-	require.NoError(t, err)
+	// es224, err := NewECDSAPrikey(ECDSACurveP224)
+	// require.NoError(t, err)
 	es256, err := NewECDSAPrikey(ECDSACurveP256)
 	require.NoError(t, err)
 	es384, err := NewECDSAPrikey(ECDSACurveP384)
@@ -96,7 +96,7 @@ func TestTLSPrivatekey(t *testing.T) {
 	for _, key := range []crypto.PrivateKey{
 		rsa2048,
 		rsa3072,
-		es224,
+		// es224,
 		es256,
 		es384,
 		es521,
@@ -179,8 +179,8 @@ func TestTLSPublickey(t *testing.T) {
 	require.NoError(t, err)
 	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
 	require.NoError(t, err)
-	es224, err := NewECDSAPrikey(ECDSACurveP224)
-	require.NoError(t, err)
+	// es224, err := NewECDSAPrikey(ECDSACurveP224)
+	// require.NoError(t, err)
 	es256, err := NewECDSAPrikey(ECDSACurveP256)
 	require.NoError(t, err)
 	es384, err := NewECDSAPrikey(ECDSACurveP384)
@@ -196,7 +196,7 @@ func TestTLSPublickey(t *testing.T) {
 	for _, key := range []crypto.PublicKey{
 		GetPubkeyFromPrikey(rsa2048),
 		GetPubkeyFromPrikey(rsa3072),
-		GetPubkeyFromPrikey(es224),
+		// GetPubkeyFromPrikey(es224),
 		GetPubkeyFromPrikey(es256),
 		GetPubkeyFromPrikey(es384),
 		GetPubkeyFromPrikey(es521),

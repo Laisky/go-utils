@@ -12,8 +12,8 @@ import (
 	"github.com/Laisky/zap"
 	"golang.org/x/sync/errgroup"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	"github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // AesEncrypt encrypt bytes by AES GCM

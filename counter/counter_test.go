@@ -9,7 +9,7 @@ import (
 
 	"github.com/Laisky/zap"
 
-	"github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 func ExampleCounter() {

@@ -4,15 +4,16 @@ import (
 	crand "crypto/rand"
 	"math/big"
 	"math/rand"
-	"os"
+	"sync"
 	"time"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano() + int64(os.Getpid()))
-}
+var (
+	randor   = NewRand()
+	randorMu sync.Mutex
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+)
 
 // NewRand new individual random to aviod global mutex
 func NewRand() *rand.Rand {
@@ -22,7 +23,11 @@ func NewRand() *rand.Rand {
 // RandomBytesWithLength generate random bytes
 func RandomBytesWithLength(n int) ([]byte, error) {
 	b := make([]byte, n)
-	_, err := rand.Read(b)
+
+	randorMu.Lock()
+	_, err := randor.Read(b)
+	randorMu.Unlock()
+
 	return b, err
 }
 

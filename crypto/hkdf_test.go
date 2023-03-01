@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v3"
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 func TestHKDFWithSHA256(t *testing.T) {
@@ -56,13 +56,13 @@ func TestDeriveKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := DeriveKey(tt.args.secret, tt.args.expectLen)
+			got, err := DeriveKeyByHKDF(tt.args.secret, nil, tt.args.expectLen)
 			if !tt.wantErr {
 				require.NoErrorf(t, err, "[%s]", tt.name)
 			}
 
 			require.Lenf(t, got, tt.args.expectLen, "[%s]", tt.name)
-			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
+			require.Equalf(t, tt.want, gutils.EncodeByBase64(got), "[%s]", tt.name)
 		})
 	}
 }
@@ -93,7 +93,7 @@ func TestDeriveKeyByHKDF(t *testing.T) {
 			}
 
 			require.Lenf(t, got, tt.args.expectLen, "[%s]", tt.name)
-			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
+			require.Equalf(t, tt.want, gutils.EncodeByBase64(got), "[%s]", tt.name)
 		})
 	}
 }
@@ -122,7 +122,7 @@ func TestDeriveKeyBySMHF(t *testing.T) {
 				require.NoErrorf(t, err, "[%s]", tt.name)
 			}
 
-			require.Equalf(t, tt.want, gutils.Base64Encode(got), "[%s]", tt.name)
+			require.Equalf(t, tt.want, gutils.EncodeByBase64(got), "[%s]", tt.name)
 		})
 	}
 }

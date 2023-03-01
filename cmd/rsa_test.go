@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	gcrypto "github.com/Laisky/go-utils/v3/crypto"
+	gutils "github.com/Laisky/go-utils/v4"
+	gcrypto "github.com/Laisky/go-utils/v4/crypto"
 )
 
 func Test_signFileByRSA(t *testing.T) {

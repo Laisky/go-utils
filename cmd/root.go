@@ -3,16 +3,14 @@ package cmd
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	glog "github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 var (
@@ -34,7 +32,6 @@ var rootCmd = &cobra.Command{
 		defer func() {
 			_ = glog.Shared.Sync()
 		}()
-		rand.Seed(time.Now().UnixNano())
 
 		if cmdDebug {
 			glog.Shared.Info("run in debug mode")

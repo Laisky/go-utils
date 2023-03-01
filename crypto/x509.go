@@ -20,9 +20,9 @@ import (
 
 	"github.com/Laisky/errors"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	gcounter "github.com/Laisky/go-utils/v3/counter"
-	glog "github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	gcounter "github.com/Laisky/go-utils/v4/counter"
+	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 // X509CertSerialNumberGenerator x509 certificate serial number generator

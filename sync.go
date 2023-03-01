@@ -9,26 +9,6 @@ import (
 	"github.com/Laisky/errors"
 )
 
-// Race return when any goroutine returned
-//
-// Deprecated: use RaceErr instead
-func Race(gs ...func()) {
-	cond := sync.NewCond(&sync.Mutex{})
-	for i := range gs {
-		g := gs[i]
-		go func() {
-			g()
-			cond.L.Lock()
-			cond.Signal()
-			cond.L.Unlock()
-		}()
-	}
-
-	cond.L.Lock()
-	cond.Wait()
-	cond.L.Unlock()
-}
-
 // RaceErr return when any goroutine returned
 func RaceErr(gs ...func() error) (err error) {
 	var once sync.Once
@@ -79,8 +59,11 @@ func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) erro
 }
 
 // RunWithTimeout run func with timeout
-func RunWithTimeout(timeout time.Duration, f func()) {
-	Race(f, func() { time.Sleep(timeout) })
+func RunWithTimeout(timeout time.Duration, f func() error) error {
+	return RaceErr(f, func() error {
+		time.Sleep(timeout)
+		return nil
+	})
 }
 
 // const (

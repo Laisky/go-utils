@@ -6,7 +6,7 @@ import (
 	zap "github.com/Laisky/zap"
 	gomail "gopkg.in/gomail.v2"
 
-	"github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // Mail is a simple email sender

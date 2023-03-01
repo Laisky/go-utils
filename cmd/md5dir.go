@@ -10,8 +10,8 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	glog "github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 var md5DirArg struct {
@@ -37,7 +37,7 @@ var md5DirCMD = &cobra.Command{
 	Long: gutils.Dedent(`
 		Move files to hierarchy directories splitted by prefix of md5
 
-			go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
+			go install github.com/Laisky/go-utils/v4/cmd/gutils@latest
 
 			gutils md5dir -i examples/md5dir/
 	`),

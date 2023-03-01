@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 type testEmbeddedSt struct{}
@@ -171,7 +171,7 @@ func TestIsPtr(t *testing.T) {
 func testFoo() {}
 
 func TestGetFuncName(t *testing.T) {
-	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v3.testFoo" {
+	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v4.testFoo" {
 		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
 }
@@ -631,43 +631,6 @@ func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestInArray(t *testing.T) {
-	type args struct {
-		collection any
-		ele        any
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{"0", args{[]string{"1", "2"}, "2"}, true},
-		{"1", args{[]string{"1", "2"}, "1"}, true},
-		{"2", args{[]string{"1", "2"}, "3"}, false},
-		{"3", args{[]int{1, 2}, 3}, false},
-		{"4", args{[]int{1, 2}, 2}, true},
-		{"5", args{[...]int{1, 2}, 3}, false},
-		{"6", args{[...]int{1, 2}, 2}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := InArray(tt.args.collection, tt.args.ele); got != tt.want {
-				t.Errorf("InArray() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-
-	isPanic := IsPanic(func() {
-		InArray([]uint{1, 2}, 1)
-	})
-	require.True(t, isPanic)
-
-	isPanic = IsPanic(func() {
-		InArray([]int{1, 2}, "1")
-	})
-	require.True(t, isPanic)
 }
 
 func ExampleExpCache() {

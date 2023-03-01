@@ -59,10 +59,6 @@ func NewRSAPrikey(bits RSAPrikeyBits) (*rsa.PrivateKey, error) {
 type ECDSACurve string
 
 const (
-	// ECDSACurveP224 ecdsa with P224
-	//
-	// Deprecated: use ECDSACurveP256 instead
-	ECDSACurveP224 ECDSACurve = "P224"
 	// ECDSACurveP256 ecdsa with P256
 	ECDSACurveP256 ECDSACurve = "P256"
 	// ECDSACurveP384 ecdsa with P384
@@ -74,8 +70,8 @@ const (
 // NewECDSAPrikey new ecdsa private key
 func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 	switch curve {
-	case ECDSACurveP224:
-		return ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	// case ECDSACurveP224:
+	// 	return ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	case ECDSACurveP256:
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	case ECDSACurveP384:

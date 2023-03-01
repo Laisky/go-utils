@@ -9,7 +9,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
 
-	gutils "github.com/Laisky/go-utils/v3"
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 type loggerItf interface {

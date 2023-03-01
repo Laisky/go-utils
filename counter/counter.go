@@ -12,8 +12,8 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/Laisky/zap"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	"github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // Int64CounterItf counter for int64

@@ -12,8 +12,8 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/gammazero/deque"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	"github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // -------------------------------------

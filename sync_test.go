@@ -12,7 +12,7 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 func TestMutex(t *testing.T) {
@@ -154,7 +154,10 @@ func TestNewExpiredRLock(t *testing.T) {
 }
 
 func ExampleRunWithTimeout() {
-	slow := func() { time.Sleep(10 * time.Second) }
+	slow := func() error {
+		time.Sleep(10 * time.Second)
+		return nil
+	}
 	startAt := time.Now()
 	RunWithTimeout(5*time.Millisecond, slow)
 
@@ -164,19 +167,31 @@ func ExampleRunWithTimeout() {
 }
 
 func TestRunWithTimeout(t *testing.T) {
-	slow := func() { time.Sleep(10 * time.Second) }
+	slow := func() error {
+		time.Sleep(10 * time.Second)
+		return nil
+	}
 	startAt := time.Now()
 	RunWithTimeout(5*time.Millisecond, slow)
 	require.GreaterOrEqual(t, time.Since(startAt), 5*time.Millisecond)
 	require.Less(t, time.Since(startAt), 10*time.Millisecond)
 }
 
-func ExampleRace() {
+func ExampleRaceErr() {
 	startAt := time.Now()
-	Race(
-		func() { time.Sleep(time.Millisecond) },
-		func() { time.Sleep(time.Second) },
-		func() { time.Sleep(time.Minute) },
+	_ = RaceErr(
+		func() error {
+			time.Sleep(time.Millisecond)
+			return nil
+		},
+		func() error {
+			time.Sleep(time.Second)
+			return nil
+		},
+		func() error {
+			time.Sleep(time.Minute)
+			return nil
+		},
 	)
 
 	fmt.Println(time.Since(startAt) < time.Second)
@@ -187,10 +202,19 @@ func ExampleRace() {
 
 func TestRace(t *testing.T) {
 	startAt := time.Now()
-	Race(
-		func() { time.Sleep(time.Millisecond) },
-		func() { time.Sleep(time.Second) },
-		func() { time.Sleep(time.Minute) },
+	_ = RaceErr(
+		func() error {
+			time.Sleep(time.Millisecond)
+			return nil
+		},
+		func() error {
+			time.Sleep(time.Second)
+			return nil
+		},
+		func() error {
+			time.Sleep(time.Minute)
+			return nil
+		},
 	)
 
 	require.GreaterOrEqual(t, time.Since(startAt), time.Millisecond)

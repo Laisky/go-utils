@@ -17,9 +17,9 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	gcrypto "github.com/Laisky/go-utils/v3/crypto"
-	"github.com/Laisky/go-utils/v3/log"
+	gutils "github.com/Laisky/go-utils/v4"
+	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 var (
@@ -43,7 +43,7 @@ var tlsInfoCMD = &cobra.Command{
 
 		Install:
 
-		  go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
+		  go install github.com/Laisky/go-utils/v4/cmd/gutils@latest
 
 		Examples:
 

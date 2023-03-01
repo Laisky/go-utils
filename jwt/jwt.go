@@ -5,7 +5,7 @@ import (
 	"github.com/Laisky/errors"
 	"github.com/golang-jwt/jwt/v4"
 
-	gutils "github.com/Laisky/go-utils/v3"
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 var (

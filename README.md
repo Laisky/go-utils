@@ -7,11 +7,12 @@ Many useful golang tools
 | 1.x     | >= v1.16   |
 | 2.x     | >= v1.18   |
 | 3.x     | >= v1.19   |
+| 4.x     | >= v1.20   |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils/v3)](https://goreportcard.com/report/github.com/Laisky/go-utils/v3)
-[![GoDoc](https://godoc.org/github.com/Laisky/go-utils/v3?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils/v3)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Laisky/go-utils/v4)](https://goreportcard.com/report/github.com/Laisky/go-utils/v4)
+[![GoDoc](https://godoc.org/github.com/Laisky/go-utils/v4?status.svg)](https://pkg.go.dev/github.com/Laisky/go-utils/v4)
 ![Build Status](https://github.com/Laisky/go-utils/actions/workflows/test.yml/badge.svg?branch=v3)
 [![codecov](https://codecov.io/gh/Laisky/go-utils/branch/v3/graph/badge.svg)](https://codecov.io/gh/Laisky/go-utils)
 
@@ -20,7 +21,7 @@ Many useful golang tools
 ### Install
 
 ```sh
-go install github.com/Laisky/go-utils/v3/cmd/gutils@latest
+go install github.com/Laisky/go-utils/v4/cmd/gutils@latest
 ```
 
 Add `$HOME/.go/bin` to your PATH.
@@ -51,14 +52,14 @@ gutils rsa verify
 ### Install
 
 ```sh
-go get github.com/Laisky/go-utils/v3@latest
+go get github.com/Laisky/go-utils/v4@latest
 ```
 
 ### Usage
 
 ```go
 import (
-    gutils "github.com/Laisky/go-utils/v3"
+    gutils "github.com/Laisky/go-utils/v4"
 )
 ```
 

@@ -44,19 +44,6 @@ func Salt(length int) ([]byte, error) {
 	return salt, nil
 }
 
-// DeriveKey derive key by hkdf
-//
-// Deprecated: use DeriveKeyByHKDF instead
-func DeriveKey(rawKey []byte, newKeyLength int) (newKey []byte, err error) {
-	results := make([][]byte, 1)
-	results[0] = make([]byte, newKeyLength)
-	if err := HKDFWithSHA256(rawKey, nil, nil, results); err != nil {
-		return nil, errors.Wrap(err, "derivative key by hkdf")
-	}
-
-	return results[0], nil
-}
-
 // DeriveKeyByHKDF derive key by hkdf
 func DeriveKeyByHKDF(rawKey, salt []byte, newKeyLength int) (newKey []byte, err error) {
 	results := make([][]byte, 1)

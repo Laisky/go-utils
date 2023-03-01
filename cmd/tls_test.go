@@ -10,10 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v3"
-	gcrypto "github.com/Laisky/go-utils/v3/crypto"
-	glog "github.com/Laisky/go-utils/v3/log"
 	"github.com/Laisky/zap"
+
+	gutils "github.com/Laisky/go-utils/v4"
+	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 func Test_showPemFileX509CertInfo(t *testing.T) {

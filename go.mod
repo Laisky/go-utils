@@ -1,6 +1,6 @@
-module github.com/Laisky/go-utils/v3
+module github.com/Laisky/go-utils/v4
 
-go 1.19
+go 1.20
 
 require (
 	github.com/Laisky/errors v0.9.2-0.20221107084216-4b771a197718

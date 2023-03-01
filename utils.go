@@ -32,7 +32,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/Laisky/go-utils/v3/log"
+	"github.com/Laisky/go-utils/v4/log"
 
 	"go.uber.org/automaxprocs/maxprocs"
 )
@@ -626,33 +626,6 @@ func Contains[V comparable](collection []V, ele V) bool {
 	return false
 }
 
-// InArray if collection contains ele
-//
-// Deprecated: use Contains instead
-func InArray(collection any, ele any) bool {
-	targetValue := reflect.ValueOf(collection)
-	switch reflect.TypeOf(collection).Kind() {
-	case reflect.Slice, reflect.Array:
-		if reflect.TypeOf(collection).Elem().Kind() != reflect.TypeOf(ele).Kind() {
-			panic(fmt.Sprintf(
-				"collection(%v) and ele(%v) must in same type",
-				reflect.TypeOf(collection).Elem().Kind().String(),
-				reflect.TypeOf(ele).Kind().String(),
-			))
-		}
-
-		for i := 0; i < targetValue.Len(); i++ {
-			if targetValue.Index(i).Interface() == ele {
-				return true
-			}
-		}
-	default:
-		log.Shared.Panic("unsupport type", zap.String("type", reflect.TypeOf(collection).Kind().String()))
-	}
-
-	return false
-}
-
 // IsPtr check if t is pointer
 func IsPtr(t any) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
@@ -684,20 +657,10 @@ func RunCMDWithEnv(ctx context.Context, app string,
 	return stdout, nil
 }
 
-// Base64Encode encode bytes to string by base64
-//
-// Deprecated: use EncodeByBase64 instead
-var Base64Encode = EncodeByBase64
-
 // EncodeByBase64 encode bytes to string by base64
 func EncodeByBase64(raw []byte) string {
 	return base64.URLEncoding.EncodeToString(raw)
 }
-
-// Base64Decode decode string to bytes by base64
-//
-// Deprecated: use DecodeByBase64 instead
-var Base64Decode = DecodeByBase64
 
 // DecodeByBase64 decode string to bytes by base64
 func DecodeByBase64(encoded string) ([]byte, error) {
