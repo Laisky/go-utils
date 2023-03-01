@@ -1,4 +1,4 @@
-package encrypt
+package crypto
 
 import (
 	"crypto"
@@ -1040,7 +1040,7 @@ func validPrikey(prikey crypto.PrivateKey) error {
 
 // VerifyCRLPkix verify crl by ca
 func VerifyCRLPkix(ca *x509.Certificate, crl *pkix.CertificateList) error {
-	//nolint: staticcheck  // compatable to go<1.19
+	//nolint: staticcheck  // compatable with go<1.19
 	return ca.CheckCRLSignature(crl)
 }
 

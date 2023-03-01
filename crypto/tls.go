@@ -1,4 +1,4 @@
-package encrypt
+package crypto
 
 import (
 	"bytes"
@@ -171,7 +171,7 @@ func CSR2Der(csr *x509.CertificateRequest) []byte {
 
 // Der2CRLPkix parse crl der or pem
 func Der2CRLPkix(crlBytes []byte) (*pkix.CertificateList, error) {
-	//nolint: staticcheck // compatable to below 1.19
+	//nolint: staticcheck  // compatable with go<1.19
 	return x509.ParseCRL(crlBytes)
 }
 

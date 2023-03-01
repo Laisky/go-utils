@@ -12,7 +12,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gencrypt "github.com/Laisky/go-utils/v3/encrypt"
+	gcrypto "github.com/Laisky/go-utils/v3/crypto"
 	"github.com/Laisky/go-utils/v3/log"
 )
 
@@ -80,7 +80,7 @@ func VerifyFileByRSA(pubkeyPath, filePath string) error {
 		return errors.Wrapf(err, "read pubkey %q", pubkeyPath)
 	}
 
-	pubkeyi, err := gencrypt.Pem2Pubkey(pubkeyPem)
+	pubkeyi, err := gcrypto.Pem2Pubkey(pubkeyPem)
 	if err != nil {
 		return errors.Wrap(err, "parse pubkey")
 	}
@@ -106,7 +106,7 @@ func VerifyFileByRSA(pubkeyPath, filePath string) error {
 		return errors.Wrap(err, "parse signature")
 	}
 
-	err = gencrypt.VerifyReaderByRSAWithSHA256(pubkey, fp, sig)
+	err = gcrypto.VerifyReaderByRSAWithSHA256(pubkey, fp, sig)
 	if err != nil {
 		return errors.Wrap(err, "verify signature")
 	}
@@ -130,7 +130,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 		return errors.Wrapf(err, "read prikey %q", prikeyPath)
 	}
 
-	prikeyi, err := gencrypt.Pem2Prikey(prikeyPem)
+	prikeyi, err := gcrypto.Pem2Prikey(prikeyPem)
 	if err != nil {
 		return errors.Wrap(err, "parse prikey")
 	}
@@ -151,7 +151,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 		return errors.Wrapf(err, "generate signature file %q", sigFile)
 	}
 
-	sigBytes, err := gencrypt.SignReaderByRSAWithSHA256(prikey, fp)
+	sigBytes, err := gcrypto.SignReaderByRSAWithSHA256(prikey, fp)
 	if err != nil {
 		return errors.Wrapf(err, "generate signature")
 	}

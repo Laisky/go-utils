@@ -1,7 +1,5 @@
-// Package encrypt contains some useful tools to deal with encryption/decryption
-//
-// Deprecated: rename to crypto
-package encrypt
+// package crypto contains some useful tools to deal with encryption/decryption
+package crypto
 
 import (
 	"bytes"
