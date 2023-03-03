@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ type httpClientOption struct {
 	timeout  time.Duration
 	maxConn  int
 	insecure bool
+	proxy    func(*http.Request) (*url.URL, error)
 }
 
 // HTTPClientOptFunc http client options
@@ -73,6 +75,19 @@ func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	}
 }
 
+// WithHTTPClientProxy set http client proxy
+func WithHTTPClientProxy(proxy string) HTTPClientOptFunc {
+	return func(opt *httpClientOption) (err error) {
+		proxy, err := url.Parse(proxy)
+		if err != nil {
+			return errors.Wrap(err, "cannot parse proxy")
+		}
+
+		opt.proxy = http.ProxyURL(proxy)
+		return nil
+	}
+}
+
 // WithHTTPClientInsecure set http client igonre ssl issue
 //
 // default to false
@@ -98,6 +113,7 @@ func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 
 	c = &http.Client{
 		Transport: &http.Transport{
+			Proxy:               opt.proxy,
 			MaxIdleConnsPerHost: opt.maxConn,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: opt.insecure,
