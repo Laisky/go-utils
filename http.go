@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	defaultHTTPClientOptTimeout  = 30 * time.Second
-	defaultHTTPClientOptMaxConn  = 20
-	defaultHTTPClientOptInsecure = false
+	defaultHTTPClientOptTimeout = 30 * time.Second
+	defaultHTTPClientOptMaxConn = 20
 
 	// HTTPHeaderHost HTTP header name
 	HTTPHeaderHost = "Host"
@@ -34,14 +33,14 @@ const (
 
 var (
 	httpClient, _ = NewHTTPClient()
-	// httpClientInsecure, _ = NewHTTPClient(WithHTTPClientInsecure(true))
 )
 
 type httpClientOption struct {
-	timeout  time.Duration
-	maxConn  int
-	insecure bool
-	proxy    func(*http.Request) (*url.URL, error)
+	timeout   time.Duration
+	maxConn   int
+	insecure  bool
+	tlsConfig *tls.Config
+	proxy     func(*http.Request) (*url.URL, error)
 }
 
 // HTTPClientOptFunc http client options
@@ -91,6 +90,8 @@ func WithHTTPClientProxy(proxy string) HTTPClientOptFunc {
 // WithHTTPClientInsecure set http client igonre ssl issue
 //
 // default to false
+//
+// Deprecated: use WithHTTPTlsConfig instead
 func WithHTTPClientInsecure() HTTPClientOptFunc {
 	return func(opt *httpClientOption) error {
 		opt.insecure = true
@@ -98,12 +99,19 @@ func WithHTTPClientInsecure() HTTPClientOptFunc {
 	}
 }
 
+// WithHTTPTlsConfig set tls config
+func WithHTTPTlsConfig(cfg *tls.Config) HTTPClientOptFunc {
+	return func(opt *httpClientOption) error {
+		opt.tlsConfig = cfg
+		return nil
+	}
+}
+
 // NewHTTPClient create http client
 func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
-		maxConn:  defaultHTTPClientOptMaxConn,
-		timeout:  defaultHTTPClientOptTimeout,
-		insecure: defaultHTTPClientOptInsecure,
+		maxConn: defaultHTTPClientOptMaxConn,
+		timeout: defaultHTTPClientOptTimeout,
 	}
 	for _, optf := range opts {
 		if err = optf(opt); err != nil {
@@ -111,13 +119,18 @@ func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 		}
 	}
 
+	// deprecated in 5.0
+	if opt.tlsConfig == nil && opt.insecure {
+		opt.tlsConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
 	c = &http.Client{
 		Transport: &http.Transport{
 			Proxy:               opt.proxy,
 			MaxIdleConnsPerHost: opt.maxConn,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: opt.insecure,
-			},
+			TLSClientConfig:     opt.tlsConfig,
 		},
 		Timeout: opt.timeout,
 	}
