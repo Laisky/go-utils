@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 

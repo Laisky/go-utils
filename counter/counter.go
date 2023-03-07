@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
 	gutils "github.com/Laisky/go-utils/v4"

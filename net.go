@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 )
 
 // IsRemoteUDPPortOpen check is remote udp port open.

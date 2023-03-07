@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v4/log"

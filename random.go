@@ -71,3 +71,34 @@ func SecRandInt(n int) (int, error) {
 
 	return int(bn.Int64()), nil
 }
+
+// RandomChoice selects a random subset of elements from an input array of any type.
+//
+// It takes in two parameters: the array and the number of elements to select from the array.
+// The function uses a random number generator to select elements from the array and
+// returns a new array containing the selected elements.
+func RandomChoice[T any](arr []T, n int) (got []T) {
+	if n >= len(arr) {
+		return arr
+	} else if n == 0 {
+		return got
+	}
+
+	randor := NewRand()
+	thres := float64(n) / float64(len(arr))
+	for i := range arr {
+		if (len(arr) - i) <= (n - len(got)) {
+			return append(got, arr[i:]...)
+		}
+
+		if randor.Float64() < thres {
+			got = append(got, arr[i])
+		}
+
+		if len(got) == n {
+			return got
+		}
+	}
+
+	return got
+}

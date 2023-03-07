@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 )
 
 // Number is a number type

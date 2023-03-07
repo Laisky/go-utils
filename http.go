@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
 

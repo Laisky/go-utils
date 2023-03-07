@@ -14,7 +14,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 

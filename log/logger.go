@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
 )

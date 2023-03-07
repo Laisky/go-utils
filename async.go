@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
 	"github.com/Laisky/go-utils/v4/log"

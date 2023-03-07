@@ -25,7 +25,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
 	"github.com/google/uuid"

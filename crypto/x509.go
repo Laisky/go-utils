@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"

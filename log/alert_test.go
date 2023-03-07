@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 )

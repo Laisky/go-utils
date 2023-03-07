@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"io"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/crypto/scrypt"
 )

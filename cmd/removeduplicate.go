@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/rivo/duplo"
 	"github.com/spf13/cobra"

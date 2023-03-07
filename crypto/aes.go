@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"golang.org/x/sync/errgroup"
 

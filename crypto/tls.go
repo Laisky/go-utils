@@ -16,7 +16,7 @@ import (
 	//  https://words.filippo.io/dispatches/go-1-20-cryptography/
 	"crypto/elliptic"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites

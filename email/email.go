@@ -2,7 +2,7 @@
 package email
 
 import (
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
 	gomail "gopkg.in/gomail.v2"
 

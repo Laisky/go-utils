@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"strings"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 

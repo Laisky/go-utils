@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Laisky/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/google/uuid"
