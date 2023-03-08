@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"hash"
 	"io"
 	"os"
 	"os/exec"
@@ -276,12 +274,12 @@ func ValidateFileHash(filepath string, hashed string) error {
 		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
 	}
 
-	var hasher hash.Hash
+	var hasher HashType
 	switch hs[0] {
 	case "sha256":
-		hasher = sha256.New()
+		hasher = HashTypeSha256
 	case "md5":
-		hasher = md5.New()
+		hasher = HashTypeMD5
 	default:
 		return errors.Errorf("unknown hasher `%s`", hs[0])
 	}
@@ -292,11 +290,12 @@ func ValidateFileHash(filepath string, hashed string) error {
 	}
 	defer SilentClose(fp)
 
-	if _, err = io.Copy(hasher, fp); err != nil {
-		return errors.Wrap(err, "read file content")
+	sig, err := Hash(hasher, fp)
+	if err != nil {
+		return errors.Wrapf(err, "calculate hash for file %q", filepath)
 	}
 
-	actualHash := hex.EncodeToString(hasher.Sum(nil))
+	actualHash := hex.EncodeToString(sig)
 	if hs[1] != actualHash {
 		return errors.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
 	}

@@ -6,12 +6,133 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/Laisky/errors/v2"
+	gutils "github.com/Laisky/go-utils/v4"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// HashedPassword salt hashed password
+//
+// generate by PasswordHash, verify by VerifyHashedPassword
+type HashedPassword struct {
+	salt           []byte
+	hasher         gutils.HashTypeInterface
+	hashNum        int
+	hashedPassword []byte
+}
+
+// String convert to string
+//
+// can verify by VerifyHashedPassword
+func (p HashedPassword) String() string {
+	return fmt.Sprintf("%s.%d.%s.%s",
+		p.hasher.String(),
+		p.hashNum,
+		hex.EncodeToString(p.salt),
+		hex.EncodeToString(p.hashedPassword),
+	)
+}
+
+func newHashedPassword(salt, rawpassword []byte, hasher gutils.HashTypeInterface, hashNum int) (h HashedPassword, err error) {
+	h.salt = salt
+	h.hasher = hasher
+	h.hashNum = hashNum
+
+	h.hashedPassword = append(rawpassword, h.salt...)
+	for i := 0; i < h.hashNum; i++ {
+		h.hashedPassword, err = gutils.Hash(h.hasher, bytes.NewReader(h.hashedPassword))
+		if err != nil {
+			return h, errors.Wrap(err, "calculate password hash")
+		}
+	}
+
+	return h, nil
+}
+
+func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
+	hs := strings.Split(hashedString, ".")
+	if len(hs) != 4 {
+		return h, errors.Errorf("hashedString must contains 4 parts")
+	}
+
+	h.hasher = gutils.HashType(hs[0])
+	h.hashNum, err = strconv.Atoi(hs[1])
+	if err != nil {
+		return h, errors.Wrap(err, "parse hash num")
+	}
+
+	h.salt, err = hex.DecodeString(hs[2])
+	if err != nil {
+		return h, errors.Wrap(err, "decode salt")
+	}
+
+	h.hashedPassword, err = hex.DecodeString(hs[3])
+	if err != nil {
+		return h, errors.Wrap(err, "decode hashed password")
+	}
+
+	return h, nil
+}
+
+// VerifyHashedPassword verify HashedPassword
+func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
+	hp, err := parseHashedPassword(hashedPassword)
+	if err != nil {
+		return errors.Wrap(err, "parse hashed password")
+	}
+
+	rawH, err := newHashedPassword(hp.salt, rawpassword, hp.hasher, hp.hashNum)
+	if err != nil {
+		return errors.Wrap(err, "build hashed password by raw password")
+	}
+
+	if !bytes.Equal(hp.hashedPassword, rawH.hashedPassword) {
+		return errors.Errorf("password not match")
+	}
+
+	return nil
+}
+
+// PasswordHash generate salted hash of password, can verify by VerifyHashedPassword
+func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword string, err error) {
+	if len(password) == 0 {
+		return "", errors.Errorf("password is too short")
+	}
+
+	var salt []byte
+	switch hasher {
+	case gutils.HashTypeSha256:
+		if salt, err = Salt(256); err != nil {
+			return "", errors.Wrap(err, "generate salt")
+		}
+	case gutils.HashTypeSha512:
+		if salt, err = Salt(512); err != nil {
+			return "", errors.Wrap(err, "generate salt")
+		}
+	default:
+		return "", errors.Errorf("only supprt sha256,sha512")
+	}
+
+	n, err := rand.Int(rand.Reader, big.NewInt(10))
+	if err != nil {
+		return "", errors.Wrap(err, "generate hash count")
+	}
+	hashNum := int(n.Int64()) + 1
+
+	h, err := newHashedPassword(salt, password, hasher, hashNum)
+	if err != nil {
+		return "", errors.Wrap(err, "hashing password")
+	}
+
+	return h.String(), nil
+}
 
 // GeneratePasswordHash generate hashed password by origin password
 func GeneratePasswordHash(password []byte) ([]byte, error) {
