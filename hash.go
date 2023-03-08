@@ -38,17 +38,21 @@ func HashXxhashString(val string) string {
 	return hex.EncodeToString(b)
 }
 
+// HashTypeInterface hashs
 type HashTypeInterface interface {
 	String() string
 	Hasher() (hash.Hash, error)
 }
 
+// HashType hashs
 type HashType string
 
+// String name of hash
 func (h HashType) String() string {
 	return string(h)
 }
 
+// Hasher new hasher by hash type
 func (h HashType) Hasher() (hash.Hash, error) {
 	switch h {
 	case HashTypeMD5:
@@ -65,9 +69,13 @@ func (h HashType) Hasher() (hash.Hash, error) {
 }
 
 const (
-	HashTypeMD5    HashType = "md5"
+	// HashTypeMD5 MD5
+	HashTypeMD5 HashType = "md5"
+	// HashTypeSha256 Sha256
 	HashTypeSha256 HashType = "sha256"
+	// HashTypeSha512 Sha512
 	HashTypeSha512 HashType = "sha512"
+	// HashTypeXxhash Xxhash
 	HashTypeXxhash HashType = "xxhash"
 )
 

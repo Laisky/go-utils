@@ -1329,3 +1329,27 @@ func TestUUID1(t *testing.T) {
 		}
 	})
 }
+
+func TestDelayer_Wait(t *testing.T) {
+	startAt := time.Now()
+	delay := 10 * time.Millisecond
+
+	func() {
+		defer NewDelay(delay).Wait()
+
+		require.Less(t, time.Since(startAt), time.Millisecond)
+	}()
+	require.GreaterOrEqual(t, time.Since(startAt), delay)
+}
+
+func ExampleNewDelay() {
+	startAt := time.Now()
+	delay := 10 * time.Millisecond
+
+	func() {
+		defer NewDelay(delay).Wait()
+	}()
+
+	fmt.Println(time.Since(startAt) >= delay)
+	// Output: true
+}

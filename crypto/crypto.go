@@ -12,10 +12,12 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Laisky/errors/v2"
-	gutils "github.com/Laisky/go-utils/v4"
 	"golang.org/x/crypto/bcrypt"
+
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 // HashedPassword salt hashed password
@@ -40,7 +42,9 @@ func (p HashedPassword) String() string {
 	)
 }
 
-func newHashedPassword(salt, rawpassword []byte, hasher gutils.HashTypeInterface, hashNum int) (h HashedPassword, err error) {
+func newHashedPassword(salt, rawpassword []byte,
+	hasher gutils.HashTypeInterface,
+	hashNum int) (h HashedPassword, err error) {
 	h.salt = salt
 	h.hasher = hasher
 	h.hashNum = hashNum
@@ -81,8 +85,15 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 	return h, nil
 }
 
+const defaultPasswordDelay = 2 * time.Second
+
 // VerifyHashedPassword verify HashedPassword
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
+	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
+		return errors.Errorf("rawpassword or hashedPassword is empty")
+	}
+
+	defer gutils.NewDelay(defaultPasswordDelay).Wait()
 	hp, err := parseHashedPassword(hashedPassword)
 	if err != nil {
 		return errors.Wrap(err, "parse hashed password")
@@ -103,8 +114,10 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 // PasswordHash generate salted hash of password, can verify by VerifyHashedPassword
 func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword string, err error) {
 	if len(password) == 0 {
-		return "", errors.Errorf("password is too short")
+		return "", errors.Errorf("password is empty")
 	}
+
+	defer gutils.NewDelay(defaultPasswordDelay).Wait()
 
 	var salt []byte
 	switch hasher {

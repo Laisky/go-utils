@@ -12,15 +12,26 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v4/crypto"
 )
 
-func NewKeyShares(total, threshold int, rsabits gcrypto.RSAPrikeyBits) (keyShares tcrsa.KeyShareList, keyMeta *tcrsa.KeyMeta, err error) {
+// NewKeyShares generate total keyshares for threshold signature,
+// any members exceed threshold can generate legal signature.
+//
+// threshold must in [(total/2)+1, total]
+func NewKeyShares(total, threshold int,
+	rsabits gcrypto.RSAPrikeyBits) (
+	keyShares tcrsa.KeyShareList,
+	keyMeta *tcrsa.KeyMeta,
+	err error) {
 	switch {
 	case threshold < 2:
 		return nil, nil, errors.Errorf("threshold should greater than 1")
 	case threshold < (total/2+1) || threshold > total:
-		return nil, nil, errors.Errorf("threshold should be between the %d and %d, but got %d", (total/2)+1, total, threshold)
+		return nil, nil, errors.Errorf(
+			"threshold should be between the %d and %d, but got %d",
+			(total/2)+1, total, threshold)
 	}
 
-	keyShares, keyMeta, err = tcrsa.NewKey(int(rsabits), uint16(threshold), uint16(total), nil)
+	keyShares, keyMeta, err = tcrsa.NewKey(
+		int(rsabits), uint16(threshold), uint16(total), nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new key")
 	}
@@ -28,13 +39,17 @@ func NewKeyShares(total, threshold int, rsabits gcrypto.RSAPrikeyBits) (keyShare
 	return keyShares, keyMeta, nil
 }
 
-func SignatureBySHA256(content io.Reader, keyShares tcrsa.KeyShareList, keyMeta *tcrsa.KeyMeta) (signature []byte, err error) {
+// SignBySHA256 generate signature by threshold members
+func SignBySHA256(content io.Reader,
+	keyShares tcrsa.KeyShareList,
+	keyMeta *tcrsa.KeyMeta) (signature []byte, err error) {
 	sig, err := gutils.Hash(gutils.HashTypeSha256, content)
 	if err != nil {
 		return nil, errors.Wrap(err, "calculate hash of content")
 	}
 
-	docPKCS1, err := tcrsa.PrepareDocumentHash(keyMeta.PublicKey.Size(), crypto.SHA256, sig)
+	docPKCS1, err := tcrsa.PrepareDocumentHash(
+		keyMeta.PublicKey.Size(), crypto.SHA256, sig)
 	if err != nil {
 		return nil, errors.Wrap(err, "prepare content hash")
 	}
@@ -59,6 +74,7 @@ func SignatureBySHA256(content io.Reader, keyShares tcrsa.KeyShareList, keyMeta 
 	return signature, nil
 }
 
+// VerifyBySHA256 verify signature by keyMeta.Pubkey
 func VerifyBySHA256(content io.Reader, pubkey *rsa.PublicKey, signature []byte) error {
 	hash, err := gutils.Hash(gutils.HashTypeSha256, content)
 	if err != nil {

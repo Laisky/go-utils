@@ -28,11 +28,10 @@ import (
 	"github.com/google/go-cpy/cpy"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
+	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/Laisky/go-utils/v4/log"
-
-	"go.uber.org/automaxprocs/maxprocs"
 )
 
 var (
@@ -1149,4 +1148,27 @@ func UUID1() string {
 	}
 
 	return uid.String()
+}
+
+// Delayer create by NewDelay
+//
+// do not use this type directly.
+type Delayer struct {
+	startAt time.Time
+	d       time.Duration
+}
+
+// NewDelay ensures the execution time of a function is not less than a predefined threshold.
+//
+//	defer NewDelay(time.Second).Wait()
+func NewDelay(d time.Duration) *Delayer {
+	return &Delayer{
+		startAt: time.Now(),
+		d:       d,
+	}
+}
+
+// Wait wait in defer
+func (d *Delayer) Wait() {
+	time.Sleep(d.d - time.Since(d.startAt))
 }

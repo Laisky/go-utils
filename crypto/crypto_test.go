@@ -5,8 +5,9 @@ import (
 	"math/rand"
 	"testing"
 
-	gutils "github.com/Laisky/go-utils/v4"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 func TestRSAEncrypt(t *testing.T) {

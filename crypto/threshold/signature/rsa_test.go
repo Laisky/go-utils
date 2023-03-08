@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	gutils "github.com/Laisky/go-utils/v4"
 	"github.com/Laisky/go-utils/v4/crypto"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyBySHA256(t *testing.T) {
@@ -19,7 +20,7 @@ func TestVerifyBySHA256(t *testing.T) {
 	// generate signature by k parts
 	parts := gutils.RandomChoice(keyShares, threshold)
 	content := gutils.RandomStringWithLength(1024)
-	sig, err := SignatureBySHA256(bytes.NewReader([]byte(content)), parts, keyMeta)
+	sig, err := SignBySHA256(bytes.NewReader([]byte(content)), parts, keyMeta)
 	require.NoError(t, err)
 
 	// verify signature

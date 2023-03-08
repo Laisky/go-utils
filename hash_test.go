@@ -3,8 +3,9 @@ package utils
 import (
 	"testing"
 
-	"github.com/Laisky/go-utils/v4/log"
 	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 const (
