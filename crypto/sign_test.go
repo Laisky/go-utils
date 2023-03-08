@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -9,10 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"math/big"
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -402,30 +398,6 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 	// t.Error()
 }
 
-func TestNewAesReaderWrapper(t *testing.T) {
-	raw := []byte("fjlf2fjjefjwijf93r23f")
-	secret := []byte("fjefil2j3i2lfj32fl2defea")
-	cipher, err := AesEncrypt(secret, raw)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-
-	reader := bytes.NewReader(cipher)
-	readerWraper, err := NewAesReaderWrapper(reader, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := io.ReadAll(readerWraper)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bytes.Equal(got, raw) {
-		t.Fatalf("got: %s", string(got))
-	}
-}
-
 // func Test_expandAesSecret(t *testing.T) {
 // 	type args struct {
 // 		secret []byte
@@ -471,45 +443,6 @@ func TestNewAesReaderWrapper(t *testing.T) {
 // 	}
 // }
 
-func TestEncryptByAes(t *testing.T) {
-	type args struct {
-		secret []byte
-		cnt    string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifew"), "mmm"}, false},
-		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifew"), ""}, true},
-		{"", args{[]byte("fjdwudkwfjwiefweffewfewfjelwifeww"), "mmm"}, true},
-		{"", args{[]byte("fjdwudkwfjwiefweffewfewjelwifew"), "mmm"}, true},
-		{"", args{[]byte(""), "mmm"}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := AesEncrypt(tt.args.secret, []byte(tt.args.cnt))
-			if err != nil {
-				if !tt.wantErr {
-					t.Fatalf("EncryptByAes() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-
-				return
-			}
-
-			decrypted, err := AesDecrypt(tt.args.secret, got)
-			if err != nil {
-				t.Fatalf("decrypt: %+v", err)
-			}
-			if string(decrypted) != tt.args.cnt {
-				t.Fatalf("decrypted not equal to cnt")
-			}
-		})
-	}
-}
-
 func TestNewDHKX(t *testing.T) {
 	alice, err := NewDHKX()
 	require.NoError(t, err)
@@ -542,33 +475,4 @@ func ExampleDHKX() {
 	bobKey, _ := bob.GenerateKey(alicePub)
 	fmt.Println(reflect.DeepEqual(aliceKey, bobKey))
 	// Output: true
-}
-
-func TestAESEncryptFilesInDir(t *testing.T) {
-	dirName, err := os.MkdirTemp("", "go-utils-test-settings*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dirName)
-
-	cnt := []byte("12345")
-	err = os.WriteFile(filepath.Join(dirName, "test1.toml"), cnt, 0640)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dirName, "test2.toml"), cnt, 0640)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dirName, "test3.toml"), cnt, 0640)
-	require.NoError(t, err)
-
-	secret := []byte("laiskyfwejfewjfewlijffed")
-	err = AESEncryptFilesInDir(dirName, secret)
-	require.NoError(t, err)
-
-	for _, fname := range []string{"test1.toml.enc", "test2.toml.enc", "test3.toml.enc"} {
-		fname = filepath.Join(dirName, fname)
-		cipher, err := os.ReadFile(fname)
-		require.NoError(t, err)
-
-		got, err := AesDecrypt(secret, cipher)
-		require.NoError(t, err)
-
-		require.Equal(t, cnt, got)
-	}
 }

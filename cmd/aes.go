@@ -123,7 +123,7 @@ func encryptFileByAes() error {
 		return errors.Wrapf(err, "read file `%s`", in)
 	}
 
-	cipher, err := gcrypto.AesEncrypt(secret, cnt)
+	cipher, err := gcrypto.AEADEncrypt(secret, cnt, nil)
 	if err != nil {
 		return errors.Wrap(err, "encrypt")
 	}

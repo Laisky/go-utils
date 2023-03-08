@@ -23,13 +23,24 @@ import (
 // The key argument should be the AES key,
 // either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256.
+//
+// Deprecated: use AEAD instead
 func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
-	if len(cnt) == 0 {
+	return AEADEncrypt(secret, cnt, nil)
+}
+
+// AEAD encrypt bytes by AES GCM
+//
+// The key argument should be the AES key,
+// either 16, 24, or 32 bytes to select
+// AES-128, AES-192, or AES-256.
+func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err error) {
+	if len(plaintext) == 0 {
 		return nil, errors.Errorf("content is empty")
 	}
 
 	// generate a new aes cipher
-	c, err := aes.NewCipher(secret)
+	c, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}
@@ -56,21 +67,32 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 	// additional data and appends the result to dst, returning the updated
 	// slice. The nonce must be NonceSize() bytes long and unique for all
 	// time, for a given key.
-	return gcm.Seal(nonce, nonce, cnt, nil), nil
+	return gcm.Seal(nonce, nonce, plaintext, additionalData), nil
 }
 
 // AesDecrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
 //
-// The key argument should be 16, 24, or 32 bytes
+// # The key argument should be 16, 24, or 32 bytes
+//
+// Deprecated: use AEADDecrypt instead
 func AesDecrypt(secret []byte, encrypted []byte) ([]byte, error) {
-	if len(encrypted) == 0 {
-		return nil, errors.Errorf("encrypted is empty")
+	return AEADDecrypt(secret, encrypted, nil)
+}
+
+// AEADDecrypt encrypt bytes by AES GCM
+//
+// inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+//
+// The key argument should be 16, 24, or 32 bytes
+func AEADDecrypt(key, ciphertext, additionalData []byte) (plaintext []byte, err error) {
+	if len(ciphertext) == 0 {
+		return nil, errors.Errorf("ciphertext is empty")
 	}
 
 	// generate a new aes cipher
-	c, err := aes.NewCipher(secret)
+	c, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, errors.Wrap(err, "new aes cipher")
 	}
@@ -84,12 +106,12 @@ func AesDecrypt(secret []byte, encrypted []byte) ([]byte, error) {
 	}
 
 	nonceSize := gcm.NonceSize()
-	if len(encrypted) < nonceSize {
-		return nil, errors.Errorf("encrypted too short")
+	if len(ciphertext) < nonceSize {
+		return nil, errors.Errorf("ciphertext too short")
 	}
 
-	nonce, encrypted := encrypted[:nonceSize], encrypted[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err = gcm.Open(nil, nonce, ciphertext, additionalData)
 	if err != nil {
 		return nil, errors.Wrap(err, "gcm decrypt")
 	}

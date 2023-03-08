@@ -42,9 +42,9 @@ func Split(secret []byte, total, threshold int) (members map[byte][]byte, err er
 	return members, nil
 }
 
-// Join is used to reverse a Split and reconstruct a secret
+// Combine is used to reverse a Split and reconstruct a secret
 // once a `threshold` number of parts are available.
-func Join(parts map[byte][]byte) ([]byte, error) {
+func Combine(parts map[byte][]byte) ([]byte, error) {
 	if len(parts) < 2 {
 		return nil, errors.Errorf("length of parts should >= 2")
 	}

@@ -44,7 +44,7 @@ func TestSplit(t *testing.T) {
 						parts[b] = members[b]
 					}
 
-					cipher, err := Join(parts)
+					cipher, err := Combine(parts)
 					t.Logf("total: %d, threshold: %d, parts: %d", tt.args.total, tt.args.threshold, k)
 					require.NoError(t, err)
 					require.Equal(t, tt.args.secret, cipher)
@@ -63,7 +63,7 @@ func TestSplit(t *testing.T) {
 						parts[b] = members[b]
 					}
 
-					cipher, err := Join(parts)
+					cipher, err := Combine(parts)
 					t.Logf("total: %d, threshold: %d, parts: %d", tt.args.total, tt.args.threshold, k)
 					require.NoError(t, err)
 					require.NotEqual(t, tt.args.secret, cipher)
