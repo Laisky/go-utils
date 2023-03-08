@@ -34,6 +34,8 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 // The key argument should be the AES key,
 // either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256.
+//
+// same input will get different ciphertext
 func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err error) {
 	if len(plaintext) == 0 {
 		return nil, errors.Errorf("content is empty")
