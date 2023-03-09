@@ -3,107 +3,19 @@ package mem
 
 import (
 	"context"
-	"encoding/binary"
 	"sync"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
 	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	gkms "github.com/Laisky/go-utils/v4/crypto/kms"
 	glog "github.com/Laisky/go-utils/v4/log"
 )
 
-// Interface interface of kms
-type Interface interface {
-	AddKek(ctx context.Context, kekID uint16, kek []byte) error
-	Kek(ctx context.Context) (kekID uint16, kek []byte, err error)
-	Keks(ctx context.Context) (keks map[uint16][]byte, err error)
-	DeriveKeyByID(ctx context.Context,
-		kekID uint16,
-		dekID []byte,
-		length int) (dek []byte, err error)
-	DeriveKey(ctx context.Context, length int) (kekID uint16, dekID, dek []byte, err error)
-	Encrypt(ctx context.Context, plaintext,
-		additionalData []byte) (kekID uint16, dekID, ciphertext []byte, err error)
-	Decrypt(ctx context.Context,
-		kekID uint16,
-		dekID, ciphertext, additionalData []byte) (plaintext []byte, err error)
-}
-
-// EncryptedDataVer version of encrypted data
-type EncryptedDataVer uint8
-
-const (
-	// EncryptedItemVer1 encrypted item in ver1 layout
-	//
-	//  type EncryptedItem struct {
-	//  	Version    EncryptedItemVer
-	//  	KekID      uint16
-	//  	DekID      []byte
-	//  	Ciphertext []byte
-	//  }
-	//
-	// layout:
-	//
-	//  - [0,1): version
-	//  - [1,3): dek id length
-	//  - [3,5): kek id
-	//  - [5,5+len(dek id)): dek id
-	//  - [5+len(dek id),5+len(dek id)+len(ciphertext)]: ciphertext
-	EncryptedItemVer1 EncryptedDataVer = iota
+var (
+	_ gkms.Interface = new(KMS)
 )
-
-// String name
-func (e EncryptedDataVer) String() string {
-	switch e {
-	case EncryptedItemVer1:
-		return "encrypted_item_ver_1"
-	}
-
-	return "encrypted_item_unimplemented"
-}
-
-// EncryptedData encrypted data
-type EncryptedData struct {
-	Version    EncryptedDataVer
-	KekID      uint16
-	DekID      []byte
-	Ciphertext []byte
-}
-
-// Marshal marshal to bytes
-func (e EncryptedData) Marshal() (data []byte, err error) {
-	switch e.Version {
-	case EncryptedItemVer1:
-		data = make([]byte, 5+len(e.DekID)+len(e.Ciphertext))
-		dekIDLen := uint16(len(e.DekID))
-		data[0] = byte(e.Version)
-		binary.LittleEndian.PutUint16(data[1:3], dekIDLen)
-		binary.LittleEndian.PutUint16(data[3:5], e.KekID)
-		copy(data[5:5+len(e.DekID)], e.DekID)
-		copy(data[5+len(e.DekID):], e.Ciphertext)
-	default:
-		return nil, errors.Errorf("unknown version %q", e.Version.String())
-	}
-
-	return data, nil
-}
-
-// Unmarshal unmarshal from bytes
-func (e *EncryptedData) Unmarshal(data []byte) error {
-	e.Version = EncryptedDataVer(data[0])
-	switch e.Version {
-	case EncryptedItemVer1:
-		dekIDLen := binary.LittleEndian.Uint16(data[1:3])
-		e.KekID = binary.LittleEndian.Uint16(data[3:5])
-		e.DekID = data[5 : 5+dekIDLen]
-		e.Ciphertext = data[5+dekIDLen:]
-	default:
-		return errors.Errorf("unknown version %q", e.Version.String())
-	}
-
-	return nil
-}
 
 // KMS insecure memory based KMS
 //
@@ -306,8 +218,8 @@ func (m *KMS) EncryptByID(ctx context.Context,
 
 // Encrypt encrypt by random dek
 func (m *KMS) Encrypt(ctx context.Context,
-	plaintext, additionalData []byte) (ei EncryptedData, err error) {
-	ei.Version = EncryptedItemVer1
+	plaintext, additionalData []byte) (ei gkms.EncryptedData, err error) {
+	ei.Version = gkms.EncryptedItemVer1
 	var dek []byte
 	ei.KekID, ei.DekID, dek, err = m.DeriveKey(ctx, m.opt.aesKeyLen)
 	if err != nil {
@@ -324,7 +236,7 @@ func (m *KMS) Encrypt(ctx context.Context,
 
 // Decrypt decrypt ciphertext
 func (m *KMS) Decrypt(ctx context.Context,
-	ei EncryptedData,
+	ei gkms.EncryptedData,
 	additionalData []byte) (plaintext []byte, err error) {
 	dek, err := m.DeriveKeyByID(ctx, ei.KekID, ei.DekID, m.opt.aesKeyLen)
 	if err != nil {

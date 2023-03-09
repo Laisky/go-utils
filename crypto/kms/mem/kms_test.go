@@ -13,6 +13,7 @@ import (
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
 	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	gkms "github.com/Laisky/go-utils/v4/crypto/kms"
 )
 
 func TestKMS_Decrypt(t *testing.T) {
@@ -78,7 +79,7 @@ func TestKMS_Decrypt(t *testing.T) {
 				require.NoError(gt, err)
 				require.NotEqual(gt, ei.Ciphertext, gotcipher)
 
-				gotplain, err := kms.Decrypt(ctx, EncryptedData{
+				gotplain, err := kms.Decrypt(ctx, gkms.EncryptedData{
 					Version:    ei.Version,
 					KekID:      ei.KekID,
 					DekID:      ei.DekID,
@@ -100,7 +101,7 @@ func TestKMS_Decrypt(t *testing.T) {
 			})
 
 			t.Run("decrypt with nonexists dek id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, EncryptedData{
+				_, err = kms.Decrypt(ctx, gkms.EncryptedData{
 					Version:    ei.Version,
 					KekID:      0,
 					DekID:      ei.DekID,
@@ -110,7 +111,7 @@ func TestKMS_Decrypt(t *testing.T) {
 			})
 
 			t.Run("decrypt with wrong dek id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, EncryptedData{
+				_, err = kms.Decrypt(ctx, gkms.EncryptedData{
 					Version:    ei.Version,
 					KekID:      3,
 					DekID:      ei.DekID,
@@ -120,7 +121,7 @@ func TestKMS_Decrypt(t *testing.T) {
 			})
 
 			t.Run("decrypt with wrong dek key id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, EncryptedData{
+				_, err = kms.Decrypt(ctx, gkms.EncryptedData{
 					Version:    ei.Version,
 					KekID:      ei.KekID,
 					DekID:      []byte("123"),
@@ -150,8 +151,8 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := &EncryptedData{
-				Version:    EncryptedItemVer1,
+			e := &gkms.EncryptedData{
+				Version:    gkms.EncryptedItemVer1,
 				KekID:      tt.args.KekID,
 				DekID:      tt.args.DekID,
 				Ciphertext: tt.args.Ciphertext,
@@ -160,7 +161,7 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 			data, err := e.Marshal()
 			require.NoError(t, err)
 
-			e2 := new(EncryptedData)
+			e2 := new(gkms.EncryptedData)
 			err = e2.Unmarshal(data)
 			require.NoError(t, err)
 
