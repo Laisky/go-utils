@@ -3,6 +3,7 @@ package mem
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 
 	"github.com/Laisky/errors/v2"
@@ -14,35 +15,110 @@ import (
 
 // Interface interface of kms
 type Interface interface {
-	AddNewMasterKey(ctx context.Context, masterKeyID uint32, masterKey []byte) error
-	MasterKey(ctx context.Context) (masterKeyID uint32, masterKey []byte, err error)
-	MasterKeys(ctx context.Context) (masterKeys map[uint32][]byte, err error)
+	AddKek(ctx context.Context, kekID uint16, kek []byte) error
+	Kek(ctx context.Context) (kekID uint16, kek []byte, err error)
+	Keks(ctx context.Context) (keks map[uint16][]byte, err error)
 	DeriveKeyByID(ctx context.Context,
-		masterKeyID uint32,
+		kekID uint16,
 		dekID []byte,
 		length int) (dek []byte, err error)
-	DeriveKey(ctx context.Context, length int) (masterKeyID uint32, dekID, dek []byte, err error)
+	DeriveKey(ctx context.Context, length int) (kekID uint16, dekID, dek []byte, err error)
 	Encrypt(ctx context.Context, plaintext,
-		additionalData []byte) (masterKeyID uint32, dekID, ciphertext []byte, err error)
+		additionalData []byte) (kekID uint16, dekID, ciphertext []byte, err error)
 	Decrypt(ctx context.Context,
-		masterKeyID uint32,
+		kekID uint16,
 		dekID, ciphertext, additionalData []byte) (plaintext []byte, err error)
+}
+
+// EncryptedDataVer version of encrypted data
+type EncryptedDataVer uint8
+
+const (
+	// EncryptedItemVer1 encrypted item in ver1 layout
+	//
+	//  type EncryptedItem struct {
+	//  	Version    EncryptedItemVer
+	//  	KekID      uint16
+	//  	DekID      []byte
+	//  	Ciphertext []byte
+	//  }
+	//
+	// layout:
+	//
+	//  - [0,1): version
+	//  - [1,3): dek id length
+	//  - [3,5): kek id
+	//  - [5,5+len(dek id)): dek id
+	//  - [5+len(dek id),5+len(dek id)+len(ciphertext)]: ciphertext
+	EncryptedItemVer1 EncryptedDataVer = iota
+)
+
+// String name
+func (e EncryptedDataVer) String() string {
+	switch e {
+	case EncryptedItemVer1:
+		return "encrypted_item_ver_1"
+	}
+
+	return "encrypted_item_unimplemented"
+}
+
+// EncryptedData encrypted data
+type EncryptedData struct {
+	Version    EncryptedDataVer
+	KekID      uint16
+	DekID      []byte
+	Ciphertext []byte
+}
+
+// Marshal marshal to bytes
+func (e EncryptedData) Marshal() (data []byte, err error) {
+	switch e.Version {
+	case EncryptedItemVer1:
+		data = make([]byte, 5+len(e.DekID)+len(e.Ciphertext))
+		dekIDLen := uint16(len(e.DekID))
+		data[0] = byte(e.Version)
+		binary.LittleEndian.PutUint16(data[1:3], dekIDLen)
+		binary.LittleEndian.PutUint16(data[3:5], e.KekID)
+		copy(data[5:5+len(e.DekID)], e.DekID)
+		copy(data[5+len(e.DekID):], e.Ciphertext)
+	default:
+		return nil, errors.Errorf("unknown version %q", e.Version.String())
+	}
+
+	return data, nil
+}
+
+// Unmarshal unmarshal from bytes
+func (e *EncryptedData) Unmarshal(data []byte) error {
+	e.Version = EncryptedDataVer(data[0])
+	switch e.Version {
+	case EncryptedItemVer1:
+		dekIDLen := binary.LittleEndian.Uint16(data[1:3])
+		e.KekID = binary.LittleEndian.Uint16(data[3:5])
+		e.DekID = data[5 : 5+dekIDLen]
+		e.Ciphertext = data[5+dekIDLen:]
+	default:
+		return errors.Errorf("unknown version %q", e.Version.String())
+	}
+
+	return nil
 }
 
 // KMS insecure memory based KMS
 //
-// this KMS support multiple master keys.
-// derieve DEK by latest masterkey(masterKeys[maxKeyID]).
+// this KMS support multiple Keks,
+// derieve dek by latest kek(keks[maxKeyID]).
 type KMS struct {
 	opt *kmsOption
 	mu  sync.RWMutex
-	// masterKeys contain all master keys
+	// keks contain all keks
 	//
-	//  // map[masterKeyID]masterkey
-	//  map[uint32][]byte
-	masterKeys sync.Map
+	//  // map[kekID]kek
+	//  map[uint16][]byte
+	keks sync.Map
 
-	maxKeyID uint32
+	maxKeyID uint16
 }
 
 type kmsOption struct {
@@ -103,7 +179,7 @@ func WithLogger(logger glog.Logger) KMSOption {
 }
 
 // New new kms
-func New(masterKeys map[uint32][]byte,
+func New(keks map[uint16][]byte,
 	opts ...KMSOption) (*KMS, error) {
 	opt, err := new(kmsOption).fillDefault().applyOpts(opts...)
 	if err != nil {
@@ -114,87 +190,87 @@ func New(masterKeys map[uint32][]byte,
 		opt: opt,
 	}
 
-	for i, k := range masterKeys {
+	for i, k := range keks {
 		if i >= kms.maxKeyID {
 			kms.maxKeyID = i
 		}
 
 		storedKey := make([]byte, len(k))
 		copy(storedKey, k)
-		kms.masterKeys.Store(i, storedKey)
+		kms.keks.Store(i, storedKey)
 	}
 
 	return kms, nil
 }
 
-// AddNewMasterKey add new master key
-func (m *KMS) AddNewMasterKey(ctx context.Context,
-	masterKeyID uint32,
-	masterKey []byte) error {
+// AddKek add new kek
+func (m *KMS) AddKek(ctx context.Context,
+	kekID uint16,
+	kek []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	storedMasterKey := make([]byte, len(masterKey))
-	copy(storedMasterKey, masterKey)
+	storedKek := make([]byte, len(kek))
+	copy(storedKek, kek)
 
-	if _, loaded := m.masterKeys.LoadOrStore(masterKeyID, storedMasterKey); loaded {
-		return errors.Errorf("masterkey id already existed")
+	if _, loaded := m.keks.LoadOrStore(kekID, storedKek); loaded {
+		return errors.Errorf("kek id already existed")
 	}
 
-	if masterKeyID > m.maxKeyID {
-		m.maxKeyID = masterKeyID
+	if kekID > m.maxKeyID {
+		m.maxKeyID = kekID
 	}
 
 	return nil
 }
 
-// MasterKey return current used master key
-func (m *KMS) MasterKey(ctx context.Context) (
-	masterKeyID uint32, masterKey []byte, err error) {
+// KEK return current used kek
+func (m *KMS) Kek(ctx context.Context) (
+	kekID uint16, kek []byte, err error) {
 	m.mu.RLock()
-	masterKeyID = m.maxKeyID
+	kekID = m.maxKeyID
 	m.mu.RUnlock()
 
-	v, ok := m.masterKeys.Load(masterKeyID)
+	v, ok := m.keks.Load(kekID)
 	if !ok {
-		m.opt.logger.Panic("cannot find maxkey id in master keys",
-			zap.Uint32("master_key_id", masterKeyID))
+		m.opt.logger.Panic("cannot find maxkey id in keks",
+			zap.Uint16("kek_id", kekID))
 	}
 
-	return masterKeyID, v.([]byte), nil
+	return kekID, v.([]byte), nil
 }
 
-// MasterKeys return all master keys
-func (m *KMS) MasterKeys(ctx context.Context) (
-	masterKeys map[uint32][]byte, err error) {
-	masterKeys = make(map[uint32][]byte)
-	m.masterKeys.Range(func(key, value any) bool {
-		masterKeys[key.(uint32)] = value.([]byte)
+// keks return all keks
+func (m *KMS) Keks(ctx context.Context) (
+	keks map[uint16][]byte, err error) {
+	keks = make(map[uint16][]byte)
+	m.keks.Range(func(key, value any) bool {
+		keks[key.(uint16)] = value.([]byte)
 		return true
 	})
 
-	return masterKeys, nil
+	return keks, nil
 }
 
 // DeriveKeyByID derive key by specific arguments
 func (m *KMS) DeriveKeyByID(ctx context.Context,
-	masterKeyID uint32,
+	kekID uint16,
 	dekID []byte,
 	length int) (dek []byte, err error) {
-	masterkey, ok := m.masterKeys.Load(masterKeyID)
+	kek, ok := m.keks.Load(kekID)
 	if !ok {
-		return nil, errors.Errorf("masterkey %d not found", masterKeyID)
+		return nil, errors.Errorf("kek %d not found", kekID)
 	}
 
-	return gcrypto.DeriveKeyByHKDF(masterkey.([]byte), dekID, length)
+	return gcrypto.DeriveKeyByHKDF(kek.([]byte), dekID, length)
 }
 
 // DeriveKey derive random key
 func (m *KMS) DeriveKey(ctx context.Context,
-	length int) (masterKeyID uint32, dekID, dek []byte, err error) {
-	masterKeyID, masterkey, err := m.MasterKey(ctx)
+	length int) (kekID uint16, dekID, dek []byte, err error) {
+	kekID, kek, err := m.Kek(ctx)
 	if err != nil {
-		return 0, nil, nil, errors.Wrap(err, "get current master key")
+		return 0, nil, nil, errors.Wrap(err, "get current kek")
 	}
 
 	dekID, err = gcrypto.Salt(m.opt.dekIDLen)
@@ -202,20 +278,20 @@ func (m *KMS) DeriveKey(ctx context.Context,
 		return 0, nil, nil, errors.Wrap(err, "generate dek id")
 	}
 
-	dek, err = gcrypto.DeriveKeyByHKDF(masterkey, dekID, length)
+	dek, err = gcrypto.DeriveKeyByHKDF(kek, dekID, length)
 	if err != nil {
 		return 0, nil, nil, errors.Wrap(err, "derive dek")
 	}
 
-	return masterKeyID, dekID, dek, nil
+	return kekID, dekID, dek, nil
 }
 
 // Encrypt encrypt by specific dek
 func (m *KMS) EncryptByID(ctx context.Context,
 	plaintext, additionalData []byte,
-	masterKeyID uint32,
+	kekID uint16,
 	dekID []byte) (ciphertext []byte, err error) {
-	dek, err := m.DeriveKeyByID(ctx, masterKeyID, dekID, m.opt.aesKeyLen)
+	dek, err := m.DeriveKeyByID(ctx, kekID, dekID, m.opt.aesKeyLen)
 	if err != nil {
 		return nil, errors.Wrap(err, "derive dek")
 	}
@@ -230,30 +306,32 @@ func (m *KMS) EncryptByID(ctx context.Context,
 
 // Encrypt encrypt by random dek
 func (m *KMS) Encrypt(ctx context.Context,
-	plaintext, additionalData []byte) (masterKeyID uint32, dekID, ciphertext []byte, err error) {
-	masterKeyID, dekID, dek, err := m.DeriveKey(ctx, m.opt.aesKeyLen)
+	plaintext, additionalData []byte) (ei EncryptedData, err error) {
+	ei.Version = EncryptedItemVer1
+	var dek []byte
+	ei.KekID, ei.DekID, dek, err = m.DeriveKey(ctx, m.opt.aesKeyLen)
 	if err != nil {
-		return 0, nil, nil, errors.Wrap(err, "get current master key")
+		return ei, errors.Wrap(err, "get current kek")
 	}
 
-	ciphertext, err = gcrypto.AEADEncrypt(dek, plaintext, additionalData)
+	ei.Ciphertext, err = gcrypto.AEADEncrypt(dek, plaintext, additionalData)
 	if err != nil {
-		return 0, nil, nil, errors.Wrap(err, "encrypt by aead")
+		return ei, errors.Wrap(err, "encrypt by aead")
 	}
 
-	return masterKeyID, dekID, ciphertext, nil
+	return ei, nil
 }
 
 // Decrypt decrypt ciphertext
 func (m *KMS) Decrypt(ctx context.Context,
-	masterKeyID uint32,
-	dekID, ciphertext, additionalData []byte) (plaintext []byte, err error) {
-	dek, err := m.DeriveKeyByID(ctx, masterKeyID, dekID, m.opt.aesKeyLen)
+	ei EncryptedData,
+	additionalData []byte) (plaintext []byte, err error) {
+	dek, err := m.DeriveKeyByID(ctx, ei.KekID, ei.DekID, m.opt.aesKeyLen)
 	if err != nil {
 		return nil, errors.Wrap(err, "derive dek")
 	}
 
-	plaintext, err = gcrypto.AEADDecrypt(dek, ciphertext, additionalData)
+	plaintext, err = gcrypto.AEADDecrypt(dek, ei.Ciphertext, additionalData)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt by dek")
 	}

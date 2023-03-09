@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
 	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	"github.com/stretchr/testify/require"
 )
 
 func TestKMS_Decrypt(t *testing.T) {
@@ -21,7 +22,7 @@ func TestKMS_Decrypt(t *testing.T) {
 	mk, err := gcrypto.Salt(128)
 	require.NoError(t, err)
 
-	kms, err := New(map[uint32][]byte{
+	kms, err := New(map[uint16][]byte{
 		1: mk,
 	})
 	require.NoError(t, err)
@@ -36,7 +37,7 @@ func TestKMS_Decrypt(t *testing.T) {
 			default:
 			}
 
-			ks, err := kms.MasterKeys(ctx)
+			ks, err := kms.Keks(ctx)
 			require.NoError(gt, err)
 			require.Equal(gt, mk, ks[1])
 		}
@@ -53,7 +54,7 @@ func TestKMS_Decrypt(t *testing.T) {
 
 			mk, err := gcrypto.Salt(128)
 			require.NoError(gt, err)
-			kms.AddNewMasterKey(ctx, uint32(counter.Count()), mk)
+			kms.AddKek(ctx, uint16(counter.Count()), mk)
 			time.Sleep(time.Millisecond)
 		}
 	}()
@@ -69,46 +70,104 @@ func TestKMS_Decrypt(t *testing.T) {
 
 			plaintext, err := gcrypto.Salt(1024 + rand.Intn(1024))
 			require.NoError(gt, err)
-			masterKeyID, dekID, ciphertext, err := kms.Encrypt(ctx, plaintext, []byte("laisky"))
+			ei, err := kms.Encrypt(ctx, plaintext, []byte("laisky"))
 			require.NoError(gt, err)
 
 			t.Run("encrypt by id", func(t *testing.T) {
-				gotcipher, err := kms.EncryptByID(ctx, plaintext, []byte("laisky"), masterKeyID, dekID)
+				gotcipher, err := kms.EncryptByID(ctx, plaintext, []byte("laisky"), ei.KekID, ei.DekID)
 				require.NoError(gt, err)
-				require.NotEqual(gt, ciphertext, gotcipher)
+				require.NotEqual(gt, ei.Ciphertext, gotcipher)
 
-				gotplain, err := kms.Decrypt(ctx, masterKeyID, dekID, gotcipher, []byte("laisky"))
+				gotplain, err := kms.Decrypt(ctx, EncryptedData{
+					Version:    ei.Version,
+					KekID:      ei.KekID,
+					DekID:      ei.DekID,
+					Ciphertext: ei.Ciphertext,
+				}, []byte("laisky"))
 				require.NoError(gt, err)
 				require.Equal(gt, plaintext, gotplain)
 			})
 
 			t.Run("decrypt", func(t *testing.T) {
-				gotplain, err := kms.Decrypt(ctx, masterKeyID, dekID, ciphertext, []byte("laisky"))
+				gotplain, err := kms.Decrypt(ctx, ei, []byte("laisky"))
 				require.NoError(gt, err)
 				require.Equal(gt, plaintext, gotplain)
 			})
 
 			t.Run("decrypt with wrong add", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, masterKeyID, dekID, ciphertext, []byte("laisky123"))
+				_, err = kms.Decrypt(ctx, ei, []byte("laisky123"))
 				require.ErrorContains(gt, err, "message authentication failed")
 			})
 
-			t.Run("decrypt with wrong master key id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, 0, dekID, ciphertext, []byte("laisky123"))
-				require.ErrorContains(gt, err, "masterkey 0 not found")
+			t.Run("decrypt with nonexists dek id", func(t *testing.T) {
+				_, err = kms.Decrypt(ctx, EncryptedData{
+					Version:    ei.Version,
+					KekID:      0,
+					DekID:      ei.DekID,
+					Ciphertext: ei.Ciphertext,
+				}, []byte("laisky123"))
+				require.ErrorContains(gt, err, "kek 0 not found")
 			})
 
-			t.Run("decrypt with wrong master key id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, 2, dekID, ciphertext, []byte("laisky123"))
-				require.ErrorContains(gt, err, "message authentication failed")
+			t.Run("decrypt with wrong dek id", func(t *testing.T) {
+				_, err = kms.Decrypt(ctx, EncryptedData{
+					Version:    ei.Version,
+					KekID:      3,
+					DekID:      ei.DekID,
+					Ciphertext: ei.Ciphertext,
+				}, []byte("laisky123"))
+				require.ErrorContains(gt, err, "cipher: message authentication failed")
 			})
 
 			t.Run("decrypt with wrong dek key id", func(t *testing.T) {
-				_, err = kms.Decrypt(ctx, masterKeyID, []byte("123"), ciphertext, []byte("laisky123"))
+				_, err = kms.Decrypt(ctx, EncryptedData{
+					Version:    ei.Version,
+					KekID:      ei.KekID,
+					DekID:      []byte("123"),
+					Ciphertext: ei.Ciphertext,
+				}, []byte("laisky123"))
 				require.ErrorContains(gt, err, "message authentication failed")
 			})
 		}()
 	}
 
 	wg.Wait()
+}
+
+func TestEncryptedItem_Unmarshal(t *testing.T) {
+	type args struct {
+		KekID      uint16
+		DekID      []byte
+		Ciphertext []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"1", args{1, []byte("213123"), []byte("2342342")}, false},
+		{"2", args{1, []byte(gutils.RandomStringWithLength(1024)), []byte(gutils.RandomStringWithLength(1024))}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &EncryptedData{
+				Version:    EncryptedItemVer1,
+				KekID:      tt.args.KekID,
+				DekID:      tt.args.DekID,
+				Ciphertext: tt.args.Ciphertext,
+			}
+
+			data, err := e.Marshal()
+			require.NoError(t, err)
+
+			e2 := new(EncryptedData)
+			err = e2.Unmarshal(data)
+			require.NoError(t, err)
+
+			require.Equal(t, e.Version, e2.Version)
+			require.Equal(t, e.KekID, e2.KekID)
+			require.Equal(t, e.DekID, e2.DekID)
+			require.Equal(t, e.Ciphertext, e2.Ciphertext)
+		})
+	}
 }
