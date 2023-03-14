@@ -135,13 +135,21 @@ func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
 }
 
 // Cert2Pem marshal x509 certificate to pem
-func Cert2Pem(cert *x509.Certificate) []byte {
-	return CertDer2Pem(Cert2Der(cert))
+func Cert2Pem(certs ...*x509.Certificate) (ret []byte) {
+	for i := range certs {
+		ret = append(ret, CertDer2Pem(Cert2Der(certs[i]))...)
+	}
+
+	return
 }
 
 // Cert2Der marshal private key by x509.8
-func Cert2Der(cert *x509.Certificate) []byte {
-	return cert.Raw
+func Cert2Der(cert ...*x509.Certificate) (ret []byte) {
+	for i := range cert {
+		ret = append(ret, cert[i].Raw...)
+	}
+
+	return
 }
 
 // Der2Cert parse sigle certificate in der

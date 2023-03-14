@@ -114,6 +114,7 @@ func TestAEADDecrypt(t *testing.T) {
 		args args
 	}{
 		{"", args{key, []byte("fhwkufhuweh"), []byte("laisky")}},
+		{"", args{key, []byte("31231"), nil}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

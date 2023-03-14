@@ -239,6 +239,13 @@ func TestPem2Der_multi_certs(t *testing.T) {
 
 	require.Equal(t, "sgx-coordinator-inter", cs[0].Subject.CommonName)
 	require.Equal(t, "sgx-coordinator", cs[1].Subject.CommonName)
+
+	gotder := Cert2Der(cs...)
+	require.Equal(t, der, gotder)
+
+	gotder, err = Pem2Der(Cert2Pem(cs...))
+	require.NoError(t, err)
+	require.Equal(t, der, gotder)
 }
 
 func TestSecureCipherSuites(t *testing.T) {
