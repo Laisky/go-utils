@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/zap"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
@@ -245,6 +246,18 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 	return csrDer, nil
 }
 
+var (
+	internalCertSerialNumGenerator X509CertSerialNumberGenerator
+)
+
+func init() {
+	var err error
+	if internalCertSerialNumGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
+		glog.Shared.Panic("new default cert serial number generator", zap.Error(err))
+	}
+
+}
+
 // DefaultX509CertSerialNumGenerator default cert serial number generator base on epoch time and random int
 type DefaultX509CertSerialNumGenerator struct {
 	counter *gcounter.RotateCounter
@@ -357,6 +370,7 @@ func (o *signCSROption) fillDefault() *signCSROption {
 	o.validFrom = time.Now().UTC()
 	o.validFor = 7 * 24 * time.Hour
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	o.serialNumGenerator = internalCertSerialNumGenerator
 
 	return o
 }
@@ -368,22 +382,10 @@ func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error)
 		}
 	}
 
-	switch { // fill serial number
-	case o.serialNumGenerator != nil && o.serialNumber != nil:
-		return nil, errors.Errorf("serialNumGenerator and serialNumber should not appear in the same time")
-	case o.serialNumGenerator != nil && o.serialNumber == nil:
+	switch {
+	case o.serialNumber == nil:
+		// generate serial number by internal generator if not set
 		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
-	case o.serialNumGenerator == nil && o.serialNumber == nil:
-		sg, err := NewDefaultX509CertSerialNumGenerator()
-		if err != nil {
-			return nil, errors.Wrap(err, "new default x509 cert serial number generator")
-		}
-
-		o.serialNumber = big.NewInt(sg.SerialNum())
-	}
-
-	if o.serialNumber == nil {
-		glog.Shared.Panic("serial number should not be empty")
 	}
 
 	return o, nil
@@ -850,18 +852,10 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (*x509V3CertOption,
 		}
 	}
 
-	switch { // fill serial number
-	case o.serialNumGenerator != nil && o.serialNumber != nil:
-		return nil, errors.Errorf("serialNumGenerator and serialNumber should not appear in the same time")
-	case o.serialNumGenerator != nil && o.serialNumber == nil:
+	switch {
+	case o.serialNumber == nil:
+		// generate serial number by internal generator if not set
 		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
-	case o.serialNumGenerator == nil && o.serialNumber == nil:
-		sg, err := NewDefaultX509CertSerialNumGenerator()
-		if err != nil {
-			return nil, errors.Wrap(err, "new default x509 cert serial number generator")
-		}
-
-		o.serialNumber = big.NewInt(sg.SerialNum())
 	}
 
 	if o.serialNumber == nil {

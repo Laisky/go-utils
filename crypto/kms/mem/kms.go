@@ -28,7 +28,8 @@ type KMS struct {
 	//
 	//  // map[kekID]kek
 	//  map[uint16][]byte
-	keks sync.Map
+	keks   sync.Map
+	status gkms.Status
 
 	maxKeyID uint16
 }
@@ -102,6 +103,12 @@ func New(keks map[uint16][]byte,
 		opt: opt,
 	}
 
+	if len(keks) > 0 {
+		kms.setStatus(gkms.StatusReady)
+	} else {
+		kms.setStatus(gkms.StatusNoKeK)
+	}
+
 	for i, k := range keks {
 		if i >= kms.maxKeyID {
 			kms.maxKeyID = i
@@ -113,6 +120,28 @@ func New(keks map[uint16][]byte,
 	}
 
 	return kms, nil
+}
+
+// Status return current status
+func (m *KMS) Status() gkms.Status {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.status
+}
+
+func (m *KMS) setStatus(status gkms.Status) {
+	m.mu.Lock()
+	m.status = status
+	m.mu.Unlock()
+}
+
+func (m *KMS) statusShouldBe(status gkms.Status) error {
+	if m.Status() != status {
+		return errors.Errorf("kms status should be %s, but got %s",
+			status.String(), m.Status().String())
+	}
+
+	return nil
 }
 
 // AddKek add new kek
@@ -139,6 +168,10 @@ func (m *KMS) AddKek(ctx context.Context,
 // KEK return current used kek
 func (m *KMS) Kek(ctx context.Context) (
 	kekID uint16, kek []byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return 0, nil, errors.WithStack(err)
+	}
+
 	m.mu.RLock()
 	kekID = m.maxKeyID
 	m.mu.RUnlock()
@@ -155,6 +188,10 @@ func (m *KMS) Kek(ctx context.Context) (
 // keks return all keks
 func (m *KMS) Keks(ctx context.Context) (
 	keks map[uint16][]byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	keks = make(map[uint16][]byte)
 	m.keks.Range(func(key, value any) bool {
 		keks[key.(uint16)] = value.([]byte)
@@ -169,6 +206,10 @@ func (m *KMS) DeriveKeyByID(ctx context.Context,
 	kekID uint16,
 	dekID []byte,
 	length int) (dek []byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	kek, ok := m.keks.Load(kekID)
 	if !ok {
 		return nil, errors.Errorf("kek %d not found", kekID)
@@ -180,6 +221,10 @@ func (m *KMS) DeriveKeyByID(ctx context.Context,
 // DeriveKey derive random key
 func (m *KMS) DeriveKey(ctx context.Context,
 	length int) (kekID uint16, dekID, dek []byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return 0, nil, nil, errors.WithStack(err)
+	}
+
 	kekID, kek, err := m.Kek(ctx)
 	if err != nil {
 		return 0, nil, nil, errors.Wrap(err, "get current kek")
@@ -203,6 +248,10 @@ func (m *KMS) EncryptByID(ctx context.Context,
 	plaintext, additionalData []byte,
 	kekID uint16,
 	dekID []byte) (ciphertext []byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	dek, err := m.DeriveKeyByID(ctx, kekID, dekID, m.opt.aesKeyLen)
 	if err != nil {
 		return nil, errors.Wrap(err, "derive dek")
@@ -219,6 +268,10 @@ func (m *KMS) EncryptByID(ctx context.Context,
 // Encrypt encrypt by random dek
 func (m *KMS) Encrypt(ctx context.Context,
 	plaintext, additionalData []byte) (ei gkms.EncryptedData, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return ei, errors.WithStack(err)
+	}
+
 	ei.Version = gkms.EncryptedItemVer1
 	var dek []byte
 	ei.KekID, ei.DekID, dek, err = m.DeriveKey(ctx, m.opt.aesKeyLen)
@@ -238,6 +291,10 @@ func (m *KMS) Encrypt(ctx context.Context,
 func (m *KMS) Decrypt(ctx context.Context,
 	ei gkms.EncryptedData,
 	additionalData []byte) (plaintext []byte, err error) {
+	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	dek, err := m.DeriveKeyByID(ctx, ei.KekID, ei.DekID, m.opt.aesKeyLen)
 	if err != nil {
 		return nil, errors.Wrap(err, "derive dek")
