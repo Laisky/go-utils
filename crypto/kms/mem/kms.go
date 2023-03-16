@@ -267,11 +267,12 @@ func (m *KMS) EncryptByID(ctx context.Context,
 
 // Encrypt encrypt by random dek
 func (m *KMS) Encrypt(ctx context.Context,
-	plaintext, additionalData []byte) (ei gkms.EncryptedData, err error) {
+	plaintext, additionalData []byte) (ei *gkms.EncryptedData, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
 		return ei, errors.WithStack(err)
 	}
 
+	ei = new(gkms.EncryptedData)
 	ei.Version = gkms.EncryptedItemVer1
 	var dek []byte
 	ei.KekID, ei.DekID, dek, err = m.DeriveKey(ctx, m.opt.aesKeyLen)
@@ -289,7 +290,7 @@ func (m *KMS) Encrypt(ctx context.Context,
 
 // Decrypt decrypt ciphertext
 func (m *KMS) Decrypt(ctx context.Context,
-	ei gkms.EncryptedData,
+	ei *gkms.EncryptedData,
 	additionalData []byte) (plaintext []byte, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
 		return nil, errors.WithStack(err)

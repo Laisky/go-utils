@@ -25,10 +25,10 @@ type Interface interface {
 	DeriveKey(ctx context.Context, length int) (kekID uint16, dekID, dek []byte, err error)
 	// Encrypt encrypt data
 	Encrypt(ctx context.Context, plaintext,
-		additionalData []byte) (ed EncryptedData, err error)
+		additionalData []byte) (ed *EncryptedData, err error)
 	// Decrypt decrypt data
 	Decrypt(ctx context.Context,
-		ed EncryptedData, additionalData []byte) (plaintext []byte, err error)
+		ed *EncryptedData, additionalData []byte) (plaintext []byte, err error)
 }
 
 // Status status of kms
