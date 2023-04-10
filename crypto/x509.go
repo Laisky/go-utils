@@ -277,7 +277,7 @@ func NewDefaultX509CertSerialNumGenerator() (*DefaultX509CertSerialNumGenerator,
 
 // SerialNum get randon serial number
 func (g *DefaultX509CertSerialNumGenerator) SerialNum() int64 {
-	return int64(time.Since(time.Time{})/time.Millisecond*10000) + g.counter.Count()
+	return time.Now().UnixMilli()*10000 + g.counter.Count()
 }
 
 // NewX509CertTemplate new tls template with common default values
