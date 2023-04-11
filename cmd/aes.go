@@ -86,7 +86,7 @@ var EncryptAESCMD = &cobra.Command{
 	},
 }
 
-func setupEncryptAESArgs(cmd *cobra.Command) (err error) {
+func setupEncryptAESArgs(_ *cobra.Command) (err error) {
 	if inputpath == "" {
 		return errors.Errorf("inputfile cannot be empty")
 	}

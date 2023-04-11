@@ -346,8 +346,8 @@ func parseSans(sans []string) (tpl sansTemp) {
 }
 
 type signCSROption struct {
-	validFrom    time.Time
-	validFor     time.Duration
+	notBefore    time.Time
+	notAfter     time.Time
 	isCA         bool
 	keyUsage     x509.KeyUsage
 	extKeyUsage  []x509.ExtKeyUsage
@@ -367,8 +367,8 @@ type signCSROption struct {
 }
 
 func (o *signCSROption) fillDefault() *signCSROption {
-	o.validFrom = time.Now().UTC()
-	o.validFor = 7 * 24 * time.Hour
+	o.notBefore = time.Now().UTC()
+	o.notAfter = o.notBefore.Add(7 * 24 * time.Hour)
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.serialNumGenerator = internalCertSerialNumGenerator
 
@@ -466,17 +466,37 @@ func WithX509SignCSRExtKeyUsage(usage ...x509.ExtKeyUsage) SignCSROption {
 }
 
 // WithX509SignCSRValidFrom set valid from
+//
+// deprecated: use WithX509SignCSRNotBefore instead
 func WithX509SignCSRValidFrom(validFrom time.Time) SignCSROption {
 	return func(o *signCSROption) error {
-		o.validFrom = validFrom
+		o.notBefore = validFrom
+		return nil
+	}
+}
+
+// WithX509SignCSRNotBefore set valid from
+func WithX509SignCSRNotBefore(notBefore time.Time) SignCSROption {
+	return func(o *signCSROption) error {
+		o.notBefore = notBefore
 		return nil
 	}
 }
 
 // WithX509SignCSRValidFor set valid for duration
+//
+// deprecated: use WithX509SignCSRNotAfter instead
 func WithX509SignCSRValidFor(validFor time.Duration) SignCSROption {
 	return func(o *signCSROption) error {
-		o.validFor = validFor
+		o.notAfter = o.notBefore.Add(validFor)
+		return nil
+	}
+}
+
+// WithX509SignCSRNotAfter set valid for duration
+func WithX509SignCSRNotAfter(notAfter time.Time) SignCSROption {
+	return func(o *signCSROption) error {
+		o.notAfter = notAfter
 		return nil
 	}
 }
@@ -535,8 +555,8 @@ func NewX509CertByCSR(
 	certOpts := []X509CertOption{
 		WithX509Subject(csr.Subject),
 		WithX509CertParent(ca),
-		WithX509CertValidFrom(opt.validFrom),
-		WithX509CertValidFor(opt.validFor),
+		WithX509CertNotBefore(opt.notBefore),
+		WithX509CertNotAfter(opt.notAfter),
 		WithX509CertPolicies(opt.policies...),
 		WithX509CertCRLs(opt.crls...),
 		WithX509CertOCSPServers(opt.ocsps...),
@@ -796,17 +816,37 @@ func WithX509CertURIs(uris ...*url.URL) X509CertOption {
 }
 
 // WithX509CertValidFrom set valid from
+//
+// deprecated: use WithX509CertNotBefore instead
 func WithX509CertValidFrom(validFrom time.Time) X509CertOption {
 	return func(o *x509V3CertOption) error {
-		o.validFrom = validFrom
+		o.notBefore = validFrom
+		return nil
+	}
+}
+
+// WithX509CertNotBefore set not before
+func WithX509CertNotBefore(notBefore time.Time) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		o.notBefore = notBefore
 		return nil
 	}
 }
 
 // WithX509CertValidFor set valid for duration
+//
+// deprecated: use WithX509CertNotAfter instead
 func WithX509CertValidFor(validFor time.Duration) X509CertOption {
 	return func(o *x509V3CertOption) error {
-		o.validFor = validFor
+		o.notAfter = o.notBefore.Add(validFor)
+		return nil
+	}
+}
+
+// WithX509CertNotAfter set not after
+func WithX509CertNotAfter(notAfter time.Time) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		o.notAfter = notAfter
 		return nil
 	}
 }
@@ -979,13 +1019,12 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		return nil, err
 	}
 
-	notAfter := opt.validFrom.Add(opt.validFor)
 	tpl := &x509.Certificate{
 		SignatureAlgorithm:    opt.signatureAlgorithm,
 		SerialNumber:          opt.serialNumber,
 		Subject:               opt.subject,
-		NotBefore:             opt.validFrom,
-		NotAfter:              notAfter,
+		NotBefore:             opt.notBefore,
+		NotAfter:              opt.notAfter,
 		KeyUsage:              opt.keyUsage,
 		ExtKeyUsage:           opt.extKeyUsage,
 		BasicConstraintsValid: true,

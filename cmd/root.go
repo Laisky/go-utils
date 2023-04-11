@@ -70,7 +70,7 @@ func init() {
 //	cmd = &cobra.Command{
 //	    Args: NoExtraArgs,
 //	}
-func NoExtraArgs(cmd *cobra.Command, args []string) error {
+func NoExtraArgs(_ *cobra.Command, args []string) error {
 	if len(args) != 0 {
 		return errors.Errorf("unknown args `%v`", args)
 	}

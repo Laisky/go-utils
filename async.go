@@ -81,7 +81,7 @@ func NewAsyncTaskStoreMemory() *AsyncTaskStoreMemory {
 }
 
 // New create new AsyncTaskResult with id
-func (s *AsyncTaskStoreMemory) New(ctx context.Context) (result *AsyncTaskResult, err error) {
+func (s *AsyncTaskStoreMemory) New(_ context.Context) (result *AsyncTaskResult, err error) {
 	t := &AsyncTaskResult{
 		TaskID: UUID1(),
 		Status: AsyncTaskStatusPending,
@@ -91,7 +91,7 @@ func (s *AsyncTaskStoreMemory) New(ctx context.Context) (result *AsyncTaskResult
 }
 
 // Get get task by id
-func (s *AsyncTaskStoreMemory) Get(ctx context.Context, taskID string) (result *AsyncTaskResult, err error) {
+func (s *AsyncTaskStoreMemory) Get(_ context.Context, taskID string) (result *AsyncTaskResult, err error) {
 	ri, ok := s.store.Load(taskID)
 	if !ok {
 		return nil, errors.Errorf("task %q notfound", taskID)
@@ -101,19 +101,19 @@ func (s *AsyncTaskStoreMemory) Get(ctx context.Context, taskID string) (result *
 }
 
 // Delete task by id
-func (s *AsyncTaskStoreMemory) Delete(ctx context.Context, taskID string) (err error) {
+func (s *AsyncTaskStoreMemory) Delete(_ context.Context, taskID string) (err error) {
 	s.store.Delete(taskID)
 	return nil
 }
 
 // Set set AsyncTaskResult
-func (s *AsyncTaskStoreMemory) Set(ctx context.Context, taskID string, result *AsyncTaskResult) (err error) {
+func (s *AsyncTaskStoreMemory) Set(_ context.Context, taskID string, result *AsyncTaskResult) (err error) {
 	s.store.Store(taskID, result)
 	return nil
 }
 
 // Heartbeat refresh async task's updated time to mark this task is still alive
-func (s *AsyncTaskStoreMemory) Heartbeat(ctx context.Context, taskID string) (alived bool, err error) {
+func (s *AsyncTaskStoreMemory) Heartbeat(_ context.Context, _ string) (alived bool, err error) {
 	return true, nil
 }
 

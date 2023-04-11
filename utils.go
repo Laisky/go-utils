@@ -1044,7 +1044,7 @@ func GracefulCancel(cancel func()) {
 // EmptyAllChans receive all thins in all chans
 func EmptyAllChans[T any](chans ...chan T) {
 	for _, c := range chans {
-		for range c {
+		for range c { //nolint: revive
 		}
 	}
 }

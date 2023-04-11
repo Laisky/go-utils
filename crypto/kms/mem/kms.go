@@ -145,7 +145,7 @@ func (m *KMS) statusShouldBe(status gkms.Status) error {
 }
 
 // AddKek add new kek
-func (m *KMS) AddKek(ctx context.Context,
+func (m *KMS) AddKek(_ context.Context,
 	kekID uint16,
 	kek []byte) error {
 	m.mu.Lock()
@@ -166,7 +166,7 @@ func (m *KMS) AddKek(ctx context.Context,
 }
 
 // KEK return current used kek
-func (m *KMS) Kek(ctx context.Context) (
+func (m *KMS) Kek(_ context.Context) (
 	kekID uint16, kek []byte, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
 		return 0, nil, errors.WithStack(err)
@@ -186,7 +186,7 @@ func (m *KMS) Kek(ctx context.Context) (
 }
 
 // keks return all keks
-func (m *KMS) Keks(ctx context.Context) (
+func (m *KMS) Keks(_ context.Context) (
 	keks map[uint16][]byte, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
 		return nil, errors.WithStack(err)
@@ -202,7 +202,7 @@ func (m *KMS) Keks(ctx context.Context) (
 }
 
 // DeriveKeyByID derive key by specific arguments
-func (m *KMS) DeriveKeyByID(ctx context.Context,
+func (m *KMS) DeriveKeyByID(_ context.Context,
 	kekID uint16,
 	dekID []byte,
 	length int) (dek []byte, err error) {
