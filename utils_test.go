@@ -1353,3 +1353,26 @@ func ExampleNewDelay() {
 	fmt.Println(time.Since(startAt) >= delay)
 	// Output: true
 }
+
+func Test_FileHashSharding(t *testing.T) {
+	type args struct {
+		fname string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{"0", args{"0"}, "b6/58/0"},
+		{"1", args{"1"}, "35/6a/1"},
+		{"2", args{"2"}, "da/4b/2"},
+		{"3", args{"fwlfjlwefjjew.txt"}, "65/21/fwlfjlwefjjew.txt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FileHashSharding(tt.args.fname); got != tt.want {
+				t.Errorf("fileHashSharding() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

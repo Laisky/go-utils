@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -1171,4 +1173,12 @@ func NewDelay(d time.Duration) *Delayer {
 // Wait wait in defer
 func (d *Delayer) Wait() {
 	time.Sleep(d.d - time.Since(d.startAt))
+}
+
+// FileHashSharding get file hash sharding path
+func FileHashSharding(fname string) string {
+	hasher := sha1.New()
+	hasher.Write([]byte(fname))
+	hashed := hex.EncodeToString(hasher.Sum(nil))
+	return filepath.Join(hashed[:2], hashed[2:4], fname)
 }
