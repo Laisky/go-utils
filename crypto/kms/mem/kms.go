@@ -162,6 +162,7 @@ func (m *KMS) AddKek(_ context.Context,
 		m.maxKeyID = kekID
 	}
 
+	m.setStatus(gkms.StatusReady)
 	return nil
 }
 
