@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // RaceErr return when any goroutine returned
@@ -323,4 +326,49 @@ func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, 
 // GetLock get lock
 func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
 	return e.m.Get(key).(*sync.RWMutex)
+}
+
+// RWManagerInterface auto create rwlock if not exists
+type RWManagerInterface interface {
+	RLock(name string)
+	Lock(name string)
+	RUnlock(name string)
+	Unlock(name string)
+}
+
+// RWManager auto create rwlock if not exists
+type RWManager struct {
+	m sync.Map
+}
+
+// RLock rlock lock by name
+func (m *RWManager) RLock(name string) {
+	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
+	mu.(*sync.RWMutex).RLock()
+}
+
+// Lock lock by name
+func (m *RWManager) Lock(name string) {
+	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
+	mu.(*sync.RWMutex).Lock()
+}
+
+// RUnlock runlock by name
+func (m *RWManager) RUnlock(name string) {
+	mu, ok := m.m.Load(name)
+	if !ok {
+		log.Shared.Panic("lock not exists", zap.String("name", name))
+	}
+
+	mu.(*sync.RWMutex).RUnlock()
+}
+
+// Unlock unlock by name
+func (m *RWManager) Unlock(name string) {
+	mu, ok := m.m.Load(name)
+	if !ok {
+		log.Shared.Panic("lock not exists", zap.String("name", name))
+	}
+
+	mu.(*sync.RWMutex).Unlock()
 }
