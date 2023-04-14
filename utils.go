@@ -1178,7 +1178,10 @@ func (d *Delayer) Wait() {
 // FileHashSharding get file hash sharding path
 func FileHashSharding(fname string) string {
 	hasher := sha1.New()
-	hasher.Write([]byte(fname))
+	if _, err := hasher.Write([]byte(fname)); err != nil {
+		log.Shared.Panic("failed to write file name to hasher", zap.Error(err))
+	}
+
 	hashed := hex.EncodeToString(hasher.Sum(nil))
 	return filepath.Join(hashed[:2], hashed[2:4], fname)
 }
