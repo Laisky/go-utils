@@ -6,13 +6,14 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/stretchr/testify/require"
-
 	"github.com/Laisky/go-utils/v4/log"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestMutex(t *testing.T) {
@@ -304,4 +305,120 @@ func TestRaceErr(t *testing.T) {
 
 	err := RaceErr(gs...)
 	require.Error(t, err)
+}
+
+func TestRWManager_Lock(t *testing.T) {
+	var m RWManager
+
+	t.Run("rlock", func(t *testing.T) {
+		var locks []string
+		var pool errgroup.Group
+		for i := 0; i < 1000; i++ {
+			var lockname string
+			for {
+				lockname = RandomStringWithLength(10)
+				if !Contains(locks, lockname) {
+					locks = append(locks, lockname)
+					break
+				}
+			}
+
+			pool.Go(func() error {
+				m.RLock(lockname)
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+
+		for _, lockname := range locks {
+			m.RUnlock(lockname)
+		}
+	})
+
+	t.Run("lock", func(t *testing.T) {
+		var locks []string
+		var pool errgroup.Group
+		for i := 0; i < 1000; i++ {
+			var lockname string
+			for {
+				lockname = RandomStringWithLength(10)
+				if !Contains(locks, lockname) {
+					locks = append(locks, lockname)
+					break
+				}
+			}
+
+			pool.Go(func() error {
+				m.Lock(lockname)
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+
+		for _, lockname := range locks {
+			m.Unlock(lockname)
+		}
+	})
+}
+
+func TestWaitComplete(t *testing.T) {
+	t.Run("tasks finished before context cancel", func(t *testing.T) {
+		var tasks []func(context.Context) error
+		var n int
+		var mu sync.Mutex
+		for i := 0; i < 1000; i++ {
+			tasks = append(tasks, func(ctx context.Context) error {
+				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+
+				mu.Lock()
+				n++
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		err := WaitComplete(ctx, tasks...)
+		require.NoError(t, err)
+		require.Equal(t, 1000, n)
+	})
+
+	t.Run("tasks not finished before context cancel", func(t *testing.T) {
+		var tasks []func(context.Context) error
+		var n int
+		var mu sync.Mutex
+		for i := 0; i < 1000; i++ {
+			tasks = append(tasks, func(ctx context.Context) error {
+				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+
+				mu.Lock()
+				n++
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+
+		startat := time.Now()
+		err := WaitComplete(ctx, tasks...)
+		cost := time.Since(startat)
+
+		require.ErrorContains(t, err, "context deadline exceeded")
+
+		mu.Lock()
+		require.Less(t, n, 1000)
+		require.Greater(t, n, 0)
+		mu.Unlock()
+
+		require.GreaterOrEqual(t, cost, 10*time.Millisecond)
+		require.Less(t, cost, time.Second)
+	})
 }

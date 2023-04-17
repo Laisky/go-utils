@@ -8,6 +8,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -67,6 +68,40 @@ func RunWithTimeout(timeout time.Duration, f func() error) error {
 		time.Sleep(timeout)
 		return nil
 	})
+}
+
+// WaitComplete wait all goroutines complete or ctx canceled,
+// returns the first non-nil error (if any) from them,
+// or return ctx.Err() if ctx canceled.
+func WaitComplete(ctx context.Context, goros ...func(ctx context.Context) error) (err error) {
+	var pool errgroup.Group
+	for _, g := range goros {
+		g := g
+		pool.Go(func() error {
+			return g(ctx)
+		})
+	}
+
+	alldone := make(chan struct{})
+	go func() {
+		defer close(alldone)
+		err = pool.Wait()
+	}()
+
+	select {
+	case <-alldone:
+		return err
+	case <-ctx.Done():
+		// if alldone and ctx finished at the same time,
+		// the select will random choose one.
+		// double check if alldone is finished.
+		select {
+		case <-alldone:
+			return err
+		default:
+			return ctx.Err()
+		}
+	}
 }
 
 // const (
