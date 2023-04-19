@@ -16,13 +16,14 @@ func TestInputYes(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
+		ok      bool
 		wantErr bool
 	}{
-		{"0", args{"test", "y\n"}, false},
-		{"1", args{"test", "Y\n"}, false},
-		{"2", args{"test", "n\n"}, true},
-		{"3", args{"test", "N\n"}, true},
-		{"4", args{"test", "N"}, true},
+		{"0", args{"test", "y\n"}, true, false},
+		{"1", args{"test", "Y\n"}, true, false},
+		{"2", args{"test", "n\n"}, false, false},
+		{"3", args{"test", "N\n"}, false, false},
+		{"4", args{"test", "N"}, false, false},
 	}
 
 	for _, tt := range tests {
@@ -33,8 +34,10 @@ func TestInputYes(t *testing.T) {
 			defer fp.Close()
 			os.Stdin = fp
 
-			if err := InputYes(tt.args.question); (err != nil) != tt.wantErr {
+			if ok, err := InputYes(tt.args.question); (err != nil) != tt.wantErr {
 				t.Errorf("InputYes() error = %v, wantErr %v", err, tt.wantErr)
+			} else {
+				require.True(t, ok == tt.ok)
 			}
 		})
 	}

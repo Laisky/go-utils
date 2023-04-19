@@ -27,18 +27,18 @@ func InputPassword(hint string) (string, error) {
 }
 
 // InputYes require user input `y` or `Y` to continue
-func InputYes(hint string) (err error) {
+func InputYes(hint string) (ok bool, err error) {
 	fmt.Printf("%s, input y/Y to continue: ", hint)
 
 	var confirm string
 	_, err = fmt.Scanln(&confirm)
 	if err != nil {
-		return errors.Wrap(err, "read input")
+		return ok, errors.Wrap(err, "read input")
 	}
 
 	if strings.ToLower(confirm) != "y" {
-		return errors.New("user not confirm")
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
