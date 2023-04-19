@@ -25,8 +25,8 @@ func InputPassword(hint string, validator func(string) error) (passwd string, er
 		}
 
 		if err := validator(string(bytepw)); err != nil {
-			fmt.Printf("invalid password: %s", err.Error())
-			fmt.Println("try again: ")
+			fmt.Printf("invalid password: %s\n", err.Error())
+			fmt.Printf("try again: ")
 			continue
 		}
 	}
