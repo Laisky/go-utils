@@ -24,6 +24,8 @@ func TestInputYes(t *testing.T) {
 		{"2", args{"test", "n\n"}, false, false},
 		{"3", args{"test", "N\n"}, false, false},
 		{"4", args{"test", "N"}, false, false},
+		{"5", args{"test", "\n"}, true, false},
+		{"6", args{"test", ""}, true, false},
 	}
 
 	for _, tt := range tests {
@@ -35,7 +37,7 @@ func TestInputYes(t *testing.T) {
 			os.Stdin = fp
 
 			if ok, err := InputYes(tt.args.question); (err != nil) != tt.wantErr {
-				t.Errorf("InputYes() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("[%s]InputYes() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			} else {
 				require.True(t, ok == tt.ok)
 			}

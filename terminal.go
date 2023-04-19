@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"syscall"
 
@@ -41,7 +42,12 @@ func InputYes(hint string) (ok bool, err error) {
 	var confirm string
 	_, err = fmt.Scanln(&confirm)
 	if err != nil {
-		return ok, errors.Wrap(err, "read input")
+		if err.Error() == "unexpected newline" || err == io.EOF {
+			// user input nothing, use default value
+			confirm = "y"
+		} else {
+			return ok, errors.Wrap(err, "read input")
+		}
 	}
 
 	if strings.ToLower(confirm) != "y" {
