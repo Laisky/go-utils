@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/go-utils/v4/log"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 func TestMutex(t *testing.T) {

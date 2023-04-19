@@ -384,6 +384,8 @@ func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []stri
 }
 
 // NewTmpFileForContent write content to tmp file and return path
+//
+// deprecated: use NewTmpFileForReader instead
 func NewTmpFileForContent(content []byte) (path string, err error) {
 	tmpFile, err := os.CreateTemp("", "*")
 	if err != nil {
@@ -396,6 +398,21 @@ func NewTmpFileForContent(content []byte) (path string, err error) {
 	}
 
 	return tmpFile.Name(), nil
+}
+
+// NewTmpFile write content to tmp file and return path
+func NewTmpFile(reader io.Reader) (*os.File, error) {
+	tmpFile, err := os.CreateTemp("", "NewTmpFileForReader-*")
+	if err != nil {
+		return nil, errors.Wrap(err, "create tmp file")
+	}
+
+	if _, err = io.Copy(tmpFile, reader); err != nil {
+		return nil, errors.Wrapf(err, "write to tmp file %s", tmpFile.Name())
+	}
+
+	tmpFile.Seek(0, io.SeekStart)
+	return tmpFile, nil
 }
 
 // WatchFileChanging watch file changing
