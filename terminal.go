@@ -11,7 +11,7 @@ import (
 
 // InputPassword reads password from stdin input
 // and returns it as a string.
-func InputPassword(hint string, validator func(string) bool) (passwd string, err error) {
+func InputPassword(hint string, validator func(string) error) (passwd string, err error) {
 	fmt.Printf("%s: ", hint)
 
 	for {
@@ -20,12 +20,15 @@ func InputPassword(hint string, validator func(string) bool) (passwd string, err
 			return "", errors.Wrap(err, "read input password")
 		}
 
-		if validator != nil && !validator(string(bytepw)) {
-			fmt.Printf("password is invalid, try again: ")
-			continue
+		if validator == nil {
+			return string(bytepw), nil
 		}
 
-		return string(bytepw), nil
+		if err := validator(string(bytepw)); err != nil {
+			fmt.Printf("invalid password: %s", err.Error())
+			fmt.Println("try again: ")
+			continue
+		}
 	}
 }
 
