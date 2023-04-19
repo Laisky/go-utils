@@ -29,6 +29,8 @@ func InputPassword(hint string, validator func(string) error) (passwd string, er
 			fmt.Printf("try again: ")
 			continue
 		}
+
+		return string(bytepw), nil
 	}
 }
 
