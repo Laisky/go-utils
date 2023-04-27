@@ -3,6 +3,8 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
@@ -1375,4 +1377,42 @@ func Test_FileHashSharding(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_Sum(t *testing.T) {
+	r1 := []byte("a")
+	r2 := []byte("b")
+	r3 := []byte("c")
+
+	t.Run("sum", func(t *testing.T) {
+		hasher := sha256.New()
+		hasher.Sum(r1)
+		hasher.Sum(r2)
+		hasher.Sum(r3)
+		got := hasher.Sum(nil)
+		require.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hex.EncodeToString(got))
+	})
+
+	t.Run("write", func(t *testing.T) {
+		hasher := sha256.New()
+		hasher.Write(r1)
+		hasher.Write(r2)
+		hasher.Write(r3)
+		got := hasher.Sum(nil)
+		require.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex.EncodeToString(got))
+	})
+
+	// sum will not change the state of the hasher
+	t.Run("write & sum", func(t *testing.T) {
+		hasher := sha256.New()
+		hasher.Write(r1)
+		hasher.Sum(r1)
+		hasher.Write(r2)
+		hasher.Sum(r2)
+		hasher.Write(r3)
+		hasher.Sum(r3)
+		got := hasher.Sum(nil)
+		require.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex.EncodeToString(got))
+	})
+
 }

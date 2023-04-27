@@ -60,7 +60,7 @@ func TestSplit(t *testing.T) {
 
 					parts := map[byte][]byte{}
 					for _, b := range gutils.RandomChoice(ks, k) {
-						parts[b] = members[b]
+						parts[b+33] = members[b]
 					}
 
 					cipher, err := Combine(parts)

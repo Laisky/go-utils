@@ -411,7 +411,10 @@ func NewTmpFile(reader io.Reader) (*os.File, error) {
 		return nil, errors.Wrapf(err, "write to tmp file %s", tmpFile.Name())
 	}
 
-	tmpFile.Seek(0, io.SeekStart)
+	if _, err = tmpFile.Seek(0, io.SeekStart); err != nil {
+		return nil, errors.Wrapf(err, "seek to start of tmp file %s", tmpFile.Name())
+	}
+
 	return tmpFile, nil
 }
 
