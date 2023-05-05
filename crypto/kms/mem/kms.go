@@ -149,18 +149,18 @@ func (m *KMS) AddKek(_ context.Context,
 	kekID uint16,
 	kek []byte) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	storedKek := make([]byte, len(kek))
 	copy(storedKek, kek)
 
 	if _, loaded := m.keks.LoadOrStore(kekID, storedKek); loaded {
+		m.mu.Unlock()
 		return errors.Errorf("kek id already existed")
 	}
 
 	if kekID > m.maxKeyID {
 		m.maxKeyID = kekID
 	}
+	m.mu.Unlock()
 
 	m.setStatus(gkms.StatusReady)
 	return nil
