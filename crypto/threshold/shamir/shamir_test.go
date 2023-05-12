@@ -51,6 +51,22 @@ func TestSplit(t *testing.T) {
 				}
 			})
 
+			t.Run("fulfill threshold with different key", func(t *testing.T) {
+				for i := 0; i < 10; i++ {
+					k := randor.Intn(tt.args.total-tt.args.threshold) + tt.args.threshold
+
+					parts := map[byte][]byte{}
+					for i, b := range gutils.RandomChoice(ks, k) {
+						parts[byte(i)] = members[b]
+					}
+
+					cipher, err := Combine(parts)
+					t.Logf("total: %d, threshold: %d, parts: %d", tt.args.total, tt.args.threshold, k)
+					require.NoError(t, err)
+					require.NotEqual(t, tt.args.secret, cipher)
+				}
+			})
+
 			t.Run("less than threshold", func(t *testing.T) {
 				for i := 0; i < 10; i++ {
 					k := randor.Intn(tt.args.threshold)
@@ -60,7 +76,7 @@ func TestSplit(t *testing.T) {
 
 					parts := map[byte][]byte{}
 					for _, b := range gutils.RandomChoice(ks, k) {
-						parts[b+33] = members[b]
+						parts[b] = members[b]
 					}
 
 					cipher, err := Combine(parts)

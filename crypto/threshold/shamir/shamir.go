@@ -25,6 +25,8 @@ import (
 // the secret. The total and threshold must be at least 2, and less
 // than 256. The returned shares are each one byte longer than the secret
 // as they attach a tag used to reconstruct the secret.
+//
+// the key and values of members are both important to combine.
 func Split(secret []byte, total, threshold int) (members map[byte][]byte, err error) {
 	switch {
 	case threshold < 2 || threshold >= 256:
@@ -44,6 +46,8 @@ func Split(secret []byte, total, threshold int) (members map[byte][]byte, err er
 
 // Combine is used to reverse a Split and reconstruct a secret
 // once a `threshold` number of parts are available.
+//
+// the key and value are must as same as splited result.
 func Combine(parts map[byte][]byte) ([]byte, error) {
 	if len(parts) < 2 {
 		return nil, errors.Errorf("length of parts should >= 2")
