@@ -305,11 +305,11 @@ func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionEl
 
 // Value implement GORM interface
 func (p RBACPermissionElem) Value() (driver.Value, error) {
-	b, err := json.Marshal(p)
+	b, err := JSON.Marshal(p)
 	return string(b), err
 }
 
 // Scan implement GORM interface
 func (p *RBACPermissionElem) Scan(input any) error {
-	return json.Unmarshal(input.([]byte), p)
+	return JSON.Unmarshal(input.([]byte), p)
 }

@@ -145,17 +145,38 @@ func TestValidateFileHash(t *testing.T) {
 }
 
 func TestJSON(t *testing.T) {
-	jb, err := JSON.Marshal("123")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	var v string
-	if err = JSON.Unmarshal(jb, &v); err != nil {
-		t.Fatalf("%+v", err)
-	}
-	if v != "123" {
-		t.Fatal()
-	}
+	t.Run("marshal", func(t *testing.T) {
+		jb, err := JSON.Marshal("123")
+		require.NoError(t, err)
+
+		var v string
+		JSON.Unmarshal(jb, &v)
+		require.NoError(t, err)
+		require.Equal(t, "123", v)
+	})
+
+	t.Run("marshal string", func(t *testing.T) {
+		jb, err := JSON.MarshalToString("123")
+		require.NoError(t, err)
+
+		var v string
+		JSON.UnmarshalFromString(jb, &v)
+		require.NoError(t, err)
+		require.Equal(t, "123", v)
+	})
+
+	t.Run("comment", func(t *testing.T) {
+		d := struct {
+			K string
+		}{}
+		raw := `{
+			// comment
+			"k": "v"  // comment
+			}`
+		err := JSON.Unmarshal([]byte(raw), &d)
+		require.NoError(t, err)
+		require.Equal(t, "v", d.K)
+	})
 }
 
 func TestIsPtr(t *testing.T) {
