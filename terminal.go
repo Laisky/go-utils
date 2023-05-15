@@ -56,3 +56,15 @@ func InputYes(hint string) (ok bool, err error) {
 
 	return true, nil
 }
+
+// Input reads input from stdin
+func Input(hint string) (input string, err error) {
+	fmt.Printf("%s: ", hint)
+
+	_, err = fmt.Scanln(&input)
+	if err != nil {
+		return "", errors.Wrap(err, "read input")
+	}
+
+	return input, nil
+}
