@@ -28,10 +28,12 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(tlsInfoCMD)
-
 	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgRemote, "remote", "r", "", "remote tcp endpoint")
 	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgFile, "file", "f", "", "certificates file in PEM")
+	rootCmd.AddCommand(tlsInfoCMD)
+
+	csrInfoCMD.Flags().StringVarP(&csrfilepath, "file", "f", "", "csr file")
+	rootCmd.AddCommand(csrInfoCMD)
 }
 
 // tlsInfoCMD 查询证书信息
@@ -118,4 +120,31 @@ func prettyPrintCerts(certs []*x509.Certificate) error {
 
 	fmt.Println(string(out))
 	return nil
+}
+
+var csrfilepath string
+
+var csrInfoCMD = &cobra.Command{
+	Use:   "csrinfo",
+	Short: "show x509 cert request info",
+	Args:  NoExtraArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		payload, err := os.ReadFile(csrfilepath)
+		if err != nil {
+			return errors.Wrapf(err, "read file %q", csrfilepath)
+		}
+
+		csr, err := gcrypto.Der2CSR(payload)
+		if err != nil {
+			return errors.Wrap(err, "parse csr")
+		}
+
+		output, err := gutils.JSON.MarshalToString(csr)
+		if err != nil {
+			return errors.Wrap(err, "marshal csr")
+		}
+
+		fmt.Println(output)
+		return nil
+	},
 }
