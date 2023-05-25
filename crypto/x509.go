@@ -1115,6 +1115,11 @@ func OIDContains(oids []asn1.ObjectIdentifier,
 
 // ReadableX509Cert convert x509 certificate to readable jsonable map
 func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
+	pubkey, err := Pubkey2Pem(cert.PublicKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert public key to pem")
+	}
+
 	return map[string]any{
 		"subject":                 ReadablePkixName(cert.Subject),
 		"issuer":                  ReadablePkixName(cert.Issuer),
@@ -1128,6 +1133,7 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 		"ext_key_usage":           ReadableX509ExtKeyUsage(cert.ExtKeyUsage),
 		"is_ca":                   fmt.Sprintf("%t", cert.IsCA),
 		"serial_number":           cert.SerialNumber.String(),
+		"public_key":              string(pubkey),
 		"sans": map[string]any{
 			"dns_names":       cert.DNSNames,
 			"email_addresses": cert.EmailAddresses,
@@ -1137,6 +1143,27 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 		"ocsps":              cert.OCSPServer,
 		"cris":               cert.CRLDistributionPoints,
 		"policy_identifiers": ReadableOIDs(cert.PolicyIdentifiers),
+	}, nil
+}
+
+// ReadableX509CSR convert x509 certificate request to readable jsonable map
+func ReadableX509CSR(csr *x509.CertificateRequest) (map[string]any, error) {
+	pubkey, err := Pubkey2Pem(csr.PublicKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert public key to pem")
+	}
+
+	return map[string]any{
+		"subject":              ReadablePkixName(csr.Subject),
+		"signature_algorithm":  csr.SignatureAlgorithm.String(),
+		"public_key_algorithm": csr.PublicKeyAlgorithm.String(),
+		"public_key":           string(pubkey),
+		"sans": map[string]any{
+			"dns_names":       csr.DNSNames,
+			"email_addresses": csr.EmailAddresses,
+			"ip_addresses":    csr.IPAddresses,
+			"uris":            csr.URIs,
+		},
 	}, nil
 }
 

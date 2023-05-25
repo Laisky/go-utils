@@ -139,12 +139,17 @@ var csrInfoCMD = &cobra.Command{
 			return errors.Wrap(err, "parse csr")
 		}
 
-		output, err := gutils.JSON.MarshalToString(csr)
+		csrm, err := gcrypto.ReadableX509CSR(csr)
+		if err != nil {
+			return errors.Wrap(err, "readable csr")
+		}
+
+		output, err := gutils.JSON.MarshalIndent(csrm, "", "    ")
 		if err != nil {
 			return errors.Wrap(err, "marshal csr")
 		}
 
-		fmt.Println(output)
+		fmt.Println(string(output))
 		return nil
 	},
 }
