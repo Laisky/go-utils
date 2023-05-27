@@ -11,19 +11,17 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
+	"github.com/Laisky/errors/v2"
+	gutils "github.com/Laisky/go-utils/v4"
+	gcounter "github.com/Laisky/go-utils/v4/counter"
+	glog "github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/zap"
 	"math/big"
 	"net"
 	"net/mail"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/zap"
-
-	gutils "github.com/Laisky/go-utils/v4"
-	gcounter "github.com/Laisky/go-utils/v4/counter"
-	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 // X509CertSerialNumberGenerator x509 certificate serial number generator
@@ -41,6 +39,9 @@ type x509CSROption struct {
 	ipAddresses    []net.IP
 	uris           []*url.URL
 
+	extensions, extraExtensions []pkix.Extension
+	attributes                  []pkix.AttributeTypeAndValueSET
+
 	// signatureAlgorithm specific signature algorithm manually
 	//
 	// default to auto choose algorithm depends on certificate's algorithm
@@ -53,6 +54,30 @@ type x509CSROption struct {
 
 // X509CSROption option to generate tls certificate
 type X509CSROption func(*x509CSROption) error
+
+// WithX509CSRExtension set extension
+func WithX509CSRExtension(ext pkix.Extension) X509CSROption {
+	return func(o *x509CSROption) error {
+		o.extensions = append(o.extensions, ext)
+		return nil
+	}
+}
+
+// WithX509CSRExtraExtension set extra extension
+func WithX509CSRExtraExtension(ext pkix.Extension) X509CSROption {
+	return func(o *x509CSROption) error {
+		o.extraExtensions = append(o.extraExtensions, ext)
+		return nil
+	}
+}
+
+// WithX509CSRAttribute set attribute
+func WithX509CSRAttribute(attr pkix.AttributeTypeAndValueSET) X509CSROption {
+	return func(o *x509CSROption) error {
+		o.attributes = append(o.attributes, attr)
+		return nil
+	}
+}
 
 // WithX509CSRSignatureAlgorithm set signature algorithm
 func WithX509CSRSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CSROption {
@@ -232,6 +257,10 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 		PublicKeyAlgorithm: opt.publicKeyAlgorithm,
 		Subject:            opt.subject,
 
+		Extensions:      opt.extensions,
+		ExtraExtensions: opt.extraExtensions,
+		Attributes:      opt.attributes,
+
 		EmailAddresses: opt.emailAddresses,
 		DNSNames:       opt.dnsNames,
 		IPAddresses:    opt.ipAddresses,
@@ -361,6 +390,8 @@ type signCSROption struct {
 	// ocsps ocsp servers
 	ocsps []string
 
+	extentions, extraExtensions []pkix.Extension
+
 	// pubkey csr will specific csr's pubkey, not use ca's pubkey
 	pubkey             crypto.PublicKey
 	serialNumGenerator X509CertSerialNumberGenerator
@@ -398,6 +429,22 @@ type SignCSROption func(*signCSROption) error
 func WithX509SerialNumGenerator(gen X509CertSerialNumberGenerator) SignCSROption {
 	return func(o *signCSROption) error {
 		o.serialNumGenerator = gen
+		return nil
+	}
+}
+
+// WithX509SignCSRExtenstions set certificate extentions
+func WithX509SignCSRExtenstions(exts ...pkix.Extension) SignCSROption {
+	return func(o *signCSROption) error {
+		o.extentions = append(o.extentions, exts...)
+		return nil
+	}
+}
+
+// WithX509SignCSRExtraExtenstions set certificate extra extentions
+func WithX509SignCSRExtraExtenstions(exts ...pkix.Extension) SignCSROption {
+	return func(o *signCSROption) error {
+		o.extraExtensions = append(o.extraExtensions, exts...)
 		return nil
 	}
 }
@@ -568,6 +615,8 @@ func NewX509CertByCSR(
 		WithX509CertIPAddrs(csr.IPAddresses...),
 		WithX509CertURIs(csr.URIs...),
 		WithX509CertPubkey(csr.PublicKey),
+		WithX509CertExtentions(append(opt.extentions, csr.Extensions...)...),
+		WithX509CertExtraExtensions(append(opt.extraExtensions, csr.ExtraExtensions...)...),
 	}
 	if opt.isCA {
 		certOpts = append(certOpts, WithX509CertIsCA())
@@ -594,6 +643,22 @@ func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
 
 // X509CertOption option to generate tls certificate
 type X509CertOption func(*x509V3CertOption) error
+
+// WithX509CertExtentions set extentions
+func WithX509CertExtentions(exts ...pkix.Extension) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		o.signCSROption.extentions = append(o.signCSROption.extentions, exts...)
+		return nil
+	}
+}
+
+// WithX509CertExtraExtensions set extra extentions
+func WithX509CertExtraExtensions(exts ...pkix.Extension) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		o.signCSROption.extraExtensions = append(o.signCSROption.extraExtensions, exts...)
+		return nil
+	}
+}
 
 // WithX509CertParent set issuer
 func WithX509CertParent(parent *x509.Certificate) X509CertOption {
@@ -1036,6 +1101,8 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		DNSNames:              opt.dnsNames,
 		IPAddresses:           opt.ipAddresses,
 		URIs:                  opt.uris,
+		Extensions:            opt.signCSROption.extentions,
+		ExtraExtensions:       opt.signCSROption.extraExtensions,
 	}
 
 	pubkey := opt.pubkey
@@ -1164,6 +1231,15 @@ func ReadableX509CSR(csr *x509.CertificateRequest) (map[string]any, error) {
 			"ip_addresses":    csr.IPAddresses,
 			"uris":            csr.URIs,
 		},
+	}, nil
+}
+
+// ReadableX509Extention convert x509 certificate extension to readable jsonable map
+func ReadableX509Extention(ext *pkix.Extension) (map[string]any, error) {
+	return map[string]any{
+		"oid":           ext.Id.String(),
+		"critical":      fmt.Sprintf("%t", ext.Critical),
+		"raw_value_b64": gutils.EncodeByBase64(ext.Value),
 	}, nil
 }
 
