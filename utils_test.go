@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
 )
 
@@ -146,21 +147,21 @@ func TestValidateFileHash(t *testing.T) {
 
 func TestJSON(t *testing.T) {
 	t.Run("marshal", func(t *testing.T) {
-		jb, err := JSON.Marshal("123")
+		jb, err := json.Marshal("123")
 		require.NoError(t, err)
 
 		var v string
-		JSON.Unmarshal(jb, &v)
+		json.Unmarshal(jb, &v)
 		require.NoError(t, err)
 		require.Equal(t, "123", v)
 	})
 
 	t.Run("marshal string", func(t *testing.T) {
-		jb, err := JSON.MarshalToString("123")
+		jb, err := json.MarshalToString("123")
 		require.NoError(t, err)
 
 		var v string
-		JSON.UnmarshalFromString(jb, &v)
+		json.UnmarshalFromString(jb, &v)
 		require.NoError(t, err)
 		require.Equal(t, "123", v)
 	})
@@ -173,7 +174,7 @@ func TestJSON(t *testing.T) {
 			// comment
 			"k": "v"  // comment
 			}`
-		err := JSON.Unmarshal([]byte(raw), &d)
+		err := json.Unmarshal([]byte(raw), &d)
 		require.NoError(t, err)
 		require.Equal(t, "v", d.K)
 	})
@@ -262,7 +263,7 @@ func ExampleRegexNamedSubMatch() {
 func TestFlattenMap(t *testing.T) {
 	data := map[string]any{}
 	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
-	if err := JSON.Unmarshal(j, &data); err != nil {
+	if err := json.Unmarshal(j, &data); err != nil {
 		t.Fatalf("got error: %+v", err)
 	}
 

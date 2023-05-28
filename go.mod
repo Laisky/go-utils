@@ -20,6 +20,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
 	github.com/niclabs/tcrsa v0.0.5
+	github.com/pkg/errors v0.8.1
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.2

@@ -13,6 +13,7 @@ import (
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
 
+	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
 )
 
@@ -161,7 +162,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	var (
 		jsonBytes []byte
 	)
-	jsonBytes, err = JSON.Marshal(request.Data)
+	jsonBytes, err = json.Marshal(request.Data)
 	if err != nil {
 		return errors.Wrap(err, "marshal request data error")
 	}
@@ -196,7 +197,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.Wrap(err, "try to read response data error")
 	}
 	log.Shared.Debug("got resp", zap.ByteString("resp", respBytes))
-	err = JSON.Unmarshal(respBytes, resp)
+	err = json.Unmarshal(respBytes, resp)
 	if err != nil {
 		return errors.Wrapf(err, "unmarshal response `%s`", string(respBytes[:]))
 	}

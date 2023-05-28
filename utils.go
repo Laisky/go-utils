@@ -30,15 +30,21 @@ import (
 	"github.com/google/go-cpy/cpy"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/tailscale/hujson"
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
 )
 
+type jsonT struct {
+	jsoniter.API
+}
+
 var (
 	// JSON effective json
+	//
+	// Deprecated: use github.com/Laisky/go-utils/v4/json instead
 	JSON = jsonT{API: jsoniter.ConfigCompatibleWithStandardLibrary}
 
 	internalSFG singleflight.Group
@@ -84,47 +90,6 @@ func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 		optf(d)
 	}
 	return d
-}
-
-type jsonT struct {
-	jsoniter.API
-}
-
-// Unmarshal unmarshal json, support comment
-func (j *jsonT) Unmarshal(data []byte, v interface{}) (err error) {
-	if len(data) == 0 {
-		return nil
-	}
-
-	data, err = standardizeJSON(data)
-	if err != nil {
-		return errors.Wrap(err, "standardize json")
-	}
-
-	return j.API.Unmarshal(data, v)
-}
-
-// UnmarshalFromString unmarshal json from string, support comment
-func (j *jsonT) UnmarshalFromString(str string, v interface{}) (err error) {
-	if str == "" {
-		return nil
-	}
-
-	data, err := standardizeJSON([]byte(str))
-	if err != nil {
-		return errors.Wrap(err, "standardize json")
-	}
-
-	return j.Unmarshal(data, v)
-}
-
-func standardizeJSON(b []byte) ([]byte, error) {
-	ast, err := hujson.Parse(b)
-	if err != nil {
-		return b, err
-	}
-	ast.Standardize()
-	return ast.Pack(), nil
 }
 
 // SilentClose close and ignore error
@@ -246,7 +211,7 @@ func MD5JSON(data any) (string, error) {
 		return "", errors.New("data is nil")
 	}
 
-	b, err := JSON.Marshal(data)
+	b, err := json.Marshal(data)
 	if err != nil {
 		return "", err
 	}
@@ -1107,7 +1072,7 @@ func PrettyBuildInfo() string {
 		return ""
 	}
 
-	ver, err := JSON.MarshalIndent(info.Main, "", "  ")
+	ver, err := json.MarshalIndent(info.Main, "", "  ")
 	if err != nil {
 		log.Shared.Error("failed to marshal version", zap.Error(err))
 		return ""

@@ -144,7 +144,7 @@ var csrInfoCMD = &cobra.Command{
 			return errors.Wrap(err, "readable csr")
 		}
 
-		output, err := gutils.JSON.MarshalIndent(csrm, "", "    ")
+		output, err := json.MarshalIndent(csrm, "", "    ")
 		if err != nil {
 			return errors.Wrap(err, "marshal csr")
 		}

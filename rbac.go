@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/Laisky/errors/v2"
+
+	"github.com/Laisky/go-utils/v4/json"
 )
 
 const (
@@ -305,11 +307,11 @@ func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionEl
 
 // Value implement GORM interface
 func (p RBACPermissionElem) Value() (driver.Value, error) {
-	b, err := JSON.Marshal(p)
+	b, err := json.Marshal(p)
 	return string(b), err
 }
 
 // Scan implement GORM interface
 func (p *RBACPermissionElem) Scan(input any) error {
-	return JSON.Unmarshal(input.([]byte), p)
+	return json.Unmarshal(input.([]byte), p)
 }
