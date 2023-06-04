@@ -115,6 +115,7 @@ type pusherOption struct {
 	logger        Logger
 	formatter     PusherFormatter
 	sender        PusherSender
+	filter        func(ent zapcore.Entry, fs []zapcore.Field) bool
 	senderChanLen int
 }
 
@@ -155,6 +156,8 @@ func WithPusherLogger(logger Logger) PusherOption {
 }
 
 // WithPusherFormatter set formatter
+//
+// default is PusherJSONFormatter
 func WithPusherFormatter(formatter PusherFormatter) PusherOption {
 	return func(o *pusherOption) error {
 		if formatter == nil {
@@ -189,6 +192,21 @@ func WithPusherSenderChanLen(senderChanLen int) PusherOption {
 		}
 
 		o.senderChanLen = senderChanLen
+		return nil
+	}
+}
+
+// WithPusherFilter set filter
+//
+// default is nil, means no filter, if you want to filter some log, set this value.
+// return true means log will be sent to remote, return false means log will be dropped.
+func WithPusherFilter(filter func(ent zapcore.Entry, fs []zapcore.Field) bool) PusherOption {
+	return func(o *pusherOption) error {
+		if filter == nil {
+			return errors.New("filter should not be nil")
+		}
+
+		o.filter = filter
 		return nil
 	}
 }
@@ -238,6 +256,16 @@ func (p *Pusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 		body, err := p.opt.formatter.Format(ent, fields)
 		if err != nil {
 			return errors.Wrap(err, "format log")
+		}
+
+		if len(body) == 0 {
+			p.opt.logger.Debug("skip empty log")
+			return nil
+		}
+
+		if p.opt.filter != nil && !p.opt.filter(ent, fields) {
+			p.opt.logger.Debug("skip filtered log")
+			return nil
 		}
 
 		p.senderChan <- body
