@@ -148,11 +148,15 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 }
 
 // GeneratePasswordHash generate hashed password by origin password
+//
+// Deprecated: use PasswordHash instead
 func GeneratePasswordHash(password []byte) ([]byte, error) {
-	return bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 }
 
 // ValidatePasswordHash validate password is match with hashedPassword
+//
+// Deprecated: use VerifyHashedPassword instead
 func ValidatePasswordHash(hashedPassword, password []byte) bool {
 	return bcrypt.CompareHashAndPassword(hashedPassword, password) == nil
 }
