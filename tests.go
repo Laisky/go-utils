@@ -1,8 +1,12 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/Laisky/errors/v2"
 )
 
 // GoroutineTest testing.T support goroutine
@@ -147,4 +151,39 @@ func (t *GoroutineTest) TempDir() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.TB.TempDir()
+}
+
+// MockStdout mock stdout to a temp file
+//
+// Example:
+//
+//	func TestMockStdout(t *testing.T) {
+//	    recover, stdout, err := MockStdout()
+//	    require.NoError(t, err)
+//	    defer recover()
+//	    fmt.Println("hello")
+//	    stdout.Seek(0, 0)
+//	    buf, err := io.ReadAll(stdout)
+//	    require.NoError(t, err)
+//	    require.Equal(t, "hello\n", string(buf))
+//	}
+func MockStdout() (recover func(), stdout *os.File, err error) {
+	// get result from stdout
+	dir, err := os.MkdirTemp("", "mockStdout")
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "create temp dir")
+	}
+
+	fp, err := os.OpenFile(filepath.Join(dir, "mockStdout"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "create temp file")
+	}
+
+	old := os.Stdout
+	os.Stdout = fp
+
+	return func() {
+		defer os.RemoveAll(dir) // nolint: errcheck
+		os.Stdout = old
+	}, fp, nil
 }
