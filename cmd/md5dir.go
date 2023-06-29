@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,11 +62,12 @@ var md5DirCMD = &cobra.Command{
 				glog.Shared.Info("processing", zap.String("ratio", fmt.Sprintf("%d/%d", i, len(files))))
 			}
 
-			hashed, err := gutils.FileMD5(f)
+			hashedBytes, err := gutils.FileHash(gutils.HashTypeMD5, f)
 			if err != nil {
 				glog.Shared.Panic("calculate hash for file",
 					zap.Error(err), zap.String("file", f))
 			}
+			hashed := hex.EncodeToString(hashedBytes)
 
 			outputDir := filepath.Join(md5DirArg.TargetDir, hashed[:2])
 			if err = os.MkdirAll(outputDir, 0755); err != nil {

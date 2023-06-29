@@ -250,6 +250,8 @@ func IsFileATimeChanged(path string, expectATime time.Time) (changed bool, newAT
 }
 
 // FileMD5 read file and calculate MD5
+//
+// Deprecated: use Hash instead
 func FileMD5(path string) (hashed string, err error) {
 	hasher := md5.New()
 	fp, err := os.Open(path)
@@ -280,6 +282,8 @@ func FileMD5(path string) (hashed string, err error) {
 // FileSHA1 read file and calculate sha1
 //
 // return hashed string in 40 bytes
+//
+// Deprecated: use Hash instead
 func FileSHA1(path string) (hashed string, err error) {
 	hasher := sha1.New()
 	fp, err := os.Open(path)

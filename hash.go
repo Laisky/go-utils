@@ -9,9 +9,12 @@ import (
 	"encoding/hex"
 	"hash"
 	"io"
+	"os"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/cespare/xxhash"
+
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // HashSHA128String calculate string's hash by sha256
@@ -56,7 +59,10 @@ func (h HashType) String() string {
 func (h HashType) Hasher() (hash.Hash, error) {
 	switch h {
 	case HashTypeMD5:
+		log.Shared.Warn("md5 is not safe or fast, use sha256 instead")
 		return md5.New(), nil
+	case HashTypeSha1:
+		return sha1.New(), nil
 	case HashTypeSha256:
 		return sha256.New(), nil
 	case HashTypeSha512:
@@ -71,6 +77,8 @@ func (h HashType) Hasher() (hash.Hash, error) {
 const (
 	// HashTypeMD5 MD5
 	HashTypeMD5 HashType = "md5"
+	// HashTypeSha1 Sha1
+	HashTypeSha1 HashType = "sha1"
 	// HashTypeSha256 Sha256
 	HashTypeSha256 HashType = "sha256"
 	// HashTypeSha512 Sha512
@@ -91,6 +99,17 @@ func Hash(hashType HashTypeInterface, content io.Reader) (signature []byte, err 
 	}
 
 	return hasher.Sum(nil), nil
+}
+
+// FileHash generate file signature by hash
+func FileHash(hashType HashTypeInterface, filepath string) (signature []byte, err error) {
+	fp, err := os.Open(filepath)
+	if err != nil {
+		return nil, errors.Wrap(err, "open file")
+	}
+	defer fp.Close() // nolint: errcheck
+
+	return Hash(hashType, fp)
 }
 
 // HashVerify verify by hash

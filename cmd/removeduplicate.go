@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"image"
 	"image/gif"
@@ -193,10 +194,11 @@ func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
 }
 
 func checkDupByHash(dry bool, hashes map[string]*dupFile, fpath string) (deleted bool, err error) {
-	fhash, err := gutils.FileSHA1(fpath)
+	fhashBytes, err := gutils.FileHash(gutils.HashTypeSha1, fpath)
 	if err != nil {
 		return false, errors.Wrapf(err, "get hash of file %q", fpath)
 	}
+	fhash := hex.EncodeToString(fhashBytes)
 
 	fstat, err := os.Stat(fpath)
 	if err != nil {
