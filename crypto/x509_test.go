@@ -5,6 +5,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
+	"net"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -28,6 +30,27 @@ func TestNewX509CSR(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
 			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
+			WithX509CSRAttribute(pkix.AttributeTypeAndValueSET{
+				Type: asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+				Value: [][]pkix.AttributeTypeAndValue{{{
+					Type:  asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+					Value: "laisky",
+				}}},
+			}),
+			WithX509CSRExtension(pkix.Extension{
+				Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+				Critical: false,
+				Value:    []byte("laisky"),
+			}),
+			WithX509CSRExtraExtension(pkix.Extension{
+				Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 6},
+				Critical: false,
+				Value:    []byte("laisky"),
+			}),
+			WithX509CSRPublicKeyAlgorithm(x509.RSA),
+			WithX509CSRDNSNames("laisky.com"),
+			WithX509CSRIPAddrs(net.ParseIP("1.2.3.4")),
+			WithX509CSRURIs(&url.URL{Scheme: "https", Host: "laisky.com"}),
 		)
 		require.NoError(t, err)
 
@@ -732,4 +755,21 @@ func BenchmarkRandomSerialNumber(b *testing.B) {
 			_ = ng.SerialNum()
 		}
 	})
+}
+
+func TestReadableX509CSR(t *testing.T) {
+	prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
+	require.NoError(t, err)
+
+	csrder, err := NewX509CSR(prikey, WithX509CSRCommonName("test"))
+	require.NoError(t, err)
+
+	csr, err := Der2CSR(csrder)
+	require.NoError(t, err)
+
+	got, err := ReadableX509CSR(csr)
+	require.NoError(t, err)
+
+	require.Equal(t, "test", got["subject"].(map[string]any)["common_name"])
+
 }

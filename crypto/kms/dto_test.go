@@ -3,9 +3,8 @@ package kms
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	gutils "github.com/Laisky/go-utils/v4"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEncryptedItem_Unmarshal(t *testing.T) {
@@ -15,12 +14,11 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 		Ciphertext []byte
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name string
+		args args
 	}{
-		{"1", args{1, []byte("213123"), []byte("2342342")}, false},
-		{"2", args{1, []byte(gutils.RandomStringWithLength(1024)), []byte(gutils.RandomStringWithLength(1024))}, false},
+		{"1", args{1, []byte("213123"), []byte("2342342")}},
+		{"2", args{1, []byte(gutils.RandomStringWithLength(1024)), []byte(gutils.RandomStringWithLength(1024))}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -42,6 +40,30 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 			require.Equal(t, e.KekID, e2.KekID)
 			require.Equal(t, e.DekID, e2.DekID)
 			require.Equal(t, e.Ciphertext, e2.Ciphertext)
+		})
+	}
+
+	t.Run("error", func(t *testing.T) {
+		e := EncryptedData{}
+		err := e.Unmarshal([]byte("123"))
+		require.ErrorContains(t, err, "encrypted_item_unimplemented")
+	})
+}
+
+func TestEncryptedDataVer_String(t *testing.T) {
+	tests := []struct {
+		name string
+		e    EncryptedDataVer
+		want string
+	}{
+		{"1", EncryptedItemVer1, "encrypted_item_ver_1"},
+		{"2", EncryptedDataVer(100), "encrypted_item_unimplemented"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.e.String(); got != tt.want {
+				t.Errorf("EncryptedDataVer.String() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
