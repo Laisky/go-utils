@@ -1,13 +1,39 @@
 package utils
 
 import (
+	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Laisky/errors/v2"
 )
+
+// WaitTCPOpen wait tcp open
+func WaitTCPOpen(ctx context.Context, ip string, port int) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "wait tcp open")
+		default:
+		}
+
+		conn, err := net.DialTCP("tcp", nil, &net.TCPAddr{
+			IP:   net.ParseIP(ip),
+			Port: port,
+		})
+		if err != nil {
+			time.Sleep(time.Millisecond * 100)
+			continue
+		}
+
+		defer conn.Close() // nolint: errcheck
+		return nil
+	}
+}
 
 // GoroutineTest testing.T support goroutine
 type GoroutineTest struct {

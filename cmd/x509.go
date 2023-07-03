@@ -12,29 +12,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	"github.com/Laisky/go-utils/v4/log"
-)
-
-var (
-	tlsInfoCMDArgRemote string
-	tlsInfoCMDArgFile   string
 )
 
 func init() {
-	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgRemote, "remote", "r", "", "remote tcp endpoint")
-	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgFile, "file", "f", "", "certificates file in PEM")
+	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgs.remote, "remote", "r", "", "remote tcp endpoint")
+	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgs.filepath, "file", "f", "", "certificates file in PEM")
 	rootCmd.AddCommand(tlsInfoCMD)
 
 	csrInfoCMD.Flags().StringVarP(&csrfilepath, "file", "f", "", "csr file")
 	rootCmd.AddCommand(csrInfoCMD)
 }
+
+var tlsInfoCMDArgs = struct {
+	filepath string
+	remote   string
+}{}
 
 // tlsInfoCMD 查询证书信息
 var tlsInfoCMD = &cobra.Command{
@@ -58,22 +57,24 @@ var tlsInfoCMD = &cobra.Command{
 		    gutils certinfo -f ./cert.pem
 	`),
 	Args: NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
-		isRemote := tlsInfoCMDArgRemote != ""
-		isFile := tlsInfoCMDArgFile != ""
+	RunE: func(_ *cobra.Command, _ []string) error {
+		isRemote := tlsInfoCMDArgs.remote != ""
+		isFile := tlsInfoCMDArgs.filepath != ""
 		var err error
 		switch {
 		case isRemote && isFile:
-			log.Shared.Panic("--remote or --file should not appears at the same time")
+			return errors.Errorf("--remote or --file should not appears at the same time")
 		case isRemote:
-			err = errors.Wrap(showRemoteX509CertInfo(tlsInfoCMDArgRemote), "show remote cert")
+			err = errors.Wrap(showRemoteX509CertInfo(tlsInfoCMDArgs.remote), "show remote cert")
 		case isFile:
-			err = errors.Wrap(showPemFileX509CertInfo(tlsInfoCMDArgFile), "show file cert")
+			err = errors.Wrap(showFileX509CertInfo(tlsInfoCMDArgs.filepath), "show file cert")
 		}
 
 		if err != nil {
-			log.Shared.Panic("show cert", zap.Error(err))
+			return errors.Wrap(err, "show cert info")
 		}
+
+		return nil
 	},
 }
 
@@ -88,7 +89,7 @@ func showRemoteX509CertInfo(addr string) error {
 	return prettyPrintCerts(conn.ConnectionState().PeerCertificates)
 }
 
-func showPemFileX509CertInfo(fpath string) error {
+func showFileX509CertInfo(fpath string) error {
 	certsPem, err := os.ReadFile(fpath)
 	if err != nil {
 		return errors.Wrapf(err, "read file %q", fpath)
@@ -96,7 +97,14 @@ func showPemFileX509CertInfo(fpath string) error {
 
 	certs, err := gcrypto.Pem2Certs(certsPem)
 	if err != nil {
-		return errors.Wrap(err, "parse certs")
+		if strings.Contains(err.Error(), "pem format invalid") {
+			// cert is not in pem format, try to parse it as der
+			if certs, err = gcrypto.Der2Certs(certsPem); err != nil {
+				return errors.Wrap(err, "parse certs in der format")
+			}
+		} else {
+			return errors.Wrap(err, "parse certs")
+		}
 	}
 
 	return prettyPrintCerts(certs)
