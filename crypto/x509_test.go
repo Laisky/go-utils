@@ -17,7 +17,9 @@ import (
 )
 
 func TestNewX509CSR(t *testing.T) {
+	t.Parallel()
 	t.Run("sign by non-ca", func(t *testing.T) {
+		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
 		require.NoError(t, err)
 
@@ -58,6 +60,7 @@ func TestNewX509CSR(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("sign ca-csr with no options", func(t *testing.T) {
+		t.Parallel()
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
 		)
@@ -99,6 +102,7 @@ func TestNewX509CSR(t *testing.T) {
 	})
 
 	t.Run("sign ca-csr with full options", func(t *testing.T) {
+		t.Parallel()
 		ext := pkix.Extension{
 			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5},
 			Critical: false,
@@ -199,28 +203,8 @@ func TestNewX509CSR(t *testing.T) {
 		// require.Contains(t, newCert.ExtraExtensions, exext)
 	})
 
-	// t.Run("sign with unspecify critical extensions", func(t *testing.T) {
-	// 	csrder, err := NewX509CSR(csrPrikey,
-	// 		WithX509CSRCommonName("laisky"),
-	// 		WithX509CSRExtraExtension(pkix.Extension{
-	// 			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 599},
-	// 			Critical: true,
-	// 			Value:    []byte("123"),
-	// 		}),
-	// 	)
-	// 	require.NoError(t, err)
-
-	// 	ca, err := Der2Cert(certder)
-	// 	require.NoError(t, err)
-
-	// 	newCertDer, err := NewX509CertByCSR(ca, prikey, csrder)
-	// 	require.NoError(t, err)
-
-	// 	_, err = Der2Cert(newCertDer)
-	// 	require.NoError(t, err)
-	// })
-
 	t.Run("set attribtues in non-ca csr", func(t *testing.T) {
+		t.Parallel()
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
 			WithX509CSRSANS("laisky.com"),
@@ -265,6 +249,7 @@ func newTestSeriaNo(t *testing.T) *big.Int {
 
 func TestNewX509CRL(t *testing.T) {
 	t.Run("ca without crl sign key usage", func(t *testing.T) {
+		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertIsCA())
 		require.NoError(t, err)
@@ -301,6 +286,7 @@ func TestNewX509CRL(t *testing.T) {
 
 	var crlder []byte
 	t.Run("without crl serial number", func(t *testing.T) {
+		t.Parallel()
 		var err error
 		crlder, err = NewX509CRL(ca, prikey, nil,
 			[]pkix.RevokedCertificate{
@@ -312,6 +298,7 @@ func TestNewX509CRL(t *testing.T) {
 	})
 
 	t.Run("with crl serial number", func(t *testing.T) {
+		t.Parallel()
 		var err error
 		crlder, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
@@ -321,18 +308,18 @@ func TestNewX509CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+
+		crl, err := Der2CRL(crlder)
+		require.NoError(t, err)
+
+		err = VerifyCRL(ca, crl)
+		require.NoError(t, err)
 	})
 
-	crl, err := Der2CRL(crlder)
-	require.NoError(t, err)
-
-	// t.Log(crl)
-
-	err = VerifyCRL(ca, crl)
-	require.NoError(t, err)
 }
 
 func Test_OIDs(t *testing.T) {
+	t.Parallel()
 	a1 := asn1.ObjectIdentifier{1, 2, 3}
 	a2 := asn1.ObjectIdentifier{1, 2, 3}
 	a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
@@ -358,7 +345,9 @@ func Test_OIDs(t *testing.T) {
 }
 
 func TestNewRSAPrikeyAndCert(t *testing.T) {
+	t.Parallel()
 	t.Run("sign ca-csr with no options", func(t *testing.T) {
+		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertCommonName("laisky"))
 		require.NoError(t, err)
@@ -387,6 +376,7 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 	})
 
 	t.Run("sign ca-csr with full options", func(t *testing.T) {
+		t.Parallel()
 		validFrom := time.Unix(time.Now().Unix(), 0).UTC()
 		validAt := validFrom.Add(time.Hour)
 
@@ -476,7 +466,9 @@ func TestReadableX509Cert(t *testing.T) {
 }
 
 func Test_ExtKeyUsage(t *testing.T) {
+	t.Parallel()
 	t.Run("empty ext key usage", func(t *testing.T) {
+		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
 		require.NoError(t, err)
 
@@ -493,6 +485,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	})
 
 	t.Run("ext key usage not match", func(t *testing.T) {
+		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
 		)
@@ -511,6 +504,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	})
 
 	t.Run("ext key usage match", func(t *testing.T) {
+		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
 		)
@@ -529,6 +523,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	})
 
 	t.Run("ext key usage match any", func(t *testing.T) {
+		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
 		)
@@ -550,6 +545,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	})
 
 	t.Run("not all cert in chain match ext key usage", func(t *testing.T) {
+		t.Parallel()
 		// new ca
 		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertIsCA(),
@@ -589,6 +585,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	})
 
 	t.Run("all cert in chain match ext key usage", func(t *testing.T) {
+		t.Parallel()
 		// new ca
 		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertIsCA(),
@@ -661,6 +658,8 @@ func BenchmarkRSA_bits(b *testing.B) {
 }
 
 func Test_CrossSign(t *testing.T) {
+	t.Parallel()
+
 	prikeyRootCA1Pem, rootca1Der, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
 		WithX509CertCommonName("root_ca_1"),
 		WithX509CertIsCA(),
@@ -708,6 +707,7 @@ func Test_CrossSign(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("verify by intermedia ca 1", func(t *testing.T) {
+		t.Parallel()
 		opt := x509.VerifyOptions{
 			Roots:         x509.NewCertPool(),
 			Intermediates: x509.NewCertPool(),
@@ -719,6 +719,7 @@ func Test_CrossSign(t *testing.T) {
 	})
 
 	t.Run("verify by intermedia ca 2", func(t *testing.T) {
+		t.Parallel()
 		opt := x509.VerifyOptions{
 			Roots:         x509.NewCertPool(),
 			Intermediates: x509.NewCertPool(),
@@ -730,6 +731,7 @@ func Test_CrossSign(t *testing.T) {
 	})
 
 	t.Run("multiple certificate path", func(t *testing.T) {
+		t.Parallel()
 		opt := x509.VerifyOptions{
 			Roots:         x509.NewCertPool(),
 			Intermediates: x509.NewCertPool(),
@@ -745,7 +747,10 @@ func Test_CrossSign(t *testing.T) {
 }
 
 func TestRandomSerialNumber(t *testing.T) {
+	t.Parallel()
+
 	t.Run("goroutine", func(t *testing.T) {
+		t.Parallel()
 		var pool errgroup.Group
 
 		// ctx, cancel := context.WithCancel(context.Background())
@@ -800,6 +805,7 @@ func BenchmarkRandomSerialNumber(b *testing.B) {
 }
 
 func TestReadableX509CSR(t *testing.T) {
+	t.Parallel()
 	prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 	require.NoError(t, err)
 
