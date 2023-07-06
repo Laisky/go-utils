@@ -108,8 +108,8 @@ func (t *MockTB) TempDir() string {
 	return ""
 }
 
-// private mock testing.TB private
-func (t *MockTB) private() {
+// Private mock testing.TB private
+func (t *MockTB) Private() {
 	fmt.Println("private")
 }
 

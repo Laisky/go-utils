@@ -29,28 +29,6 @@ func TestNewX509CSR(t *testing.T) {
 
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
-			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
-			WithX509CSRAttribute(pkix.AttributeTypeAndValueSET{
-				Type: asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-				Value: [][]pkix.AttributeTypeAndValue{{{
-					Type:  asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-					Value: "laisky",
-				}}},
-			}),
-			WithX509CSRExtension(pkix.Extension{
-				Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-				Critical: false,
-				Value:    []byte("laisky"),
-			}),
-			WithX509CSRExtraExtension(pkix.Extension{
-				Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 6},
-				Critical: false,
-				Value:    []byte("laisky"),
-			}),
-			WithX509CSRPublicKeyAlgorithm(x509.RSA),
-			WithX509CSRDNSNames("laisky.com"),
-			WithX509CSRIPAddrs(net.ParseIP("1.2.3.4")),
-			WithX509CSRURIs(&url.URL{Scheme: "https", Host: "laisky.com"}),
 		)
 		require.NoError(t, err)
 
@@ -80,7 +58,9 @@ func TestNewX509CSR(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("sign ca-csr with no options", func(t *testing.T) {
-		csrder, err := NewX509CSR(csrPrikey, WithX509CSRCommonName("laisky"))
+		csrder, err := NewX509CSR(csrPrikey,
+			WithX509CSRCommonName("laisky"),
+		)
 		require.NoError(t, err)
 
 		ca, err := Der2Cert(certder)
@@ -119,10 +99,20 @@ func TestNewX509CSR(t *testing.T) {
 	})
 
 	t.Run("sign ca-csr with full options", func(t *testing.T) {
+		ext := pkix.Extension{
+			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+			Critical: false,
+			Value:    []byte("laisky-ext"),
+		}
+		exext := pkix.Extension{
+			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5, 1},
+			Critical: false,
+			Value:    []byte("laisky-exext"),
+		}
+
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
 			WithX509CSRSANS("laisky.com"),
-			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
 			WithX509CSROrganization("laisky-o"),
 			WithX509CSROrganizationUnit("laisky-u"),
 			WithX509CSRLocality("local"),
@@ -130,8 +120,27 @@ func TestNewX509CSR(t *testing.T) {
 			WithX509CSRProvince("province"),
 			WithX509CSRStreetAddrs("st-1", "st-2"),
 			WithX509CSRPostalCode("200233"),
+			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
+			WithX509CSRAttribute(pkix.AttributeTypeAndValueSET{
+				Type: asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+				Value: [][]pkix.AttributeTypeAndValue{{{
+					Type:  asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+					Value: "laisky",
+				}}},
+			}),
+			WithX509CSRExtension(ext),
+			WithX509CSRExtraExtension(exext),
+			WithX509CSRPublicKeyAlgorithm(x509.RSA),
+			WithX509CSRDNSNames("laisky.com"),
+			WithX509CSRIPAddrs(net.ParseIP("1.2.3.4")),
+			WithX509CSRURIs(&url.URL{Scheme: "https", Host: "laisky.com"}),
 		)
 		require.NoError(t, err)
+
+		csr, err := Der2CSR(csrder)
+		require.NoError(t, err)
+		require.Equal(t, "laisky", csr.Subject.CommonName)
+		require.Contains(t, csr.Extensions, exext)
 
 		ca, err := Der2Cert(certder)
 		require.NoError(t, err)
@@ -150,14 +159,18 @@ func TestNewX509CSR(t *testing.T) {
 			WithX509SignCSRCRLs("crl"),
 			WithX509SignCSRPolicies(asn1.ObjectIdentifier{1, 2, 3, 4}),
 			WithX509SignCSROCSPServers("ocsp"),
+			WithX509SignCSRExtenstions(ext),
+			WithX509SignCSRExtraExtenstions(exext),
 		)
 		require.NoError(t, err)
 
 		newCert, err := Der2Cert(newCertDer)
 		require.NoError(t, err)
 
+		v := net.ParseIP("1.2.3.4")
+		t.Logf("%v", v)
+
 		require.Equal(t, "laisky", newCert.Subject.CommonName)
-		require.Contains(t, newCert.DNSNames, "laisky.com")
 		require.True(t, newCert.IsCA)
 		require.Equal(t, "ca", newCert.Issuer.CommonName)
 		require.Contains(t, newCert.Subject.Organization, "laisky-o")
@@ -177,7 +190,35 @@ func TestNewX509CSR(t *testing.T) {
 		require.Contains(t, newCert.CRLDistributionPoints, "crl")
 		require.Contains(t, newCert.OCSPServer, "ocsp")
 		require.True(t, OIDContains([]asn1.ObjectIdentifier{{1, 2, 3, 4}}, newCert.PolicyIdentifiers[0]))
+		require.Equal(t, x509.SHA512WithRSA, newCert.SignatureAlgorithm)
+		require.Equal(t, x509.RSA, newCert.PublicKeyAlgorithm)
+		require.Contains(t, newCert.DNSNames, "laisky.com")
+		require.True(t, newCert.IPAddresses[0].Equal(net.ParseIP("1.2.3.4")))
+		require.Contains(t, newCert.URIs, &url.URL{Scheme: "https", Host: "laisky.com"})
+		require.Contains(t, newCert.Extensions, exext)
+		// require.Contains(t, newCert.ExtraExtensions, exext)
 	})
+
+	// t.Run("sign with unspecify critical extensions", func(t *testing.T) {
+	// 	csrder, err := NewX509CSR(csrPrikey,
+	// 		WithX509CSRCommonName("laisky"),
+	// 		WithX509CSRExtraExtension(pkix.Extension{
+	// 			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 599},
+	// 			Critical: true,
+	// 			Value:    []byte("123"),
+	// 		}),
+	// 	)
+	// 	require.NoError(t, err)
+
+	// 	ca, err := Der2Cert(certder)
+	// 	require.NoError(t, err)
+
+	// 	newCertDer, err := NewX509CertByCSR(ca, prikey, csrder)
+	// 	require.NoError(t, err)
+
+	// 	_, err = Der2Cert(newCertDer)
+	// 	require.NoError(t, err)
+	// })
 
 	t.Run("set attribtues in non-ca csr", func(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
@@ -660,6 +701,7 @@ func Test_CrossSign(t *testing.T) {
 	leafPrikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 	require.NoError(t, err)
 	leafCSR, err := NewX509CSR(leafPrikey, WithX509CSRCommonName("leaf"))
+	require.NoError(t, err)
 	leafcertDer, err := NewX509CertByCSR(interca1, interPrikey, leafCSR)
 	require.NoError(t, err)
 	leafCert, err := Der2Cert(leafcertDer)

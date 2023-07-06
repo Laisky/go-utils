@@ -93,14 +93,8 @@ func removeDuplicate(dry bool, dir string) error {
 		glog.Shared.Debug("check duplicate by similar images", zap.String("file", fpath))
 		// maybe some day, there will add some other checker
 		//nolint: staticcheck // SA4006: this value of `deleted` is never used
-		if deleted, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
+		if _, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
 			glog.Shared.Error("checkDupByImageSimilar", zap.String("file", fpath), zap.Error(err))
-			if deleted {
-				continue
-			}
-			// return errors.Wrapf(err, "check similarly for images %q", fpath)
-		} else if deleted {
-			continue
 		}
 	}
 

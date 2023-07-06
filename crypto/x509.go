@@ -41,8 +41,15 @@ type x509CSROption struct {
 	ipAddresses    []net.IP
 	uris           []*url.URL
 
-	extensions, extraExtensions []pkix.Extension
-	attributes                  []pkix.AttributeTypeAndValueSET
+	// extensions,
+	extraExtensions []pkix.Extension
+
+	// attributes contains the CSR attributes that can parse as
+	// pkix.AttributeTypeAndValueSET.
+	//
+	// Deprecated: Use Extensions and ExtraExtensions instead for parsing and
+	// generating the requestedExtensions attribute.
+	attributes []pkix.AttributeTypeAndValueSET
 
 	// signatureAlgorithm specific signature algorithm manually
 	//
@@ -51,21 +58,34 @@ type x509CSROption struct {
 	// publicKeyAlgorithm specific publick key algorithm manually
 	//
 	// default to auto choose algorithm depends on certificate's algorithm
-	publicKeyAlgorithm x509.PublicKeyAlgorithm
+	// publicKeyAlgorithm x509.PublicKeyAlgorithm
 }
 
 // X509CSROption option to generate tls certificate
 type X509CSROption func(*x509CSROption) error
 
 // WithX509CSRExtension set extension
-func WithX509CSRExtension(ext pkix.Extension) X509CSROption {
+//
+// Extensions contains raw X.509 extensions. When parsing certificates,
+// this can be used to extract non-critical extensions that are not
+// parsed by this package. When marshaling certificates, the Extensions
+// field is ignored, see ExtraExtensions.
+//
+// Deprecated: this field is ignored by golang's built-in x509 library,
+// use ExtraExtensions instead if you want to add custom extensions.
+func WithX509CSRExtension(_ pkix.Extension) X509CSROption {
 	return func(o *x509CSROption) error {
-		o.extensions = append(o.extensions, ext)
+		// o.extensions = append(o.extensions, ext)
 		return nil
 	}
 }
 
 // WithX509CSRExtraExtension set extra extension
+//
+// ExtraExtensions contains extensions to be copied, raw, into any
+// marshaled certificates. Values override any extensions that would
+// otherwise be produced based on the other fields. The ExtraExtensions
+// field is not populated when parsing certificates, see Extensions.
 func WithX509CSRExtraExtension(ext pkix.Extension) X509CSROption {
 	return func(o *x509CSROption) error {
 		o.extraExtensions = append(o.extraExtensions, ext)
@@ -74,6 +94,9 @@ func WithX509CSRExtraExtension(ext pkix.Extension) X509CSROption {
 }
 
 // WithX509CSRAttribute set attribute
+//
+// Deprecated: Use Extensions and ExtraExtensions instead for parsing and
+// generating the requestedExtensions attribute.
 func WithX509CSRAttribute(attr pkix.AttributeTypeAndValueSET) X509CSROption {
 	return func(o *x509CSROption) error {
 		o.attributes = append(o.attributes, attr)
@@ -90,9 +113,11 @@ func WithX509CSRSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CSROption
 }
 
 // WithX509CSRPublicKeyAlgorithm set signature algorithm
-func WithX509CSRPublicKeyAlgorithm(pubAlg x509.PublicKeyAlgorithm) X509CSROption {
+//
+// Deprecated: this field is ignored by golang's built-in x509 library
+func WithX509CSRPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) X509CSROption {
 	return func(o *x509CSROption) error {
-		o.publicKeyAlgorithm = pubAlg
+		// o.publicKeyAlgorithm = pubAlg
 		return nil
 	}
 }
@@ -256,17 +281,17 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 
 	csrTpl := &x509.CertificateRequest{
 		SignatureAlgorithm: opt.signatureAlgorithm,
-		PublicKeyAlgorithm: opt.publicKeyAlgorithm,
 		Subject:            opt.subject,
+		ExtraExtensions:    opt.extraExtensions,
+		Attributes:         opt.attributes,
+		EmailAddresses:     opt.emailAddresses,
+		DNSNames:           opt.dnsNames,
+		IPAddresses:        opt.ipAddresses,
+		URIs:               opt.uris,
 
-		Extensions:      opt.extensions,
-		ExtraExtensions: opt.extraExtensions,
-		Attributes:      opt.attributes,
-
-		EmailAddresses: opt.emailAddresses,
-		DNSNames:       opt.dnsNames,
-		IPAddresses:    opt.ipAddresses,
-		URIs:           opt.uris,
+		// these are fields that are not used by CreateCertificateRequest
+		// PublicKeyAlgorithm: opt.publicKeyAlgorithm,
+		// Extensions:      opt.extensions,
 	}
 
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
@@ -390,20 +415,36 @@ type signCSROption struct {
 	// crls crl endpoints
 	crls []string
 	// ocsps ocsp servers
-	ocsps []string
+	ocsps         []string
+	signatureAlgo x509.SignatureAlgorithm
+	// pubkeyAlgo    x509.PublicKeyAlgorithm
 
-	extensions, extraExtensions []pkix.Extension
+	// extensions,
+	extraExtensions []pkix.Extension
 
 	// pubkey csr will specific csr's pubkey, not use ca's pubkey
 	pubkey             crypto.PublicKey
 	serialNumGenerator X509CertSerialNumberGenerator
 }
 
-func (o *signCSROption) fillDefault() *signCSROption {
+func (o *signCSROption) fillDefault(csr *x509.CertificateRequest) *signCSROption {
 	o.notBefore = time.Now().UTC()
 	o.notAfter = o.notBefore.Add(7 * 24 * time.Hour)
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.serialNumGenerator = internalCertSerialNumGenerator
+
+	if csr != nil {
+		if o.signatureAlgo == x509.UnknownSignatureAlgorithm {
+			o.signatureAlgo = csr.SignatureAlgorithm
+		}
+
+		// if o.pubkeyAlgo == x509.UnknownPublicKeyAlgorithm {
+		// 	o.pubkeyAlgo = csr.PublicKeyAlgorithm
+		// }
+
+		// o.extensions = append(o.extensions, csr.Extensions...)
+		o.extraExtensions = append(o.extraExtensions, csr.ExtraExtensions...)
+	}
 
 	return o
 }
@@ -435,15 +476,48 @@ func WithX509SerialNumGenerator(gen X509CertSerialNumberGenerator) SignCSROption
 	}
 }
 
-// WithX509SignCSRExtenstions set certificate extensions
-func WithX509SignCSRExtenstions(exts ...pkix.Extension) SignCSROption {
+// WithX509SignSignatureAlgorithm set signature algorithm
+func WithX509SignSignatureAlgorithm(algo x509.SignatureAlgorithm) SignCSROption {
 	return func(o *signCSROption) error {
-		o.extensions = append(o.extensions, exts...)
+		o.signatureAlgo = algo
+		return nil
+	}
+}
+
+// WithX509SignPublicKeyAlgorithm set public key algorithm
+//
+// Deprecated: this field is ignored by golang built-in x509 library
+func WithX509SignPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) SignCSROption {
+	return func(o *signCSROption) error {
+		// o.pubkeyAlgo = algo
+		return nil
+	}
+}
+
+// WithX509SignCSRExtenstions set certificate extensions
+//
+// Extensions contains all requested extensions, in raw form. When parsing
+// CSRs, this can be used to extract extensions that are not parsed by this
+// package.
+//
+// Deprecated: this field is ignored by golang built-in x509 library,
+// use WithX509SignCSRExtraExtenstions instead if you want to set extensions.
+func WithX509SignCSRExtenstions(_ ...pkix.Extension) SignCSROption {
+	return func(o *signCSROption) error {
+		// o.extensions = append(o.extensions, exts...)
 		return nil
 	}
 }
 
 // WithX509SignCSRExtraExtenstions set certificate extra extensions
+//
+// ExtraExtensions contains extensions to be copied, raw, into any CSR
+// marshaled by CreateCertificateRequest. Values override any extensions
+// that would otherwise be produced based on the other fields but are
+// overridden by any extensions specified in Attributes.
+//
+// The ExtraExtensions field is not populated by ParseCertificateRequest,
+// see Extensions instead.
 func WithX509SignCSRExtraExtenstions(exts ...pkix.Extension) SignCSROption {
 	return func(o *signCSROption) error {
 		o.extraExtensions = append(o.extraExtensions, exts...)
@@ -587,18 +661,18 @@ func NewX509CertByCSR(
 		return nil, err
 	}
 
-	opt, err := new(signCSROption).fillDefault().applyOpts(opts...)
+	csr, err := Der2CSR(csrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse csr")
+	}
+
+	opt, err := new(signCSROption).fillDefault(csr).applyOpts(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply options")
 	}
 
 	if !ca.IsCA || (ca.KeyUsage&x509.KeyUsageCertSign) == x509.KeyUsage(0) {
 		return nil, errors.Errorf("ca is invalid to sign cert")
-	}
-
-	csr, err := Der2CSR(csrDer)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse csr")
 	}
 
 	certOpts := []X509CertOption{
@@ -617,8 +691,10 @@ func NewX509CertByCSR(
 		WithX509CertIPAddrs(csr.IPAddresses...),
 		WithX509CertURIs(csr.URIs...),
 		WithX509CertPubkey(csr.PublicKey),
-		WithX509CertExtentions(append(opt.extensions, csr.Extensions...)...),
-		WithX509CertExtraExtensions(append(opt.extraExtensions, csr.ExtraExtensions...)...),
+		WithX509CertSignatureAlgorithm(opt.signatureAlgo),
+		// WithX509CertPublicKeyAlgorithm(opt.pubkeyAlgo),
+		// WithX509CertExtentions(opt.extensions...),
+		WithX509CertExtraExtensions(opt.extraExtensions...),
 	}
 	if opt.isCA {
 		certOpts = append(certOpts, WithX509CertIsCA())
@@ -637,7 +713,7 @@ type x509V3CertOption struct {
 }
 
 func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
-	o.signCSROption.fillDefault()
+	o.signCSROption.fillDefault(nil)
 	o.x509CSROption.fillDefault()
 
 	return o
@@ -647,9 +723,12 @@ func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
 type X509CertOption func(*x509V3CertOption) error
 
 // WithX509CertExtentions set extensions
-func WithX509CertExtentions(exts ...pkix.Extension) X509CertOption {
+//
+// Deprecated: this field is ignored in x509 v3 certificate,
+// use WithX509CertExtraExtensions instead if you want to set extensions.
+func WithX509CertExtentions(_ ...pkix.Extension) X509CertOption {
 	return func(o *x509V3CertOption) error {
-		o.signCSROption.extensions = append(o.signCSROption.extensions, exts...)
+		// o.signCSROption.extensions = append(o.signCSROption.extensions, exts...)
 		return nil
 	}
 }
@@ -754,9 +833,11 @@ func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOpti
 }
 
 // WithX509CertPublicKeyAlgorithm set signature algorithm
-func WithX509CertPublicKeyAlgorithm(pubkeyAlg x509.PublicKeyAlgorithm) X509CertOption {
+//
+// Deprecated: this field is ignored in x509 v3 certificate
+func WithX509CertPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) X509CertOption {
 	return func(o *x509V3CertOption) error {
-		o.publicKeyAlgorithm = pubkeyAlg
+		// o.publicKeyAlgorithm = pubkeyAlg
 		return nil
 	}
 }
@@ -1103,8 +1184,8 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		DNSNames:              opt.dnsNames,
 		IPAddresses:           opt.ipAddresses,
 		URIs:                  opt.uris,
-		Extensions:            opt.signCSROption.extensions,
-		ExtraExtensions:       opt.signCSROption.extraExtensions,
+		// Extensions:            opt.signCSROption.extensions,
+		ExtraExtensions: opt.signCSROption.extraExtensions,
 	}
 
 	pubkey := opt.pubkey
