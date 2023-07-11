@@ -115,6 +115,7 @@ var convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:FC2-)?[a-zA-Z]+(?:[\-
 //
 //	the converted filename
 func convertAvFilename(source string) (target string) {
+	dir := filepath.Dir(source)
 	fileext := strings.ToLower(filepath.Ext(source))
 
 	matched := convertAvFnameRegexp.FindAllStringSubmatch(source, -1)
@@ -124,5 +125,5 @@ func convertAvFilename(source string) (target string) {
 
 	target = strings.ToLower(matched[0][1])
 	target = regexp.MustCompile(`[\-_]hd[\-_]`).ReplaceAllString(target, "-")
-	return target + fileext
+	return filepath.Join(dir, target+fileext)
 }
