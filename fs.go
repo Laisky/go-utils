@@ -329,7 +329,8 @@ func DirSize(path string) (size int64, err error) {
 }
 
 type listFilesInDirOption struct {
-	recur bool
+	recur  bool
+	filter func(fname string) bool
 }
 
 func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
@@ -346,9 +347,27 @@ func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*lis
 type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
 
 // Recursive list files recursively
+//
+// Deprecated: use ListFilesInDirRecursive instead
 func Recursive() ListFilesInDirOptionFunc {
 	return func(o *listFilesInDirOption) error {
 		o.recur = true
+		return nil
+	}
+}
+
+// ListFilesInDirRecursive list files in dir recursively
+func ListFilesInDirRecursive() ListFilesInDirOptionFunc {
+	return func(o *listFilesInDirOption) error {
+		o.recur = true
+		return nil
+	}
+}
+
+// ListFilesInDirFilter filter files, only return files that filter returns true
+func ListFilesInDirFilter(filter func(fname string) bool) ListFilesInDirOptionFunc {
+	return func(o *listFilesInDirOption) error {
+		o.filter = filter
 		return nil
 	}
 }
@@ -378,6 +397,10 @@ func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []stri
 				files = append(files, fs...)
 			}
 
+			continue
+		}
+
+		if opt.filter != nil && !opt.filter(fpath) {
 			continue
 		}
 

@@ -61,7 +61,7 @@ var removeDupCMD = &cobra.Command{
 }
 
 func removeDuplicate(dry bool, dir string) error {
-	files, err := gutils.ListFilesInDir(dir, gutils.Recursive())
+	files, err := gutils.ListFilesInDir(dir, gutils.ListFilesInDirRecursive())
 	if err != nil {
 		return errors.Wrapf(err, "list files in %q", dir)
 	}
