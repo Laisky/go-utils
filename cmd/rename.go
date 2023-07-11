@@ -16,12 +16,14 @@ import (
 
 func init() {
 	rootCmd.AddCommand(renameCMD)
+
 	renameAvCmd.Flags().StringVarP(&renameAvCmdArgs.dir,
 		"dir", "d", "", "directory")
 	renameAvCmd.Flags().BoolVar(&renameAvCmdArgs.dry,
 		"dry", false, "dry run")
 	renameAvCmd.Flags().StringSliceVarP(&renameAvCmdArgs.exts,
 		"exts", "e", []string{".mp4", ".avi", ".mov"}, "files with these exts will be processed")
+	renameCMD.AddCommand(renameAvCmd)
 }
 
 var renameCMD = &cobra.Command{
