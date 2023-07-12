@@ -30,8 +30,7 @@ var renameAvTestCases = []struct {
 	{"16", "hhd800.com@STARS-209_UNCENSORED_LEAKED.mp4", "stars-209.mp4"},
 	{"17", "SSIS-448-C.mp4", "ssis-448.mp4"},
 	{"18", "[98t.tv]dass-015.mp4", "dass-015.mp4"},
-	{"19", "Woxav.Com@MIAA-293 姉の挑発を真に受けた童貞弟がイッてる 深田えいみ Uncensored 破解版.mp4",
-		"miaa-293.mp4"},
+	{"19", "Woxav.Com@MIAA-293 姉の挑発を真に受けた童貞弟がイッてる 深田えいみ Uncensored 破解版.mp4", "miaa-293.mp4"},
 	{"20", "hhd800.com@080422-003-CARIB.mp4", "caribbean-080422-003.mp4"},
 	{"21", "070412-065-carib-whole_hd1.1024x768 2.mp4", "caribbean-070412-065.mp4"},
 	{"22", "031913_552-1pon-whole1_hd 2.mp4", "1pondo-031913-552.mp4"},
@@ -39,6 +38,7 @@ var renameAvTestCases = []struct {
 	{"24", "(FC2)(843225)女子アナ候補生パイパン美女 種付けまんこに連続生ハメ精子押し込み受精確実→潮吹きながら痙攣アクメ悶絶イキ.mp4", "fc2-843225.mp4"},
 	{"25", "(Heyzo)(1723)弄ばれる童顔女教師 千野くるみ.mp4", "heyzo-1723.mp4"},
 	{"26", "(Tokyo-Hot)(n1307)東熱激情 欲情綺麗なお姉さん特集 part2.mp4", "tokyo-hot-n1307.mp4"},
+	{"27", "Caribbeancom 050520-001  050520-001 3 .mp4", "caribbean-050520-001.mp4"},
 
 	{"521", "电锯人04.mp4", "电锯人04.mp4"},
 	{"522", "Manufactured.Landscapes.2006.1080p.BluRay.x264-HANDJOB.mkv",

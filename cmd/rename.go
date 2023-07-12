@@ -103,11 +103,11 @@ var renameAvCmd = &cobra.Command{
 }
 
 var (
-	convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:fc2-)?[a-zA-Z]+(?:[\-_]hd)?[\-_]\d+(?:[\-_]\d)?)`)
+	convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:fc2-)?[a-zA-Z]+(?:\-hd)?\-\d+(?:\-\d+)?)`)
 	// convertAvCaribRegexp match carib av filename
 	//
 	// example: 080422-003-CARIB
-	convertAvCaribRegexp = regexp.MustCompile(`(?P<name>\d+[\-_]\d+[\-_](?:carib|caribbean|1pon))`)
+	convertAvCaribRegexp = regexp.MustCompile(`(\d+)\-(\d+)\-(carib|caribbean|1pon)`)
 	// convertAvFnameWithBracket match av filename with bracket
 	//
 	// examples:
@@ -134,6 +134,9 @@ func convertAvFilename(source string) (target string) {
 	lowerSrc := strings.ToLower(source)
 	fileext := filepath.Ext(lowerSrc)
 
+	lowerSrc = strings.ReplaceAll(lowerSrc, "_", "-")
+	lowerSrc = strings.ReplaceAll(lowerSrc, " ", "-")
+
 	// extract numbers in bracket
 	matched := convertAvFnameWithBracket.FindAllStringSubmatch(lowerSrc, -1)
 	if len(matched) > 0 && len(matched[0]) > 2 {
@@ -143,10 +146,8 @@ func convertAvFilename(source string) (target string) {
 	// extract carib/1pon that digits are ahead of characters
 	if target == "" {
 		matched := convertAvCaribRegexp.FindAllStringSubmatch(lowerSrc, -1)
-		if len(matched) > 0 {
-			target = strings.ReplaceAll(matched[0][1], "_", "-")
-			parts := strings.Split(target, "-")
-			target = fmt.Sprintf("%s-%s-%s", parts[2], parts[0], parts[1])
+		if len(matched) > 0 && len(matched[0]) > 2 {
+			target = fmt.Sprintf("%s-%s-%s", matched[0][3], matched[0][1], matched[0][2])
 		}
 	}
 
@@ -157,13 +158,13 @@ func convertAvFilename(source string) (target string) {
 		}
 
 		target = matched[0][1]
-		target = regexp.MustCompile(`[\-_]hd[\-_]`).ReplaceAllString(target, "-")
+		target = regexp.MustCompile(`\-hd\-`).ReplaceAllString(target, "-")
 	}
 
 	if !strings.Contains(target, "caribbean") {
 		target = strings.ReplaceAll(target, "carib", "caribbean")
 	}
+	target = strings.ReplaceAll(target, "caribbeancom", "caribbean")
 	target = strings.ReplaceAll(target, "1pon", "1pondo")
-	target = strings.ReplaceAll(target, "_", "-")
 	return filepath.Join(dir, target+fileext)
 }
