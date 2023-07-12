@@ -101,7 +101,13 @@ var renameAvCmd = &cobra.Command{
 	},
 }
 
-var convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:FC2-)?[a-zA-Z]+(?:[\-_]hd)?[\-_]\d+(?:[\-_]\d)?)`)
+var (
+	convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:fc2-)?[a-zA-Z]+(?:[\-_]hd)?[\-_]\d+(?:[\-_]\d)?)`)
+	// convertAvCaribRegexp match carib av filename
+	//
+	// example: 080422-003-CARIB
+	convertAvCaribRegexp = regexp.MustCompile(`(?P<name>\d+-\d+-carib)`)
+)
 
 // convertAvFilename convert common AV filenames to a standard format
 //
@@ -116,14 +122,24 @@ var convertAvFnameRegexp = regexp.MustCompile(`(?P<name>(?:FC2-)?[a-zA-Z]+(?:[\-
 //	the converted filename
 func convertAvFilename(source string) (target string) {
 	dir := filepath.Dir(source)
-	fileext := strings.ToLower(filepath.Ext(source))
+	lowerSrc := strings.ToLower(source)
+	fileext := filepath.Ext(lowerSrc)
 
-	matched := convertAvFnameRegexp.FindAllStringSubmatch(source, -1)
-	if len(matched) == 0 {
-		return source
+	// extract carib av filename first
+	matched := convertAvCaribRegexp.FindAllStringSubmatch(lowerSrc, -1)
+	if len(matched) > 0 {
+		target = matched[0][1]
 	}
 
-	target = strings.ToLower(matched[0][1])
-	target = regexp.MustCompile(`[\-_]hd[\-_]`).ReplaceAllString(target, "-")
+	if target == "" {
+		matched := convertAvFnameRegexp.FindAllStringSubmatch(lowerSrc, -1)
+		if len(matched) == 0 {
+			return source
+		}
+
+		target = matched[0][1]
+		target = regexp.MustCompile(`[\-_]hd[\-_]`).ReplaceAllString(target, "-")
+	}
+
 	return filepath.Join(dir, target+fileext)
 }
