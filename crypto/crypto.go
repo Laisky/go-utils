@@ -1,4 +1,14 @@
-// package crypto contains some useful tools to deal with encryption/decryption
+// Package crypto is a collection of cryptographic algorithms and protocols, providing
+// hash functions, block and stream ciphers, public key cryptography and authentication.
+// It also includes a cryptographically secure pseudo-random number generator.
+//
+// x.509
+//
+// This package provides many useful functions for x.509 certificate.
+// you can build a PKI system with this package.
+// including parsing and verification. it can be used to parse x.509 certificates,
+// create x.509 certificate chains, verify x.509 certificate chains,
+// and parse x.509 certificate revocation lists.
 package crypto
 
 import (
