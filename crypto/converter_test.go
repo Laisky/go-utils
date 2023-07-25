@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	gutils "github.com/Laisky/go-utils/v4"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -74,6 +73,7 @@ emCoppSZz2o5Go8jmqJYBJJEv0lst+cGTuUErhx08DoADfUveAQkgzVdE9/z
 )
 
 func TestTLSPrivatekey(t *testing.T) {
+	t.Parallel()
 	t.Run("err", func(t *testing.T) {
 		_, err := NewRSAPrikey(RSAPrikeyBits(123))
 		require.Error(t, err)
@@ -179,6 +179,8 @@ func TestTLSPrivatekey(t *testing.T) {
 }
 
 func TestTLSPublickey(t *testing.T) {
+	t.Parallel()
+
 	rsa2048, err := NewRSAPrikey(RSAPrikeyBits2048)
 	require.NoError(t, err)
 	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
@@ -236,6 +238,8 @@ func TestTLSPublickey(t *testing.T) {
 }
 
 func TestPem2Der_multi_certs(t *testing.T) {
+	t.Parallel()
+
 	der, err := Pem2Der([]byte(testCertChain))
 	require.NoError(t, err)
 	cs, err := Der2Certs(der)
@@ -253,6 +257,8 @@ func TestPem2Der_multi_certs(t *testing.T) {
 }
 
 func TestSecureCipherSuites(t *testing.T) {
+	t.Parallel()
+
 	raw := SecureCipherSuites(nil)
 	filtered := SecureCipherSuites(func(cs *tls.CipherSuite) bool {
 		return true
@@ -266,6 +272,8 @@ func TestSecureCipherSuites(t *testing.T) {
 }
 
 func TestVerifyCertByPrikey(t *testing.T) {
+	t.Parallel()
+
 	prikey, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
 	require.NoError(t, err)
 
@@ -284,6 +292,8 @@ func TestVerifyCertByPrikey(t *testing.T) {
 }
 
 func TestDer2CSR(t *testing.T) {
+	t.Parallel()
+
 	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
 	require.NoError(t, err)
 
@@ -304,6 +314,8 @@ func TestDer2CSR(t *testing.T) {
 }
 
 func Test_UseCaAsClientTlsCert(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

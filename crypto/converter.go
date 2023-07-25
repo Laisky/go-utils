@@ -177,6 +177,36 @@ func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
 	return x509.ParseRevocationList(crlDer)
 }
 
+// CRLDer2Pem marshal crl to pem
+func CRLDer2Pem(crlDer []byte) []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "X509 CRL", Bytes: crlDer})
+}
+
+// CRLPem2Der parse crl pem
+func CRLPem2Der(crlPem []byte) ([]byte, error) {
+	return Pem2Der(crlPem)
+}
+
+// Pem2CRL parse crl pem
+func Pem2CRL(crlPem []byte) (*x509.RevocationList, error) {
+	der, err := Pem2Der(crlPem)
+	if err != nil {
+		return nil, err
+	}
+
+	return Der2CRL(der)
+}
+
+// CRL2Der marshal crl to der
+func CRL2Der(crl *x509.RevocationList) []byte {
+	return crl.Raw
+}
+
+// CRL2Pem marshal crl to pem
+func CRL2Pem(crl *x509.RevocationList) []byte {
+	return CRLDer2Pem(CRL2Der(crl))
+}
+
 // Pem2CSR parse csr from pem
 func Pem2CSR(csrInPem []byte) (*x509.CertificateRequest, error) {
 	csrDer, err := Pem2Der(csrInPem)

@@ -18,6 +18,7 @@ import (
 
 func TestNewX509CSR(t *testing.T) {
 	t.Parallel()
+
 	t.Run("sign by non-ca", func(t *testing.T) {
 		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
@@ -248,6 +249,8 @@ func newTestSeriaNo(t *testing.T) *big.Int {
 }
 
 func TestNewX509CRL(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ca without crl sign key usage", func(t *testing.T) {
 		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
@@ -265,7 +268,8 @@ func TestNewX509CRL(t *testing.T) {
 		_, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
 				{
-					SerialNumber: serialNum,
+					RevocationTime: time.Now(),
+					SerialNumber:   serialNum,
 				},
 			},
 		)
@@ -286,7 +290,6 @@ func TestNewX509CRL(t *testing.T) {
 
 	var crlder []byte
 	t.Run("without crl serial number", func(t *testing.T) {
-		t.Parallel()
 		var err error
 		crlder, err = NewX509CRL(ca, prikey, nil,
 			[]pkix.RevokedCertificate{
@@ -298,7 +301,6 @@ func TestNewX509CRL(t *testing.T) {
 	})
 
 	t.Run("with crl serial number", func(t *testing.T) {
-		t.Parallel()
 		var err error
 		crlder, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
@@ -316,10 +318,26 @@ func TestNewX509CRL(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("crl convert", func(t *testing.T) {
+		pem := CRLDer2Pem(crlder)
+		gotDer, err := CRLPem2Der(pem)
+		require.NoError(t, err)
+		require.Equal(t, crlder, gotDer)
+
+		crl, err := Pem2CRL(pem)
+		require.NoError(t, err)
+		pem2 := CRL2Pem(crl)
+		require.Equal(t, pem, pem2)
+
+		der2 := CRL2Der(crl)
+		require.Equal(t, crlder, der2)
+	})
+
 }
 
 func Test_OIDs(t *testing.T) {
 	t.Parallel()
+
 	a1 := asn1.ObjectIdentifier{1, 2, 3}
 	a2 := asn1.ObjectIdentifier{1, 2, 3}
 	a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
@@ -346,6 +364,7 @@ func Test_OIDs(t *testing.T) {
 
 func TestNewRSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
+
 	t.Run("sign ca-csr with no options", func(t *testing.T) {
 		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
@@ -431,6 +450,8 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 }
 
 func TestReadableX509Cert(t *testing.T) {
+	t.Parallel()
+
 	validFrom := time.Unix(time.Now().Unix(), 0).UTC()
 	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertCommonName("laisky"),
@@ -467,6 +488,7 @@ func TestReadableX509Cert(t *testing.T) {
 
 func Test_ExtKeyUsage(t *testing.T) {
 	t.Parallel()
+
 	t.Run("empty ext key usage", func(t *testing.T) {
 		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
@@ -806,6 +828,7 @@ func BenchmarkRandomSerialNumber(b *testing.B) {
 
 func TestReadableX509CSR(t *testing.T) {
 	t.Parallel()
+
 	prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 	require.NoError(t, err)
 
