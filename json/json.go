@@ -8,6 +8,11 @@ var (
 	Marshal = json.Marshal
 	// MarshalIndent marshal v to string with indent
 	MarshalIndent = json.MarshalIndent
+	// NewDecoder returns a new decoder that reads from r.
+	//
+	// The decoder introduces its own buffering and may
+	// read data from r beyond the JSON values requested.
+	NewDecoder = json.NewDecoder
 )
 
 // MarshalToString marshal v to string

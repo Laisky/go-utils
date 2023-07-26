@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	gutils "github.com/Laisky/go-utils/v4"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 const (
