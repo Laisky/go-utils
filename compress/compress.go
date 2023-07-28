@@ -271,6 +271,8 @@ func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
 // within the zip file (parameter 1) to an output directory (parameter 2).
 //
 // https://golangcode.com/unzip-files-in-go/
+//
+// nolint: gocognit
 func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, err error) {
 	o, err := new(unzipOption).fillDefault().applyOpts(opts...)
 	if err != nil {

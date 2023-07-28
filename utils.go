@@ -106,6 +106,32 @@ func SilentFlush(v interface{ Flush() error }) {
 	_ = v.Flush()
 }
 
+// CloseWithLog close and log error.
+// logger could be nil, then will use internal log.Shared logger instead.
+func CloseWithLog(ins interface{ Close() error },
+	logger interface{ Error(string, ...zap.Field) }) {
+	if logger == nil {
+		logger = log.Shared
+	}
+
+	if err := ins.Close(); err != nil {
+		logger.Error("close ins", zap.Error(err))
+	}
+}
+
+// FlushWithLog flush and log error.
+// logger could be nil, then will use internal log.Shared logger instead.
+func FlushWithLog(ins interface{ Flush() error },
+	logger interface{ Error(string, ...zap.Field) }) {
+	if logger == nil {
+		logger = log.Shared
+	}
+
+	if err := ins.Flush(); err != nil {
+		logger.Error("flush ins", zap.Error(err))
+	}
+}
+
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
 

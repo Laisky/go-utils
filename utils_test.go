@@ -1438,3 +1438,37 @@ func Test_Sum(t *testing.T) {
 	})
 
 }
+
+type testlog struct {
+	content string
+}
+
+// Error test error
+func (l *testlog) Error(msg string, _ ...zap.Field) {
+	l.content = msg
+}
+
+type tt struct{}
+
+// Close test close with error
+func (t *tt) Close() error {
+	return errors.Errorf("close error")
+}
+
+// Flush test flush with error
+func (t *tt) Flush() error {
+	return errors.Errorf("flush error")
+}
+
+func TestCloseWithLog(t *testing.T) {
+	logger := new(testlog)
+	tc := new(tt)
+
+	CloseWithLog(tc, nil)
+	CloseWithLog(tc, logger)
+	require.Equal(t, "close ins", logger.content)
+
+	FlushWithLog(tc, nil)
+	FlushWithLog(tc, logger)
+	require.Equal(t, "flush ins", logger.content)
+}
