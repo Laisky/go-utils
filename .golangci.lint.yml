@@ -345,45 +345,113 @@ linters:
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
   disable-all: true
   enable:
+    - asasalint
+    - asciicheck
+    - bidichk
     - bodyclose
-    # - deadcode
+    # - containedctx # even google contains ctx in struct
+    - contextcheck
+    # - cyclop # I don't like this linter
+    # - deadcode # deprecated
+    - decorder
     # - depguard
     # - dogsled
     - dupl
+    - dupword
+    - durationcheck
     - errcheck
-    # - exhaustive
+    - errchkjson
+    - errname
+    - errorlint
+    - execinquery
+    - exhaustive
+    # - exhaustivestruct # deprecated
+    # - exhaustruct # useless, there could be some reasons to not use all fields
+    - exportloopref
+    # - forbidigo # no need
+    - forcetypeassert
     # - funlen
-    # - gochecknoinits
+    # - gci # there is no need to strictly the order of imports
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    # - gochecknoglobals # why not?
+    # - gochecknoinits # why not?
     - gocognit
     - goconst
-    # - gocritic
-    # - gocyclo
+    # - gocritic # copy in stack is much faster than heap
+    # - gocyclo # duplicated with gocognit
+    # - godot # useless
+    - godox
+    - goerr113
     - gofmt
-    # - goimports
-    # - golint
-    # - gomnd
-    # - goprintffuncname
+    # - gofumpt # gofmt is enough for me
+    - goheader
+    - goimports
+    # - golint # deprecated
+    # - gomnd # I think a small amount of magic numbers is acceptable
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
     - gosec
     - gosimple
+    - gosmopolitan
     - govet
+    - grouper
+    # - ifshort # deprecated
+    - importas
     - ineffassign
-    # - interfacer
+    # - interfacebloat # thereis currently no need to limit the number of interface methods
+    # - interfacer # deprecated
+    # - ireturn # return interface is normal in some cases
     - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    # - maligned # deprecated
+    - mirror
     - misspell
-    # - nakedret
-    # - noctx
-    # - nolintlint
+    - musttag
+    # - nakedret # do not limit func len
+    # - nestif # useless
+    - nilerr
+    - nilnil
+    # - nlreturn # nonsense
+    - noctx
+    # - nolintlint # It's too troublesome to write comments for every nolint, and it's not necessary.
+    # - nonamedreturns # why not?
+    # - nosnakecase # deprecated
+    - nosprintfhostport
+    - paralleltest
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
     - revive
-    # - rowserrcheck
-    # - scopelint
+    - rowserrcheck
+    # - scopelint # deprecated
+    - sqlclosecheck
     - staticcheck
+    # - structcheck # deprecated
     - stylecheck
+    - tagalign
+    # - tagliatelle # wieird linter, I think it's harmful
+    - tenv
+    - testableexamples
+    - testpackage
+    - thelper
+    - tparallel
     - typecheck
-    # - unconvert
-    # - unparam
+    - unconvert
+    # - unparam # too many false positives
     - unused
-    # - varcheck
-    # - whitespace
+    - usestdlibvars
+    # - varcheck # deprecated
+    # - varnamelen # useless, why not use short names?
+    - wastedassign
+    - whitespace
+    # - wrapcheck # too many false positives
+    # - wsl # subjective style
+    - zerologlint
   fast: false
 
 issues:
