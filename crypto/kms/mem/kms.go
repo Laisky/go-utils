@@ -183,6 +183,7 @@ func (m *KMS) Kek(_ context.Context) (
 			zap.Uint16("kek_id", kekID))
 	}
 
+	// nolint: forcetypeassert
 	return kekID, v.([]byte), nil
 }
 
@@ -195,6 +196,7 @@ func (m *KMS) Keks(_ context.Context) (
 
 	keks = make(map[uint16][]byte)
 	m.keks.Range(func(key, value any) bool {
+		// nolint: forcetypeassert
 		keks[key.(uint16)] = value.([]byte)
 		return true
 	})
@@ -211,12 +213,17 @@ func (m *KMS) DeriveKeyByID(_ context.Context,
 		return nil, errors.WithStack(err)
 	}
 
-	kek, ok := m.keks.Load(kekID)
+	keki, ok := m.keks.Load(kekID)
 	if !ok {
 		return nil, errors.Errorf("kek %d not found", kekID)
 	}
 
-	return gcrypto.DeriveKeyByHKDF(kek.([]byte), dekID, length)
+	kek, ok := keki.([]byte)
+	if !ok {
+		return nil, errors.Errorf("kek %d in wrong type %T", kekID, keki)
+	}
+
+	return gcrypto.DeriveKeyByHKDF(kek, dekID, length)
 }
 
 // DeriveKey derive random key

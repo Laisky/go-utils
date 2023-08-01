@@ -98,7 +98,6 @@ func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
 // NewRotateCounterWithCtx create new RotateCounter with threshold from 0
 func NewRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*RotateCounter, error) {
 	return NewRotateCounterFromNWithCtx(ctx, 0, rotatePoint)
-
 }
 
 // NewRotateCounterFromN create new RotateCounter with threshold from N

@@ -311,7 +311,6 @@ func init() {
 	if internalCertSerialNumGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
 		glog.Shared.Panic("new default cert serial number generator", zap.Error(err))
 	}
-
 }
 
 // DefaultX509CertSerialNumGenerator default cert serial number generator base on epoch time and random int

@@ -360,7 +360,7 @@ func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, 
 
 // GetLock get lock
 func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
-	return e.m.Get(key).(*sync.RWMutex)
+	return e.m.Get(key).(*sync.RWMutex) //nolint:forcetypeassert
 }
 
 // RWManagerInterface auto create rwlock if not exists
@@ -379,13 +379,13 @@ type RWManager struct {
 // RLock rlock lock by name
 func (m *RWManager) RLock(name string) {
 	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
-	mu.(*sync.RWMutex).RLock()
+	mu.(*sync.RWMutex).RLock() //nolint:forcetypeassert
 }
 
 // Lock lock by name
 func (m *RWManager) Lock(name string) {
 	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
-	mu.(*sync.RWMutex).Lock()
+	mu.(*sync.RWMutex).Lock() //nolint:forcetypeassert
 }
 
 // RUnlock runlock by name
@@ -395,7 +395,7 @@ func (m *RWManager) RUnlock(name string) {
 		log.Shared.Panic("lock not exists", zap.String("name", name))
 	}
 
-	mu.(*sync.RWMutex).RUnlock()
+	mu.(*sync.RWMutex).RUnlock() //nolint:forcetypeassert
 }
 
 // Unlock unlock by name
@@ -405,5 +405,5 @@ func (m *RWManager) Unlock(name string) {
 		log.Shared.Panic("lock not exists", zap.String("name", name))
 	}
 
-	mu.(*sync.RWMutex).Unlock()
+	mu.(*sync.RWMutex).Unlock() //nolint:forcetypeassert
 }

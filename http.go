@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"io"
 	"net/http"
@@ -168,7 +169,11 @@ func RequestJSONWithClient(httpClient *http.Client,
 	}
 	log.Shared.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
-	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx,
+		strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return errors.Wrap(err, "new request")
 	}
@@ -210,7 +215,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 func CheckResp(resp *http.Response) error {
 	c := chaining.Flow(
 		checkRespStatus,
-		checkRespBody,
+		checkRespErr,
 	)(resp, nil)
 	return c.GetError()
 }
@@ -221,8 +226,12 @@ func HTTPInvalidStatusError(statusCode int) error {
 }
 
 func checkRespStatus(c *chaining.Chain) (r any, err error) {
-	resp := c.GetVal()
-	code := resp.(*http.Response).StatusCode
+	resp, ok := c.GetVal().(*http.Response)
+	if !ok {
+		return nil, errors.Errorf("got invalid response type `%T`", c.GetVal())
+	}
+
+	code := resp.StatusCode
 	if code/100 != 2 {
 		return resp, HTTPInvalidStatusError(code)
 	}
@@ -230,11 +239,15 @@ func checkRespStatus(c *chaining.Chain) (r any, err error) {
 	return resp, nil
 }
 
-func checkRespBody(c *chaining.Chain) (any, error) {
+func checkRespErr(c *chaining.Chain) (any, error) {
 	upErr := c.GetError()
-	resp := c.GetVal().(*http.Response)
 	if upErr == nil {
 		return c.GetVal(), nil
+	}
+
+	resp, ok := c.GetVal().(*http.Response)
+	if !ok {
+		return nil, errors.Join(upErr, errors.Errorf("got invalid response type `%T`", c.GetVal()))
 	}
 
 	defer func() { _ = resp.Body.Close() }()

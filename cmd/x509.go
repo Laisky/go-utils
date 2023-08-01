@@ -111,7 +111,7 @@ func showFileX509CertInfo(fpath string) error {
 }
 
 func prettyPrintCerts(certs []*x509.Certificate) error {
-	var parsedCerts []map[string]any
+	parsedCerts := make([]map[string]any, 0, len(certs))
 	for i := range certs {
 		rc, err := gcrypto.ReadableX509Cert(certs[i])
 		if err != nil {

@@ -21,6 +21,7 @@ import (
 //	for i := range results {
 //	    results[i] = make([]byte, 20)
 //	}
+//
 //	HKDFWithSHA256([]byte("your key"), nil, nil, results)
 func HKDFWithSHA256(secret, salt, info []byte, results [][]byte) error {
 	h := hkdf.New(sha256.New, secret, salt, info)

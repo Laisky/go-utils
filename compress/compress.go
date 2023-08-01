@@ -328,7 +328,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 		for {
 			n, err := io.CopyN(outFile, rc, o.copyChunkBytes)
 			if err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 

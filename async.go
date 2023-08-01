@@ -91,13 +91,18 @@ func (s *AsyncTaskStoreMemory) New(_ context.Context) (result *AsyncTaskResult, 
 }
 
 // Get get task by id
-func (s *AsyncTaskStoreMemory) Get(_ context.Context, taskID string) (result *AsyncTaskResult, err error) {
+func (s *AsyncTaskStoreMemory) Get(_ context.Context, taskID string) (
+	result *AsyncTaskResult, err error) {
 	ri, ok := s.store.Load(taskID)
 	if !ok {
 		return nil, errors.Errorf("task %q notfound", taskID)
 	}
 
-	return ri.(*AsyncTaskResult), nil
+	if result, ok = ri.(*AsyncTaskResult); !ok {
+		return nil, errors.Errorf("task %q in invalid type %T", taskID, ri)
+	}
+
+	return result, nil
 }
 
 // Delete task by id

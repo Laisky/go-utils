@@ -229,7 +229,11 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 		}
 
 		var bb *buffer.Buffer
-		enc := a.encPool.Get().(zapcore.Encoder)
+		enci := a.encPool.Get()
+		enc, ok := enci.(zapcore.Encoder)
+		if !ok {
+			return errors.Errorf("unknown type for encoder %T", enci)
+		}
 		if bb, err = enc.EncodeEntry(e, fs); err != nil {
 			Shared.Debug("zapcore encode fields got error", zap.Error(err))
 			return nil

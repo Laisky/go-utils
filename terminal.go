@@ -42,7 +42,7 @@ func InputYes(hint string) (ok bool, err error) {
 	var confirm string
 	_, err = fmt.Scanln(&confirm)
 	if err != nil {
-		if err.Error() == "unexpected newline" || err == io.EOF {
+		if err.Error() == "unexpected newline" || errors.Is(err, io.EOF) {
 			// user input nothing, use default value
 			confirm = "y"
 		} else {

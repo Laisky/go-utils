@@ -384,6 +384,7 @@ func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 	case *ecdsa.PrivateKey:
 		return &k.PublicKey
 	case ed25519.PrivateKey:
+		//nolint: forcetypeassert
 		return k.Public().(ed25519.PublicKey)
 	default:
 		return nil

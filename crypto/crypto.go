@@ -208,7 +208,7 @@ func RSAEncrypt(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) 
 	for {
 		n, err := reader.Read(chunk)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -235,7 +235,7 @@ func RSADecrypt(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error)
 	for {
 		n, err := reader.Read(chunk)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 

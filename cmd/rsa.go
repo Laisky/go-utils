@@ -119,7 +119,6 @@ func VerifyFileByRSA(pubkeyPath, filePath string) error {
 	)
 
 	return nil
-
 }
 
 // SignFileByRSA sign file by rsa
@@ -159,7 +158,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 	sig := hex.EncodeToString(sigBytes)
 	sig = rsaSignPrefixSHA256 + sig
 
-	_, err = sigFp.Write([]byte(sig))
+	_, err = sigFp.WriteString(sig)
 	if err != nil {
 		return errors.Wrapf(err, "write signature to sig file %q", sigFile)
 	}

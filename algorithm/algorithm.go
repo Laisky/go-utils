@@ -156,7 +156,7 @@ func (p *innerHeapQ[T]) Swap(i, j int) {
 
 // Push push new item into heapq
 func (p *innerHeapQ[T]) Push(x any) {
-	item := x.(HeapItemItf[T])
+	item := x.(HeapItemItf[T]) //nolint:forcetypeassert
 	p.q = append(p.q, item)
 }
 
@@ -290,13 +290,14 @@ LOAD_LOOP:
 				priority: item.GetPriority(),
 				key:      item.GetKey(),
 			})
+			//nolint:forcetypeassert
 			thresItem = heap.Pop(p).(*itemType[T])
 		}
 	}
 
 	log.Shared.Debug("process all items", zap.Int("total", nTotal))
 	for i := 1; i <= topN; i++ { // pop all needed items
-		item = heap.Pop(p).(*itemType[T])
+		item = heap.Pop(p).(*itemType[T]) //nolint:forcetypeassert
 		items[topN-i] = item
 	}
 
@@ -355,7 +356,7 @@ func (h *limitSizeHeap[T]) Push(item HeapItemItf[T]) HeapItemItf[T] {
 	heap.Push(h.q, item)
 	if h.size > h.maxSize {
 		h.size--
-		h.thresItem = heap.Pop(h.q).(HeapItemItf[T])
+		h.thresItem = heap.Pop(h.q).(HeapItemItf[T]) //nolint:forcetypeassert
 		return h.thresItem
 	}
 
@@ -370,6 +371,7 @@ func (h *limitSizeHeap[T]) Pop() HeapItemItf[T] {
 	}
 
 	h.size--
+	//nolint:forcetypeassert
 	return heap.Pop(h.q).(HeapItemItf[T])
 }
 
@@ -427,6 +429,8 @@ var emptyNode = &fifoNode{
 func NewFIFO() *FIFO {
 	// add a dummy node to the queue to avoid contention
 	// betweet head & tail when queue is empty
+	//
+	//nolint: forcetypeassert
 	var dummyNode = fifoPool.Get().(*fifoNode)
 	dummyNode.d = "dummy"
 	dummyNode.next = unsafe.Pointer(emptyNode)
@@ -440,6 +444,7 @@ func NewFIFO() *FIFO {
 
 // Put put an data into queue's tail
 func (f *FIFO) Put(d any) {
+	//nolint: forcetypeassert
 	newNode := fifoPool.Get().(*fifoNode)
 	// for {
 	// 	newNode = fifoPool.Get().(*fifoNode)

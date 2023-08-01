@@ -68,11 +68,11 @@ func (l *Logger) Print(vs ...any) {
 	}
 
 	var msg string
-	switch fvs[3].(type) {
+	switch v := fvs[3].(type) {
 	case string:
-		msg = fvs[3].(string)
+		msg = v
 	case []byte:
-		msg = string(fvs[3].([]byte))
+		msg = string(v)
 	default:
 		msg = fmt.Sprint(fvs[3])
 	}

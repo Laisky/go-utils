@@ -45,9 +45,10 @@ type GoroutineTest struct {
 // NewGoroutineTest new test for goroutine
 //
 // any fail will call cancel()
-func NewGoroutineTest(t testing.TB, cancel func()) *GoroutineTest {
+func NewGoroutineTest(tb testing.TB, cancel func()) *GoroutineTest {
+	tb.Helper()
 	return &GoroutineTest{
-		TB:     t,
+		TB:     tb,
 		cancel: cancel,
 	}
 }
@@ -193,7 +194,7 @@ func (t *GoroutineTest) TempDir() string {
 //	    require.NoError(t, err)
 //	    require.Equal(t, "hello\n", string(buf))
 //	}
-func MockStdout() (recover func(), stdout *os.File, err error) {
+func MockStdout() (recoverFn func(), stdout *os.File, err error) {
 	// get result from stdout
 	dir, err := os.MkdirTemp("", "mockStdout")
 	if err != nil {

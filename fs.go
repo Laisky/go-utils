@@ -263,7 +263,7 @@ func FileMD5(path string) (hashed string, err error) {
 	for {
 		n, err := fp.Read(chunk)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -295,7 +295,7 @@ func FileSHA1(path string) (hashed string, err error) {
 	for {
 		n, err := fp.Read(chunk)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -506,7 +506,6 @@ func RenderTemplate(tplContent string, args any) ([]byte, error) {
 	}
 
 	return out.Bytes(), nil
-
 }
 
 // RenderTemplateFile render template file with args

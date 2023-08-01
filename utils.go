@@ -149,9 +149,9 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 	opt := new(dedentOpt).fillDefault().applyOpts(optfs...)
 	ls := strings.Split(v, "\n")
 	var (
-		firstLine      = true
 		NSpaceTobeTrim int
-		result         []string
+		firstLine      = true
+		result         = make([]string, 0, len(ls))
 	)
 	for _, l := range ls {
 		if strings.TrimSpace(l) == "" {
@@ -291,6 +291,8 @@ func GetStructFieldByName(st any, fieldName string) any {
 		if v.IsNil() {
 			return nil
 		}
+	default:
+		// do nothing
 	}
 
 	return v.Interface()
@@ -395,7 +397,7 @@ func ForceGCUnBlocking() {
 	go func() {
 		_, _, _ = internalSFG.Do("ForceGCUnBlocking", func() (any, error) {
 			ForceGC()
-			return nil, nil
+			return struct{}{}, nil
 		})
 	}()
 }
@@ -749,7 +751,7 @@ func (c *SingleItemExpCache) GetString() (data string, ok bool) {
 		return "", false
 	}
 
-	return itf.(string), true
+	return itf.(string), true //nolint:forcetypeassert
 }
 
 // GetUintSlice same as Get, but return []uint
@@ -759,7 +761,7 @@ func (c *SingleItemExpCache) GetUintSlice() (data []uint, ok bool) {
 		return nil, false
 	}
 
-	return itf.([]uint), true
+	return itf.([]uint), true //nolint:forcetypeassert
 }
 
 // ExpCache cache with expires
@@ -811,7 +813,7 @@ func (c *ExpCache[T]) runClean(ctx context.Context) {
 		}
 
 		c.data.Range(func(k, v any) bool {
-			if v.(*expCacheItem).exp.Before(Clock.GetUTCNow()) {
+			if v.(*expCacheItem).exp.Before(Clock.GetUTCNow()) { //nolint:forcetypeassert
 				// delete expired
 				//
 				// if new expCacheItem stored just before delete,
@@ -842,8 +844,9 @@ func (c *ExpCache[T]) Delete(key string) {
 
 // LoadAndDelete load and delete val from cache
 func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
+	//nolint:forcetypeassert
 	if datai, ok := c.data.LoadAndDelete(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
-		return datai.(*expCacheItem).data.(T), ok
+		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	}
 
 	return data, false
@@ -851,8 +854,9 @@ func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 
 // Load load val from cache
 func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
+	//nolint:forcetypeassert
 	if datai, ok := c.data.Load(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
-		return datai.(*expCacheItem).data.(T), ok
+		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	} else if ok {
 		// delete expired
 		c.data.Delete(key)
@@ -887,10 +891,10 @@ type LRUExpiredMap struct {
 // NewLRUExpiredMap new ExpiredMap
 func NewLRUExpiredMap(ctx context.Context,
 	ttl time.Duration,
-	new func() any) (el *LRUExpiredMap, err error) {
+	newIns func() any) (el *LRUExpiredMap, err error) {
 	el = &LRUExpiredMap{
 		ttl: ttl,
-		new: new,
+		new: newIns,
 	}
 
 	go el.clean(ctx)
@@ -906,14 +910,16 @@ func (e *LRUExpiredMap) clean(ctx context.Context) {
 		}
 
 		e.m.Range(func(k, v any) bool {
+			//nolint:forcetypeassert
 			if v.(*expiredMapItem).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
 				return true
 			}
 
 			// lock is expired
-			v.(*expiredMapItem).Lock()
-			defer v.(*expiredMapItem).Unlock()
+			v.(*expiredMapItem).Lock()         //nolint:forcetypeassert
+			defer v.(*expiredMapItem).Unlock() //nolint:forcetypeassert
 
+			//nolint:forcetypeassert
 			if v.(*expiredMapItem).getTime().Add(e.ttl).Before(Clock.GetUTCNow()) {
 				// lock still expired
 				e.m.Delete(k)
@@ -938,13 +944,14 @@ func (e *LRUExpiredMap) Get(key string) any {
 			data: e.new(),
 		})
 	} else {
-		ol := l.(*expiredMapItem)
+		ol := l.(*expiredMapItem) //nolint:forcetypeassert
 		ol.RLock()
 		ol.refreshTime()
 		l, _ = e.m.LoadOrStore(key, ol)
 		ol.RUnlock()
 	}
 
+	//nolint:forcetypeassert
 	return l.(*expiredMapItem).data
 }
 

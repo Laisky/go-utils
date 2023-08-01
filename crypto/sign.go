@@ -100,7 +100,6 @@ func SignByECDSAWithSHA256AndBase64(priKey *ecdsa.PrivateKey, content []byte) (s
 	}
 
 	return EncodeES256SignByBase64(r, s), nil
-
 }
 
 // VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256

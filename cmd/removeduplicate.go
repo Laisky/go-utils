@@ -112,7 +112,7 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	ext := strings.ToLower(filepath.Ext(fpath))
 	switch ext {
 	case ".jpeg", ".jpg", ".jfif":
-		ext = ".jpg" //nolint: ineffassign
+		// ext = ".jpg" //nolint: ineffassign
 		if img, err = jpeg.Decode(fp); err != nil {
 			return false, errors.Wrapf(err, "decode jpeg file %q", fpath)
 		}
@@ -143,7 +143,10 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	}
 
 	deleted = true
-	otherFp := otherFile.ID.(string)
+	otherFp, ok := otherFile.ID.(string)
+	if !ok {
+		return false, errors.Errorf("invalid file id type %T", otherFile.ID)
+	}
 	keepCurrentFile, err := fileSizeBiggerThan(fpath, otherFp)
 	if err != nil {
 		return false, errors.Wrap(err, "compare file size")
