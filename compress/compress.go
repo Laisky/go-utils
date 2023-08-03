@@ -269,9 +269,17 @@ func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
 // Unzip will decompress a zip archive, moving all files and folders
 // within the zip file (parameter 1) to an output directory (parameter 2).
 //
-// https://golangcode.com/unzip-files-in-go/
+// inspired by https://golangcode.com/unzip-files-in-go/
 //
-// nolint: gocognit
+// Args:
+//   - src: is the source zip file.
+//   - dest: is the destination directory.
+//   - (opt) UnzipWithMaxBytes: decompressed bytes will not exceed this limit,
+//     default/0 is unlimit. it's better to set this value to avoid decompression bomb.
+//   - (opt) UnzipWithCopyChunkBytes: copy chunk by chunk from src to dst
+//
+// Returns:
+//   - filenames: all filenames in zip file
 func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, err error) {
 	o, err := new(unzipOption).fillDefault().applyOpts(opts...)
 	if err != nil {
@@ -323,6 +331,8 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 		if o.maxBytes > 0 {
 			_, err = io.Copy(outFile, io.LimitReader(compressedFp, o.maxBytes))
 		} else {
+			//nolint:gosec // user do not set maxBytes,
+			// so it's user's responsibility to avoid decompression bomb
 			_, err = io.Copy(outFile, compressedFp)
 		}
 		if err != nil {

@@ -34,7 +34,9 @@ func Test_showPemFileX509CertInfo(t *testing.T) {
 		args := []string{"", "certinfo", "-f", certfile}
 		err = tlsInfoCMD.Flags().Parse(args)
 		require.NoError(t, err)
-		tlsInfoCMD.Run(tlsInfoCMD, args)
+
+		err = tlsInfoCMD.RunE(tlsInfoCMD, args)
+		require.NoError(t, err)
 	})
 }
 
