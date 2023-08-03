@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 // WaitTCPOpen wait tcp open
@@ -30,7 +31,7 @@ func WaitTCPOpen(ctx context.Context, ip string, port int) error {
 			continue
 		}
 
-		defer conn.Close() // nolint: errcheck
+		defer LogErr(conn.Close, log.Shared)
 		return nil
 	}
 }
@@ -210,7 +211,7 @@ func MockStdout() (recoverFn func(), stdout *os.File, err error) {
 	os.Stdout = fp
 
 	return func() {
-		defer os.RemoveAll(dir) // nolint: errcheck
+		defer LogErr(func() error { return os.RemoveAll(dir) }, log.Shared)
 		os.Stdout = old
 	}, fp, nil
 }

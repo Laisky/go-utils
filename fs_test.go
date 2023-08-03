@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Laisky/go-utils/v4/log"
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v4/log"
 )
 
 func TestDirSize(t *testing.T) {
@@ -528,4 +527,34 @@ func TestReplaceFileStream(t *testing.T) {
 	got, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	require.Equal(t, cnt, got)
+}
+
+func TestFilepathJoin(t *testing.T) {
+	type args struct {
+		paths []string
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantResult string
+		err        string
+	}{
+		{"0", args{[]string{}}, "", "empty paths"},
+		{"1", args{[]string{"a"}}, "a", ""},
+		{"2", args{[]string{"a", "b"}}, "a/b", ""},
+		{"3", args{[]string{"a", "b", "c"}}, "a/b/c", ""},
+		{"4", args{[]string{"a", "b", "../c"}}, "a/c", ""},
+		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped dst"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotResult, err := FilepathJoin(tt.args.paths...)
+			if tt.err == "" {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantResult, gotResult)
+			} else {
+				require.ErrorContains(t, err, tt.err)
+			}
+		})
+	}
 }

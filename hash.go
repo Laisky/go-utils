@@ -107,7 +107,7 @@ func FileHash(hashType HashTypeInterface, filepath string) (signature []byte, er
 	if err != nil {
 		return nil, errors.Wrap(err, "open file")
 	}
-	defer fp.Close() // nolint: errcheck
+	defer LogErr(fp.Close, log.Shared)
 
 	return Hash(hashType, fp)
 }

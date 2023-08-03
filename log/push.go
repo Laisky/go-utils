@@ -92,7 +92,11 @@ func (s *PusherHTTPSender) Send(ctx context.Context, content []byte) (err error)
 	if err != nil {
 		return errors.Wrapf(err, "send request to %s", s.remoteEndpoint)
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() {
+		if err = resp.Body.Close(); err != nil {
+			Shared.Error("close response body", zap.Error(err))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("got unexpected status code %d", resp.StatusCode)

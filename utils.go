@@ -110,11 +110,16 @@ func SilentFlush(v interface{ Flush() error }) {
 // logger could be nil, then will use internal log.Shared logger instead.
 func CloseWithLog(ins interface{ Close() error },
 	logger interface{ Error(string, ...zap.Field) }) {
+	LogErr(ins.Close, logger)
+}
+
+// LogErr invoke f and log error if got error.
+func LogErr(f func() error, logger interface{ Error(string, ...zap.Field) }) {
 	if logger == nil {
 		logger = log.Shared
 	}
 
-	if err := ins.Close(); err != nil {
+	if err := f(); err != nil {
 		logger.Error("close ins", zap.Error(err))
 	}
 }

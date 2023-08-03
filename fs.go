@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -33,11 +34,10 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer os.Remove(swapFpath) //nolint: errcheck
-	defer SilentClose(fp)
+	defer LogErr(func() error { return errors.Wrapf(os.Remove(swapFpath), "remove %q", swapFpath) }, log.Shared)
+	defer LogErr(fp.Close, log.Shared)
 
-	_, err = fp.Write(content)
-	if err != nil {
+	if _, err = fp.Write(content); err != nil {
 		return errors.Wrapf(err, "write to file %q", swapFpath)
 	}
 
@@ -46,6 +46,31 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	}
 
 	return nil
+}
+
+// FilepathJoin join paths and check if result is escaped dst
+//
+// this function could be used to prevent path escaping,
+// make sure the result is under dst.
+//
+// Notice: cannot deal with symlink
+func FilepathJoin(paths ...string) (result string, err error) {
+	if len(paths) == 0 {
+		return "", errors.New("empty paths")
+	}
+
+	if len(paths) == 1 {
+		return paths[0], nil
+	}
+
+	dst := paths[0]
+
+	result = filepath.Clean(filepath.Join(paths...))
+	if !strings.HasPrefix(result, dst) {
+		return result, errors.Errorf("got result %q, escaped dst %q", result, dst)
+	}
+
+	return result, nil
 }
 
 // ReplaceFileStream replace file with content atomatically
@@ -60,8 +85,8 @@ func ReplaceFileStream(path string, in io.ReadCloser, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer os.Remove(swapFpath) //nolint: errcheck
-	defer SilentClose(fp)
+	defer LogErr(func() error { return errors.Wrapf(os.Remove(swapFpath), "remove %q", swapFpath) }, log.Shared)
+	defer LogErr(fp.Close, log.Shared)
 
 	chunk := make([]byte, 4096)
 	for {

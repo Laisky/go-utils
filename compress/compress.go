@@ -286,7 +286,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
-		fpath := filepath.Join(dest, f.Name) //nolint:gosec // check zipslip below
+		fpath := filepath.Join(dest, f.Name)
 
 		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
