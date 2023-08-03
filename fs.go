@@ -48,10 +48,12 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	return nil
 }
 
-// FilepathJoin join paths and check if result is escaped dst
+// FilepathJoin join paths and check if result is escaped basedir
 //
+// basedir is the first path in paths.
 // this function could be used to prevent path escaping,
-// make sure the result is under dst.
+// make sure the result is under basedir.
+// for example defend zip-slip: https://snyk.io/research/zip-slip-vulnerability#go
 //
 // Notice: cannot deal with symlink
 func FilepathJoin(paths ...string) (result string, err error) {
@@ -63,11 +65,10 @@ func FilepathJoin(paths ...string) (result string, err error) {
 		return paths[0], nil
 	}
 
-	dst := paths[0]
-
+	baseDir := paths[0]
 	result = filepath.Clean(filepath.Join(paths...))
-	if !strings.HasPrefix(result, dst) {
-		return result, errors.Errorf("got result %q, escaped dst %q", result, dst)
+	if !strings.HasPrefix(result, filepath.Clean(baseDir)+string(os.PathSeparator)) {
+		return result, errors.Errorf("got result %q, escaped dst %q", result, baseDir)
 	}
 
 	return result, nil

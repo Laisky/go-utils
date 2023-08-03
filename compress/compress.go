@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -286,15 +285,12 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
-		fpath := filepath.Join(dest, f.Name)
-
-		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
-		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			return nil, errors.Errorf("illegal file path: %s", fpath)
+		fpath, err := gutils.FilepathJoin(dest, f.Name)
+		if err != nil {
+			return nil, errors.Wrapf(err, "join path: %s", f.Name)
 		}
 
 		filenames = append(filenames, fpath)
-
 		if f.FileInfo().IsDir() {
 			// Make Folder
 			if err = os.MkdirAll(fpath, 0o751); err != nil {

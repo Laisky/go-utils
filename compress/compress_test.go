@@ -27,6 +27,7 @@ import (
 // }
 
 func TestUnzipAndZipFiles(t *testing.T) {
+	t.Parallel()
 	var err error
 	if err = log.Shared.ChangeLevel("debug"); err != nil {
 		require.NoError(t, err)
@@ -113,6 +114,7 @@ const (
 )
 
 func TestGZCompressor(t *testing.T) {
+	t.Parallel()
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
 	c, err := NewGZip(writer)
@@ -188,6 +190,7 @@ func ExampleNewGZip() {
 }
 
 func TestPGZCompressor(t *testing.T) {
+	t.Parallel()
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
 	c, err := NewPGZip(

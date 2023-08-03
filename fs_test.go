@@ -545,6 +545,7 @@ func TestFilepathJoin(t *testing.T) {
 		{"3", args{[]string{"a", "b", "c"}}, "a/b/c", ""},
 		{"4", args{[]string{"a", "b", "../c"}}, "a/c", ""},
 		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped dst"},
+		{"6", args{[]string{"a", "b", "../../ab"}}, "ab", "escaped dst"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
