@@ -285,7 +285,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
-		fpath, err := gutils.FilepathJoin(dest, f.Name)
+		fpath, err := gutils.JoinFilepath(dest, f.Name)
 		if err != nil {
 			return nil, errors.Wrapf(err, "join path: %s", f.Name)
 		}
@@ -314,27 +314,19 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 		log.Shared.Debug("create file", zap.String("path", filepath.Dir(fpath)))
 		defer gutils.SilentClose(outFile)
 
-		rc, err := f.Open()
+		compressedFp, err := f.Open()
 		if err != nil {
 			return nil, errors.Wrapf(err, "read src file to write: %s", f.Name)
 		}
-		defer gutils.SilentClose(rc)
+		defer gutils.SilentClose(compressedFp)
 
-		var totalBytes int64
-		for {
-			n, err := io.CopyN(outFile, rc, o.copyChunkBytes)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-
-				return nil, errors.Wrap(err, "copy src to dest")
-			}
-
-			totalBytes += n
-			if o.maxBytes != 0 && totalBytes > o.maxBytes {
-				return nil, errors.Errorf("uncompressed file size exceeds specified max bytes %d", o.maxBytes)
-			}
+		if o.maxBytes > 0 {
+			_, err = io.Copy(outFile, io.LimitReader(compressedFp, o.maxBytes))
+		} else {
+			_, err = io.Copy(outFile, compressedFp)
+		}
+		if err != nil {
+			return nil, errors.Wrapf(err, "copy file: %s", f.Name)
 		}
 	}
 
@@ -386,10 +378,17 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 
 		for _, finfoInDir := range fs {
 			_, childDir := filepath.Split(finfoInDir.Name())
-			if err = AddFileToZip(zipWriter,
-				filepath.Join(filename, finfoInDir.Name()),
-				filepath.Join(basedir, finfo.Name()),
-			); err != nil {
+
+			nextFilename, err := gutils.JoinFilepath(filename, finfoInDir.Name())
+			if err != nil {
+				return errors.Wrapf(err, "join nextFilename filepath `%s`", finfoInDir.Name())
+			}
+			nextBasedir, err := gutils.JoinFilepath(basedir, finfo.Name())
+			if err != nil {
+				return errors.Wrapf(err, "join nextBasedir filepath `%s`", childDir)
+			}
+
+			if err = AddFileToZip(zipWriter, nextFilename, nextBasedir); err != nil {
 				return errors.Wrapf(err, "zip sub basedir `%s`", childDir)
 			}
 		}
@@ -411,7 +410,9 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 	// Using FileInfoHeader() above only uses the basename of the file. If we want
 	// to preserve the folder structure we can overwrite this with the full path.
 	if basedir != "" {
-		header.Name = filepath.Join(basedir, finfo.Name())
+		if header.Name, err = gutils.JoinFilepath(basedir, finfo.Name()); err != nil {
+			return errors.Wrapf(err, "join filepath `%s`", finfo.Name())
+		}
 	}
 
 	// Change to deflate to gain better compression

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -202,7 +201,12 @@ func MockStdout() (recoverFn func(), stdout *os.File, err error) {
 		return nil, nil, errors.Wrap(err, "create temp dir")
 	}
 
-	fp, err := os.OpenFile(filepath.Join(dir, "mockStdout"), os.O_CREATE|os.O_RDWR, 0600)
+	fpath, err := JoinFilepath(dir, "mockStdout")
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "join filepath")
+	}
+
+	fp, err := os.OpenFile(fpath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "create temp file")
 	}

@@ -28,7 +28,10 @@ import (
 func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	dir, fname := filepath.Split(path)
 	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
-	swapFpath := filepath.Join(dir, swapFname)
+	swapFpath, err := JoinFilepath(dir, swapFname)
+	if err != nil {
+		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
+	}
 
 	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
 	if err != nil {
@@ -48,15 +51,15 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	return nil
 }
 
-// FilepathJoin join paths and check if result is escaped basedir
+// JoinFilepath join paths and check if result is escaped basedir
 //
-// basedir is the first path in paths.
+// basedir is the first nonempty path in paths.
 // this function could be used to prevent path escaping,
 // make sure the result is under basedir.
 // for example defend zip-slip: https://snyk.io/research/zip-slip-vulnerability#go
 //
 // Notice: cannot deal with symlink
-func FilepathJoin(paths ...string) (result string, err error) {
+func JoinFilepath(paths ...string) (result string, err error) {
 	if len(paths) == 0 {
 		return "", errors.New("empty paths")
 	}
@@ -65,9 +68,16 @@ func FilepathJoin(paths ...string) (result string, err error) {
 		return paths[0], nil
 	}
 
+	for i := range paths {
+		if paths[i] != "" {
+			paths = paths[i:]
+			break
+		}
+	}
+
 	baseDir := paths[0]
 	result = filepath.Clean(filepath.Join(paths...))
-	if !strings.HasPrefix(result, filepath.Clean(baseDir)+string(os.PathSeparator)) {
+	if !strings.HasPrefix(result+string(os.PathSeparator), baseDir+string(os.PathSeparator)) {
 		return result, errors.Errorf("got result %q, escaped dst %q", result, baseDir)
 	}
 
@@ -76,11 +86,21 @@ func FilepathJoin(paths ...string) (result string, err error) {
 
 // ReplaceFileStream replace file with content atomatically
 //
-// this function is not goroutine-safe
-func ReplaceFileStream(path string, in io.ReadCloser, perm os.FileMode) error {
+// Deprecated: use ReplaceFileAtomic instead
+var ReplaceFileStream = ReplaceFileAtomic
+
+// ReplaceFileAtomic replace file with content atomatically
+//
+// write content to a tmp file, then rename it to dst file.
+//
+// Notice: this function is not goroutine-safe
+func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
 	dir, fname := filepath.Split(path)
 	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
-	swapFpath := filepath.Join(dir, swapFname)
+	swapFpath, err := JoinFilepath(dir, swapFname)
+	if err != nil {
+		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
+	}
 
 	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
 	if err != nil {
@@ -89,20 +109,8 @@ func ReplaceFileStream(path string, in io.ReadCloser, perm os.FileMode) error {
 	defer LogErr(func() error { return errors.Wrapf(os.Remove(swapFpath), "remove %q", swapFpath) }, log.Shared)
 	defer LogErr(fp.Close, log.Shared)
 
-	chunk := make([]byte, 4096)
-	for {
-		if _, err = in.Read(chunk); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return errors.Wrap(err, "read from input")
-		}
-
-		_, err = fp.Write(chunk)
-		if err != nil {
-			return errors.Wrapf(err, "write chunk to file %q", swapFpath)
-		}
+	if _, err = io.Copy(fp, in); err != nil {
+		return errors.Wrapf(err, "write to file %q", swapFpath)
 	}
 
 	if err = os.Rename(swapFpath, path); err != nil {
@@ -285,21 +293,8 @@ func FileMD5(path string) (hashed string, err error) {
 		return "", errors.Wrapf(err, "open file %s", path)
 	}
 
-	chunk := make([]byte, 4096)
-	for {
-		n, err := fp.Read(chunk)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return "", errors.Wrapf(err, "read file %s", path)
-		}
-
-		// log.Shared.Info("md5 read",
-		// 	zap.String("file", path),
-		// 	zap.ByteString("cnt", chunk[:n]))
-		hasher.Write(chunk[:n])
+	if _, err = io.Copy(hasher, fp); err != nil {
+		return "", errors.Wrapf(err, "read file %s", path)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -317,21 +312,8 @@ func FileSHA1(path string) (hashed string, err error) {
 		return "", errors.Wrapf(err, "open file %s", path)
 	}
 
-	chunk := make([]byte, 4096)
-	for {
-		n, err := fp.Read(chunk)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return "", errors.Wrapf(err, "read file %s", path)
-		}
-
-		// log.Shared.Info("sha1 read",
-		// 	zap.String("file", path),
-		// 	zap.ByteString("cnt", chunk[:n]))
-		hasher.Write(chunk[:n])
+	if _, err = io.Copy(hasher, fp); err != nil {
+		return "", errors.Wrapf(err, "read file %s", path)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -412,7 +394,11 @@ func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []stri
 	}
 
 	for _, f := range fs {
-		fpath := filepath.Join(dir, f.Name())
+		fpath, err := JoinFilepath(dir, f.Name())
+		if err != nil {
+			return nil, errors.Wrapf(err, "join path %q and %q", dir, f.Name())
+		}
+
 		if f.IsDir() {
 			if opt.recur {
 				fs, err := ListFilesInDir(fpath, optfs...)

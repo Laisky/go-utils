@@ -546,15 +546,21 @@ func TestFilepathJoin(t *testing.T) {
 		{"4", args{[]string{"a", "b", "../c"}}, "a/c", ""},
 		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped dst"},
 		{"6", args{[]string{"a", "b", "../../ab"}}, "ab", "escaped dst"},
+		{"7", args{[]string{"", "b"}}, "b", ""},
+		{"8", args{[]string{"", "b", "../c"}}, "c", "escaped dst"},
+		{"9", args{[]string{"", "b", "../../c"}}, "../c", "escaped dst"},
+		{"10", args{[]string{"", "", "b"}}, "b", ""},
+		{"11", args{[]string{"", "", "b", "../c"}}, "c", "escaped dst"},
+		{"12", args{[]string{"", "", "b", "../../c"}}, "../c", "escaped dst"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotResult, err := FilepathJoin(tt.args.paths...)
+			gotResult, err := JoinFilepath(tt.args.paths...)
 			if tt.err == "" {
-				require.NoError(t, err)
-				require.Equal(t, tt.wantResult, gotResult)
+				require.NoError(t, err, "[%s]", tt.name)
+				require.Equal(t, tt.wantResult, gotResult, "[%s]", tt.name)
 			} else {
-				require.ErrorContains(t, err, tt.err)
+				require.ErrorContains(t, err, tt.err, "[%s] %s", tt.name, gotResult)
 			}
 		})
 	}
