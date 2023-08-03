@@ -78,7 +78,7 @@ func JoinFilepath(paths ...string) (result string, err error) {
 	baseDir := paths[0]
 	result = filepath.Clean(filepath.Join(paths...))
 	if !strings.HasPrefix(result+string(os.PathSeparator), baseDir+string(os.PathSeparator)) {
-		return result, errors.Errorf("got result %q, escaped dst %q", result, baseDir)
+		return result, errors.Errorf("got result %q, escaped basedir %q", result, baseDir)
 	}
 
 	return result, nil

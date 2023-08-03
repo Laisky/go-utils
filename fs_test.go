@@ -544,14 +544,14 @@ func TestFilepathJoin(t *testing.T) {
 		{"2", args{[]string{"a", "b"}}, "a/b", ""},
 		{"3", args{[]string{"a", "b", "c"}}, "a/b/c", ""},
 		{"4", args{[]string{"a", "b", "../c"}}, "a/c", ""},
-		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped dst"},
-		{"6", args{[]string{"a", "b", "../../ab"}}, "ab", "escaped dst"},
+		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped basedir"},
+		{"6", args{[]string{"a", "b", "../../ab"}}, "ab", "escaped basedir"},
 		{"7", args{[]string{"", "b"}}, "b", ""},
-		{"8", args{[]string{"", "b", "../c"}}, "c", "escaped dst"},
-		{"9", args{[]string{"", "b", "../../c"}}, "../c", "escaped dst"},
+		{"8", args{[]string{"", "b", "../c"}}, "c", "escaped basedir"},
+		{"9", args{[]string{"", "b", "../../c"}}, "../c", "escaped basedir"},
 		{"10", args{[]string{"", "", "b"}}, "b", ""},
-		{"11", args{[]string{"", "", "b", "../c"}}, "c", "escaped dst"},
-		{"12", args{[]string{"", "", "b", "../../c"}}, "../c", "escaped dst"},
+		{"11", args{[]string{"", "", "b", "../c"}}, "c", "escaped basedir"},
+		{"12", args{[]string{"", "", "b", "../../c"}}, "../c", "escaped basedir"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
