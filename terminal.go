@@ -13,7 +13,7 @@ import (
 // InputPassword reads password from stdin input
 // and returns it as a string.
 func InputPassword(hint string, validator func(string) error) (passwd string, err error) {
-	fmt.Printf("%s: ", hint)
+	fmt.Printf("%s: \n", hint)
 
 	for {
 		bytepw, err := term.ReadPassword(syscall.Stdin)
@@ -27,7 +27,7 @@ func InputPassword(hint string, validator func(string) error) (passwd string, er
 
 		if err := validator(string(bytepw)); err != nil {
 			fmt.Printf("invalid password: %s\n", err.Error())
-			fmt.Printf("try again: ")
+			fmt.Printf("try again: \n")
 			continue
 		}
 
@@ -37,7 +37,7 @@ func InputPassword(hint string, validator func(string) error) (passwd string, er
 
 // InputYes require user input `y` or `Y` to continue
 func InputYes(hint string) (ok bool, err error) {
-	fmt.Printf("%s, input y/Y to continue: ", hint)
+	fmt.Printf("%s, input y/Y to continue: \n", hint)
 
 	var confirm string
 	_, err = fmt.Scanln(&confirm)
@@ -59,7 +59,7 @@ func InputYes(hint string) (ok bool, err error) {
 
 // Input reads input from stdin
 func Input(hint string) (input string, err error) {
-	fmt.Printf("%s: ", hint)
+	fmt.Printf("%s: \n", hint)
 
 	_, err = fmt.Scanln(&input)
 	if err != nil {
