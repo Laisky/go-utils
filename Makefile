@@ -12,7 +12,7 @@ lint:
 	go mod tidy
 	go vet
 	gofmt -s -w .
-	golangci-lint run -c .golangci.lint.yml
+	golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
 	govulncheck ./...
 
 .PHONY: changelog

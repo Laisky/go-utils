@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/ecdsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -15,6 +16,35 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
+
+func TestNewECDSAPrikeyAndCert(t *testing.T) {
+	t.Parallel()
+
+	for _, algo := range []ECDSACurve{
+		ECDSACurveP256,
+		ECDSACurveP384,
+		ECDSACurveP521,
+	} {
+		prikeyPem, certder, err := NewECDSAPrikeyAndCert(algo,
+			WithX509CertIsCA(),
+			WithX509CertCommonName("ca"),
+		)
+		require.NoError(t, err)
+
+		prikeyi, err := Pem2Prikey(prikeyPem)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		require.Equal(t, "ca", cert.Subject.CommonName)
+		require.True(t, cert.IsCA)
+
+		prikey, ok := prikeyi.(*ecdsa.PrivateKey)
+		require.True(t, ok)
+		require.True(t, prikey.PublicKey.Equal(cert.PublicKey))
+	}
+}
 
 func TestNewX509CSR(t *testing.T) {
 	t.Parallel()

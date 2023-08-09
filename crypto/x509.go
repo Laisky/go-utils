@@ -1028,7 +1028,8 @@ func WithX509CertPubkey(pubkey crypto.PublicKey) X509CertOption {
 	}
 }
 
-func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (*x509V3CertOption, error) {
+func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
+	*x509V3CertOption, error) {
 	if o.err != nil {
 		return nil, o.err
 	}
@@ -1053,10 +1054,28 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (*x509V3CertOption,
 }
 
 // NewRSAPrikeyAndCert convient function to new rsa private key and cert
-func NewRSAPrikeyAndCert(rsaBits RSAPrikeyBits, opts ...X509CertOption) (prikeyPem, certDer []byte, err error) {
+func NewRSAPrikeyAndCert(rsaBits RSAPrikeyBits, opts ...X509CertOption) (
+	prikeyPem, certDer []byte, err error) {
 	prikey, err := NewRSAPrikey(rsaBits)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new rsa prikey")
+	}
+
+	prikeyPem, err = Prikey2Pem(prikey)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "convert prikey to pem")
+	}
+
+	certDer, err = NewX509Cert(prikey, opts...)
+	return prikeyPem, certDer, errors.Wrap(err, "generate cert")
+}
+
+// NewECDSAPrikeyAndCert convient function to new ecdsa private key and cert
+func NewECDSAPrikeyAndCert(curve ECDSACurve, opts ...X509CertOption) (
+	prikeyPem, certDer []byte, err error) {
+	prikey, err := NewECDSAPrikey(curve)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new ecdsa prikey")
 	}
 
 	prikeyPem, err = Prikey2Pem(prikey)
