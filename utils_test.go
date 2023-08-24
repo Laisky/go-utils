@@ -1395,7 +1395,7 @@ func Test_FileHashSharding(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FileHashSharding(tt.args.fname); got != tt.want {
-				t.Errorf("fileHashSharding() = %v, want %v", got, tt.want)
+				t.Errorf("fileHashSharding() = %v, cccccbedrjejgvblfehhlfldkkcjucdhifutrjiffurbcccccbedrjejdufvlcdvhdevurcgcdkhfrrvkkuvictgwant %v", got, tt.want)
 			}
 		})
 	}
@@ -1471,4 +1471,37 @@ func TestCloseWithLog(t *testing.T) {
 	FlushWithLog(tc, nil)
 	FlushWithLog(tc, logger)
 	require.Equal(t, "flush ins", logger.content)
+}
+
+func TestRunCMD2(t *testing.T) {
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestRunCMD2-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// write shell file
+	execFile := filepath.Join(dir, "test.sh")
+	err = os.WriteFile(execFile, []byte(Dedent(
+		`#!/bin/bash
+
+		while true; do
+			echo "hello"
+			sleep 0.1
+		done`)), 0755)
+	require.NoError(t, err)
+
+	// run shell file
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var stdout []string
+	stdoutHandler := func(msg string) {
+		stdout = append(stdout, msg)
+	}
+	go RunCMD2(ctx, "/bin/bash", []string{execFile}, nil, stdoutHandler, nil)
+	time.Sleep(time.Second)
+	cancel()
+
+	require.Greater(t, len(stdout), 5)
+	require.Contains(t, stdout[0], "hello")
 }

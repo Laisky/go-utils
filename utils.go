@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -694,6 +695,71 @@ func RunCMDWithEnv(ctx context.Context, app string,
 	}
 
 	return stdout, nil
+}
+
+// RunCMD2 run command script and handle stdout/stderr by pipe
+func RunCMD2(ctx context.Context, app string,
+	args []string, envs []string,
+	stdoutHandler, stderrHandler func(string),
+) (err error) {
+	cmd := exec.CommandContext(ctx, app, args...)
+	cmd.Env = append(cmd.Env, envs...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return errors.Wrap(err, "get stdout")
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return errors.Wrap(err, "get stderr")
+	}
+
+	if stdoutHandler == nil {
+		stdoutHandler = func(s string) {
+			log.Shared.Debug("run cmd", zap.String("msg", s), zap.String("app", app))
+		}
+	}
+
+	if stderrHandler == nil {
+		stderrHandler = func(s string) {
+			log.Shared.Error("run cmd", zap.String("msg", s), zap.String("app", app))
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return errors.Wrap(err, "start cmd")
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			out := scanner.Text()
+			stdoutHandler(out)
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Shared.Warn("read stdout", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			out := scanner.Text()
+			stderrHandler(out)
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Shared.Warn("read stderr", zap.Error(err))
+		}
+	}()
+
+	if err := cmd.Wait(); err != nil {
+		return errors.Wrap(err, "wait cmd")
+	}
+
+	return nil
 }
 
 // EncodeByBase64 encode bytes to string by base64
