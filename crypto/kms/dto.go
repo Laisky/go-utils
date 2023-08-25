@@ -67,6 +67,10 @@ func (e EncryptedData) Marshal() (data []byte, err error) {
 
 // Unmarshal unmarshal from bytes
 func (e *EncryptedData) Unmarshal(data []byte) error {
+	if len(data) < 7 {
+		return errors.Errorf("data too short")
+	}
+
 	e.Version = EncryptedDataVer(data[0])
 	switch e.Version {
 	case EncryptedItemVer1:
