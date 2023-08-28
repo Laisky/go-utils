@@ -293,13 +293,17 @@ func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
 // Der2Pubkey parse public key from der in x509 pkcs1/pkix
 func Der2Pubkey(pubkeyDer []byte) (crypto.PublicKey, error) {
 	rsapubkey, err := x509.ParsePKCS1PublicKey(pubkeyDer)
-	if err != nil && strings.Contains(err.Error(), "ParsePKIXPublicKey") {
-		pubkey, err := x509.ParsePKIXPublicKey(pubkeyDer)
-		if err != nil {
-			return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkix")
+	if err != nil {
+		if strings.Contains(err.Error(), "ParsePKIXPublicKey") {
+			pubkey, err := x509.ParsePKIXPublicKey(pubkeyDer)
+			if err != nil {
+				return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkix")
+			}
+
+			return pubkey, nil
 		}
 
-		return pubkey, nil
+		return nil, errors.Wrap(err, "parse by pkcs1")
 	}
 
 	return rsapubkey, nil
