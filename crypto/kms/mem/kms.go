@@ -148,10 +148,12 @@ func (m *KMS) statusShouldBe(status gkms.Status) error {
 func (m *KMS) AddKek(_ context.Context,
 	kekID uint16,
 	kek []byte) error {
-	m.mu.Lock()
-	storedKek := make([]byte, len(kek))
-	copy(storedKek, kek)
+	if len(kek) == 0 {
+		return errors.Errorf("empty kek")
+	}
+	storedKek := append(make([]byte, 0, len(kek)), kek...) // copy kek
 
+	m.mu.Lock()
 	if _, loaded := m.keks.LoadOrStore(kekID, storedKek); loaded {
 		m.mu.Unlock()
 		return errors.Errorf("kek id already existed")
