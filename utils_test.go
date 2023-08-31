@@ -1048,8 +1048,8 @@ func TestPanicIfErr(t *testing.T) {
 
 	err := errors.New("yo")
 	defer func() {
-		perr := recover()
-		require.Equal(t, err, perr)
+		deferErr := recover()
+		require.Equal(t, err, deferErr)
 	}()
 	PanicIfErr(err)
 }

@@ -93,8 +93,8 @@ func (s *PusherHTTPSender) Send(ctx context.Context, content []byte) (err error)
 		return errors.Wrapf(err, "send request to %s", s.remoteEndpoint)
 	}
 	defer func() {
-		if err = resp.Body.Close(); err != nil {
-			Shared.Error("close response body", zap.Error(err))
+		if deferErr := resp.Body.Close(); deferErr != nil {
+			Shared.Error("close response body", zap.Error(deferErr))
 		}
 	}()
 

@@ -290,7 +290,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	if r, err = zip.OpenReader(src); err != nil {
 		return nil, errors.Wrap(err, "open src")
 	}
-	defer func() { _ = r.Close() }()
+	defer gutils.LogErr(r.Close, log.Shared)
 
 	for _, f := range r.File {
 		fpath, err := gutils.JoinFilepath(dest, f.Name)

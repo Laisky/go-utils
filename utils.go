@@ -1067,7 +1067,7 @@ func ConvertMap2StringKey(inputMap any) map[string]any {
 // IsPanic is `f()` throw panic
 func IsPanic(f func()) (isPanic bool) {
 	defer func() {
-		if err := recover(); err != nil {
+		if deferErr := recover(); deferErr != nil {
 			isPanic = true
 		}
 	}()
