@@ -1,6 +1,12 @@
 package utils
 
-import "testing"
+import (
+	"io"
+	"log"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 /*
 goos: linux
@@ -78,4 +84,22 @@ func Benchmark_excape(b *testing.B) {
 			notescapestruct()
 		}
 	})
+}
+
+func Test_DeferErr(t *testing.T) {
+	doSomeCleanning := func() error { return nil }
+
+	// expect return io.EOF, actual return nil
+	foo := func() (err error) {
+		defer func() {
+			// bug: returned error has been shadowed to nil
+			if err = doSomeCleanning(); err != nil {
+				log.Printf("got err: %+v", err)
+			}
+		}()
+
+		return io.EOF
+	}
+
+	require.NoError(t, foo())
 }
