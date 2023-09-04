@@ -10,47 +10,62 @@ import (
 )
 
 // ThrottleCfg Throttle's configuration
-type ThrottleCfg struct {
+//
+// Deprecated: use `RateLimiterArgs` instead
+type ThrottleCfg RateLimiterArgs
+
+// Throttle rate limitor
+//
+// Deprecated: use `RateLimiter` instead
+type Throttle RateLimiter
+
+// NewThrottleWithCtx create new Throttle
+//
+// Deprecated: use `NewRateLimiter` instead
+var NewThrottleWithCtx = NewRateLimiter
+
+// RateLimiterArgs Throttle's configuration
+type RateLimiterArgs struct {
 	Max, NPerSec int
 }
 
-// Throttle current limitor
-type Throttle struct {
-	*ThrottleCfg
+// RateLimiter current limitor
+type RateLimiter struct {
+	RateLimiterArgs
 
 	token      struct{}
 	tokensChan chan struct{}
 	stopChan   chan struct{}
 }
 
-// NewThrottleWithCtx create new Throttle
+// NewRateLimiter create new Throttle
 //
 // 90x faster than `rate.NewLimiter`
-func NewThrottleWithCtx(ctx context.Context, cfg *ThrottleCfg) (t *Throttle, err error) {
-	if cfg.NPerSec <= 0 {
+func NewRateLimiter(ctx context.Context, args RateLimiterArgs) (ratelimiter *RateLimiter, err error) {
+	if args.NPerSec <= 0 {
 		return nil, errors.Errorf("npersec should greater than 0")
 	}
-	if cfg.Max < cfg.NPerSec {
+	if args.Max < args.NPerSec {
 		return nil, errors.Errorf("max should greater than npersec")
 	}
 
-	t = &Throttle{
-		ThrottleCfg: cfg,
-		token:       struct{}{},
-		stopChan:    make(chan struct{}),
+	ratelimiter = &RateLimiter{
+		RateLimiterArgs: args,
+		token:           struct{}{},
+		stopChan:        make(chan struct{}),
 	}
-	t.tokensChan = make(chan struct{}, t.Max)
+	ratelimiter.tokensChan = make(chan struct{}, ratelimiter.Max)
 
-	for i := 0; i < t.NPerSec; i++ {
-		t.tokensChan <- t.token
+	for i := 0; i < ratelimiter.NPerSec; i++ {
+		ratelimiter.tokensChan <- ratelimiter.token
 	}
 
-	go t.runWithCtx(ctx)
-	return t, nil
+	go ratelimiter.runWithCtx(ctx)
+	return ratelimiter, nil
 }
 
 // Allow check whether is allowed
-func (t *Throttle) Allow() bool {
+func (t *RateLimiter) Allow() bool {
 	select {
 	case <-t.tokensChan:
 		return true
@@ -60,7 +75,7 @@ func (t *Throttle) Allow() bool {
 }
 
 // runWithCtx start throttle with context
-func (t *Throttle) runWithCtx(ctx context.Context) {
+func (t *RateLimiter) runWithCtx(ctx context.Context) {
 	defer log.Shared.Debug("throttle exit")
 
 	var nBatch float64 = 10
@@ -90,6 +105,6 @@ TOKEN_LOOP:
 }
 
 // Close stop throttle
-func (t *Throttle) Close() {
+func (t *RateLimiter) Close() {
 	close(t.stopChan)
 }

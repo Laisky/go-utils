@@ -12,7 +12,7 @@ import (
 
 func TestThrottle2(t *testing.T) {
 	ctx := context.Background()
-	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+	throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
 		NPerSec: 10,
 		Max:     100,
 	})
@@ -21,13 +21,13 @@ func TestThrottle2(t *testing.T) {
 
 	// case: wrong args
 	{
-		_, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+		_, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
 			NPerSec: 0,
 			Max:     100,
 		})
 		require.Error(t, err)
 
-		_, err = NewThrottleWithCtx(ctx, &ThrottleCfg{
+		_, err = NewThrottleWithCtx(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     9,
 		})
@@ -36,7 +36,7 @@ func TestThrottle2(t *testing.T) {
 
 	// case: stop
 	{
-		throttle2, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+		throttle2, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
@@ -44,7 +44,7 @@ func TestThrottle2(t *testing.T) {
 		throttle2.Close()
 
 		ctx2, cancel := context.WithCancel(ctx)
-		_, err = NewThrottleWithCtx(ctx2, &ThrottleCfg{
+		_, err = NewThrottleWithCtx(ctx2, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
@@ -82,7 +82,7 @@ BenchmarkThrottle/rate.Limiter-8         4633182               309.2 ns/op      
 func BenchmarkThrottle(b *testing.B) {
 	ctx := context.Background()
 	b.Run("throttle", func(b *testing.B) {
-		throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+		throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
@@ -108,7 +108,7 @@ func BenchmarkThrottle(b *testing.B) {
 
 func ExampleThrottle() {
 	ctx := context.Background()
-	throttle, err := NewThrottleWithCtx(ctx, &ThrottleCfg{
+	throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
 		NPerSec: 10,
 		Max:     100,
 	})
