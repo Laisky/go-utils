@@ -10,65 +10,73 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func TestThrottle2(t *testing.T) {
+func TestRateLimiter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
-		NPerSec: 10,
-		Max:     100,
-	})
-	require.NoError(t, err)
-	defer throttle.Close()
 
-	// case: wrong args
-	{
-		_, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
+	t.Run("wrong args", func(t *testing.T) {
+		t.Parallel()
+		_, err := NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 0,
 			Max:     100,
 		})
 		require.Error(t, err)
 
-		_, err = NewThrottleWithCtx(ctx, RateLimiterArgs{
+		_, err = NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     9,
 		})
 		require.Error(t, err)
-	}
+	})
 
-	// case: stop
-	{
-		throttle2, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
+	t.Run("stop", func(t *testing.T) {
+		t.Parallel()
+		RateLimiter2, err := NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
 		require.NoError(t, err)
-		throttle2.Close()
+		RateLimiter2.Close()
 
 		ctx2, cancel := context.WithCancel(ctx)
-		_, err = NewThrottleWithCtx(ctx2, RateLimiterArgs{
+		_, err = NewRateLimiter(ctx2, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
 		require.NoError(t, err)
 		cancel()
-	}
+	})
 
-	for i := 0; i < 20; i++ {
-		allowed := throttle.Allow()
-		if i < 10 {
-			require.True(t, allowed, i)
-		} else if i >= 10 {
-			require.False(t, allowed, i)
+	t.Run("allow", func(t *testing.T) {
+		t.Parallel()
+
+		ratelimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
+			NPerSec: 10,
+			Max:     100,
+		})
+		require.NoError(t, err)
+		defer ratelimiter.Close()
+
+		for i := 0; i < 20; i++ {
+			allowed := ratelimiter.Allow()
+			if i < 10 {
+				require.True(t, allowed, i)
+			} else if i >= 10 {
+				require.False(t, allowed, i)
+			}
 		}
-	}
 
-	time.Sleep(2050 * time.Millisecond)
-	for i := 0; i < 20; i++ {
-		require.True(t, throttle.Allow(), i)
-	}
+		time.Sleep(2050 * time.Millisecond)
+		for i := 0; i < 10; i++ {
+			require.True(t, ratelimiter.Allow(), i)
+		}
+		require.False(t, ratelimiter.AllowN(20))
+		require.True(t, ratelimiter.AllowN(10))
 
-	for i := 0; i < 100; i++ {
-		require.False(t, throttle.Allow(), i)
-	}
+		for i := 0; i < 100; i++ {
+			require.False(t, ratelimiter.Allow(), i)
+		}
+	})
 }
 
 /*
@@ -76,27 +84,27 @@ goos: linux
 goarch: amd64
 pkg: github.com/Laisky/go-utils
 cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
-BenchmarkThrottle/throttle-8            684580170                1.553 ns/op           0 B/op          0 allocs/op
-BenchmarkThrottle/rate.Limiter-8         4633182               309.2 ns/op             0 B/op          0 allocs/op
+BenchmarkRateLimiter/RateLimiter-8            684580170                1.553 ns/op           0 B/op          0 allocs/op
+BenchmarkRateLimiter/rate.Limiter-8         4633182               309.2 ns/op             0 B/op          0 allocs/op
 */
-func BenchmarkThrottle(b *testing.B) {
+func BenchmarkRateLimiter(b *testing.B) {
 	ctx := context.Background()
-	b.Run("throttle", func(b *testing.B) {
-		throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
+	b.Run("RateLimiter", func(b *testing.B) {
+		RateLimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
 		})
 		require.NoError(b, err)
-		defer throttle.Close()
+		defer RateLimiter.Close()
 
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				throttle.Allow()
+				RateLimiter.Allow()
 			}
 		})
 	})
 
-	b.Run("rate.Limiter", func(b *testing.B) {
+	b.Run("golang.org/x/time/rate", func(b *testing.B) {
 		limiter := rate.NewLimiter(rate.Limit(10), 100)
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
@@ -106,21 +114,21 @@ func BenchmarkThrottle(b *testing.B) {
 	})
 }
 
-func ExampleThrottle() {
+func ExampleRateLimiter() {
 	ctx := context.Background()
-	throttle, err := NewThrottleWithCtx(ctx, RateLimiterArgs{
+	RateLimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
 		NPerSec: 10,
 		Max:     100,
 	})
 	if err != nil {
-		panic("new throttle")
+		panic("new RateLimiter")
 	}
-	defer throttle.Close()
+	defer RateLimiter.Close()
 
 	inChan := make(chan int)
 
 	for msg := range inChan {
-		if !throttle.Allow() {
+		if !RateLimiter.Allow() {
 			continue
 		}
 

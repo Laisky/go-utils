@@ -74,6 +74,31 @@ func (t *RateLimiter) Allow() bool {
 	}
 }
 
+// AllowN check whether is allowed,
+// default ratelimiter only allow 1 request per second at least,
+// so if you want to allow less than 1 request per second,
+// you should use `AllowN` to consume more tokens each time.
+func (t *RateLimiter) AllowN(n int) bool {
+	var cost int
+	for i := 0; i < n; i++ {
+		cost++
+		if !t.Allow() {
+		RESTORE_LOOP:
+			for j := 0; j < cost-1; j++ {
+				select {
+				case t.tokensChan <- t.token:
+				default:
+					break RESTORE_LOOP
+				}
+			}
+
+			return false
+		}
+	}
+
+	return true
+}
+
 // runWithCtx start throttle with context
 func (t *RateLimiter) runWithCtx(ctx context.Context) {
 	defer log.Shared.Debug("throttle exit")
