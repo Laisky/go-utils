@@ -1131,6 +1131,36 @@ func (o *x509CRLOption) applyOpts(opts ...X509CRLOption) (*x509CRLOption, error)
 // X509CRLOption options for create x509 CRL
 type X509CRLOption func(*x509CRLOption) error
 
+// WithX509CRLSignatureAlgorithm set signature algorithm
+//
+// default to auto choose algorithm depends on certificate's algorithm
+func WithX509CRLSignatureAlgorithm(algo x509.SignatureAlgorithm) X509CRLOption {
+	return func(o *x509CRLOption) error {
+		o.signatureAlgorithm = algo
+		return nil
+	}
+}
+
+// WithX509CRLThisUpdate set this update
+//
+// default to now
+func WithX509CRLThisUpdate(thisUpdate time.Time) X509CRLOption {
+	return func(o *x509CRLOption) error {
+		o.thisUpdate = thisUpdate
+		return nil
+	}
+}
+
+// WithX509CRLNextUpdate set next update
+//
+// default to 30 days later
+func WithX509CRLNextUpdate(nextUpdate time.Time) X509CRLOption {
+	return func(o *x509CRLOption) error {
+		o.nextUpdate = nextUpdate
+		return nil
+	}
+}
+
 // NewX509CRL create and sign CRL
 //
 // # Args
