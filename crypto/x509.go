@@ -991,6 +991,8 @@ func WithX509CertValidFor(validFor time.Duration) X509CertOption {
 }
 
 // WithX509CertNotAfter set not after
+//
+// default to 30 days later
 func WithX509CertNotAfter(notAfter time.Time) X509CertOption {
 	return func(o *x509V3CertOption) error {
 		o.notAfter = notAfter
