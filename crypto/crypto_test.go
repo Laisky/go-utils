@@ -11,6 +11,7 @@ import (
 )
 
 func TestRSAEncrypt(t *testing.T) {
+	t.Parallel()
 	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
 	require.NoError(t, err)
 
@@ -28,6 +29,7 @@ func TestRSAEncrypt(t *testing.T) {
 }
 
 func TestVerifyHashedPassword(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		rawpassword []byte
 		hasher      gutils.HashType
@@ -38,7 +40,7 @@ func TestVerifyHashedPassword(t *testing.T) {
 	}{
 		{"0", args{[]byte("fewfewfewfh"), gutils.HashTypeSha256}},
 		{"1", args{[]byte("43243242"), gutils.HashTypeSha256}},
-		{"2", args{[]byte("43243242ffefewfwf"), gutils.HashTypeSha512}},
+		{"2", args{[]byte("32ifh23fu21f2h3"), gutils.HashTypeSha512}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -47,6 +49,8 @@ func TestVerifyHashedPassword(t *testing.T) {
 
 			err = VerifyHashedPassword(tt.args.rawpassword, h)
 			require.NoError(t, err)
+
+			t.Logf("hashed password: %q", h)
 		})
 	}
 }
