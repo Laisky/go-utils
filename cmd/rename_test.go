@@ -39,6 +39,7 @@ var renameAvTestCases = []struct {
 	{"25", "(Heyzo)(1723)弄ばれる童顔女教師 千野くるみ.mp4", "heyzo-1723.mp4"},
 	{"26", "(Tokyo-Hot)(n1307)東熱激情 欲情綺麗なお姉さん特集 part2.mp4", "tokyo-hot-n1307.mp4"},
 	{"27", "Caribbeancom 050520-001  050520-001 3 .mp4", "caribbean-050520-001.mp4"},
+	{"28", ".DS_Store", ".DS_Store"},
 
 	{"521", "电锯人04.mp4", "电锯人04.mp4"},
 	{"522", "Manufactured.Landscapes.2006.1080p.BluRay.x264-HANDJOB.mkv",
