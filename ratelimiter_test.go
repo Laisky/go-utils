@@ -66,12 +66,15 @@ func TestRateLimiter(t *testing.T) {
 			}
 		}
 
-		time.Sleep(2050 * time.Millisecond)
-		for i := 0; i < 10; i++ {
+		time.Sleep(1050 * time.Millisecond)
+		require.GreaterOrEqual(t, ratelimiter.Len(), 10)
+		for i := 0; i < 5; i++ {
 			require.True(t, ratelimiter.Allow(), i)
 		}
+		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
 		require.False(t, ratelimiter.AllowN(20))
-		require.True(t, ratelimiter.AllowN(10))
+		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
+		require.True(t, ratelimiter.AllowN(5))
 
 		for i := 0; i < 100; i++ {
 			require.False(t, ratelimiter.Allow(), i)

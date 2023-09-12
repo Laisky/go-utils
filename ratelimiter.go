@@ -74,6 +74,11 @@ func (t *RateLimiter) Allow() bool {
 	}
 }
 
+// Len return current tokens length
+func (t *RateLimiter) Len() int {
+	return len(t.tokensChan)
+}
+
 // AllowN check whether is allowed,
 // default ratelimiter only allow 1 request per second at least,
 // so if you want to allow less than 1 request per second,
@@ -81,10 +86,9 @@ func (t *RateLimiter) Allow() bool {
 func (t *RateLimiter) AllowN(n int) bool {
 	var cost int
 	for i := 0; i < n; i++ {
-		cost++
 		if !t.Allow() {
 		RESTORE_LOOP:
-			for j := 0; j < cost-1; j++ {
+			for j := 0; j < cost; j++ {
 				select {
 				case t.tokensChan <- t.token:
 				default:
@@ -94,6 +98,8 @@ func (t *RateLimiter) AllowN(n int) bool {
 
 			return false
 		}
+
+		cost++
 	}
 
 	return true
@@ -103,9 +109,21 @@ func (t *RateLimiter) AllowN(n int) bool {
 func (t *RateLimiter) runWithCtx(ctx context.Context) {
 	defer log.Shared.Debug("throttle exit")
 
-	var nBatch float64 = 10
-	nPerBatch := float64(t.NPerSec) / nBatch
-	interval := time.Duration(1/nBatch*1000) * time.Millisecond
+	var (
+		nPerBatch float64
+		interval  time.Duration
+	)
+	switch {
+	case t.NPerSec <= 10:
+		nPerBatch = float64(t.NPerSec)
+		interval = time.Second
+	case t.NPerSec <= 10000:
+		nPerBatch = float64(t.NPerSec) / 10
+		interval = 100 * time.Millisecond
+	default:
+		nPerBatch = float64(t.NPerSec) / 100
+		interval = 10 * time.Millisecond
+	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -119,7 +137,7 @@ TOKEN_LOOP:
 			return
 		}
 
-		for i := float64(0); i < nPerBatch; i++ {
+		for i := 0; i < int(nPerBatch); i++ {
 			select {
 			case t.tokensChan <- t.token:
 			default:
