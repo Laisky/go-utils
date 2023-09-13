@@ -47,6 +47,9 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		e := EncryptedData{}
 		err := e.Unmarshal([]byte("123"))
+		require.ErrorContains(t, err, "data too short")
+
+		err = e.Unmarshal([]byte(gutils.RandomStringWithLength(256)))
 		require.ErrorContains(t, err, "encrypted_item_unimplemented")
 	})
 }

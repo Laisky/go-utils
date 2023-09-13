@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v4/log"
+	glog "github.com/Laisky/go-utils/v4/log"
 )
 
 // WaitTCPOpen wait tcp open
@@ -31,7 +32,7 @@ func WaitTCPOpen(ctx context.Context, ip string, port int) error {
 			continue
 		}
 
-		defer LogErr(conn.Close, log.Shared)
+		defer LogErr(conn.Close, glog.Shared)
 		return nil
 	}
 }
@@ -122,14 +123,14 @@ func (t *GoroutineTest) Helper() {
 func (t *GoroutineTest) Log(args ...any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.TB.Log(args...)
+	glog.Shared.Info(fmt.Sprint(args...))
 }
 
 // Logf call cancal and exit current goroutine
 func (t *GoroutineTest) Logf(format string, args ...any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.TB.Logf(format, args...)
+	glog.Shared.Info(fmt.Sprintf(format, args...))
 }
 
 // Name call cancal and exit current goroutine
@@ -216,7 +217,7 @@ func MockStdout() (recoverFn func(), stdout *os.File, err error) {
 	os.Stdout = fp
 
 	return func() {
-		defer LogErr(func() error { return os.RemoveAll(dir) }, log.Shared)
+		defer LogErr(func() error { return os.RemoveAll(dir) }, glog.Shared)
 		os.Stdout = old
 	}, fp, nil
 }

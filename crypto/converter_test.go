@@ -456,7 +456,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("cert: %+v", cert)
 
-		ln, err := tls.Listen("tcp", "localhost:38443", &tls.Config{
+		ln, err := tls.Listen("tcp", "localhost:38444", &tls.Config{
 			RootCAs:    rootcapool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 			Certificates: []tls.Certificate{
@@ -498,7 +498,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		}
 	}(gt)
 
-	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38443))
+	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38444))
 
 	t.Run("use leaf cert as client tls cert", func(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
@@ -510,7 +510,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
 		require.NoError(t, err)
 
-		conn, err := tls.Dial("tcp", "localhost:38443", &tls.Config{
+		conn, err := tls.Dial("tcp", "localhost:38444", &tls.Config{
 			RootCAs:            rootcapool,
 			InsecureSkipVerify: true,
 			Certificates: []tls.Certificate{

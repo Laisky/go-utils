@@ -85,7 +85,7 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 						return
 					}
 
-					glog.Shared.Info("got", zap.ByteString("cnt", cnt))
+					glog.Shared.Debug("got", zap.ByteString("cnt", cnt))
 				}
 			}()
 		}
