@@ -1124,7 +1124,30 @@ func TestDeepClone(t *testing.T) {
 		dst := DeepClone(src)
 
 		inner[1] = 100
-		require.NotEqual(t, src[0][1], dst.([][]int)[0][1])
+		require.NotEqual(t, src[0][1], dst[0][1])
+	})
+
+	t.Run("struct", func(t *testing.T) {
+
+		type bar struct {
+			A []string
+		}
+
+		type foo struct {
+			A int
+			B *bar
+		}
+
+		src := foo{
+			A: 1,
+			B: &bar{
+				A: []string{"1", "2", "3"},
+			},
+		}
+		dst := DeepClone(src)
+
+		src.B.A[1] = "100"
+		require.NotEqual(t, src.B.A[1], dst.B.A[1])
 	})
 }
 

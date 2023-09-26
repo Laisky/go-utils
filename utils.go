@@ -71,8 +71,8 @@ var cloner = cpy.New(
 // DeepClone deep clone a struct
 //
 // will ignore all unexported fields
-func DeepClone(src any) (dst any) {
-	return cloner.Copy(src)
+func DeepClone[T any](src T) (dst T) {
+	return cloner.Copy(src).(T)
 }
 
 var dedentMarginChar = regexp.MustCompile(`^[ \t]*`)
