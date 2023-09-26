@@ -407,8 +407,13 @@ func (l *LoggerT) WithOptions(opts ...zap.Option) *LoggerT {
 	}
 }
 
+const (
+	// EnvNameLoggerLevel env name of logger level
+	EnvNameLoggerLevel = "GUTILS_LOGGER_LEVEL"
+)
+
 func init() {
-	level := Level(os.Getenv("GUTILS_LOGGER_LEVEL"))
+	level := Level(os.Getenv(EnvNameLoggerLevel))
 	switch level {
 	case LevelInfo,
 		LevelDebug,
