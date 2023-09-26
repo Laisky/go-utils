@@ -4,6 +4,7 @@ package log
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -42,17 +43,20 @@ const (
 )
 
 var (
-	/*Shared logging tool.
-
-	* Info(msg string, fields ...Field)
-	* Debug(msg string, fields ...Field)
-	* Warn(msg string, fields ...Field)
-	* Error(msg string, fields ...Field)
-	* Panic(msg string, fields ...Field)
-	* DebugSample(sample int, msg string, fields ...zapcore.Field)
-	* InfoSample(sample int, msg string, fields ...zapcore.Field)
-	* WarnSample(sample int, msg string, fields ...zapcore.Field)
-	 */
+	// Shared logging tool.
+	//
+	// default level is info, you can change it by env `GUTILS_LOGGER_LEVEL`
+	//
+	// # Methods:
+	//
+	// 	* Info(msg string, fields ...Field)
+	// 	* Debug(msg string, fields ...Field)
+	// 	* Warn(msg string, fields ...Field)
+	// 	* Error(msg string, fields ...Field)
+	// 	* Panic(msg string, fields ...Field)
+	// 	* DebugSample(sample int, msg string, fields ...zapcore.Field)
+	// 	* InfoSample(sample int, msg string, fields ...zapcore.Field)
+	// 	* WarnSample(sample int, msg string, fields ...zapcore.Field)
 	Shared *LoggerT
 )
 
@@ -404,8 +408,20 @@ func (l *LoggerT) WithOptions(opts ...zap.Option) *LoggerT {
 }
 
 func init() {
+	level := Level(os.Getenv("GUTILS_LOGGER_LEVEL"))
+	switch level {
+	case LevelInfo,
+		LevelDebug,
+		LevelWarn,
+		LevelError,
+		LevelFatal,
+		LevelPanic:
+	default:
+		level = LevelInfo
+	}
+
 	var err error
-	if Shared, err = NewConsoleWithName("go-utils", "info"); err != nil {
+	if Shared, err = NewConsoleWithName("go-utils", level); err != nil {
 		panic(fmt.Sprintf("create logger: %+v", err))
 	}
 
