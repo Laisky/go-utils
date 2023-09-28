@@ -72,7 +72,7 @@ var cloner = cpy.New(
 //
 // will ignore all unexported fields
 func DeepClone[T any](src T) (dst T) {
-	return cloner.Copy(src).(T)
+	return cloner.Copy(src).(T) //nolint:forcetypeassert
 }
 
 var dedentMarginChar = regexp.MustCompile(`^[ \t]*`)
