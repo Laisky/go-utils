@@ -69,7 +69,7 @@ func removeDuplicate(dry bool, dir string) error {
 		return errors.Wrapf(err, "list files in %q", dir)
 	}
 
-	glog.Shared.Info("list files", zap.Int("n", len(files)))
+	glog.Shared.Debug("list files", zap.Int("n", len(files)))
 	similarStore := duplo.New()
 	fileHashes := &sync.Map{} // map[string]*dupFile{}
 
@@ -82,7 +82,7 @@ func removeDuplicate(dry bool, dir string) error {
 	for i, fpath := range files {
 		select {
 		case <-ticker.C:
-			glog.Shared.Info("scanning...",
+			glog.Shared.Debug("scanning...",
 				zap.String("ratio", fmt.Sprintf("%d/%d", i, len(files))))
 		default:
 		}
@@ -90,13 +90,11 @@ func removeDuplicate(dry bool, dir string) error {
 		fpath := fpath
 		pool.Go(func() (err error) {
 			glog.Shared.Debug("check duplicate by content hash", zap.String("file", fpath))
-			if deleted, err := checkDupByHash(dry, fileHashes, fpath); err != nil {
+			deleted, err := checkDupByHash(dry, fileHashes, fpath)
+			if err != nil {
 				glog.Shared.Error("checkDupByHash", zap.String("file", fpath), zap.Error(err))
-				if deleted {
-					return nil
-				}
-				// return errors.Wrapf(err, "check hash duplicate for file %q", fpath)
-			} else if deleted {
+			}
+			if deleted {
 				return nil
 			}
 

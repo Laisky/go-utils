@@ -197,16 +197,9 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.New(string(respBytes[:]))
 	}
 
-	respBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return errors.Wrap(err, "try to read response data error")
+	if err = json.NewDecoder(r.Body).Decode(resp); err != nil {
+		return errors.Wrapf(err, "unmarshal response")
 	}
-	log.Shared.Debug("got resp", zap.ByteString("resp", respBytes))
-	err = json.Unmarshal(respBytes, resp)
-	if err != nil {
-		return errors.Wrapf(err, "unmarshal response `%s`", string(respBytes[:]))
-	}
-	log.Shared.Debug("request json successed", zap.String("body", string(respBytes[:])))
 
 	return nil
 }
