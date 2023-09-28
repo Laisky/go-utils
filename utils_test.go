@@ -1529,14 +1529,21 @@ func TestRunCMD2(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	var stdout []string
+	var (
+		stdoutMu sync.Mutex
+		stdout   []string
+	)
 	stdoutHandler := func(msg string) {
+		stdoutMu.Lock()
+		defer stdoutMu.Unlock()
 		stdout = append(stdout, msg)
 	}
 	go RunCMD2(ctx, "/bin/bash", []string{execFile}, nil, stdoutHandler, nil)
 	time.Sleep(time.Second)
 	cancel()
 
+	stdoutMu.Lock()
 	require.Greater(t, len(stdout), 5)
 	require.Contains(t, stdout[0], "hello")
+	stdoutMu.Unlock()
 }

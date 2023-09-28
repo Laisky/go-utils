@@ -19,6 +19,7 @@ import (
 )
 
 func TestDirSize(t *testing.T) {
+	t.Parallel()
 	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
 	size, err := DirSize(".")
 	if err != nil {
@@ -38,6 +39,7 @@ func ExampleDirSize() {
 }
 
 func TestCopyFile(t *testing.T) {
+	t.Parallel()
 	t.Run("not exist", func(t *testing.T) {
 		err := CopyFile(RandomStringWithLength(5), RandomStringWithLength(5))
 		require.Error(t, err)
@@ -106,7 +108,8 @@ func TestCopyFile(t *testing.T) {
 }
 
 func TestMoveFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "TestMoveFile*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestMoveFile-*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -144,7 +147,8 @@ func TestMoveFile(t *testing.T) {
 }
 
 func TestIsDirWritable(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestIsDirWritable-*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -165,7 +169,8 @@ func TestIsDirWritable(t *testing.T) {
 }
 
 func TestIsDir(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestIsDir-*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -186,7 +191,8 @@ func TestIsDir(t *testing.T) {
 }
 
 func TestListFilesInDir(t *testing.T) {
-	dir, err := os.MkdirTemp("", "fs*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestListFilesInDir-*")
 	require.NoError(t, err)
 	t.Logf("create directory: %v", dir)
 	defer os.RemoveAll(dir)
@@ -214,6 +220,7 @@ func TestListFilesInDir(t *testing.T) {
 }
 
 func TestNewTmpFileForContent(t *testing.T) {
+	t.Parallel()
 	cnt := "yahoo"
 
 	path, err := NewTmpFileForContent([]byte(cnt))
@@ -228,7 +235,7 @@ func TestNewTmpFileForContent(t *testing.T) {
 // BenchmarkFileSHA1/md5_1MB-16         	     464	   2682812 ns/op	    4296 B/op	       7 allocs/op
 // BenchmarkFileSHA1/sha1_1MB-16        	     548	   2253516 ns/op	    4336 B/op	       7 allocs/op
 func BenchmarkFileSHA1(b *testing.B) {
-	fp, err := os.CreateTemp("", "*")
+	fp, err := os.CreateTemp("", "BenchmarkFileSHA1-*")
 	PanicIfErr(err)
 	defer os.Remove(fp.Name())
 	_, err = fp.WriteString(RandomStringWithLength(1024 * 1024))
@@ -249,6 +256,7 @@ func BenchmarkFileSHA1(b *testing.B) {
 }
 
 func TestWatchFileChanging(t *testing.T) {
+	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 
@@ -329,6 +337,7 @@ func TestWatchFileChanging(t *testing.T) {
 }
 
 func TestFileMD5(t *testing.T) {
+	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
 		_, err := FileMD5(RandomStringWithLength(10))
 		require.Error(t, err)
@@ -360,12 +369,13 @@ func TestFileMD5(t *testing.T) {
 }
 
 func TestIsFileATimeChanged(t *testing.T) {
+	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
 		_, _, err := IsFileATimeChanged(RandomStringWithLength(10), time.Now())
 		require.Error(t, err)
 	})
 
-	fp, err := os.CreateTemp("", "*")
+	fp, err := os.CreateTemp("", "TestIsFileATimeChanged-*")
 	require.NoError(t, err)
 	defer os.Remove(fp.Name())
 	require.NoError(t, fp.Close())
@@ -391,7 +401,8 @@ func TestIsFileATimeChanged(t *testing.T) {
 }
 
 func TestFileSHA1(t *testing.T) {
-	fp, err := os.CreateTemp("", "*")
+	t.Parallel()
+	fp, err := os.CreateTemp("", "TestFileSHA1-*")
 	require.NoError(t, err)
 	defer os.Remove(fp.Name())
 
@@ -406,7 +417,8 @@ func TestFileSHA1(t *testing.T) {
 }
 
 func TestFileExists(t *testing.T) {
-	dir, err := os.MkdirTemp("", "TestFileExists*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestFileExists-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
@@ -440,6 +452,7 @@ func TestFileExists(t *testing.T) {
 }
 
 func TestRenderTemplate(t *testing.T) {
+	t.Parallel()
 	const tpl = `hello, {{.Name}}`
 	arg := struct{ Name string }{"laisky"}
 
@@ -457,7 +470,8 @@ func TestRenderTemplate(t *testing.T) {
 }
 
 func TestReplaceFile(t *testing.T) {
-	dir, err := os.MkdirTemp("", "*")
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestReplaceFile-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
@@ -499,6 +513,7 @@ func TestReplaceFile(t *testing.T) {
 }
 
 func TestReplaceFileStream(t *testing.T) {
+	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -531,6 +546,7 @@ func TestReplaceFileStream(t *testing.T) {
 }
 
 func TestFilepathJoin(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		paths []string
 	}
@@ -553,6 +569,7 @@ func TestFilepathJoin(t *testing.T) {
 		{"10", args{[]string{"", "", "b"}}, "b", ""},
 		{"11", args{[]string{"", "", "b", "../c"}}, "c", "escaped basedir"},
 		{"12", args{[]string{"", "", "b", "../../c"}}, "../c", "escaped basedir"},
+		{"13", args{[]string{"/tmp", "285248985", ".fpath.swp-czfNpx"}}, "/tmp/285248985/.fpath.swp-czfNpx", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

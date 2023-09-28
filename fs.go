@@ -37,7 +37,7 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer LogErr(func() error { return errors.Wrapf(os.Remove(swapFpath), "remove %q", swapFpath) }, log.Shared)
+	defer os.Remove(swapFpath) //nolint: errcheck
 	defer LogErr(fp.Close, log.Shared)
 
 	if _, err = fp.Write(content); err != nil {
@@ -75,7 +75,7 @@ func JoinFilepath(paths ...string) (result string, err error) {
 		}
 	}
 
-	baseDir := paths[0]
+	baseDir := strings.TrimRight(paths[0], string(os.PathSeparator))
 	result = filepath.Clean(filepath.Join(paths...))
 	if !strings.HasPrefix(result+string(os.PathSeparator), baseDir+string(os.PathSeparator)) {
 		return result, errors.Errorf("got result %q, escaped basedir %q", result, baseDir)
