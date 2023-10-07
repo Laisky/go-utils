@@ -78,7 +78,7 @@ func TestJaegerTracingID(t *testing.T) {
 		spanID       uint64
 		parentSpanID uint64
 		flag         byte
-		want         string
+		want         JaegerTraceID
 		wantErr      bool
 	}{
 		{
@@ -126,7 +126,7 @@ func TestJaegerTracingID(t *testing.T) {
 				return
 			}
 
-			traceID, spanID, parentSpanID, flag, err := ParseJaegerTracingID(got)
+			traceID, spanID, parentSpanID, flag, err := got.Parse()
 			require.NoError(t, err)
 			require.Equal(t, tt.traceID, traceID)
 			require.Equal(t, tt.spanID, spanID)

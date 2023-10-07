@@ -65,7 +65,7 @@ type HTTPClientOptFunc func(*httpClientOption) error
 //   - spanID: span id, 64bit number, will encode to hex string
 //   - parentSpanID: parent span id, 64bit number, will encode to hex string
 //   - flag: 8bit number, one byte bitmap, as one or two hex digits (leading zero may be omitted)
-func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal string, err error) {
+func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal JaegerTraceID, err error) {
 	if traceID == 0 {
 		return "", errors.New("traceID should not be 0")
 	}
@@ -81,7 +81,7 @@ func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal 
 	parentSpanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", parentSpanID), "0")
 	flagVal := strings.TrimLeft(fmt.Sprintf("%02x", flag), "0")
 
-	return fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal), nil
+	return JaegerTraceID(fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal)), nil
 }
 
 // PaddingLeft padding string to left
@@ -93,8 +93,17 @@ func PaddingLeft(s string, padStr string, pLen int) string {
 	return strings.Repeat(padStr, pLen-len(s)) + s
 }
 
-// ParseJaegerTracingID parse jaeger tracing id from string
-func ParseJaegerTracingID(traceVal string) (traceID, spanID, parentSpanID uint64, flag byte, err error) {
+// JaegerTraceID jaeger tracing id
+type JaegerTraceID string
+
+// String implement fmt.Stringer
+func (t JaegerTraceID) String() string {
+	return string(t)
+}
+
+// Parse parse jaeger tracing id from string
+func (t JaegerTraceID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
+	traceVal := t.String()
 	vals := strings.Split(traceVal, ":")
 	if len(vals) != 4 {
 		return 0, 0, 0, 0, errors.Errorf("invalid trace value `%s`", traceVal)
