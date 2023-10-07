@@ -3,7 +3,9 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -58,19 +60,23 @@ type httpClientOption struct {
 // HTTPClientOptFunc http client options
 type HTTPClientOptFunc func(*httpClientOption) error
 
-// JaegerTracingID generate jaeger tracing id
+// NewJaegerTracingID generate jaeger tracing id
 //
 // Args:
 //   - traceID: trace id, 64bit number, will encode to hex string
 //   - spanID: span id, 64bit number, will encode to hex string
 //   - parentSpanID: parent span id, 64bit number, will encode to hex string
 //   - flag: 8bit number, one byte bitmap, as one or two hex digits (leading zero may be omitted)
-func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal JaegerTraceID, err error) {
+func NewJaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal JaegerTracingID, err error) {
 	if traceID == 0 {
-		return "", errors.New("traceID should not be 0")
+		if traceID, err = RandomNonZeroUint64(); err != nil {
+			return "", errors.Wrapf(err, "generate random trace id")
+		}
 	}
 	if spanID == 0 {
-		return "", errors.New("spanID should not be 0")
+		if spanID, err = RandomNonZeroUint64(); err != nil {
+			return "", errors.Wrapf(err, "generate random span id")
+		}
 	}
 	if flag == 0 {
 		flag = 0x04 // default to not used
@@ -81,7 +87,7 @@ func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal 
 	parentSpanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", parentSpanID), "0")
 	flagVal := strings.TrimLeft(fmt.Sprintf("%02x", flag), "0")
 
-	return JaegerTraceID(fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal)), nil
+	return JaegerTracingID(fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal)), nil
 }
 
 // PaddingLeft padding string to left
@@ -93,16 +99,16 @@ func PaddingLeft(s string, padStr string, pLen int) string {
 	return strings.Repeat(padStr, pLen-len(s)) + s
 }
 
-// JaegerTraceID jaeger tracing id
-type JaegerTraceID string
+// JaegerTracingID jaeger tracing id
+type JaegerTracingID string
 
 // String implement fmt.Stringer
-func (t JaegerTraceID) String() string {
+func (t JaegerTracingID) String() string {
 	return string(t)
 }
 
 // Parse parse jaeger tracing id from string
-func (t JaegerTraceID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
+func (t JaegerTracingID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
 	traceVal := t.String()
 	vals := strings.Split(traceVal, ":")
 	if len(vals) != 4 {
@@ -127,6 +133,35 @@ func (t JaegerTraceID) Parse() (traceID, spanID, parentSpanID uint64, flag byte,
 	}
 
 	return traceID, spanID, parentSpanID, flag, nil
+}
+
+// RandomNonZeroUint64 generate random uint64 number
+func RandomNonZeroUint64() (uint64, error) {
+	var num uint64
+	for {
+		if err := binary.Read(rand.Reader, binary.BigEndian, &num); err != nil {
+			return 0, errors.Wrap(err, "generate random number")
+		}
+
+		if num != 0 {
+			return num, nil
+		}
+	}
+}
+
+// NewSpan generate new span
+func (t JaegerTracingID) NewSpan() (JaegerTracingID, error) {
+	traceID, spanID, _, flag, err := t.Parse()
+	if err != nil {
+		return "", errors.Wrapf(err, "parse traceID")
+	}
+
+	newSpanID, err := RandomNonZeroUint64()
+	if err != nil {
+		return "", errors.Wrapf(err, "generate new spanID")
+	}
+
+	return NewJaegerTracingID(traceID, newSpanID, spanID, flag)
 }
 
 // WithHTTPClientTimeout set http client timeout

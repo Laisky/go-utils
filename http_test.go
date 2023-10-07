@@ -78,7 +78,7 @@ func TestJaegerTracingID(t *testing.T) {
 		spanID       uint64
 		parentSpanID uint64
 		flag         byte
-		want         JaegerTraceID
+		want         JaegerTracingID
 		wantErr      bool
 	}{
 		{
@@ -112,7 +112,7 @@ func TestJaegerTracingID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := JaegerTracingID(tt.traceID, tt.spanID, tt.parentSpanID, tt.flag)
+			got, err := NewJaegerTracingID(tt.traceID, tt.spanID, tt.parentSpanID, tt.flag)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("JaegerTracingID() error = %v, wantErr %v", err, tt.wantErr)
