@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +57,68 @@ type httpClientOption struct {
 
 // HTTPClientOptFunc http client options
 type HTTPClientOptFunc func(*httpClientOption) error
+
+// JaegerTracingID generate jaeger tracing id
+//
+// Args:
+//   - traceID: trace id, 64bit number, will encode to hex string
+//   - spanID: span id, 64bit number, will encode to hex string
+//   - parentSpanID: parent span id, 64bit number, will encode to hex string
+//   - flag: 8bit number, one byte bitmap, as one or two hex digits (leading zero may be omitted)
+func JaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal string, err error) {
+	if traceID == 0 {
+		return "", errors.New("traceID should not be 0")
+	}
+	if spanID == 0 {
+		return "", errors.New("spanID should not be 0")
+	}
+	if flag == 0 {
+		flag = 0x04 // default to not used
+	}
+
+	traceIDVal := strings.TrimLeft(fmt.Sprintf("%016x", traceID), "0")
+	spanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", spanID), "0")
+	parentSpanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", parentSpanID), "0")
+	flagVal := strings.TrimLeft(fmt.Sprintf("%02x", flag), "0")
+
+	return fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal), nil
+}
+
+// PaddingLeft padding string to left
+func PaddingLeft(s string, padStr string, pLen int) string {
+	if len(s) >= pLen {
+		return s
+	}
+
+	return strings.Repeat(padStr, pLen-len(s)) + s
+}
+
+// ParseJaegerTracingID parse jaeger tracing id from string
+func ParseJaegerTracingID(traceVal string) (traceID, spanID, parentSpanID uint64, flag byte, err error) {
+	vals := strings.Split(traceVal, ":")
+	if len(vals) != 4 {
+		return 0, 0, 0, 0, errors.Errorf("invalid trace value `%s`", traceVal)
+	}
+
+	if traceID, err = strconv.ParseUint(PaddingLeft(vals[0], "0", 16), 16, 64); err != nil {
+		return 0, 0, 0, 0, errors.Wrapf(err, "parse traceID")
+	}
+	if spanID, err = strconv.ParseUint(PaddingLeft(vals[1], "0", 16), 16, 64); err != nil {
+		return 0, 0, 0, 0, errors.Wrapf(err, "parse spanID")
+	}
+	if parentSpanID, err = strconv.ParseUint(PaddingLeft(vals[2], "0", 16), 16, 64); err != nil {
+		return 0, 0, 0, 0, errors.Wrapf(err, "parse parentSpanID")
+	}
+	if flagSlice, err := hex.DecodeString(PaddingLeft(vals[3], "0", 2)); err != nil {
+		return 0, 0, 0, 0, errors.Wrapf(err, "parse flag")
+	} else if len(flagSlice) != 1 {
+		return 0, 0, 0, 0, errors.Errorf("invalid flag `%s`", vals[3])
+	} else {
+		flag = flagSlice[0]
+	}
+
+	return traceID, spanID, parentSpanID, flag, nil
+}
 
 // WithHTTPClientTimeout set http client timeout
 //
