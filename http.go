@@ -31,6 +31,13 @@ const (
 
 	// HTTPHeaderContentTypeValJSON HTTP header value
 	HTTPHeaderContentTypeValJSON = "application/json"
+
+	// TracingKey default trace key
+	//
+	// https://www.jaegertracing.io/docs/1.22/client-libraries/#key
+	//
+	//  `{trace-id}:{span-id}:{parent-span-id}:{flags}`
+	TracingKey = "Uber-Trace-Id"
 )
 
 var (
