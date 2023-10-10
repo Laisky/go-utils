@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -1546,4 +1547,28 @@ func TestRunCMD2(t *testing.T) {
 	require.Greater(t, len(stdout), 5)
 	require.Contains(t, stdout[0], "hello")
 	stdoutMu.Unlock()
+}
+
+func TestIsPanic2(t *testing.T) {
+	t.Run("panic", func(t *testing.T) {
+		panicMsg := "test panic"
+		f := func() {
+			panic(panicMsg)
+		}
+		err := IsPanic2(f, "test error")
+		if err == nil {
+			t.Fatal("expected an error, but got nil")
+		}
+		if !strings.Contains(err.Error(), panicMsg) {
+			t.Fatalf("expected error message to contain %q, but got %q", panicMsg, err.Error())
+		}
+	})
+
+	t.Run("no panic", func(t *testing.T) {
+		f := func() {}
+		err := IsPanic2(f, "test error")
+		if err != nil {
+			t.Fatalf("expected no error, but got %v", err)
+		}
+	})
 }

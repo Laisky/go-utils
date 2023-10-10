@@ -1065,6 +1065,8 @@ func ConvertMap2StringKey(inputMap any) map[string]any {
 // }
 
 // IsPanic is `f()` throw panic
+//
+// if you want to get the data throwed by panic, use `IsPanic2`
 func IsPanic(f func()) (isPanic bool) {
 	defer func() {
 		if deferErr := recover(); deferErr != nil {
@@ -1074,6 +1076,18 @@ func IsPanic(f func()) (isPanic bool) {
 
 	f()
 	return false
+}
+
+// IsPanic2 check is `f()` throw panic, and return panic as error
+func IsPanic2(f func(), errMsg string) (err error) {
+	defer func() {
+		if panicRet := recover(); panicRet != nil {
+			err = errors.New(fmt.Sprintf("panic: %v", panicRet))
+		}
+	}()
+
+	f()
+	return nil
 }
 
 var onlyOneSignalHandler = make(chan struct{})
