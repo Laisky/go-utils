@@ -7,7 +7,7 @@ require (
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
-	github.com/Laisky/zap v1.25.1
+	github.com/Laisky/zap v1.25.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/corvus-ch/shamir v1.0.1
 	github.com/deckarep/golang-set/v2 v2.1.0
@@ -44,8 +44,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/lint v0.0.0-20190930215403-16217165b5de // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
