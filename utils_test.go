@@ -1642,3 +1642,18 @@ func TestUUID7(t *testing.T) {
 		require.Greater(t, v2, v1)
 	})
 }
+
+func TestCopy(t *testing.T) {
+	raw := []byte("hello, world")
+	raw = raw[: len(raw)-1 : len(raw)]
+
+	padded1 := make([]byte, 16)
+	copy(padded1, raw)
+
+	padded2 := append(raw, bytes.Repeat([]byte{0x00}, 16-len(raw))...)
+	padded3 := append(raw, make([]byte, 16-len(raw))...)
+
+	require.Len(t, padded1, 16)
+	require.Equal(t, padded1, padded2)
+	require.Equal(t, padded1, padded3)
+}

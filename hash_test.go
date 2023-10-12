@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"crypto/sha256"
 	"testing"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -13,6 +15,7 @@ const (
 )
 
 func TestHashSHA128String(t *testing.T) {
+	t.Parallel()
 	val := testhashraw
 	got := HashSHA128String(val)
 	if got != "57dce855bbee0bef97b63527d473c807a424511d" {
@@ -26,11 +29,24 @@ func ExampleHashSHA128String() {
 }
 
 func TestHashSHA256String(t *testing.T) {
+	t.Parallel()
 	val := testhashraw
 	got := HashSHA256String(val)
 	if got != "fef14c65b3d411fee6b2dbcb791a9536cbf637b153bb1de0aae1b41e3834aebf" {
 		t.Fatalf("got: %v", got)
 	}
+
+	t.Run("hasher", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte("hello, world")
+		hasher := sha256.New()
+		_, err := hasher.Write(raw)
+		require.NoError(t, err)
+		got1 := hasher.Sum(nil)
+
+		got2 := sha256.Sum256(raw)
+		require.Equal(t, got1, got2[:])
+	})
 }
 
 func ExampleHashSHA256String() {
@@ -40,6 +56,7 @@ func ExampleHashSHA256String() {
 }
 
 func TestHashXxhashString(t *testing.T) {
+	t.Parallel()
 	val := testhashraw
 	got := HashXxhashString(val)
 	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566ef46db3751d8e999" {
