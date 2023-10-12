@@ -1,3 +1,7 @@
+github.com/GoWebProd/gip v0.0.0-20230623090727-b60d41d5d320 h1:lddR7TsA0fUX8Kh+oc01z4GwmCoBveT79zhNLK43xLk=
+github.com/GoWebProd/gip v0.0.0-20230623090727-b60d41d5d320/go.mod h1:eTC6ev1JFq+zoOOS5WKuHdBwtihV/9/Ouv3fZ3ufS0A=
+github.com/GoWebProd/uuid7 v0.0.0-20230623091058-5f5954faed6a h1:mThF075zgPGTHRfPcRtaHSIKMDAG6Xd82HNazP5yP4I=
+github.com/GoWebProd/uuid7 v0.0.0-20230623091058-5f5954faed6a/go.mod h1:ss8O0hJvHSgtrR6mG2N1LW4gYWwkSX3sVLiS9wA6m/8=
 github.com/Laisky/errors/v2 v2.0.1 h1:yqCBrRzaP012AMB+7fVlXrP34OWRHrSO/hZ38CFdH84=
 github.com/Laisky/errors/v2 v2.0.1/go.mod h1:mTn1LHSmKm4CYug0rpYO7rz13dp/DKrtzlSELSrxvT0=
 github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6 h1:V3MNilKNjNVKwBiMLsDCa6dFbA5gROE7TYxJJBXkwTc=

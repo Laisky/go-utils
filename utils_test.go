@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	mapset "github.com/deckarep/golang-set/v2"
@@ -1555,7 +1556,7 @@ func TestIsPanic2(t *testing.T) {
 		f := func() {
 			panic(panicMsg)
 		}
-		err := IsPanic2(f, "test error")
+		err := IsPanic2(f)
 		if err == nil {
 			t.Fatal("expected an error, but got nil")
 		}
@@ -1566,9 +1567,78 @@ func TestIsPanic2(t *testing.T) {
 
 	t.Run("no panic", func(t *testing.T) {
 		f := func() {}
-		err := IsPanic2(f, "test error")
+		err := IsPanic2(f)
 		if err != nil {
 			t.Fatalf("expected no error, but got %v", err)
 		}
+	})
+}
+func TestUUID4(t *testing.T) {
+	t.Parallel()
+	val := UUID4()
+	_, err := uuid.Parse(val)
+	require.NoError(t, err)
+
+	t.Run("unique", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			mu      sync.Mutex
+			pool    errgroup.Group
+			uuidSet = map[string]struct{}{}
+		)
+		for i := 0; i < 10; i++ {
+			pool.Go(func() error {
+				for i := 0; i < 1000; i++ {
+					uuid := UUID4()
+					mu.Lock()
+					uuidSet[uuid] = struct{}{}
+					mu.Unlock()
+				}
+
+				return nil
+			})
+		}
+
+		require.NoError(t, pool.Wait())
+		require.Len(t, uuidSet, 10000)
+	})
+}
+
+func TestUUID7(t *testing.T) {
+	t.Parallel()
+	var (
+		mu      sync.Mutex
+		pool    errgroup.Group
+		uuidSet = map[string]struct{}{}
+	)
+	for i := 0; i < 10; i++ {
+		pool.Go(func() error {
+			for i := 0; i < 1000; i++ {
+				uuid := UUID7()
+				mu.Lock()
+				uuidSet[uuid] = struct{}{}
+				mu.Unlock()
+			}
+
+			return nil
+		})
+	}
+
+	require.NoError(t, pool.Wait())
+	require.Len(t, uuidSet, 10000)
+
+	for val := range uuidSet {
+		_, err := uuid7.Parse(val)
+		require.NoError(t, err)
+	}
+
+	t.Run("order", func(t *testing.T) {
+		t.Parallel()
+
+		v1 := UUID7()
+		time.Sleep(time.Millisecond)
+		v2 := UUID7()
+		require.Greater(t, v2, v1)
 	})
 }

@@ -3,6 +3,7 @@ module github.com/Laisky/go-utils/v4
 go 1.20
 
 require (
+	github.com/GoWebProd/uuid7 v0.0.0-20230623091058-5f5954faed6a
 	github.com/Laisky/errors/v2 v2.0.1
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
@@ -35,6 +36,7 @@ require (
 )
 
 require (
+	github.com/GoWebProd/gip v0.0.0-20230623090727-b60d41d5d320 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect

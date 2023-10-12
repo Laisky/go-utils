@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
@@ -1079,10 +1080,10 @@ func IsPanic(f func()) (isPanic bool) {
 }
 
 // IsPanic2 check is `f()` throw panic, and return panic as error
-func IsPanic2(f func(), errMsg string) (err error) {
+func IsPanic2(f func()) (err error) {
 	defer func() {
 		if panicRet := recover(); panicRet != nil {
-			err = errors.New(fmt.Sprintf("panic: %v", panicRet))
+			err = errors.Errorf("panic: %v", panicRet)
 		}
 	}()
 
@@ -1267,13 +1268,22 @@ func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
 }
 
 // UUID1 get uuid version 1
+//
+// Deprecated: use UUID7 instead
 func UUID1() string {
-	uid, err := uuid.NewUUID()
-	if err != nil { // in fact never return error
-		log.Shared.Panic("new uuid1", zap.Error(err))
-	}
+	return uuid.Must(uuid.NewUUID()).String()
+}
 
-	return uid.String()
+// UUID4 get uuid version 4
+func UUID4() string {
+	return uuid.Must(uuid.NewRandom()).String()
+}
+
+var uuid7Gen = uuid7.New()
+
+// UUID7 get uuid version 7
+func UUID7() string {
+	return uuid7Gen.Next().String()
 }
 
 // Delayer create by NewDelay
