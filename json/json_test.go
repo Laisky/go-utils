@@ -72,12 +72,12 @@ func TestUnmarshal(t *testing.T) {
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v4/json
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
-// Benchmark_json_v1_v2/v1-marshal-16         	 2175998	       538.8 ns/op	     152 B/op	       2 allocs/op
-// Benchmark_json_v1_v2/v1-unmarshal-16       	  726795	      1432 ns/op	     288 B/op	       7 allocs/op
-// Benchmark_json_v1_v2/v2-marshal-16         	 1440228	       823.2 ns/op	     368 B/op	       5 allocs/op
-// Benchmark_json_v1_v2/v2-unmarshal-16       	 1767696	       678.7 ns/op	       0 B/op	       0 allocs/op
-// Benchmark_json_v1_v2/gutils-marshal-16     	 1413717	       839.9 ns/op	     368 B/op	       5 allocs/op
-// Benchmark_json_v1_v2/gutils-unmarshal-comment-16         	  422198	      2765 ns/op	    1492 B/op	      14 allocs/op
+// Benchmark_json_v1_v2/v1-marshal-16         	 2238842	       542.6 ns/op	     152 B/op	       2 allocs/op
+// Benchmark_json_v1_v2/v1-unmarshal-16       	  856309	      1374 ns/op	     288 B/op	       7 allocs/op
+// Benchmark_json_v1_v2/v2-marshal-16         	 1480611	       836.5 ns/op	     368 B/op	       5 allocs/op
+// Benchmark_json_v1_v2/v2-unmarshal-16       	 1777345	       686.1 ns/op	       0 B/op	       0 allocs/op
+// Benchmark_json_v1_v2/gutils-marshal-16     	 2242138	       539.6 ns/op	     152 B/op	       2 allocs/op
+// Benchmark_json_v1_v2/gutils-unmarshal-comment-16         	  296442	      3583 ns/op	    1833 B/op	      21 allocs/op
 func Benchmark_json_v1_v2(b *testing.B) {
 	type testStruct struct {
 		Name    string `json:"name"`

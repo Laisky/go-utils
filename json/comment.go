@@ -1,42 +1,33 @@
 package json
 
 import (
-	json2 "github.com/go-json-experiment/json"
+	"encoding/json"
+
+	"github.com/Laisky/go-utils/v4/common"
+	// json2 "github.com/go-json-experiment/json"
 	"github.com/pkg/errors"
 	"github.com/tailscale/hujson"
 )
 
 var (
 	// Unmarshal unmarshal json, do not support comment
-	Unmarshal = json2.Unmarshal
+	Unmarshal = json.Unmarshal
 )
 
 // UnmarshalFromString unmarshal json from string, do not support comment
 func UnmarshalFromString(str string, v interface{}) (err error) {
-	return Unmarshal([]byte(str), v)
+	return Unmarshal(common.Str2Bytes(str), v)
 }
 
 // UnmarshalComment unmarshal json, support comment
-func UnmarshalComment(data []byte, v interface{}) (err error) {
-	if len(data) == 0 {
+//
+// Notice: this func will change the content of raw, all comments will be removed
+func UnmarshalComment(raw []byte, v interface{}) (err error) {
+	if len(raw) == 0 {
 		return nil
 	}
 
-	data, err = standardizeJSON(data)
-	if err != nil {
-		return errors.Wrap(err, "standardize json")
-	}
-
-	return json2.Unmarshal(data, v)
-}
-
-// UnmarshalCommentFromString unmarshal json from string, support comment
-func UnmarshalCommentFromString(str string, v interface{}) (err error) {
-	if str == "" {
-		return nil
-	}
-
-	data, err := standardizeJSON([]byte(str))
+	data, err := standardizeJSON(raw)
 	if err != nil {
 		return errors.Wrap(err, "standardize json")
 	}
@@ -44,11 +35,19 @@ func UnmarshalCommentFromString(str string, v interface{}) (err error) {
 	return Unmarshal(data, v)
 }
 
+// UnmarshalCommentFromString unmarshal json from string, support comment
+//
+// Notice: this func will change the content of raw, all comments will be removed
+func UnmarshalCommentFromString(str string, v interface{}) (err error) {
+	return UnmarshalComment(common.Str2Bytes(str), v)
+}
+
 func standardizeJSON(b []byte) ([]byte, error) {
 	ast, err := hujson.Parse(b)
 	if err != nil {
-		return b, err
+		return b, errors.Wrap(err, "parse json by hujson")
 	}
+
 	ast.Standardize()
 	return ast.Pack(), nil
 }

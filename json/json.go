@@ -4,12 +4,13 @@ package json
 import (
 	"encoding/json"
 
-	json2 "github.com/go-json-experiment/json"
+	"github.com/Laisky/go-utils/v4/common"
+	// json2 "github.com/go-json-experiment/json"
 )
 
 var (
 	// Marshal marshal v to string
-	Marshal = json2.Marshal
+	Marshal = json.Marshal
 	// MarshalIndent marshal v to string with indent
 	MarshalIndent = json.MarshalIndent
 	// NewDecoder returns a new decoder that reads from r.
@@ -22,5 +23,5 @@ var (
 // MarshalToString marshal v to string
 func MarshalToString(v interface{}) (string, error) {
 	b, err := Marshal(v)
-	return string(b), err
+	return common.Bytes2Str(b), err
 }
