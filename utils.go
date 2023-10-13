@@ -24,7 +24,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
@@ -35,6 +34,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/Laisky/go-utils/v4/common"
 	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -50,6 +50,14 @@ var (
 	JSON = jsonT{API: jsoniter.ConfigCompatibleWithStandardLibrary}
 
 	internalSFG singleflight.Group
+
+	// for compatability to old version
+	// =====================================
+
+	// Str2Bytes unsafe convert str to bytes
+	Str2Bytes = common.Str2Bytes
+	// Bytes2Str unsafe convert bytes to str
+	Bytes2Str = common.Bytes2Str
 )
 
 const (
@@ -1025,20 +1033,6 @@ func (e *LRUExpiredMap) Get(key string) any {
 
 	//nolint:forcetypeassert
 	return l.(*expiredMapItem).data
-}
-
-// Str2Bytes unsafe convert str to bytes
-func Str2Bytes(s string) []byte {
-	sp := (*[2]uintptr)(unsafe.Pointer(&s))
-	bp := [3]uintptr{sp[0], sp[1], sp[1]}
-	return *(*[]byte)(unsafe.Pointer(&bp))
-}
-
-// Bytes2Str unsafe convert bytes to str
-func Bytes2Str(b []byte) string {
-	bp := (*[3]uintptr)(unsafe.Pointer(&b))
-	sp := [2]uintptr{bp[0], bp[1]}
-	return *(*string)(unsafe.Pointer(&sp))
 }
 
 // ConvertMap2StringKey convert any map to `map[string]any`

@@ -6,8 +6,15 @@ import (
 	"github.com/tailscale/hujson"
 )
 
-// Unmarshal unmarshal json, do not support comment
-var Unmarshal = json2.Unmarshal
+var (
+	// Unmarshal unmarshal json, do not support comment
+	Unmarshal = json2.Unmarshal
+)
+
+// UnmarshalFromString unmarshal json from string, do not support comment
+func UnmarshalFromString(str string, v interface{}) (err error) {
+	return Unmarshal([]byte(str), v)
+}
 
 // UnmarshalComment unmarshal json, support comment
 func UnmarshalComment(data []byte, v interface{}) (err error) {
