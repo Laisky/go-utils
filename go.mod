@@ -1,6 +1,8 @@
 module github.com/Laisky/go-utils/v4
 
-go 1.20
+go 1.21
+
+toolchain go1.21.0
 
 require (
 	github.com/GoWebProd/uuid7 v0.0.0-20230623091058-5f5954faed6a
@@ -9,11 +11,13 @@ require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.25.2
+	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/corvus-ch/shamir v1.0.1
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gammazero/deque v0.2.1
+	github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/google/uuid v1.3.1

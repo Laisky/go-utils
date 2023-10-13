@@ -1,14 +1,16 @@
 package json
 
 import (
-	"encoding/json"
-
+	json2 "github.com/go-json-experiment/json"
 	"github.com/pkg/errors"
 	"github.com/tailscale/hujson"
 )
 
-// Unmarshal unmarshal json, support comment
-func Unmarshal(data []byte, v interface{}) (err error) {
+// Unmarshal unmarshal json, do not support comment
+var Unmarshal = json2.Unmarshal
+
+// UnmarshalComment unmarshal json, support comment
+func UnmarshalComment(data []byte, v interface{}) (err error) {
 	if len(data) == 0 {
 		return nil
 	}
@@ -18,11 +20,11 @@ func Unmarshal(data []byte, v interface{}) (err error) {
 		return errors.Wrap(err, "standardize json")
 	}
 
-	return json.Unmarshal(data, v)
+	return json2.Unmarshal(data, v)
 }
 
-// UnmarshalFromString unmarshal json from string, support comment
-func UnmarshalFromString(str string, v interface{}) (err error) {
+// UnmarshalCommentFromString unmarshal json from string, support comment
+func UnmarshalCommentFromString(str string, v interface{}) (err error) {
 	if str == "" {
 		return nil
 	}
@@ -32,7 +34,7 @@ func UnmarshalFromString(str string, v interface{}) (err error) {
 		return errors.Wrap(err, "standardize json")
 	}
 
-	return json.Unmarshal(data, v)
+	return Unmarshal(data, v)
 }
 
 func standardizeJSON(b []byte) ([]byte, error) {
