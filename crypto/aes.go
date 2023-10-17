@@ -16,6 +16,13 @@ import (
 	"github.com/Laisky/go-utils/v4/log"
 )
 
+const (
+	// AesGcmIvLen is the length of IV for AES GCM
+	AesGcmIvLen = 12
+	// AesGcmTagLen is the length of tag for AES GCM
+	AesGcmTagLen = 16
+)
+
 // AesEncrypt encrypt bytes by AES GCM
 //
 // inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
@@ -29,47 +36,58 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 	return AEADEncrypt(secret, cnt, nil)
 }
 
-// AEAD encrypt bytes by AES GCM
+// AEADEncrypt encrypt bytes by AES GCM
 //
-// The key argument should be the AES key,
-// either 16, 24, or 32 bytes to select
-// AES-128, AES-192, or AES-256.
-//
-// same input will get different ciphertext
+// sugar wrapper of AEADEncryptWithIV, will generate random IV and
+// append it to ciphertext as prefix.
+// you can use AEADDecrypt to decrypt it.
 func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err error) {
-	if len(plaintext) == 0 {
-		return nil, errors.Errorf("content is empty")
+	iv := make([]byte, AesGcmIvLen, len(plaintext)+AesGcmIvLen+AesGcmTagLen)
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, errors.Wrap(err, "load iv")
 	}
 
-	// generate a new aes cipher
+	cipher, tag, err := AEADEncryptBasic(key, plaintext, iv, additionalData)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	ciphertext = append(iv, cipher...)
+	ciphertext = append(ciphertext, tag...)
+	return ciphertext, nil
+}
+
+// AEADEncryptBasic encrypt bytes by AES GCM and return IV and ciphertext
+//
+// # Args:
+//   - key: AES key, either 16, 24, or 32 bytes to select AES-128, AES-192, or AES-256
+//   - plaintext: content to encrypt
+//   - iv: Initialization Vector, should be 12 bytes
+//   - additionalData: additional data to encrypt
+//
+// # Returns:
+//   - ciphertext: encrypted content without IV and tag, the length of ciphertext is same as plaintext
+func AEADEncryptBasic(key, plaintext, iv, additionalData []byte) (ciphertext, tag []byte, err error) {
+	if len(plaintext) == 0 {
+		return nil, nil, errors.Errorf("content is empty")
+	}
+
 	c, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, errors.Wrap(err, "new aes cipher")
+		return nil, nil, errors.Wrap(err, "new aes cipher")
 	}
 
-	// gcm or Galois/Counter Mode, is a mode of operation
-	// for symmetric key cryptographic block ciphers
-	// * https://en.wikipedia.org/wiki/Galois/Counter_Mode
 	gcm, err := cipher.NewGCM(c)
 	if err != nil {
-		return nil, errors.Wrap(err, "new gcm")
+		return nil, nil, errors.Wrap(err, "new gcm")
 	}
 
-	// creates a new byte array the size of the nonce
-	// which must be passed to Seal
-	nonce := make([]byte, gcm.NonceSize())
-	// populates our nonce with a cryptographically secure
-	// random sequence
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, errors.Wrap(err, "load nonce")
+	if len(iv) != gcm.NonceSize() {
+		return nil, nil, errors.Errorf("iv size not match")
 	}
 
-	// here we encrypt our text using the Seal function
-	// Seal encrypts and authenticates plaintext, authenticates the
-	// additional data and appends the result to dst, returning the updated
-	// slice. The nonce must be NonceSize() bytes long and unique for all
-	// time, for a given key.
-	return gcm.Seal(nonce, nonce, plaintext, additionalData), nil
+	sealed := gcm.Seal(nil, iv, plaintext, additionalData)
+	return sealed[:len(plaintext)], sealed[len(plaintext):], nil
 }
 
 // AesDecrypt encrypt bytes by AES GCM
@@ -85,9 +103,15 @@ func AesDecrypt(secret []byte, encrypted []byte) ([]byte, error) {
 
 // AEADDecrypt encrypt bytes by AES GCM
 //
-// inspired by https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
+// Sugar wrapper of AEADDecryptWithIV, will extract IV from ciphertext automatically.
 //
-// The key argument should be 16, 24, or 32 bytes
+// # Args:
+//   - key: AES key, either 16, 24, or 32 bytes to select AES-128, AES-192, or AES-256
+//   - ciphertext: encrypted content
+//   - additionalData: additional data to encrypt
+//
+// # Returns:
+//   - plaintext: decrypted content
 func AEADDecrypt(key, ciphertext, additionalData []byte) (plaintext []byte, err error) {
 	if len(ciphertext) == 0 {
 		return nil, errors.Errorf("ciphertext is empty")
@@ -114,6 +138,48 @@ func AEADDecrypt(key, ciphertext, additionalData []byte) (plaintext []byte, err 
 
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	plaintext, err = gcm.Open(nil, nonce, ciphertext, additionalData)
+	if err != nil {
+		return nil, errors.Wrap(err, "gcm decrypt")
+	}
+
+	return plaintext, nil
+}
+
+// AEADDecryptBasic encrypt bytes by AES GCM
+//
+// # Args:
+//   - key: AES key, either 16, 24, or 32 bytes to select AES-128, AES-192, or AES-256
+//   - ciphertext: encrypted content
+//   - iv: Initialization Vector, should be 12 bytes
+//   - tag: authentication tag, should be 16 bytes
+//   - additionalData: additional data to encrypt
+//
+// # Returns:
+//   - plaintext: decrypted content
+func AEADDecryptBasic(key, ciphertext, iv, tag, additionalData []byte) (plaintext []byte, err error) {
+	if len(ciphertext) == 0 {
+		return nil, errors.Errorf("ciphertext is empty")
+	}
+
+	// generate a new aes cipher
+	c, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "new aes cipher")
+	}
+
+	// gcm or Galois/Counter Mode, is a mode of operation
+	// for symmetric key cryptographic block ciphers
+	// * https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "new gcm")
+	}
+
+	if len(iv) != gcm.NonceSize() {
+		return nil, errors.Errorf("iv size not match")
+	}
+
+	plaintext, err = gcm.Open(nil, iv, append(ciphertext, tag...), additionalData)
 	if err != nil {
 		return nil, errors.Wrap(err, "gcm decrypt")
 	}

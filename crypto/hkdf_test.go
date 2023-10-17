@@ -10,6 +10,8 @@ import (
 )
 
 func TestHKDFWithSHA256(t *testing.T) {
+	t.Parallel()
+
 	key := make([]byte, 16)
 	_, err := rand.Read(key)
 	require.NoError(t, err)
@@ -38,6 +40,8 @@ func TestHKDFWithSHA256(t *testing.T) {
 }
 
 func TestDeriveKey(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		secret    []byte
 		expectLen int
@@ -68,6 +72,8 @@ func TestDeriveKey(t *testing.T) {
 }
 
 func TestDeriveKeyByHKDF(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		secret, salt []byte
 		expectLen    int
@@ -99,6 +105,8 @@ func TestDeriveKeyByHKDF(t *testing.T) {
 }
 
 func TestDeriveKeyBySMHF(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		secret, salt []byte
 	}

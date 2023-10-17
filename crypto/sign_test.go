@@ -19,6 +19,8 @@ import (
 )
 
 func TestPassword(t *testing.T) {
+	t.Parallel()
+
 	password := []byte("1234567890")
 	hp, err := GeneratePasswordHash(password)
 	if err != nil {
@@ -83,6 +85,8 @@ func BenchmarkGeneratePasswordHash(b *testing.B) {
 }
 
 func TestECDSAKeySerializer(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err    error
 		priKey *ecdsa.PrivateKey
@@ -174,6 +178,8 @@ func TestECDSAKeySerializer(t *testing.T) {
 // }
 
 func TestECDSAVerify(t *testing.T) {
+	t.Parallel()
+
 	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -214,6 +220,8 @@ func TestECDSAVerify(t *testing.T) {
 }
 
 func TestRSAVerify(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err             error
 		priKey, priKey2 *rsa.PrivateKey
@@ -305,6 +313,8 @@ func ExampleSignByECDSAWithSHA256() {
 }
 
 func TestFormatBig2Hex(t *testing.T) {
+	t.Parallel()
+
 	b := new(big.Int)
 	b = b.SetInt64(490348974827092350)
 	hex := FormatBig2Hex(b)
@@ -318,6 +328,8 @@ func TestFormatBig2Hex(t *testing.T) {
 }
 
 func TestFormatBig2Base64(t *testing.T) {
+	t.Parallel()
+
 	b := new(big.Int)
 	b = b.SetInt64(490348974827092350)
 	r := FormatBig2Base64(b)
@@ -330,6 +342,8 @@ func TestFormatBig2Base64(t *testing.T) {
 }
 
 func TestParseHex2Big(t *testing.T) {
+	t.Parallel()
+
 	hex := "6ce11cb6c8bb97e"
 	b, ok := ParseHex2Big(hex)
 	if !ok {
@@ -343,6 +357,8 @@ func TestParseHex2Big(t *testing.T) {
 }
 
 func TestParseBase642Big(t *testing.T) {
+	t.Parallel()
+
 	raw := "Bs4Ry2yLuX4="
 	b, err := ParseBase642Big(raw)
 	if err != nil {
@@ -358,6 +374,8 @@ func TestParseBase642Big(t *testing.T) {
 }
 
 func TestECDSASignFormatAndParseByHex(t *testing.T) {
+	t.Parallel()
+
 	a := new(big.Int)
 	a = a.SetInt64(490348974827092350)
 	b := new(big.Int)
@@ -378,6 +396,8 @@ func TestECDSASignFormatAndParseByHex(t *testing.T) {
 }
 
 func TestECDSASignFormatAndParseByBase64(t *testing.T) {
+	t.Parallel()
+
 	a := new(big.Int)
 	a = a.SetInt64(490348974827092350)
 	b := new(big.Int)
@@ -444,6 +464,8 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 // }
 
 func TestNewDHKX(t *testing.T) {
+	t.Parallel()
+
 	alice, err := NewDHKX()
 	require.NoError(t, err)
 

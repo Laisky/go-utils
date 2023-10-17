@@ -51,7 +51,7 @@ var (
 
 	internalSFG singleflight.Group
 
-	// for compatability to old version
+	// for compatibility to old version
 	// =====================================
 
 	// Str2Bytes unsafe convert str to bytes

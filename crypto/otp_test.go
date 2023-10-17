@@ -8,6 +8,8 @@ import (
 )
 
 func TestTOTP_Key(t *testing.T) {
+	t.Parallel()
+
 	tt, err := NewTOTP(OTPArgs{
 		Base32Secret: Base32Secret([]byte("123456")),
 		PeriodSecs:   1,
