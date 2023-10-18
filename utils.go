@@ -1280,6 +1280,21 @@ func UUID7() string {
 	return uuid7Gen.Next().String()
 }
 
+// UUID7Itf general uuid7 interface
+type UUID7Itf interface {
+	// Timestamp get timestamp of uuid7
+	Timestamp() uint64
+	// String get string of uuid7
+	String() string
+	// Empty check if uuid7 is empty
+	Empty() bool
+}
+
+// ParseUUID7 parse uuid7
+func ParseUUID7(val string) (UUID7Itf, error) {
+	return uuid7.Parse(val)
+}
+
 // Delayer create by NewDelay
 //
 // do not use this type directly.

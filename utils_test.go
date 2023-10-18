@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	mapset "github.com/deckarep/golang-set/v2"
@@ -1629,7 +1628,7 @@ func TestUUID7(t *testing.T) {
 	require.Len(t, uuidSet, 10000)
 
 	for val := range uuidSet {
-		_, err := uuid7.Parse(val)
+		_, err := ParseUUID7(val)
 		require.NoError(t, err)
 	}
 

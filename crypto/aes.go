@@ -39,8 +39,10 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 // AEADEncrypt encrypt bytes by AES GCM
 //
 // sugar wrapper of AEADEncryptWithIV, will generate random IV and
-// append it to ciphertext as prefix.
-// you can use AEADDecrypt to decrypt it.
+// append it to ciphertext as prefix.you can use AEADDecrypt to decrypt it.
+//
+// # Returns:
+//   - ciphertext: consists of IV, cipher and tag, `{iv}{cipher}{tag}`
 func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err error) {
 	iv := make([]byte, AesGcmIvLen, len(plaintext)+AesGcmIvLen+AesGcmTagLen)
 	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
