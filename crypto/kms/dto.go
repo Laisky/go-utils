@@ -1,6 +1,7 @@
 package kms
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 
 	"github.com/Laisky/errors/v2"
@@ -83,4 +84,24 @@ func (e *EncryptedData) Unmarshal(data []byte) error {
 	}
 
 	return nil
+}
+
+// MarshalToString marshal to string
+func (e EncryptedData) MarshalToString() (string, error) {
+	data, err := e.Marshal()
+	if err != nil {
+		return "", errors.Wrap(err, "marshal")
+	}
+
+	return base64.StdEncoding.EncodeToString(data), nil
+}
+
+// UnmarshalFromString unmarshal from string
+func (e *EncryptedData) UnmarshalFromString(s string) error {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return errors.Wrap(err, "decode base64")
+	}
+
+	return e.Unmarshal(data)
 }

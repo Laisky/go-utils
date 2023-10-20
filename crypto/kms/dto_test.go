@@ -9,6 +9,8 @@ import (
 )
 
 func TestEncryptedItem_Unmarshal(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		KekID      uint16
 		DekID      []byte
@@ -35,6 +37,27 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 
 			e2 := EncryptedData{}
 			err = e2.Unmarshal(data)
+			require.NoError(t, err)
+
+			require.Equal(t, e.Version, e2.Version)
+			require.Equal(t, e.KekID, e2.KekID)
+			require.Equal(t, e.DekID, e2.DekID)
+			require.Equal(t, e.Ciphertext, e2.Ciphertext)
+		})
+
+		t.Run(tt.name, func(t *testing.T) {
+			e := &EncryptedData{
+				Version:    EncryptedItemVer1,
+				KekID:      tt.args.KekID,
+				DekID:      tt.args.DekID,
+				Ciphertext: tt.args.Ciphertext,
+			}
+
+			data, err := e.MarshalToString()
+			require.NoError(t, err)
+
+			e2 := EncryptedData{}
+			err = e2.UnmarshalFromString(data)
 			require.NoError(t, err)
 
 			require.Equal(t, e.Version, e2.Version)
