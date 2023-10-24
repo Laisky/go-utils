@@ -372,6 +372,8 @@ func FallBack(orig func() any, fallback any) (ret any) {
 }
 
 // RegexNamedSubMatch extract key:val map from string by group match
+//
+// Deprecated: use RegexNamedSubMatch2 instead
 func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]string) error {
 	match := r.FindStringSubmatch(str)
 	names := r.SubexpNames()
@@ -384,7 +386,26 @@ func RegexNamedSubMatch(r *regexp.Regexp, str string, subMatchMap map[string]str
 			subMatchMap[name] = match[i]
 		}
 	}
+
 	return nil
+}
+
+// RegexNamedSubMatch2 extract key:val map from string by group match
+func RegexNamedSubMatch2(r *regexp.Regexp, str string) (subMatchMap map[string]string, err error) {
+	match := r.FindStringSubmatch(str)
+	names := r.SubexpNames()
+	if len(names) != len(match) {
+		return nil, errors.New("the number of args in `regexp` and `str` not matched")
+	}
+
+	subMatchMap = make(map[string]string)
+	for i, name := range r.SubexpNames() {
+		if i != 0 && name != "" {
+			subMatchMap[name] = match[i]
+		}
+	}
+
+	return subMatchMap, nil
 }
 
 // FlattenMap make embedded map into flatten map

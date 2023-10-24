@@ -82,6 +82,8 @@ func TestHasMethod(t *testing.T) {
 }
 
 func TestHasField(t *testing.T) {
+	t.Parallel()
+
 	st1 := testStCorrect1{}
 	st1p := &testStCorrect1{}
 	st2 := testStCorrect2{}
@@ -112,6 +114,8 @@ func TestHasField(t *testing.T) {
 }
 
 func TestValidateFileHash(t *testing.T) {
+	t.Parallel()
+
 	fp, err := os.CreateTemp("", "go-utils-*")
 	require.NoError(t, err)
 	defer os.Remove(fp.Name())
@@ -147,6 +151,8 @@ func TestValidateFileHash(t *testing.T) {
 }
 
 func TestJSON(t *testing.T) {
+	t.Parallel()
+
 	t.Run("marshal", func(t *testing.T) {
 		jb, err := json.Marshal("123")
 		require.NoError(t, err)
@@ -167,7 +173,7 @@ func TestJSON(t *testing.T) {
 		require.Equal(t, "123", v)
 	})
 
-	t.Run("comment", func(t *testing.T) {
+	t.Run("json not support comment", func(t *testing.T) {
 		d := struct {
 			K string
 		}{}
@@ -176,6 +182,18 @@ func TestJSON(t *testing.T) {
 			"k": "v"  // comment
 			}`
 		err := json.Unmarshal([]byte(raw), &d)
+		require.ErrorContains(t, err, "invalid character '/'")
+	})
+
+	t.Run("json support comment", func(t *testing.T) {
+		d := struct {
+			K string
+		}{}
+		raw := `{
+			// comment
+			"k": "v"  // comment
+			}`
+		err := json.UnmarshalComment([]byte(raw), &d)
 		require.NoError(t, err)
 		require.Equal(t, "v", d.K)
 	})
@@ -196,6 +214,8 @@ func TestIsPtr(t *testing.T) {
 func testFoo() {}
 
 func TestGetFuncName(t *testing.T) {
+	t.Parallel()
+
 	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v4.testFoo" {
 		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
@@ -206,6 +226,8 @@ func ExampleGetFuncName() {
 }
 
 func TestFallBack(t *testing.T) {
+	t.Parallel()
+
 	fail := func() any {
 		panic("got error")
 	}
@@ -224,7 +246,33 @@ func ExampleFallBack() {
 	FallBack(targetFunc, 10) // got 10
 }
 
+func TestRegexNamedSubMatch2(t *testing.T) {
+	t.Parallel()
+
+	reg := regexp.MustCompile(`^(?P<time>.{23}) {0,}\| {0,}(?P<app>[^ ]+) {0,}\| {0,}(?P<level>[^ ]+) {0,}\| {0,}(?P<thread>[^ ]+) {0,}\| {0,}(?P<class>[^ ]+) {0,}\| {0,}(?P<line>\d+) {0,}([\|:] {0,}(?P<args>\{.*\})){0,1}([\|:] {0,}(?P<message>.*)){0,1}`)
+	str := "2018-04-02 02:02:10.928 | sh-datamining | INFO | http-nio-8080-exec-80 | com.pateo.qingcloud.gateway.core.zuul.filters.post.LogFilter | 74 | xxx"
+	submatchMap, err := RegexNamedSubMatch2(reg, str)
+	require.NoError(t, err)
+
+	for k, v := range submatchMap {
+		fmt.Println(">>", k, ":", v)
+	}
+
+	if v1, ok := submatchMap["level"]; !ok {
+		t.Fatalf("`level` should exists")
+	} else if v1 != "INFO" {
+		t.Fatalf("`level` shoule be `INFO`, but got: %v", v1)
+	}
+	if v2, ok := submatchMap["line"]; !ok {
+		t.Fatalf("`line` should exists")
+	} else if v2 != "74" {
+		t.Fatalf("`line` shoule be `74`, but got: %v", v2)
+	}
+}
+
 func TestRegexNamedSubMatch(t *testing.T) {
+	t.Parallel()
+
 	reg := regexp.MustCompile(`^(?P<time>.{23}) {0,}\| {0,}(?P<app>[^ ]+) {0,}\| {0,}(?P<level>[^ ]+) {0,}\| {0,}(?P<thread>[^ ]+) {0,}\| {0,}(?P<class>[^ ]+) {0,}\| {0,}(?P<line>\d+) {0,}([\|:] {0,}(?P<args>\{.*\})){0,1}([\|:] {0,}(?P<message>.*)){0,1}`)
 	str := "2018-04-02 02:02:10.928 | sh-datamining | INFO | http-nio-8080-exec-80 | com.pateo.qingcloud.gateway.core.zuul.filters.post.LogFilter | 74 | xxx"
 	submatchMap := map[string]string{}
@@ -307,6 +355,8 @@ func TestTriggerGC(t *testing.T) {
 }
 
 func TestTemplateWithMap(t *testing.T) {
+	t.Parallel()
+
 	tpl := `123${k1} + ${k2}:${k-3} 22`
 	data := map[string]any{
 		"k1":  41,
@@ -321,6 +371,8 @@ func TestTemplateWithMap(t *testing.T) {
 }
 
 func TestURLMasking(t *testing.T) {
+	t.Parallel()
+
 	type testcase struct {
 		input  string
 		output string
@@ -355,6 +407,8 @@ func ExampleURLMasking() {
 }
 
 func TestAutoGC(t *testing.T) {
+	t.Parallel()
+
 	var err error
 	if err = log.Shared.ChangeLevel("debug"); err != nil {
 		t.Fatalf("%+v", err)
@@ -409,6 +463,8 @@ func ExampleAutoGC() {
 }
 
 func TestForceGCBlocking(t *testing.T) {
+	t.Parallel()
+
 	ForceGCBlocking()
 }
 
@@ -421,6 +477,8 @@ func ExampleForceGCUnBlocking() {
 }
 
 func TestForceGCUnBlocking(t *testing.T) {
+	t.Parallel()
+
 	ForceGCUnBlocking()
 
 	var pool errgroup.Group
@@ -435,6 +493,8 @@ func TestForceGCUnBlocking(t *testing.T) {
 }
 
 func TestReflectSet(t *testing.T) {
+	t.Parallel()
+
 	type st struct{ A, B string }
 	ss := []*st{{}, {}}
 	nFields := reflect.ValueOf(ss[0]).Elem().NumField()
@@ -474,6 +534,8 @@ func ExampleSetStructFieldsBySlice() {
 }
 
 func TestSetStructFieldsBySlice(t *testing.T) {
+	t.Parallel()
+
 	type ST struct{ A, B string }
 	var (
 		err error
@@ -538,6 +600,8 @@ func TestSetStructFieldsBySlice(t *testing.T) {
 }
 
 func TestUniqueStrings(t *testing.T) {
+	t.Parallel()
+
 	orig := []string{}
 	for i := 0; i < 100000; i++ {
 		orig = append(orig, RandomStringWithLength(2))
