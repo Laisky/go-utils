@@ -45,7 +45,7 @@ type KMSOption func(*kmsOption) error
 
 func (o *kmsOption) fillDefault() *kmsOption {
 	o.aesKeyLen = 32
-	o.dekIDLen = 128
+	o.dekIDLen = 128 // 2^1024
 	o.logger = glog.Shared.Named("kms")
 
 	return o
@@ -207,6 +207,10 @@ func (m *KMS) Keks(_ context.Context) (
 }
 
 // DeriveKeyByID derive key by specific arguments
+//
+// Cautious: this method is will dangerous,
+// could derive key by any kek and dek id, that could cause security issue.
+// it is your responsibility to ensure user has permission to access this dek id.
 func (m *KMS) DeriveKeyByID(_ context.Context,
 	kekID uint16,
 	dekID []byte,
