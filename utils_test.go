@@ -1278,6 +1278,7 @@ func TestCtxKey(t *testing.T) {
 		require.Equal(t, 123, ctx.Value(keya))
 	})
 
+	// different type with same value will not overwrite each other
 	t.Run("different type string as key", func(t *testing.T) {
 		type ctxKeyA string
 		type ctxKeyB string
@@ -1291,6 +1292,9 @@ func TestCtxKey(t *testing.T) {
 		ctx = context.WithValue(ctx, keya, 123)
 
 		require.Nil(t, ctx.Value(keyb))
+		require.Equal(t, 123, ctx.Value(keya))
+
+		ctx = context.WithValue(ctx, keyb, 321)
 		require.Equal(t, 123, ctx.Value(keya))
 	})
 }
