@@ -135,6 +135,9 @@ func NewAlert(ctx context.Context,
 	if pushAPI == "" {
 		return nil, errors.Errorf("pushAPI should nout empty")
 	}
+	if ctx == nil {
+		return nil, errors.Errorf("ctx should not be nil")
+	}
 
 	opt, err := new(alertOption).fillDefault().applyOpts(opts...)
 	if err != nil {

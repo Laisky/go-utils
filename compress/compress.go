@@ -127,6 +127,8 @@ func (c *Gzip) WriteFooter() (err error) {
 }
 
 // PGZip parallel gzip compressor
+//
+// call `NewPGZip` to create new PGZip
 type PGZip struct {
 	*option
 	buf      *bufio.Writer
