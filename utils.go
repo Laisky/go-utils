@@ -966,34 +966,35 @@ func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
 	return data, false
 }
 
-type expiredMapItem struct {
+type expiredMapItem[T any] struct {
 	sync.RWMutex
-	data any
+	data T
 	t    *int64
 }
 
-func (e *expiredMapItem) getTime() time.Time {
+func (e *expiredMapItem[T]) getTime() time.Time {
 	return ParseUnix2UTC(atomic.LoadInt64(e.t))
 }
 
-func (e *expiredMapItem) refreshTime() {
+func (e *expiredMapItem[T]) refreshTime() {
 	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
 }
 
 // LRUExpiredMap map with expire time, auto delete expired item.
 //
 // `Get` will auto refresh item's expires.
-type LRUExpiredMap struct {
+// `Get` will auto create new item if key not exists.
+type LRUExpiredMap[T any] struct {
 	m   sync.Map
 	ttl time.Duration
-	new func() any
+	new func() T
 }
 
 // NewLRUExpiredMap new ExpiredMap
-func NewLRUExpiredMap(ctx context.Context,
+func NewLRUExpiredMap[T any](ctx context.Context,
 	ttl time.Duration,
-	newIns func() any) (el *LRUExpiredMap, err error) {
-	el = &LRUExpiredMap{
+	newIns func() T) (el *LRUExpiredMap[T], err error) {
+	el = &LRUExpiredMap[T]{
 		ttl: ttl,
 		new: newIns,
 	}
@@ -1002,7 +1003,7 @@ func NewLRUExpiredMap(ctx context.Context,
 	return el, nil
 }
 
-func (e *LRUExpiredMap) clean(ctx context.Context) {
+func (e *LRUExpiredMap[T]) clean(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -1012,16 +1013,16 @@ func (e *LRUExpiredMap) clean(ctx context.Context) {
 
 		e.m.Range(func(k, v any) bool {
 			//nolint:forcetypeassert
-			if v.(*expiredMapItem).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem[T]).getTime().Add(e.ttl).After(Clock.GetUTCNow()) {
 				return true
 			}
 
 			// lock is expired
-			v.(*expiredMapItem).Lock()         //nolint:forcetypeassert
-			defer v.(*expiredMapItem).Unlock() //nolint:forcetypeassert
+			v.(*expiredMapItem[T]).Lock()         //nolint:forcetypeassert
+			defer v.(*expiredMapItem[T]).Unlock() //nolint:forcetypeassert
 
 			//nolint:forcetypeassert
-			if v.(*expiredMapItem).getTime().Add(e.ttl).Before(Clock.GetUTCNow()) {
+			if v.(*expiredMapItem[T]).getTime().Add(e.ttl).Before(Clock.GetUTCNow()) {
 				// lock still expired
 				e.m.Delete(k)
 			}
@@ -1036,16 +1037,16 @@ func (e *LRUExpiredMap) clean(ctx context.Context) {
 // Get get item
 //
 // will auto refresh key's ttl
-func (e *LRUExpiredMap) Get(key string) any {
+func (e *LRUExpiredMap[T]) Get(key string) T {
 	l, _ := e.m.Load(key)
 	if l == nil {
 		t := Clock.GetUTCNow().Unix()
-		l, _ = e.m.LoadOrStore(key, &expiredMapItem{
+		l, _ = e.m.LoadOrStore(key, &expiredMapItem[T]{
 			t:    &t,
 			data: e.new(),
 		})
 	} else {
-		ol := l.(*expiredMapItem) //nolint:forcetypeassert
+		ol := l.(*expiredMapItem[T]) //nolint:forcetypeassert
 		ol.RLock()
 		ol.refreshTime()
 		l, _ = e.m.LoadOrStore(key, ol)
@@ -1053,7 +1054,7 @@ func (e *LRUExpiredMap) Get(key string) any {
 	}
 
 	//nolint:forcetypeassert
-	return l.(*expiredMapItem).data
+	return l.(*expiredMapItem[T]).data
 }
 
 // ConvertMap2StringKey convert any map to `map[string]any`

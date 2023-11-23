@@ -345,13 +345,13 @@ func (m *Mutex) SpinLock(step, timeout time.Duration) {
 
 // ExpiredRLock Lock with expire time
 type ExpiredRLock struct {
-	m *LRUExpiredMap
+	m *LRUExpiredMap[*sync.RWMutex]
 }
 
 // NewExpiredRLock new ExpiredRLock
 func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, err error) {
 	el = &ExpiredRLock{}
-	el.m, err = NewLRUExpiredMap(ctx, exp, func() any {
+	el.m, err = NewLRUExpiredMap(ctx, exp, func() *sync.RWMutex {
 		return &sync.RWMutex{}
 	})
 	err = errors.Wrap(err, "new expired rlock")
@@ -360,7 +360,7 @@ func NewExpiredRLock(ctx context.Context, exp time.Duration) (el *ExpiredRLock, 
 
 // GetLock get lock
 func (e *ExpiredRLock) GetLock(key string) *sync.RWMutex {
-	return e.m.Get(key).(*sync.RWMutex) //nolint:forcetypeassert
+	return e.m.Get(key)
 }
 
 // RWManagerInterface auto create rwlock if not exists
