@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	_ KeyAgreement = new(DHKX)
-	_ KeyAgreement = new(ECDH)
+	_ KeyExchange = new(DHKX)
+	_ KeyExchange = new(ECDH)
 )
 
-// KeyAgreement key agreement interface
-type KeyAgreement interface {
+// KeyExchange key agreement interface
+type KeyExchange interface {
 	// PublicKey return public key bytes
 	//
 	// send public key to peer, and get peer's public key
