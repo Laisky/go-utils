@@ -6,14 +6,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"math/big"
-	"reflect"
 	"testing"
 
 	"github.com/Laisky/zap"
-	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -462,39 +459,3 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 // 		t.Fatalf("%+v", err)
 // 	}
 // }
-
-func TestNewDHKX(t *testing.T) {
-	t.Parallel()
-
-	alice, err := NewDHKX()
-	require.NoError(t, err)
-
-	bob, err := NewDHKX()
-	require.NoError(t, err)
-
-	alicePub := alice.PublicKey()
-	bobPub := bob.PublicKey()
-
-	aliceKey, err := alice.GenerateKey(bobPub)
-	require.NoError(t, err)
-
-	bobKey, err := bob.GenerateKey(alicePub)
-	require.NoError(t, err)
-
-	t.Logf("generate key: %+v", hex.EncodeToString(aliceKey))
-	require.Equal(t, aliceKey, bobKey)
-}
-
-func ExampleDHKX() {
-	alice, _ := NewDHKX()
-
-	bob, _ := NewDHKX()
-
-	alicePub := alice.PublicKey()
-	bobPub := bob.PublicKey()
-
-	aliceKey, _ := alice.GenerateKey(bobPub)
-	bobKey, _ := bob.GenerateKey(alicePub)
-	fmt.Println(reflect.DeepEqual(aliceKey, bobKey))
-	// Output: true
-}

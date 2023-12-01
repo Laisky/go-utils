@@ -5,16 +5,13 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"strings"
-
-	// TODO: replaced by crypto/ecdh in Go v1.20
-	//  https://words.filippo.io/dispatches/go-1-20-cryptography/
-	"crypto/elliptic"
 
 	"github.com/Laisky/errors/v2"
 )
@@ -382,17 +379,8 @@ func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
 
 // GetPubkeyFromPrikey get pubkey from private key
 func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
-	switch k := priv.(type) {
-	case *rsa.PrivateKey:
-		return &k.PublicKey
-	case *ecdsa.PrivateKey:
-		return &k.PublicKey
-	case ed25519.PrivateKey:
-		//nolint: forcetypeassert
-		return k.Public().(ed25519.PublicKey)
-	default:
-		return nil
-	}
+	//nolint:forcetypeassert // panic if not support
+	return priv.(interface{ Public() crypto.PublicKey }).Public()
 }
 
 // VerifyCertByPrikey verify cert by prikey

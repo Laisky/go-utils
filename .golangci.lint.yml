@@ -161,7 +161,8 @@ linters-settings:
     # report any comments starting with keywords, this is useful for TODO or FIXME comments that
     # might be left in the code accidentally and should be resolved before merging
     keywords: # default keywords are TODO, BUG, and FIXME, these can be overwritten by this setting
-      - NOTE
+      # - NOTE
+      - FIXME
       - OPTIMIZE # marks code that should be optimized before merging
       - HACK # marks hack-arounds that should be removed before merging
   gofmt:
@@ -509,6 +510,9 @@ issues:
     - linters:
         - lll
       source: "^//go:generate "
+    - linters:
+        - revive
+      text: indent-error-flow
 
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all

@@ -1,9 +1,28 @@
 package crypto
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
+
 	"github.com/Laisky/errors/v2"
 	"github.com/monnand/dhkx"
 )
+
+var (
+	_ KeyAgreement = new(DHKX)
+	_ KeyAgreement = new(ECDH)
+)
+
+// KeyAgreement key agreement interface
+type KeyAgreement interface {
+	// PublicKey return public key bytes
+	//
+	// send public key to peer, and get peer's public key
+	// every side of the exchange peers will generate the same key
+	PublicKey() []byte
+	// GenerateKey generate new key by peer's public key
+	GenerateKey(peerPubKey []byte) ([]byte, error)
+}
 
 // Diffie Hellman Key-exchange algorithm
 //
@@ -20,7 +39,9 @@ import (
 //	aliceKey, _ := alice.GenerateKey(bobPub)
 //	bobKey, _ := bob.GenerateKey(alicePub)
 //
-//	// aliceKey == bobKey
+//	aliceKey == bobKey
+//
+// Note: recommoend to use ECDH instead of DHKX
 type DHKX struct {
 	g    *dhkx.DHGroup
 	priv *dhkx.DHKey
@@ -50,6 +71,8 @@ type DHKXOptionFunc func(*dhkxOption) error
 // NewDHKX create a new DHKX instance
 //
 // each DHKX instance has it's unique group and private key
+//
+// Note: recommoend to use ECDH instead of DHKX
 func NewDHKX(optfs ...DHKXOptionFunc) (d *DHKX, err error) {
 	opt, err := new(dhkxOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
@@ -93,4 +116,68 @@ func (d *DHKX) GenerateKey(peerPubKey []byte) ([]byte, error) {
 	}
 
 	return k.Bytes(), nil
+}
+
+// ECDH Elliptic Curve Diffie-Hellman
+type ECDH struct {
+	priv *ecdh.PrivateKey
+}
+
+// NewEcdh create a new ECDH instance
+func NewEcdh(curve ECDSACurve) (ins *ECDH, err error) {
+	ins = new(ECDH)
+	switch curve {
+	case ECDSACurveP256:
+		ins.priv, err = ecdh.P256().GenerateKey(rand.Reader)
+	case ECDSACurveP384:
+		ins.priv, err = ecdh.P384().GenerateKey(rand.Reader)
+	case ECDSACurveP521:
+		ins.priv, err = ecdh.P521().GenerateKey(rand.Reader)
+	default:
+		return nil, errors.Errorf("unsupport curve %s", curve)
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "generate key")
+	}
+
+	return ins, nil
+}
+
+// PublicKey return public key bytes
+func (e *ECDH) PublicKey() []byte {
+	switch e.priv.Curve() {
+	case ecdh.P256():
+		return append([]byte{byte(1)}, e.priv.PublicKey().Bytes()...)
+	case ecdh.P384():
+		return append([]byte{byte(2)}, e.priv.PublicKey().Bytes()...)
+	case ecdh.P521():
+		return append([]byte{byte(3)}, e.priv.PublicKey().Bytes()...)
+	default:
+		panic("unsupport curve")
+	}
+}
+
+// GenerateKey generate new key by peer's public key
+func (e *ECDH) GenerateKey(peerPubKey []byte) (sharekey []byte, err error) {
+	var pubkey *ecdh.PublicKey
+	switch peerPubKey[0] {
+	case 1:
+		pubkey, err = ecdh.P256().NewPublicKey(peerPubKey[1:])
+	case 2:
+		pubkey, err = ecdh.P384().NewPublicKey(peerPubKey[1:])
+	case 3:
+		pubkey, err = ecdh.P521().NewPublicKey(peerPubKey[1:])
+	default:
+		return nil, errors.Errorf("unsupport curve %d", peerPubKey[0])
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "new public key")
+	}
+
+	sharekey, err = e.priv.ECDH(pubkey)
+	if err != nil {
+		return nil, errors.Wrap(err, "ecdh")
+	}
+
+	return sharekey, nil
 }
