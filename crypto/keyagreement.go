@@ -19,7 +19,7 @@ type KeyAgreement interface {
 	//
 	// send public key to peer, and get peer's public key
 	// every side of the exchange peers will generate the same key
-	PublicKey() []byte
+	PublicKey() ([]byte, error)
 	// GenerateKey generate new key by peer's public key
 	GenerateKey(peerPubKey []byte) ([]byte, error)
 }
@@ -92,8 +92,8 @@ func NewDHKX(optfs ...DHKXOptionFunc) (d *DHKX, err error) {
 }
 
 // PublicKey return public key bytes
-func (d *DHKX) PublicKey() []byte {
-	return d.priv.Bytes()
+func (d *DHKX) PublicKey() ([]byte, error) {
+	return d.priv.Bytes(), nil
 }
 
 // GenerateKey generate new key by peer's public key
@@ -125,7 +125,6 @@ type ECDH struct {
 
 // NewEcdh create a new ECDH instance
 func NewEcdh(curve ECDSACurve) (ins *ECDH, err error) {
-	ins = new(ECDH)
 	switch curve {
 	case ECDSACurveP256:
 		ins.priv, err = ecdh.P256().GenerateKey(rand.Reader)
@@ -144,16 +143,16 @@ func NewEcdh(curve ECDSACurve) (ins *ECDH, err error) {
 }
 
 // PublicKey return public key bytes
-func (e *ECDH) PublicKey() []byte {
+func (e *ECDH) PublicKey() ([]byte, error) {
 	switch e.priv.Curve() {
 	case ecdh.P256():
-		return append([]byte{byte(1)}, e.priv.PublicKey().Bytes()...)
+		return append([]byte{byte(1)}, e.priv.PublicKey().Bytes()...), nil
 	case ecdh.P384():
-		return append([]byte{byte(2)}, e.priv.PublicKey().Bytes()...)
+		return append([]byte{byte(2)}, e.priv.PublicKey().Bytes()...), nil
 	case ecdh.P521():
-		return append([]byte{byte(3)}, e.priv.PublicKey().Bytes()...)
+		return append([]byte{byte(3)}, e.priv.PublicKey().Bytes()...), nil
 	default:
-		panic("unsupport curve")
+		return nil, errors.Errorf("unsupport curve %s", e.priv.Curve())
 	}
 }
 
