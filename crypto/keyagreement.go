@@ -125,6 +125,7 @@ type ECDH struct {
 
 // NewEcdh create a new ECDH instance
 func NewEcdh(curve ECDSACurve) (ins *ECDH, err error) {
+	ins = new(ECDH)
 	switch curve {
 	case ECDSACurveP256:
 		ins.priv, err = ecdh.P256().GenerateKey(rand.Reader)

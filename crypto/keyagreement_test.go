@@ -18,8 +18,10 @@ func TestNewDHKX(t *testing.T) {
 	bob, err := NewDHKX()
 	require.NoError(t, err)
 
-	alicePub := alice.PublicKey()
-	bobPub := bob.PublicKey()
+	alicePub, err := alice.PublicKey()
+	require.NoError(t, err)
+	bobPub, err := bob.PublicKey()
+	require.NoError(t, err)
 
 	aliceKey, err := alice.GenerateKey(bobPub)
 	require.NoError(t, err)
@@ -36,8 +38,8 @@ func ExampleDHKX() {
 
 	bob, _ := NewDHKX()
 
-	alicePub := alice.PublicKey()
-	bobPub := bob.PublicKey()
+	alicePub, _ := alice.PublicKey()
+	bobPub, _ := bob.PublicKey()
 
 	aliceKey, _ := alice.GenerateKey(bobPub)
 	bobKey, _ := bob.GenerateKey(alicePub)
@@ -63,8 +65,10 @@ func TestNewEcdh(t *testing.T) {
 			_, err = NewEcdh(ECDSACurve("yahoo"))
 			require.ErrorContains(t, err, "unsupport curve yahoo")
 
-			alicePub := alice.PublicKey()
-			bobPub := bob.PublicKey()
+			alicePub, err := alice.PublicKey()
+			require.NoError(t, err)
+			bobPub, err := bob.PublicKey()
+			require.NoError(t, err)
 
 			aliceKey, err := alice.GenerateKey(bobPub)
 			require.NoError(t, err)
@@ -82,8 +86,8 @@ func ExampleNewEcdh() {
 
 	bob, _ := NewEcdh(ECDSACurveP256)
 
-	alicePub := alice.PublicKey()
-	bobPub := bob.PublicKey()
+	alicePub, _ := alice.PublicKey()
+	bobPub, _ := bob.PublicKey()
 
 	aliceKey, _ := alice.GenerateKey(bobPub)
 	bobKey, _ := bob.GenerateKey(alicePub)
@@ -103,8 +107,10 @@ func Benchmark_aggrements(b *testing.B) {
 		bob, err := NewDHKX()
 		require.NoError(b, err)
 
-		alicePub := alice.PublicKey()
-		bobPub := bob.PublicKey()
+		alicePub, err := alice.PublicKey()
+		require.NoError(b, err)
+		bobPub, err := bob.PublicKey()
+		require.NoError(b, err)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -125,8 +131,10 @@ func Benchmark_aggrements(b *testing.B) {
 		bob, err := NewEcdh(ECDSACurveP256)
 		require.NoError(b, err)
 
-		alicePub := alice.PublicKey()
-		bobPub := bob.PublicKey()
+		alicePub, err := alice.PublicKey()
+		require.NoError(b, err)
+		bobPub, err := bob.PublicKey()
+		require.NoError(b, err)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
