@@ -1724,3 +1724,46 @@ func TestCopy(t *testing.T) {
 	require.Equal(t, padded1, padded2)
 	require.Equal(t, padded1, padded3)
 }
+func TestReverseSlice(t *testing.T) {
+	t.Parallel()
+
+	// Test cases
+	tests := []struct {
+		name     string
+		input    []interface{}
+		expected []interface{}
+	}{
+		{
+			name:     "Empty Slice",
+			input:    []interface{}{},
+			expected: []interface{}{},
+		},
+		{
+			name:     "Slice with Even Number of Elements",
+			input:    []interface{}{1, 2, 3, 4},
+			expected: []interface{}{4, 3, 2, 1},
+		},
+		{
+			name:     "Slice with Odd Number of Elements",
+			input:    []interface{}{"a", "b", "c", "d", "e"},
+			expected: []interface{}{"e", "d", "c", "b", "a"},
+		},
+	}
+
+	// Run tests
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Make a copy of the input slice
+			input := make([]interface{}, len(test.input))
+			copy(input, test.input)
+
+			// Reverse the slice
+			ReverseSlice(input)
+
+			// Check if the reversed slice matches the expected result
+			if !reflect.DeepEqual(input, test.expected) {
+				t.Errorf("unexpected result, got: %v, want: %v", input, test.expected)
+			}
+		})
+	}
+}

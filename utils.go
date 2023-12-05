@@ -1350,3 +1350,11 @@ func FileHashSharding(fname string) string {
 	hashed := hex.EncodeToString(hasher.Sum(nil))
 	return filepath.Join(hashed[:2], hashed[2:4], fname)
 }
+
+// ReverseSlice reverse slice
+func ReverseSlice[T any](s []T) {
+	for i := len(s)/2 - 1; i >= 0; i-- {
+		opp := len(s) - 1 - i
+		s[i], s[opp] = s[opp], s[i]
+	}
+}
