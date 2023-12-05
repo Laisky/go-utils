@@ -1802,3 +1802,22 @@ func TestUniqueStrings(t *testing.T) {
 		}
 	})
 }
+
+// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+// Benchmark_UniqueStrings
+// Benchmark_UniqueStrings/100000
+// Benchmark_UniqueStrings/100000-104         	1000000000	         0.003633 ns/op	       0 B/op	       0 allocs/op
+func Benchmark_UniqueStrings(b *testing.B) {
+	orig := []string{}
+	for i := 0; i < b.N; i++ {
+		for i := 0; i < 100000; i++ {
+			orig = append(orig, RandomStringWithLength(2))
+		}
+
+		b.ResetTimer()
+	}
+
+	b.Run("100000", func(b *testing.B) {
+		orig = UniqueStrings(orig)
+	})
+}
