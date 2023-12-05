@@ -649,17 +649,19 @@ func SetStructFieldsBySlice(structs, vals any) (err error) {
 }
 
 // UniqueStrings remove duplicate string in slice
-func UniqueStrings(vs []string) (r []string) {
-	m := map[string]struct{}{}
-	var ok bool
+func UniqueStrings(vs []string) []string {
+	seen := make(map[string]struct{})
+	j := 0
 	for _, v := range vs {
-		if _, ok = m[v]; !ok {
-			m[v] = struct{}{}
-			r = append(r, v)
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			vs[j] = v
+			j++
 		}
 	}
 
-	return
+	clear(vs[j:])
+	return vs[:j:j]
 }
 
 // RemoveEmpty remove duplicate string in slice

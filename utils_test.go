@@ -599,27 +599,6 @@ func TestSetStructFieldsBySlice(t *testing.T) {
 	}
 }
 
-func TestUniqueStrings(t *testing.T) {
-	t.Parallel()
-
-	orig := []string{}
-	for i := 0; i < 100000; i++ {
-		orig = append(orig, RandomStringWithLength(2))
-	}
-	t.Logf("generate length : %d", len(orig))
-	orig = UniqueStrings(orig)
-	t.Logf("after unique length : %d", len(orig))
-	m := map[string]bool{}
-	var ok bool
-	for _, v := range orig {
-		if _, ok = m[v]; ok {
-			t.Fatalf("duplicate: %v", v)
-		} else {
-			m[v] = ok
-		}
-	}
-}
-
 func TestRunCMD(t *testing.T) {
 	ctx := context.Background()
 	type args struct {
@@ -1766,4 +1745,60 @@ func TestReverseSlice(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUniqueStrings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		vs   []string
+		want []string
+	}{
+		{
+			name: "Empty input",
+			vs:   []string{},
+			want: []string{},
+		},
+		{
+			name: "No duplicates",
+			vs:   []string{"a", "b", "c"},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name: "Duplicates",
+			vs:   []string{"a", "b", "a", "c", "b"},
+			want: []string{"a", "b", "c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := UniqueStrings(tt.vs)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("random", func(t *testing.T) {
+		t.Parallel()
+
+		orig := []string{}
+		for i := 0; i < 100000; i++ {
+			orig = append(orig, RandomStringWithLength(2))
+		}
+		t.Logf("generate length : %d", len(orig))
+		orig = UniqueStrings(orig)
+		t.Logf("after unique length : %d", len(orig))
+		m := map[string]bool{}
+		var ok bool
+		for _, v := range orig {
+			if _, ok = m[v]; ok {
+				t.Fatalf("duplicate: %v", v)
+			} else {
+				m[v] = ok
+			}
+		}
+	})
 }
