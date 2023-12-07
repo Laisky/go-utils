@@ -1320,7 +1320,7 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 		return nil, errors.Wrap(err, "convert public key to pem")
 	}
 
-	return map[string]any{
+	v := map[string]any{
 		"subject":                 ReadablePkixName(cert.Subject),
 		"issuer":                  ReadablePkixName(cert.Issuer),
 		"subject_key_id_base64":   gutils.EncodeByBase64(cert.SubjectKeyId),
@@ -1343,7 +1343,8 @@ func ReadableX509Cert(cert *x509.Certificate) (map[string]any, error) {
 		"ocsps":              cert.OCSPServer,
 		"cris":               cert.CRLDistributionPoints,
 		"policy_identifiers": ReadableOIDs(cert.PolicyIdentifiers),
-	}, nil
+	}
+	return gutils.RemoveEmptyVal(v), nil
 }
 
 // ReadableX509CSR convert x509 certificate request to readable jsonable map
@@ -1353,7 +1354,7 @@ func ReadableX509CSR(csr *x509.CertificateRequest) (map[string]any, error) {
 		return nil, errors.Wrap(err, "convert public key to pem")
 	}
 
-	return map[string]any{
+	v := map[string]any{
 		"subject":              ReadablePkixName(csr.Subject),
 		"signature_algorithm":  csr.SignatureAlgorithm.String(),
 		"public_key_algorithm": csr.PublicKeyAlgorithm.String(),
@@ -1364,16 +1365,18 @@ func ReadableX509CSR(csr *x509.CertificateRequest) (map[string]any, error) {
 			"ip_addresses":    csr.IPAddresses,
 			"uris":            csr.URIs,
 		},
-	}, nil
+	}
+	return gutils.RemoveEmptyVal(v), nil
 }
 
 // ReadableX509Extention convert x509 certificate extension to readable jsonable map
 func ReadableX509Extention(ext *pkix.Extension) (map[string]any, error) {
-	return map[string]any{
+	v := map[string]any{
 		"oid":           ext.Id.String(),
 		"critical":      fmt.Sprintf("%t", ext.Critical),
 		"raw_value_b64": gutils.EncodeByBase64(ext.Value),
-	}, nil
+	}
+	return gutils.RemoveEmptyVal(v), nil
 }
 
 // ReadableX509KeyUsage convert x509 certificate key usages to readable strings
@@ -1399,7 +1402,7 @@ func ReadableX509KeyUsage(usage x509.KeyUsage) (usageNames []string) {
 
 // ReadablePkixName convert pkix.Name to readable map with strings
 func ReadablePkixName(name pkix.Name) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"country":             name.Country,
 		"organization":        name.Organization,
 		"organizational_unit": name.OrganizationalUnit,
@@ -1410,6 +1413,8 @@ func ReadablePkixName(name pkix.Name) map[string]any {
 		"serial_number":       name.SerialNumber,
 		"common_name":         name.CommonName,
 	}
+
+	return gutils.RemoveEmptyVal(m)
 }
 
 // ReadableX509ExtKeyUsage convert x509 certificate ext key usages to readable strings

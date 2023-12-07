@@ -26,7 +26,7 @@ type KMS struct {
 	mu  sync.RWMutex
 	// keks contain all keks
 	//
-	//  // map[kekID]kek
+	//  map[kekID]kek
 	//  map[uint16][]byte
 	keks   sync.Map
 	status gkms.Status

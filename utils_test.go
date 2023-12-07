@@ -1821,3 +1821,75 @@ func Benchmark_UniqueStrings(b *testing.B) {
 		orig = UniqueStrings(orig)
 	})
 }
+
+func TestRemoveEmptyVal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty map", func(t *testing.T) {
+		m1 := map[string]any{}
+		want1 := map[string]any{}
+		got1 := RemoveEmptyVal(m1)
+		if !reflect.DeepEqual(got1, want1) {
+			t.Errorf("Test case 1 failed: got %v, want %v", got1, want1)
+		}
+	})
+
+	t.Run("Map with non-empty values", func(t *testing.T) {
+		m2 := map[string]any{
+			"a": 1,
+			"b": "hello",
+			"c": map[string]any{
+				"d": 2,
+				"e": "",
+			},
+		}
+		want2 := map[string]any{
+			"a": 1,
+			"b": "hello",
+			"c": map[string]any{
+				"d": 2,
+			},
+		}
+		got2 := RemoveEmptyVal(m2)
+		if !reflect.DeepEqual(got2, want2) {
+			t.Errorf("Test case 2 failed: got %v, want %v", got2, want2)
+		}
+	})
+
+	t.Run("Map with nested empty maps", func(t *testing.T) {
+		m3 := map[string]any{
+			"a": map[string]any{},
+			"b": map[string]any{
+				"c": map[string]any{},
+			},
+		}
+		want3 := map[string]any{}
+		got3 := RemoveEmptyVal(m3)
+		if !reflect.DeepEqual(got3, want3) {
+			t.Errorf("Test case 3 failed: got %v, want %v", got3, want3)
+		}
+	})
+
+	t.Run("map with empty slice", func(t *testing.T) {
+		m4 := map[string]any{
+			"a": []string{},
+			"b": 123,
+		}
+		want4 := map[string]any{"b": 123}
+		got4 := RemoveEmptyVal(m4)
+		if !reflect.DeepEqual(got4, want4) {
+			t.Errorf("Test case 4 failed: got %v, want %v", got4, want4)
+		}
+	})
+
+	t.Run("map with nil", func(t *testing.T) {
+		m5 := map[string]any{
+			"a": nil,
+		}
+		want5 := map[string]any{}
+		got5 := RemoveEmptyVal(m5)
+		if !reflect.DeepEqual(got5, want5) {
+			t.Errorf("Test case 5 failed: got %v, want %v", got5, want5)
+		}
+	})
+}

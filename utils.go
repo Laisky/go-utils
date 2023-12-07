@@ -1360,3 +1360,42 @@ func ReverseSlice[T any](s []T) {
 		s[i], s[opp] = s[opp], s[i]
 	}
 }
+
+// RemoveEmptyVal remove empty value in map
+func RemoveEmptyVal(m map[string]any) map[string]any {
+	for k, v := range m {
+		if v == nil || reflect.ValueOf(v).IsZero() {
+			delete(m, k)
+			continue
+		}
+
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Map:
+			if v == nil || reflect.ValueOf(v).Len() == 0 {
+				delete(m, k)
+				continue
+			}
+
+			switch v := v.(type) {
+			case map[string]any:
+				if v := RemoveEmptyVal(v); len(v) == 0 {
+					delete(m, k)
+					continue
+				} else {
+					m[k] = v
+				}
+			default:
+				continue
+			}
+		case reflect.Slice, reflect.Array:
+			if v == nil || reflect.ValueOf(v).Len() == 0 {
+				delete(m, k)
+				continue
+			}
+		default:
+			continue
+		}
+	}
+
+	return m
+}
