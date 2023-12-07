@@ -1870,6 +1870,32 @@ func TestRemoveEmptyVal(t *testing.T) {
 		}
 	})
 
+	t.Run("Map with nested non-empty maps", func(t *testing.T) {
+		m3 := map[string]any{
+			"a": map[string]any{},
+			"b": map[string]any{
+				"c": map[string]any{},
+				"d": 123,
+			},
+			"e": map[string]string{},
+			"f": map[string]string{
+				"g": "123",
+			},
+		}
+		want3 := map[string]any{
+			"b": map[string]any{
+				"d": 123,
+			},
+			"f": map[string]string{
+				"g": "123",
+			},
+		}
+		got3 := RemoveEmptyVal(m3)
+		if !reflect.DeepEqual(got3, want3) {
+			t.Errorf("Test case 3 failed: got %v, want %v", got3, want3)
+		}
+	})
+
 	t.Run("map with empty slice", func(t *testing.T) {
 		m4 := map[string]any{
 			"a": []string{},
