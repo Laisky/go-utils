@@ -3,7 +3,6 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"io"
 	"os"
 	"strings"
@@ -44,9 +43,11 @@ func AesEncrypt(secret []byte, cnt []byte) ([]byte, error) {
 // # Returns:
 //   - ciphertext: consists of IV, cipher and tag, `{iv}{cipher}{tag}`
 func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err error) {
-	iv := make([]byte, AesGcmIvLen, len(plaintext)+AesGcmIvLen+AesGcmTagLen)
-	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, errors.Wrap(err, "load iv")
+	ciphertext = make([]byte, 0, len(plaintext)+AesGcmIvLen+AesGcmTagLen)
+
+	iv, err := Salt(AesGcmIvLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate random iv")
 	}
 
 	cipher, tag, err := AEADEncryptBasic(key, plaintext, iv, additionalData)
@@ -54,7 +55,8 @@ func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err 
 		return nil, errors.WithStack(err)
 	}
 
-	ciphertext = append(iv, cipher...)
+	ciphertext = append(ciphertext, iv...)
+	ciphertext = append(ciphertext, cipher...)
 	ciphertext = append(ciphertext, tag...)
 	return ciphertext, nil
 }
