@@ -20,6 +20,9 @@ import (
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
+	"github.com/tjfoc/gmsm/sm2"
+
+	smx509 "github.com/tjfoc/gmsm/x509"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
@@ -294,7 +297,15 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 		// Extensions:      opt.extensions,
 	}
 
-	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
+	switch prikey := prikey.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
+	case *sm2.PrivateKey:
+		smTpl := SmCertificateRequest(csrTpl)
+		csrDer, err = smx509.CreateCertificateRequest(rand.Reader, smTpl, prikey)
+	default:
+		return nil, errors.Errorf("unsupported private key type: %T", prikey)
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}
@@ -1098,6 +1109,8 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 		return privkey
 	case ed25519.PrivateKey:
 		return privkey
+	case *sm2.PrivateKey:
+		return privkey
 	default:
 		return nil
 	}
@@ -1255,7 +1268,23 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		parent = opt.parent
 	}
 
-	certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, pubkey, prikey)
+	switch prikey := prikey.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, pubkey, prikey)
+	case *sm2.PrivateKey:
+		smTpl := new(smx509.Certificate)
+		smTpl.FromX509Certificate(tpl)
+		smParent := new(smx509.Certificate)
+		smParent.FromX509Certificate(parent)
+		smPubkey, ok := pubkey.(*sm2.PublicKey)
+		if !ok {
+			return nil, errors.Errorf("invalid sm2 public key")
+		}
+
+		certDer, err = smx509.CreateCertificate(smTpl, smParent, smPubkey, prikey)
+	default:
+		return nil, errors.Errorf("not support this type of private key")
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}

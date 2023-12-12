@@ -11,9 +11,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"strings"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/tjfoc/gmsm/gmtls"
+	"github.com/tjfoc/gmsm/sm2"
+	smx509 "github.com/tjfoc/gmsm/x509"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites
@@ -79,6 +81,11 @@ func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 	}
 }
 
+// NewSM2Prikey new sm2 private key
+func NewSM2Prikey() (*sm2.PrivateKey, error) {
+	return sm2.GenerateKey(rand.Reader)
+}
+
 // NewEd25519Prikey new ed25519 private key
 func NewEd25519Prikey() (ed25519.PrivateKey, error) {
 	_, pri, err := ed25519.GenerateKey(rand.Reader)
@@ -87,15 +94,22 @@ func NewEd25519Prikey() (ed25519.PrivateKey, error) {
 
 // Prikey2Der marshal private key by x509.8
 func Prikey2Der(key crypto.PrivateKey) ([]byte, error) {
-	switch key.(type) {
+	switch key := key.(type) {
 	case *rsa.PrivateKey,
 		*ecdsa.PrivateKey,
 		ed25519.PrivateKey:
+	case *sm2.PrivateKey:
+		return smx509.MarshalSm2UnecryptedPrivateKey(key)
 	default:
 		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 private key")
 	}
 
 	return x509.MarshalPKCS8PrivateKey(key)
+}
+
+// Prikey2Pubkey get public key from private key
+func Prikey2Pubkey(prikey crypto.PrivateKey) (pubkey crypto.PublicKey) {
+	return prikey.(interface{ Public() crypto.PublicKey }).Public() // nolint:forcetypeassert // panic if not support
 }
 
 // Prikey2Pem marshal private key to pem
@@ -110,10 +124,12 @@ func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
 
 // Pubkey2Der marshal public key by pkix
 func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
-	switch key.(type) {
+	switch key := key.(type) {
 	case *rsa.PublicKey,
 		*ecdsa.PublicKey,
 		ed25519.PublicKey:
+	case *sm2.PublicKey:
+		return smx509.MarshalSm2PublicKey(key)
 	default:
 		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 public key")
 	}
@@ -151,17 +167,87 @@ func Cert2Der(cert ...*x509.Certificate) (ret []byte) {
 
 // Der2Cert parse sigle certificate in der
 func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
-	return x509.ParseCertificate(certInDer)
+	var joinedErr error
+	for _, loader := range []func([]byte) (*x509.Certificate, error){
+		func(b []byte) (*x509.Certificate, error) { return x509.ParseCertificate(b) },
+		func(b []byte) (*x509.Certificate, error) {
+			smcert, err := smx509.ParseCertificate(b)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse sm2 cert")
+			}
+
+			return smcert.ToX509Certificate(), nil
+		},
+	} {
+		cert, err := loader(certInDer)
+		if err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
+		}
+
+		return cert, nil
+	}
+
+	return nil, errors.Wrap(joinedErr, "cannot parse certificate")
 }
 
 // Der2Cert parse multiple certificates in der
 func Der2Certs(certInDer []byte) ([]*x509.Certificate, error) {
-	return x509.ParseCertificates(certInDer)
+	var joinedErr error
+	for _, loader := range []func([]byte) ([]*x509.Certificate, error){
+		func(b []byte) ([]*x509.Certificate, error) { return x509.ParseCertificates(b) },
+		func(b []byte) ([]*x509.Certificate, error) {
+			smcerts, err := smx509.ParseCertificates(b)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse sm2 certs")
+			}
+
+			var certs []*x509.Certificate
+			for _, c := range smcerts {
+				certs = append(certs, c.ToX509Certificate())
+			}
+
+			return certs, nil
+		},
+	} {
+		certs, err := loader(certInDer)
+		if err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
+		}
+
+		return certs, nil
+	}
+
+	return nil, errors.Wrap(joinedErr, "cannot parse certificates")
 }
 
 // Der2CSR parse crl der
 func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
-	return x509.ParseCertificateRequest(csrDer)
+	var joinedErr error
+	for _, loader := range []func([]byte) (*x509.CertificateRequest, error){
+		func(b []byte) (*x509.CertificateRequest, error) {
+			return x509.ParseCertificateRequest(b)
+		},
+		func(b []byte) (*x509.CertificateRequest, error) {
+			smcsr, err := smx509.ParseCertificateRequest(b)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse sm2 csr")
+			}
+
+			return Sm2CertificateRequest(smcsr), nil
+		},
+	} {
+		csr, err := loader(csrDer)
+		if err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
+		}
+
+		return csr, nil
+	}
+
+	return nil, errors.Wrap(joinedErr, "cannot parse certificate request")
 }
 
 // CSR2Der marshal csr to der
@@ -270,40 +356,41 @@ func Pem2Pubkey(pubkeyPem []byte) (crypto.PublicKey, error) {
 }
 
 // Der2Prikey parse private key from der in x509 v8/v1
-func Der2Prikey(prikeyDer []byte) (crypto.PrivateKey, error) {
-	prikey, err := x509.ParsePKCS8PrivateKey(prikeyDer)
-	if err != nil {
-		if strings.Contains(err.Error(), "ParsePKCS1PrivateKey") {
-			if prikey, err = x509.ParsePKCS1PrivateKey(prikeyDer); err != nil {
-				return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkcs8")
-			}
-
-			return prikey, nil
+func Der2Prikey(prikeyDer []byte) (prikey crypto.PrivateKey, err error) {
+	var joinedErr error
+	for _, loader := range []func([]byte) (crypto.PrivateKey, error){
+		func(b []byte) (crypto.PrivateKey, error) { return x509.ParsePKCS1PrivateKey(b) },
+		func(b []byte) (crypto.PrivateKey, error) { return x509.ParsePKCS8PrivateKey(b) },
+		func(b []byte) (crypto.PrivateKey, error) { return smx509.ParsePKCS8UnecryptedPrivateKey(b) },
+	} {
+		if prikey, err = loader(prikeyDer); err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
 		}
 
-		return nil, errors.Wrap(err, "parse by pkcs8")
+		return prikey, nil
 	}
 
-	return prikey, nil
+	return nil, errors.Wrap(joinedErr, "cannot parse private key")
 }
 
 // Der2Pubkey parse public key from der in x509 pkcs1/pkix
-func Der2Pubkey(pubkeyDer []byte) (crypto.PublicKey, error) {
-	rsapubkey, err := x509.ParsePKCS1PublicKey(pubkeyDer)
-	if err != nil {
-		if strings.Contains(err.Error(), "ParsePKIXPublicKey") {
-			pubkey, err := x509.ParsePKIXPublicKey(pubkeyDer)
-			if err != nil {
-				return nil, errors.Wrap(err, "cannot parse by pkcs1 nor pkix")
-			}
-
-			return pubkey, nil
+func Der2Pubkey(pubkeyDer []byte) (pubkey crypto.PublicKey, err error) {
+	var joinedErr error
+	for _, loader := range []func([]byte) (crypto.PublicKey, error){
+		func(b []byte) (crypto.PublicKey, error) { return x509.ParsePKCS1PublicKey(b) },
+		func(b []byte) (crypto.PublicKey, error) { return x509.ParsePKIXPublicKey(b) },
+		func(b []byte) (crypto.PublicKey, error) { return smx509.ParseSm2PublicKey(b) },
+	} {
+		if pubkey, err = loader(pubkeyDer); err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
 		}
 
-		return nil, errors.Wrap(err, "parse by pkcs1")
+		return pubkey, nil
 	}
 
-	return rsapubkey, nil
+	return nil, errors.Wrap(joinedErr, "cannot parse public key")
 }
 
 // PrikeyDer2Pem convert private key in der to pem
@@ -385,6 +472,64 @@ func GetPubkeyFromPrikey(priv crypto.PrivateKey) crypto.PublicKey {
 
 // VerifyCertByPrikey verify cert by prikey
 func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
-	_, err := tls.X509KeyPair(certPem, prikeyPem)
-	return err
+	var joinedErr error
+	for _, loader := range []func([]byte, []byte) error{
+		func(b1, b2 []byte) error {
+			_, err := tls.X509KeyPair(b1, b2)
+			return errors.Wrap(err, "verify cert by prikey")
+		},
+		func(b1, b2 []byte) error {
+			_, err := gmtls.X509KeyPair(b1, b2)
+			return errors.Wrap(err, "verify cert by sm2 prikey")
+		},
+	} {
+		if err := loader(certPem, prikeyPem); err != nil {
+			joinedErr = errors.Join(joinedErr, err)
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.Wrap(joinedErr, "cannot verify cert by prikey")
+}
+
+// SmCertificateRequest convert x509.CertificateRequest to smx509.CertificateRequest
+func SmCertificateRequest(csr *x509.CertificateRequest) *smx509.CertificateRequest {
+	return &smx509.CertificateRequest{
+		Raw:                      csr.Raw,
+		RawTBSCertificateRequest: csr.RawTBSCertificateRequest,
+		Version:                  csr.Version,
+		Signature:                csr.Signature,
+		SignatureAlgorithm:       smx509.SM2WithSM3,
+		PublicKeyAlgorithm:       smx509.PublicKeyAlgorithm(csr.PublicKeyAlgorithm),
+		PublicKey:                csr.PublicKey,
+		Subject:                  csr.Subject,
+		// Attributes:               csr.Attributes,  // attributes is deprecated
+		Extensions:      csr.Extensions,
+		ExtraExtensions: csr.ExtraExtensions,
+		DNSNames:        csr.DNSNames,
+		EmailAddresses:  csr.EmailAddresses,
+		IPAddresses:     csr.IPAddresses,
+	}
+}
+
+// Sm2CertificateRequest convert smx509.CertificateRequest to x509.CertificateRequest
+func Sm2CertificateRequest(csr *smx509.CertificateRequest) *x509.CertificateRequest {
+	return &x509.CertificateRequest{
+		Raw:                      csr.Raw,
+		RawTBSCertificateRequest: csr.RawTBSCertificateRequest,
+		Version:                  csr.Version,
+		Signature:                csr.Signature,
+		SignatureAlgorithm:       x509.SignatureAlgorithm(smx509.SM2WithSM3),
+		PublicKeyAlgorithm:       x509.PublicKeyAlgorithm(csr.PublicKeyAlgorithm),
+		PublicKey:                csr.PublicKey,
+		Subject:                  csr.Subject,
+		// Attributes:               csr.Attributes,  // attributes is deprecated
+		Extensions:      csr.Extensions,
+		ExtraExtensions: csr.ExtraExtensions,
+		DNSNames:        csr.DNSNames,
+		EmailAddresses:  csr.EmailAddresses,
+		IPAddresses:     csr.IPAddresses,
+	}
 }

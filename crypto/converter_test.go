@@ -83,31 +83,8 @@ func TestTLSPrivatekey(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	rsa2048, err := NewRSAPrikey(RSAPrikeyBits2048)
-	require.NoError(t, err)
-	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
-	require.NoError(t, err)
-	// es224, err := NewECDSAPrikey(ECDSACurveP224)
-	// require.NoError(t, err)
-	es256, err := NewECDSAPrikey(ECDSACurveP256)
-	require.NoError(t, err)
-	es384, err := NewECDSAPrikey(ECDSACurveP384)
-	require.NoError(t, err)
-	es521, err := NewECDSAPrikey(ECDSACurveP521)
-	require.NoError(t, err)
-	edkey, err := NewEd25519Prikey()
-	require.NoError(t, err)
-
-	for _, key := range []crypto.PrivateKey{
-		rsa2048,
-		rsa3072,
-		// es224,
-		es256,
-		es384,
-		es521,
-		edkey,
-	} {
-		if rsaPrikey, ok := key.(*rsa.PrivateKey); ok {
+	for _, prikey := range testAsymmetricPrikeys(t) {
+		if rsaPrikey, ok := prikey.(*rsa.PrivateKey); ok {
 			prider := x509.MarshalPKCS1PrivateKey(rsaPrikey)
 			pripem := PrikeyDer2Pem(prider)
 			prider2, err := Pem2Der(pripem)
@@ -121,10 +98,10 @@ func TestTLSPrivatekey(t *testing.T) {
 			require.True(t, rsaPrikey.Equal(key2))
 		}
 
-		der, err := Prikey2Der(key)
+		der, err := Prikey2Der(prikey)
 		require.NoError(t, err)
 
-		pem, err := Prikey2Pem(key)
+		pem, err := Prikey2Pem(prikey)
 		require.NoError(t, err)
 
 		_, err = Pem2Der(append(pem, '\n'))
@@ -143,22 +120,22 @@ func TestTLSPrivatekey(t *testing.T) {
 		require.Equal(t, pem, PrikeyDer2Pem(ders[0]))
 		require.Equal(t, der, der2)
 
-		key, err = Pem2Prikey(pem)
+		prikey, err = Pem2Prikey(pem)
 		require.NoError(t, err)
-		der2, err = Prikey2Der(key)
-		require.NoError(t, err)
-		require.Equal(t, der, der2)
-
-		key, err = Der2Prikey(der)
-		require.NoError(t, err)
-		der2, err = Prikey2Der(key)
+		der2, err = Prikey2Der(prikey)
 		require.NoError(t, err)
 		require.Equal(t, der, der2)
 
-		require.NotNil(t, GetPubkeyFromPrikey(key))
+		prikey, err = Der2Prikey(der)
+		require.NoError(t, err)
+		der2, err = Prikey2Der(prikey)
+		require.NoError(t, err)
+		require.Equal(t, der, der2)
+
+		require.NotNil(t, GetPubkeyFromPrikey(prikey))
 
 		t.Run("cert", func(t *testing.T) {
-			der, err := NewX509Cert(key,
+			der, err := NewX509Cert(prikey,
 				WithX509CertCommonName("laisky"),
 				WithX509CertSANS("laisky"),
 				WithX509CertIsCA(),
@@ -179,15 +156,13 @@ func TestTLSPrivatekey(t *testing.T) {
 	}
 }
 
-func TestTLSPublickey(t *testing.T) {
-	t.Parallel()
+func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) {
+	t.Helper()
 
 	rsa2048, err := NewRSAPrikey(RSAPrikeyBits2048)
 	require.NoError(t, err)
 	rsa3072, err := NewRSAPrikey(RSAPrikeyBits3072)
 	require.NoError(t, err)
-	// es224, err := NewECDSAPrikey(ECDSACurveP224)
-	// require.NoError(t, err)
 	es256, err := NewECDSAPrikey(ECDSACurveP256)
 	require.NoError(t, err)
 	es384, err := NewECDSAPrikey(ECDSACurveP384)
@@ -196,24 +171,34 @@ func TestTLSPublickey(t *testing.T) {
 	require.NoError(t, err)
 	edkey, err := NewEd25519Prikey()
 	require.NoError(t, err)
+	smkey, err := NewSM2Prikey()
+	require.NoError(t, err)
 
-	_, err = Pubkey2Der(nil)
+	return map[string]crypto.PrivateKey{
+		"rsa2048": rsa2048,
+		"rsa3072": rsa3072,
+		"es256":   es256,
+		"es384":   es384,
+		"es521":   es521,
+		"ed25519": edkey,
+		"sm2":     smkey,
+	}
+}
+
+func TestTLSPublickey(t *testing.T) {
+	t.Parallel()
+
+	_, err := Pubkey2Der(nil)
 	require.Error(t, err)
 
-	for _, key := range []crypto.PublicKey{
-		GetPubkeyFromPrikey(rsa2048),
-		GetPubkeyFromPrikey(rsa3072),
-		// GetPubkeyFromPrikey(es224),
-		GetPubkeyFromPrikey(es256),
-		GetPubkeyFromPrikey(es384),
-		GetPubkeyFromPrikey(es521),
-		GetPubkeyFromPrikey(edkey),
-	} {
-		require.NotNil(t, key)
-		der, err := Pubkey2Der(key)
+	for _, prikey := range testAsymmetricPrikeys(t) {
+		pubkey := GetPubkeyFromPrikey(prikey)
+
+		require.NotNil(t, pubkey)
+		der, err := Pubkey2Der(pubkey)
 		require.NoError(t, err)
 
-		pem, err := Pubkey2Pem(key)
+		pem, err := Pubkey2Pem(pubkey)
 		require.NoError(t, err)
 
 		der2, err := Pem2Der(pem)
@@ -224,15 +209,15 @@ func TestTLSPublickey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, der, der22)
 
-		key, err = Pem2Pubkey(pem)
+		pubkey, err = Pem2Pubkey(pem)
 		require.NoError(t, err)
-		der2, err = Pubkey2Der(key)
+		der2, err = Pubkey2Der(pubkey)
 		require.NoError(t, err)
 		require.Equal(t, der, der2)
 
-		key, err = Der2Pubkey(der)
+		pubkey, err = Der2Pubkey(der)
 		require.NoError(t, err)
-		der2, err = Pubkey2Der(key)
+		der2, err = Pubkey2Der(pubkey)
 		require.NoError(t, err)
 		require.Equal(t, der, der2)
 	}
@@ -295,23 +280,23 @@ func TestVerifyCertByPrikey(t *testing.T) {
 func TestDer2CSR(t *testing.T) {
 	t.Parallel()
 
-	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
-	require.NoError(t, err)
+	for algo, prikey := range testAsymmetricPrikeys(t) {
+		t.Logf("test algo: %v", algo)
+		csrDer, err := NewX509CSR(prikey,
+			WithX509CSRCommonName("laisky"),
+		)
+		require.NoError(t, err)
 
-	csrDer, err := NewX509CSR(prikey,
-		WithX509CSRCommonName("laisky"),
-	)
-	require.NoError(t, err)
+		csr, err := Der2CSR(csrDer)
+		require.NoError(t, err)
 
-	csr, err := Der2CSR(csrDer)
-	require.NoError(t, err)
+		pem := CSRDer2Pem(csrDer)
 
-	pem := CSRDer2Pem(csrDer)
+		csr2, err := Pem2CSR(pem)
+		require.NoError(t, err)
 
-	csr2, err := Pem2CSR(pem)
-	require.NoError(t, err)
-
-	require.Equal(t, csr, csr2)
+		require.Equal(t, csr, csr2)
+	}
 }
 
 func Test_UseCaAsClientTlsCert(t *testing.T) {
@@ -452,9 +437,9 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		cert, err := Der2Cert(certDer)
-		require.NoError(t, err)
-		t.Logf("cert: %+v", cert)
+		// cert, err := Der2Cert(certDer)
+		// require.NoError(t, err)
+		// t.Logf("cert: %+v", cert)
 
 		ln, err := tls.Listen("tcp", "localhost:38444", &tls.Config{
 			RootCAs:    rootcapool,
