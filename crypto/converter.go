@@ -13,9 +13,9 @@ import (
 	"encoding/pem"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/tjfoc/gmsm/gmtls"
-	"github.com/tjfoc/gmsm/sm2"
-	smx509 "github.com/tjfoc/gmsm/x509"
+	"github.com/Laisky/gmsm/gmtls"
+	"github.com/Laisky/gmsm/sm2"
+	smx509 "github.com/Laisky/gmsm/x509"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites

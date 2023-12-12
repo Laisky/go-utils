@@ -8,6 +8,7 @@ require (
 	github.com/GoWebProd/uuid7 v0.0.0-20231130161441-17ee54b097d4
 	github.com/Laisky/errors/v2 v2.0.1
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
+	github.com/Laisky/gmsm v0.0.0-20231212102057-30a4cde0581b
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.25.3-0.20231205071752-1cdfcee9191f
@@ -30,7 +31,6 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
-	github.com/tjfoc/gmsm v1.4.1
 	github.com/xlzd/gotp v0.1.0
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.16.0

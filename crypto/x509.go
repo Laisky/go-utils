@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/gmsm/sm2"
 	"github.com/Laisky/zap"
-	"github.com/tjfoc/gmsm/sm2"
 
-	smx509 "github.com/tjfoc/gmsm/x509"
+	smx509 "github.com/Laisky/gmsm/x509"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
