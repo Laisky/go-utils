@@ -19,10 +19,7 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/gmsm/sm2"
 	"github.com/Laisky/zap"
-
-	smx509 "github.com/Laisky/gmsm/x509"
 
 	gutils "github.com/Laisky/go-utils/v4"
 	gcounter "github.com/Laisky/go-utils/v4/counter"
@@ -297,15 +294,7 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 		// Extensions:      opt.extensions,
 	}
 
-	switch prikey := prikey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
-	case *sm2.PrivateKey:
-		smTpl := SmCertificateRequest(csrTpl)
-		csrDer, err = smx509.CreateCertificateRequest(rand.Reader, smTpl, prikey)
-	default:
-		return nil, errors.Errorf("unsupported private key type: %T", prikey)
-	}
+	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}
@@ -1109,8 +1098,6 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 		return privkey
 	case ed25519.PrivateKey:
 		return privkey
-	case *sm2.PrivateKey:
-		return privkey
 	default:
 		return nil
 	}
@@ -1253,7 +1240,7 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 
 	pubkey := opt.pubkey
 	if pubkey == nil {
-		pubkey = GetPubkeyFromPrikey(prikey)
+		pubkey = Prikey2Pubkey(prikey)
 	}
 
 	// CreateCertificate x509.CreateCertificate will auto generate subject key id for ca template
@@ -1268,23 +1255,7 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		parent = opt.parent
 	}
 
-	switch prikey := prikey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, pubkey, prikey)
-	case *sm2.PrivateKey:
-		smTpl := new(smx509.Certificate)
-		smTpl.FromX509Certificate(tpl)
-		smParent := new(smx509.Certificate)
-		smParent.FromX509Certificate(parent)
-		smPubkey, ok := pubkey.(*sm2.PublicKey)
-		if !ok {
-			return nil, errors.Errorf("invalid sm2 public key")
-		}
-
-		certDer, err = smx509.CreateCertificate(smTpl, smParent, smPubkey, prikey)
-	default:
-		return nil, errors.Errorf("not support this type of private key")
-	}
+	certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, pubkey, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}

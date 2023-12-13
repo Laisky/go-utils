@@ -132,7 +132,7 @@ func TestTLSPrivatekey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, der, der2)
 
-		require.NotNil(t, GetPubkeyFromPrikey(prikey))
+		require.NotNil(t, Prikey2Pubkey(prikey))
 
 		t.Run("cert", func(t *testing.T) {
 			der, err := NewX509Cert(prikey,
@@ -171,8 +171,6 @@ func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) 
 	require.NoError(t, err)
 	edkey, err := NewEd25519Prikey()
 	require.NoError(t, err)
-	smkey, err := NewSM2Prikey()
-	require.NoError(t, err)
 
 	return map[string]crypto.PrivateKey{
 		"rsa2048": rsa2048,
@@ -181,7 +179,6 @@ func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) 
 		"es384":   es384,
 		"es521":   es521,
 		"ed25519": edkey,
-		"sm2":     smkey,
 	}
 }
 
@@ -192,7 +189,7 @@ func TestTLSPublickey(t *testing.T) {
 	require.Error(t, err)
 
 	for _, prikey := range testAsymmetricPrikeys(t) {
-		pubkey := GetPubkeyFromPrikey(prikey)
+		pubkey := Prikey2Pubkey(prikey)
 
 		require.NotNil(t, pubkey)
 		der, err := Pubkey2Der(pubkey)

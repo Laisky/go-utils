@@ -8,7 +8,6 @@ require (
 	github.com/GoWebProd/uuid7 v0.0.0-20231130161441-17ee54b097d4
 	github.com/Laisky/errors/v2 v2.0.1
 	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
-	github.com/Laisky/gmsm v0.0.0-20231212102057-30a4cde0581b
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.25.3-0.20231205071752-1cdfcee9191f
@@ -21,7 +20,7 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
-	github.com/google/uuid v1.4.0
+	github.com/google/uuid v1.5.0
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.6
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
