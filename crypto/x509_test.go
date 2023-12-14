@@ -78,8 +78,14 @@ func TestNewX509CSR(t *testing.T) {
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertIsCA(),
 		WithX509CertCommonName("ca"),
+		WithX509CertCaMaxPathLen(0),
 	)
 	require.NoError(t, err)
+
+	ca, err := Der2Cert(certder)
+	require.NoError(t, err)
+	require.Equal(t, 0, ca.MaxPathLen)
+	require.True(t, ca.MaxPathLenZero)
 
 	prikey, err := Pem2Prikey(prikeyPem)
 	require.NoError(t, err)
@@ -95,9 +101,6 @@ func TestNewX509CSR(t *testing.T) {
 		csrder, err := NewX509CSR(csrPrikey,
 			WithX509CSRCommonName("laisky"),
 		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
 		require.NoError(t, err)
 
 		validFrom := time.Now().UTC()
@@ -130,6 +133,8 @@ func TestNewX509CSR(t *testing.T) {
 		require.NotContains(t, newCert.CRLDistributionPoints, "crl")
 		require.NotContains(t, newCert.OCSPServer, "ocsp")
 		require.Empty(t, newCert.PolicyIdentifiers)
+		require.LessOrEqual(t, newCert.MaxPathLen, 0)
+		require.False(t, newCert.MaxPathLenZero)
 	})
 
 	t.Run("sign ca-csr with full options", func(t *testing.T) {
@@ -739,10 +744,14 @@ func Test_CrossSign(t *testing.T) {
 	require.NoError(t, err)
 
 	// use same csr to cross sign multiple intermedia certificates
-	interca1Der, err := NewX509CertByCSR(rootca1, prikeyRootCA1, intercsr, WithX509SignCSRIsCA())
+	interca1Der, err := NewX509CertByCSR(rootca1, prikeyRootCA1, intercsr,
+		WithX509CaMaxPathLen(0),
+		WithX509SignCSRIsCA())
 	require.NoError(t, err)
 	interca1, err := Der2Cert(interca1Der)
 	require.NoError(t, err)
+	require.Equal(t, 0, interca1.MaxPathLen)
+	require.True(t, interca1.MaxPathLenZero)
 	interca2Der, err := NewX509CertByCSR(rootca2, prikeyRootCA2, intercsr, WithX509SignCSRIsCA())
 	require.NoError(t, err)
 	interca2, err := Der2Cert(interca2Der)

@@ -424,6 +424,8 @@ type signCSROption struct {
 	// pubkey csr will specific csr's pubkey, not use ca's pubkey
 	pubkey             crypto.PublicKey
 	serialNumGenerator X509CertSerialNumberGenerator
+	// maxPathLen set CA path length constraint
+	maxPathLen *int
 }
 
 func (o *signCSROption) fillDefault(csr *x509.CertificateRequest) *signCSROption {
@@ -466,6 +468,16 @@ func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error)
 
 // SignCSROption options for create certificate from CRL
 type SignCSROption func(*signCSROption) error
+
+// WithX509CaMaxPathLen set max path length
+//
+// only CAs are allowed to specify MaxPathLen
+func WithX509CaMaxPathLen(maxPathLen int) SignCSROption {
+	return func(o *signCSROption) error {
+		o.maxPathLen = &maxPathLen
+		return nil
+	}
+}
 
 // WithX509SerialNumGenerator set serial number generator
 func WithX509SerialNumGenerator(gen X509CertSerialNumberGenerator) SignCSROption {
@@ -701,6 +713,9 @@ func NewX509CertByCSR(
 	if opt.serialNumGenerator != nil {
 		certOpts = append(certOpts, WithX509CertSerialNumGenerator(opt.serialNumGenerator))
 	}
+	if opt.maxPathLen != nil {
+		certOpts = append(certOpts, WithX509CertCaMaxPathLen(*opt.maxPathLen))
+	}
 
 	return NewX509Cert(prikey, certOpts...)
 }
@@ -720,6 +735,14 @@ func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
 
 // X509CertOption option to generate tls certificate
 type X509CertOption func(*x509V3CertOption) error
+
+// WithX509CertCaMaxPathLen set max path length
+func WithX509CertCaMaxPathLen(maxPathLen int) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		o.maxPathLen = &maxPathLen
+		return nil
+	}
+}
 
 // WithX509CertExtentions set extensions
 //
@@ -1236,6 +1259,13 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		URIs:                  opt.uris,
 		// Extensions:            opt.signCSROption.extensions,
 		ExtraExtensions: opt.signCSROption.extraExtensions,
+	}
+
+	if opt.maxPathLen != nil {
+		tpl.MaxPathLen = *opt.maxPathLen
+		if tpl.MaxPathLen == 0 {
+			tpl.MaxPathLenZero = true
+		}
 	}
 
 	pubkey := opt.pubkey
