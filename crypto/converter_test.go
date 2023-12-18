@@ -7,6 +7,8 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"testing"
 	"time"
 
@@ -510,5 +512,107 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 
 		_, err = conn.Write([]byte("hello"))
 		require.NoError(t, err)
+	})
+}
+
+func TestX509Cert2OpensslConf(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ca", func(t *testing.T) {
+		t.Parallel()
+
+		cert := &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName:         "example.com",
+				Country:            []string{"US"},
+				Province:           []string{"California"},
+				Locality:           []string{"San Francisco"},
+				Organization:       []string{"Acme Corp"},
+				OrganizationalUnit: []string{"IT"},
+			},
+			IsCA:              true,
+			PolicyIdentifiers: []asn1.ObjectIdentifier{[]int{2, 5, 29, 32}},
+		}
+
+		expected := `[ req ]
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = v3_ca
+
+[ req_distinguished_name ]
+commonName = example.com
+countryName = US
+stateOrProvinceName = California
+localityName = San Francisco
+organizationName = Acme Corp
+organizationalUnitName = IT
+
+[ v3_ca ]
+basicConstraints = critical, CA:TRUE
+keyUsage = cRLSign, keyCertSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always, issuer
+certificatePolicies = @policy-0
+
+[ policy-0 ]
+policyIdentifier = 2.5.29.32
+`
+
+		opensslConf := X509Cert2OpensslConf(cert)
+		t.Log(string(opensslConf))
+		require.Equal(t, expected, string(opensslConf))
+	})
+
+	t.Run("not ca", func(t *testing.T) {
+		t.Parallel()
+
+		cert := &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName:         "example.com",
+				Country:            []string{"US"},
+				Province:           []string{"California"},
+				Locality:           []string{"San Francisco"},
+				Organization:       []string{"Acme Corp"},
+				OrganizationalUnit: []string{"IT"},
+			},
+			IsCA: false,
+			PolicyIdentifiers: []asn1.ObjectIdentifier{
+				[]int{2, 5, 29, 32},
+				[]int{1, 2, 3},
+			},
+		}
+
+		expected := `[ req ]
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = v3_ca
+
+[ req_distinguished_name ]
+commonName = example.com
+countryName = US
+stateOrProvinceName = California
+localityName = San Francisco
+organizationName = Acme Corp
+organizationalUnitName = IT
+
+[ v3_ca ]
+basicConstraints = critical, CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement
+extendedKeyUsage = anyExtendedKeyUsage
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always, issuer
+certificatePolicies = @policy-0, @policy-1
+
+[ policy-0 ]
+policyIdentifier = 2.5.29.32
+[ policy-1 ]
+policyIdentifier = 1.2.3
+`
+
+		opensslConf := X509Cert2OpensslConf(cert)
+		t.Log(string(opensslConf))
+		require.Equal(t, expected, string(opensslConf))
 	})
 }

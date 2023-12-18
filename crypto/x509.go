@@ -1229,15 +1229,11 @@ func NewX509CRL(ca *x509.Certificate,
 	return x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
 }
 
-// NewX509Cert new self sign tls cert
-func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []byte, err error) {
-	if err = validPrikey(prikey); err != nil {
-		return nil, err
-	}
-
+// X509CertOption2Template convert X509CertOption to x509.Certificate template
+func X509CertOption2Template(opts ...X509CertOption) (certTemplate *x509.Certificate, err error) {
 	opt, err := new(x509V3CertOption).fillDefault().applyOpts(opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply options")
 	}
 
 	tpl := &x509.Certificate{
@@ -1268,18 +1264,26 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		}
 	}
 
-	pubkey := opt.pubkey
-	if pubkey == nil {
-		pubkey = Prikey2Pubkey(prikey)
+	return tpl, nil
+}
+
+// NewX509Cert new self sign tls cert
+func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []byte, err error) {
+	if err = validPrikey(prikey); err != nil {
+		return nil, errors.Wrap(err, "valid prikey")
 	}
 
-	// CreateCertificate x509.CreateCertificate will auto generate subject key id for ca template
-	if !opt.isCA {
-		if tpl.SubjectKeyId, err = X509CertSubjectKeyID(pubkey); err != nil {
-			return nil, errors.Wrap(err, "generate cert subject key id")
-		}
+	opt, err := new(x509V3CertOption).fillDefault().applyOpts(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply options")
 	}
 
+	tpl, err := X509CertOption2Template(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert options to template")
+	}
+
+	pubkey := Prikey2Pubkey(prikey)
 	parent := tpl
 	if opt.parent != nil {
 		parent = opt.parent

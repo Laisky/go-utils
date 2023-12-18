@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"strings"
 
 	"github.com/Laisky/errors/v2"
@@ -386,4 +387,63 @@ func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
 func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
 	_, err := tls.X509KeyPair(certPem, prikeyPem)
 	return err
+}
+
+func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
+	// set req & req_distinguished_name
+	cnt := fmt.Sprintf(`[ req ]
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = v3_ca
+
+[ req_distinguished_name ]
+commonName = %s
+`, cert.Subject.CommonName)
+
+	subjectMaps := map[string][]string{
+		"countryName":            cert.Subject.Country,
+		"stateOrProvinceName":    cert.Subject.Province,
+		"localityName":           cert.Subject.Locality,
+		"organizationName":       cert.Subject.Organization,
+		"organizationalUnitName": cert.Subject.OrganizationalUnit,
+	}
+
+	for _, name := range []string{ // keep order
+		"countryName",
+		"stateOrProvinceName",
+		"localityName",
+		"organizationName",
+		"organizationalUnitName",
+	} {
+		cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+	}
+	cnt += "\n"
+
+	// set v3_ca
+	cnt += `[ v3_ca ]
+basicConstraints = critical, CA:`
+	if cert.IsCA {
+		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
+	} else {
+		cnt += "FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
+		cnt += "extendedKeyUsage = anyExtendedKeyUsage\n"
+	}
+	cnt += "subjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always, issuer\n"
+
+	// set policies
+	if len(cert.PolicyIdentifiers) > 0 {
+		cnt += "certificatePolicies = "
+
+		var policySecions string
+		for i, policy := range cert.PolicyIdentifiers {
+			cnt += fmt.Sprintf("@policy-%d, ", i)
+			policySecions += fmt.Sprintf("[ policy-%d ]\npolicyIdentifier = %s\n", i, policy.String())
+		}
+
+		cnt = strings.TrimRight(cnt, ", ")
+		cnt += "\n\n" + policySecions
+	}
+
+	return []byte(cnt)
 }
