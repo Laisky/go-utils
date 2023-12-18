@@ -1230,10 +1230,10 @@ func NewX509CRL(ca *x509.Certificate,
 }
 
 // X509CertOption2Template convert X509CertOption to x509.Certificate template
-func X509CertOption2Template(opts ...X509CertOption) (certTemplate *x509.Certificate, err error) {
-	opt, err := new(x509V3CertOption).fillDefault().applyOpts(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "apply options")
+func X509CertOption2Template(signerPrikey crypto.PrivateKey, opts ...X509CertOption) (
+	opt *x509V3CertOption, certTemplate *x509.Certificate, err error) {
+	if opt, err = new(x509V3CertOption).fillDefault().applyOpts(opts...); err != nil {
+		return nil, nil, errors.Wrap(err, "apply options")
 	}
 
 	tpl := &x509.Certificate{
@@ -1264,32 +1264,37 @@ func X509CertOption2Template(opts ...X509CertOption) (certTemplate *x509.Certifi
 		}
 	}
 
-	return tpl, nil
+	if opt.pubkey == nil {
+		opt.pubkey = Prikey2Pubkey(signerPrikey)
+	}
+
+	// CreateCertificate x509.CreateCertificate will auto generate subject key id for ca template
+	if !opt.isCA {
+		if tpl.SubjectKeyId, err = X509CertSubjectKeyID(opt.pubkey); err != nil {
+			return nil, nil, errors.Wrap(err, "generate cert subject key id")
+		}
+	}
+
+	return opt, tpl, nil
 }
 
-// NewX509Cert new self sign tls cert
+// NewX509Cert new cert
 func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
 		return nil, errors.Wrap(err, "valid prikey")
 	}
 
-	opt, err := new(x509V3CertOption).fillDefault().applyOpts(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "apply options")
-	}
-
-	tpl, err := X509CertOption2Template(opts...)
+	opt, tpl, err := X509CertOption2Template(prikey, opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert options to template")
 	}
 
-	pubkey := Prikey2Pubkey(prikey)
 	parent := tpl
 	if opt.parent != nil {
 		parent = opt.parent
 	}
 
-	certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, pubkey, prikey)
+	certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, opt.pubkey, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
 	}
