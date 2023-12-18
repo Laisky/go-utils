@@ -1230,7 +1230,7 @@ func NewX509CRL(ca *x509.Certificate,
 }
 
 // X509CertOption2Template convert X509CertOption to x509.Certificate template
-func X509CertOption2Template(signerPrikey crypto.PrivateKey, opts ...X509CertOption) (
+func X509CertOption2Template(opts ...X509CertOption) (
 	opt *x509V3CertOption, certTemplate *x509.Certificate, err error) {
 	if opt, err = new(x509V3CertOption).fillDefault().applyOpts(opts...); err != nil {
 		return nil, nil, errors.Wrap(err, "apply options")
@@ -1264,17 +1264,6 @@ func X509CertOption2Template(signerPrikey crypto.PrivateKey, opts ...X509CertOpt
 		}
 	}
 
-	if opt.pubkey == nil {
-		opt.pubkey = Prikey2Pubkey(signerPrikey)
-	}
-
-	// CreateCertificate x509.CreateCertificate will auto generate subject key id for ca template
-	if !opt.isCA {
-		if tpl.SubjectKeyId, err = X509CertSubjectKeyID(opt.pubkey); err != nil {
-			return nil, nil, errors.Wrap(err, "generate cert subject key id")
-		}
-	}
-
 	return opt, tpl, nil
 }
 
@@ -1284,9 +1273,20 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		return nil, errors.Wrap(err, "valid prikey")
 	}
 
-	opt, tpl, err := X509CertOption2Template(prikey, opts...)
+	opt, tpl, err := X509CertOption2Template(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert options to template")
+	}
+
+	if opt.pubkey == nil {
+		opt.pubkey = Prikey2Pubkey(prikey)
+	}
+
+	// CreateCertificate x509.CreateCertificate will auto generate subject key id for ca template
+	if !opt.isCA {
+		if tpl.SubjectKeyId, err = X509CertSubjectKeyID(opt.pubkey); err != nil {
+			return nil, errors.Wrap(err, "generate cert subject key id")
+		}
 	}
 
 	parent := tpl

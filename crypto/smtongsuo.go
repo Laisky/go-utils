@@ -1,0 +1,190 @@
+package crypto
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/Laisky/errors/v2"
+)
+
+const (
+	configTemplate = `[ req ]
+distinguished_name = req_distinguished_name
+prompt = no
+string_mask = utf8only
+x509_extensions = v3_ca
+
+[ req_distinguished_name ]
+countryName  = {{.CountryName}}
+stateOrProvinceName = {{.StateOrProvinceName}}
+localityName = {{.LocalityName}}
+organizationName = {{.OrganizationName}}
+organizationalUnitName = {{.OrganizationalUnitName}}
+commonName = {{.CommonName}}
+
+[ v3_ca ]
+basicConstraints = critical, CA:TRUE
+keyUsage = cRLSign, keyCertSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always, issuer
+certificatePolicies = {{.Policies}}`
+)
+
+type configTemplateArgs struct {
+	CountryName            string
+	StateOrProvinceName    string
+	LocalityName           string
+	OrganizationName       string
+	OrganizationalUnitName string
+	CommonName             string
+	Policies               string
+}
+
+// Tongsuo is a wrapper of tongsuo executable binary
+//
+// https://github.com/Tongsuo-Project/Tongsuo
+type Tongsuo struct {
+	exePath         string
+	serialGenerator *DefaultX509CertSerialNumGenerator
+}
+
+// NewTongsuo new tongsuo wrapper
+//
+// #Args
+//   - exePath: path of tongsuo executable binary
+func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	ins = &Tongsuo{exePath: exePath}
+
+	// check tongsuo executable binary
+	if out, err := ins.runCMD(ctx, []string{"version"}, nil); err != nil {
+		return nil, errors.Wrapf(err, "run `%s version` failed", exePath)
+	} else if !strings.Contains(string(out), "Tongsuo") {
+		return nil, errors.Errorf("only support Tongsuo")
+	}
+
+	// new serial number generator
+	if ins.serialGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
+		return nil, errors.Wrap(err, "new serial number generator")
+	}
+
+	return ins, nil
+}
+
+func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (output []byte, err error) {
+	cmd := exec.Command(t.exePath, args...)
+
+	if len(stdin) != 0 {
+		var stdinBuf bytes.Buffer
+		stdinBuf.Write(stdin)
+		cmd.Stdin = &stdinBuf
+	}
+
+	if output, err = cmd.CombinedOutput(); err != nil {
+		return nil, errors.Wrapf(err, "run cmd failed, got %s", output)
+	}
+
+	return output, nil
+}
+
+// ShowCertInfo show cert info
+func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (output []byte, err error) {
+	return t.runCMD(ctx, []string{"x509", "-inform", "DER", "-text"}, certDer)
+}
+
+// NewPrikey generate new sm2 private key
+func (t *Tongsuo) NewPrikey(ctx context.Context) (prikeyPem []byte, err error) {
+	prikeyPem, err = t.runCMD(ctx, []string{"genpkey", "-outform", "PEM", "-algorithm", "SM2"}, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate new private key")
+	}
+
+	return prikeyPem, nil
+}
+
+// NewPrikeyAndCert generate new private key and root ca
+func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (prikeyPem, certDer []byte, err error) {
+
+	// new private key
+	if prikeyPem, err = t.NewPrikey(ctx); err != nil {
+		return nil, nil, errors.Wrap(err, "new private key")
+	}
+
+	_, tpl, err := X509CertOption2Template(opts...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "X509CertOption2Template")
+	}
+
+	opensslConf := X509Cert2OpensslConf(tpl)
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "generate tem dir")
+	}
+	defer os.RemoveAll(dir)
+
+	// write conf
+	confPath := filepath.Join(dir, "rootca.cnf")
+	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
+		return nil, nil, errors.Wrap(err, "write openssl conf")
+	}
+
+	// new root ca
+	certPem, err := t.runCMD(ctx, []string{
+		"req", "-outform", "PEM", "-key", "/dev/stdin",
+		"-set_serial", strconv.Itoa(int(t.serialGenerator.SerialNum())),
+		"-x509", "-new", "-nodes", "-utf8", "-batch",
+		"-sm3", "-sigopt", "sm2-za:no",
+		"-copy_extensions", "copyall",
+		"-extensions", "v3_ca",
+		"-config", confPath,
+	}, prikeyPem)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "generate new root ca")
+	}
+
+	if certDer, err = Pem2Der(certPem); err != nil {
+		return nil, nil, errors.Wrap(err, "Pem2Der")
+	}
+
+	return prikeyPem, certDer, nil
+}
+
+// NewX509CSR generate new x509 csr
+func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, csrConf []byte) (csrDer []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate tem dir")
+	}
+	defer os.RemoveAll(dir)
+
+	// write conf
+	confPath := filepath.Join(dir, "csr.cnf")
+	if err = os.WriteFile(confPath, csrConf, 0600); err != nil {
+		return nil, errors.Wrap(err, "write openssl conf")
+	}
+
+	// new csr
+	csrPem, err := t.runCMD(ctx, []string{
+		"req", "-outform", "PEM", "-new",
+		"-key", "/dev/stdin",
+		"-sm3", "-sigopt", "sm2-za:no",
+		"-config", confPath,
+	}, prikeyPem)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate new csr")
+	}
+
+	if csrDer, err = Pem2Der(csrPem); err != nil {
+		return nil, errors.Wrap(err, "Pem2Der")
+	}
+
+	return csrDer, nil
+}
