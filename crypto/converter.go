@@ -389,6 +389,7 @@ func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
 	return err
 }
 
+// X509Cert2OpensslConf marshal x509
 func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 	// set req & req_distinguished_name
 	cnt := fmt.Sprintf(`[ req ]
@@ -416,7 +417,9 @@ commonName = %s
 		"organizationName",
 		"organizationalUnitName",
 	} {
-		cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+		if len(subjectMaps[name]) != 0 {
+			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+		}
 	}
 	cnt += "\n"
 

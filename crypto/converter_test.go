@@ -524,7 +524,6 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 		cert := &x509.Certificate{
 			Subject: pkix.Name{
 				CommonName:         "example.com",
-				Country:            []string{"US"},
 				Province:           []string{"California"},
 				Locality:           []string{"San Francisco"},
 				Organization:       []string{"Acme Corp"},
@@ -542,7 +541,6 @@ x509_extensions = v3_ca
 
 [ req_distinguished_name ]
 commonName = example.com
-countryName = US
 stateOrProvinceName = California
 localityName = San Francisco
 organizationName = Acme Corp

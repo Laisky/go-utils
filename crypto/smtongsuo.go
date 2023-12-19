@@ -13,39 +13,6 @@ import (
 	"github.com/Laisky/errors/v2"
 )
 
-const (
-	configTemplate = `[ req ]
-distinguished_name = req_distinguished_name
-prompt = no
-string_mask = utf8only
-x509_extensions = v3_ca
-
-[ req_distinguished_name ]
-countryName  = {{.CountryName}}
-stateOrProvinceName = {{.StateOrProvinceName}}
-localityName = {{.LocalityName}}
-organizationName = {{.OrganizationName}}
-organizationalUnitName = {{.OrganizationalUnitName}}
-commonName = {{.CommonName}}
-
-[ v3_ca ]
-basicConstraints = critical, CA:TRUE
-keyUsage = cRLSign, keyCertSign
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always, issuer
-certificatePolicies = {{.Policies}}`
-)
-
-type configTemplateArgs struct {
-	CountryName            string
-	StateOrProvinceName    string
-	LocalityName           string
-	OrganizationName       string
-	OrganizationalUnitName string
-	CommonName             string
-	Policies               string
-}
-
 // Tongsuo is a wrapper of tongsuo executable binary
 //
 // https://github.com/Tongsuo-Project/Tongsuo
@@ -118,7 +85,7 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 		return nil, nil, errors.Wrap(err, "new private key")
 	}
 
-	_, tpl, err := X509CertOption2Template(opts...)
+	opt, tpl, err := X509CertOption2Template(opts...)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "X509CertOption2Template")
 	}
@@ -140,6 +107,7 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 	certPem, err := t.runCMD(ctx, []string{
 		"req", "-outform", "PEM", "-key", "/dev/stdin",
 		"-set_serial", strconv.Itoa(int(t.serialGenerator.SerialNum())),
+		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
 		"-x509", "-new", "-nodes", "-utf8", "-batch",
 		"-sm3", "-sigopt", "sm2-za:no",
 		"-copy_extensions", "copyall",
