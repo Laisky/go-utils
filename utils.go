@@ -703,6 +703,28 @@ func IsPtr(t any) bool {
 	return reflect.TypeOf(t).Kind() == reflect.Ptr
 }
 
+var reInvalidCMDChars = regexp.MustCompile(`[;&|]`)
+
+// SanitizeCMDArgs sanitizes the given command arguments.
+func SanitizeCMDArgs(args []string) (sanitizedArgs []string, err error) {
+	for i, arg := range args {
+		// Check for invalid characters using a regular expression
+		if reInvalidCMDChars.MatchString(arg) {
+			return nil, errors.New("invalid characters in args")
+		}
+
+		// Check for command substitution
+		if strings.Contains(arg, "$(") || strings.Contains(arg, "`") {
+			return nil, errors.New("invalid command substitution in args")
+		}
+
+		// Trim leading and trailing whitespace
+		args[i] = strings.TrimSpace(arg)
+	}
+
+	return args, nil
+}
+
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
 	return RunCMDWithEnv(ctx, app, args, nil)

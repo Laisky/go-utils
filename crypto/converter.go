@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/Laisky/errors/v2"
+
+	gutils "github.com/Laisky/go-utils/v4"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites
@@ -392,15 +394,16 @@ func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
 // X509Cert2OpensslConf marshal x509
 func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 	// set req & req_distinguished_name
-	cnt := fmt.Sprintf(`[ req ]
-distinguished_name = req_distinguished_name
-prompt = no
-string_mask = utf8only
-x509_extensions = v3_ca
+	cnt := fmt.Sprintf(gutils.Dedent(`
+		[ req ]
+		distinguished_name = req_distinguished_name
+		prompt = no
+		string_mask = utf8only
+		x509_extensions = v3_ca
 
-[ req_distinguished_name ]
-commonName = %s
-`, cert.Subject.CommonName)
+		[ req_distinguished_name ]
+		commonName = %s`), cert.Subject.CommonName)
+	cnt += "\n"
 
 	subjectMaps := map[string][]string{
 		"countryName":            cert.Subject.Country,
@@ -424,8 +427,9 @@ commonName = %s
 	cnt += "\n"
 
 	// set v3_ca
-	cnt += `[ v3_ca ]
-basicConstraints = critical, CA:`
+	cnt += gutils.Dedent(`
+		[ v3_ca ]
+		basicConstraints = critical, CA:`)
 	if cert.IsCA {
 		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
 	} else {
@@ -449,4 +453,94 @@ basicConstraints = critical, CA:`
 	}
 
 	return []byte(cnt)
+}
+
+// X509Csr2OpensslConf marshal x509 csr to openssl conf
+//
+// # Returns
+//
+//	[ req ]
+//	distinguished_name = req_distinguished_name
+//	prompt = no
+//	string_mask = utf8only
+//
+//	[ req_distinguished_name ]
+//	commonName = Intermedia CA
+//	countryName = CN
+//	stateOrProvinceName = Shanghai
+//	localityName = Shanghai
+//	organizationName = BBT
+//	organizationalUnitName = XSS
+func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
+	// set req & req_distinguished_name
+	cnt := fmt.Sprintf(gutils.Dedent(`
+		[ req ]
+		distinguished_name = req_distinguished_name
+		prompt = no
+		string_mask = utf8only
+
+		[ req_distinguished_name ]
+		commonName = %s`), csr.Subject.CommonName)
+	cnt += "\n"
+
+	subjectMaps := map[string][]string{
+		"countryName":            csr.Subject.Country,
+		"stateOrProvinceName":    csr.Subject.Province,
+		"localityName":           csr.Subject.Locality,
+		"organizationName":       csr.Subject.Organization,
+		"organizationalUnitName": csr.Subject.OrganizationalUnit,
+	}
+
+	for _, name := range []string{ // keep order
+		"countryName",
+		"stateOrProvinceName",
+		"localityName",
+		"organizationName",
+		"organizationalUnitName",
+	} {
+		if len(subjectMaps[name]) != 0 {
+			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+		}
+	}
+
+	return []byte(cnt)
+}
+
+// x509SignCsrOptions2OpensslConf marshal x509 csr to openssl conf
+func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, opensslConf []byte, err error) {
+	opt, err = new(signCSROption).fillDefault(nil).applyOpts(opts...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "apply options")
+	}
+
+	cnt := gutils.Dedent(`
+		[req]
+		x509_extensions = v3_ca
+
+		[ v3_ca ]
+		subjectKeyIdentifier = hash
+		authorityKeyIdentifier = keyid:always, issuer
+		basicConstraints = critical, CA:`)
+
+	if opt.isCA {
+		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
+	} else {
+		cnt += "FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
+		cnt += "extendedKeyUsage = anyExtendedKeyUsage\n"
+	}
+
+	if len(opt.policies) > 0 {
+		cnt += "certificatePolicies = "
+
+		var policySecions string
+		for i, policy := range opt.policies {
+			cnt += fmt.Sprintf("@policy-%d, ", i)
+			policySecions += fmt.Sprintf("[ policy-%d ]\npolicyIdentifier = %s\n", i, policy.String())
+		}
+
+		cnt = strings.TrimRight(cnt, ", ")
+		cnt += "\n\n" + policySecions
+	}
+
+	return opt, []byte(cnt), nil
 }

@@ -1919,3 +1919,51 @@ func TestRemoveEmptyVal(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeCMDArgs(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		expected    []string
+		expectedErr error
+	}{
+		{
+			name:        "0",
+			args:        []string{"arg1", "arg2", "arg3"},
+			expected:    []string{"arg1", "arg2", "arg3"},
+			expectedErr: nil,
+		},
+		{
+			name:        "1",
+			args:        []string{"arg1", "arg2$", "arg3"},
+			expected:    []string{"arg1", "arg2$", "arg3"},
+			expectedErr: nil,
+		},
+		{
+			name:        "2",
+			args:        []string{"arg1", "arg2$(echo hello)", "arg3"},
+			expected:    nil,
+			expectedErr: errors.New("invalid command substitution in args"),
+		},
+		{
+			name:        "3",
+			args:        []string{"  arg1  ", "arg2  ", "  arg3"},
+			expected:    []string{"arg1", "arg2", "arg3"},
+			expectedErr: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sanitizedArgs, err := SanitizeCMDArgs(test.args)
+			if test.expectedErr != nil {
+				require.ErrorContains(t, err, test.expectedErr.Error())
+				return
+			}
+
+			isDeepEqual := reflect.DeepEqual(sanitizedArgs, test.expected)
+			require.True(t, isDeepEqual, "sanitizedArgs: %v, expected: %v",
+				sanitizedArgs, test.expected)
+		})
+	}
+}

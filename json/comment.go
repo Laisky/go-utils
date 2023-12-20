@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 
 	"github.com/Laisky/go-utils/v4/common"
+
 	// json2 "github.com/go-json-experiment/json"
-	"github.com/pkg/errors"
+	"github.com/Laisky/errors/v2"
 	"github.com/tailscale/hujson"
 )
 

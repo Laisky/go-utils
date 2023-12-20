@@ -533,32 +533,33 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			PolicyIdentifiers: []asn1.ObjectIdentifier{[]int{2, 5, 29, 32}},
 		}
 
-		expected := `[ req ]
-distinguished_name = req_distinguished_name
-prompt = no
-string_mask = utf8only
-x509_extensions = v3_ca
+		expected := gutils.Dedent(`
+			[ req ]
+			distinguished_name = req_distinguished_name
+			prompt = no
+			string_mask = utf8only
+			x509_extensions = v3_ca
 
-[ req_distinguished_name ]
-commonName = example.com
-stateOrProvinceName = California
-localityName = San Francisco
-organizationName = Acme Corp
-organizationalUnitName = IT
+			[ req_distinguished_name ]
+			commonName = example.com
+			stateOrProvinceName = California
+			localityName = San Francisco
+			organizationName = Acme Corp
+			organizationalUnitName = IT
 
-[ v3_ca ]
-basicConstraints = critical, CA:TRUE
-keyUsage = cRLSign, keyCertSign
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always, issuer
-certificatePolicies = @policy-0
+			[ v3_ca ]
+			basicConstraints = critical, CA:TRUE
+			keyUsage = cRLSign, keyCertSign
+			subjectKeyIdentifier = hash
+			authorityKeyIdentifier = keyid:always, issuer
+			certificatePolicies = @policy-0
 
-[ policy-0 ]
-policyIdentifier = 2.5.29.32
-`
+			[ policy-0 ]
+			policyIdentifier = 2.5.29.32`)
+		expected += "\n"
 
 		opensslConf := X509Cert2OpensslConf(cert)
-		t.Log(string(opensslConf))
+		t.Logf("got\n%s", string(opensslConf))
 		require.Equal(t, expected, string(opensslConf))
 	})
 
@@ -581,36 +582,70 @@ policyIdentifier = 2.5.29.32
 			},
 		}
 
-		expected := `[ req ]
-distinguished_name = req_distinguished_name
-prompt = no
-string_mask = utf8only
-x509_extensions = v3_ca
+		expected := gutils.Dedent(`
+			[ req ]
+			distinguished_name = req_distinguished_name
+			prompt = no
+			string_mask = utf8only
+			x509_extensions = v3_ca
 
-[ req_distinguished_name ]
-commonName = example.com
-countryName = US
-stateOrProvinceName = California
-localityName = San Francisco
-organizationName = Acme Corp
-organizationalUnitName = IT
+			[ req_distinguished_name ]
+			commonName = example.com
+			countryName = US
+			stateOrProvinceName = California
+			localityName = San Francisco
+			organizationName = Acme Corp
+			organizationalUnitName = IT
 
-[ v3_ca ]
-basicConstraints = critical, CA:FALSE
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement
-extendedKeyUsage = anyExtendedKeyUsage
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always, issuer
-certificatePolicies = @policy-0, @policy-1
+			[ v3_ca ]
+			basicConstraints = critical, CA:FALSE
+			keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement
+			extendedKeyUsage = anyExtendedKeyUsage
+			subjectKeyIdentifier = hash
+			authorityKeyIdentifier = keyid:always, issuer
+			certificatePolicies = @policy-0, @policy-1
 
-[ policy-0 ]
-policyIdentifier = 2.5.29.32
-[ policy-1 ]
-policyIdentifier = 1.2.3
-`
+			[ policy-0 ]
+			policyIdentifier = 2.5.29.32
+			[ policy-1 ]
+			policyIdentifier = 1.2.3`)
+		expected += "\n"
 
 		opensslConf := X509Cert2OpensslConf(cert)
-		t.Log(string(opensslConf))
+		t.Logf("got\n%s", string(opensslConf))
 		require.Equal(t, expected, string(opensslConf))
 	})
+}
+
+func TestX509Csr2OpensslConf(t *testing.T) {
+	csr := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:         "example.com",
+			Country:            []string{"US"},
+			Province:           []string{"California"},
+			Locality:           []string{"San Francisco"},
+			Organization:       []string{"Acme Corp"},
+			OrganizationalUnit: []string{"IT"},
+		},
+	}
+
+	expectedConf := gutils.Dedent(`
+		[ req ]
+		distinguished_name = req_distinguished_name
+		prompt = no
+		string_mask = utf8only
+		req_extensions = v3_req
+
+		[ req_distinguished_name ]
+		commonName = example.com
+		countryName = US
+		stateOrProvinceName = California
+		localityName = San Francisco
+		organizationName = Acme Corp
+		organizationalUnitName = IT`)
+	expectedConf += "\n"
+
+	opensslConf := X509Csr2OpensslConf(csr)
+	t.Logf("got\n%s", string(opensslConf))
+	require.Equal(t, expectedConf, string(opensslConf))
 }

@@ -261,6 +261,35 @@ func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error)
 	return o, nil
 }
 
+// X509CsrOption2Template convert X509CSROption to x509.CertificateRequest
+func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest, err error) {
+	opt, err := new(x509CSROption).fillDefault().applyOpts(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	tpl = &x509.CertificateRequest{
+		SignatureAlgorithm: opt.signatureAlgorithm,
+		Subject:            opt.subject,
+		ExtraExtensions:    opt.extraExtensions,
+		Attributes:         opt.attributes,
+		EmailAddresses:     opt.emailAddresses,
+		DNSNames:           opt.dnsNames,
+		IPAddresses:        opt.ipAddresses,
+		URIs:               opt.uris,
+
+		// these are fields that are not used by CreateCertificateRequest
+		// PublicKeyAlgorithm: opt.publicKeyAlgorithm,
+		// Extensions:      opt.extensions,
+	}
+
+	if opt.subject.CommonName == "" {
+		return nil, errors.Errorf("common name is required")
+	}
+
+	return tpl, nil
+}
+
 // NewX509CSR new CSR
 //
 // # Arguments
@@ -274,24 +303,9 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 		return nil, err
 	}
 
-	opt, err := new(x509CSROption).applyOpts(opts...)
+	csrTpl, err := X509CsrOption2Template(opts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "apply options")
-	}
-
-	csrTpl := &x509.CertificateRequest{
-		SignatureAlgorithm: opt.signatureAlgorithm,
-		Subject:            opt.subject,
-		ExtraExtensions:    opt.extraExtensions,
-		Attributes:         opt.attributes,
-		EmailAddresses:     opt.emailAddresses,
-		DNSNames:           opt.dnsNames,
-		IPAddresses:        opt.ipAddresses,
-		URIs:               opt.uris,
-
-		// these are fields that are not used by CreateCertificateRequest
-		// PublicKeyAlgorithm: opt.publicKeyAlgorithm,
-		// Extensions:      opt.extensions,
+		return nil, errors.Wrap(err, "X509CsrOption2Template")
 	}
 
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
@@ -664,7 +678,7 @@ func WithX509SignCSRIsCRLCA() SignCSROption {
 //
 //   - https://github.com/golang/go/blob/e04be8b24c20816f3429a8193c324ea67892e61f/src/crypto/x509/x509.go#L2165
 func NewX509CertByCSR(
-	ca *x509.Certificate,
+	parent *x509.Certificate,
 	prikey crypto.PrivateKey,
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
@@ -682,13 +696,13 @@ func NewX509CertByCSR(
 		return nil, errors.Wrap(err, "apply options")
 	}
 
-	if !ca.IsCA || (ca.KeyUsage&x509.KeyUsageCertSign) == x509.KeyUsage(0) {
-		return nil, errors.Errorf("ca is invalid to sign cert")
+	if !parent.IsCA || (parent.KeyUsage&x509.KeyUsageCertSign) == x509.KeyUsage(0) {
+		return nil, errors.Errorf("parent certificate does not have CA flag or key usage")
 	}
 
 	certOpts := []X509CertOption{
 		WithX509Subject(csr.Subject),
-		WithX509CertParent(ca),
+		WithX509CertParent(parent),
 		WithX509CertNotBefore(opt.notBefore),
 		WithX509CertNotAfter(opt.notAfter),
 		WithX509CertPolicies(opt.policies...),
@@ -1065,14 +1079,12 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 		}
 	}
 
-	switch {
-	case o.serialNumber == nil:
+	if o.serialNumber == nil {
 		// generate serial number by internal generator if not set
 		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
 	}
-
-	if o.serialNumber == nil {
-		glog.Shared.Panic("serial number should not be empty")
+	if o.subject.CommonName == "" {
+		return nil, errors.Errorf("common name must be set")
 	}
 
 	return o, nil
@@ -1229,8 +1241,8 @@ func NewX509CRL(ca *x509.Certificate,
 	return x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
 }
 
-// X509CertOption2Template convert X509CertOption to x509.Certificate template
-func X509CertOption2Template(opts ...X509CertOption) (
+// x509CertOption2Template convert X509CertOption to x509.Certificate template
+func x509CertOption2Template(opts ...X509CertOption) (
 	opt *x509V3CertOption, certTemplate *x509.Certificate, err error) {
 	if opt, err = new(x509V3CertOption).fillDefault().applyOpts(opts...); err != nil {
 		return nil, nil, errors.Wrap(err, "apply options")
@@ -1273,7 +1285,7 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		return nil, errors.Wrap(err, "valid prikey")
 	}
 
-	opt, tpl, err := X509CertOption2Template(opts...)
+	opt, tpl, err := x509CertOption2Template(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert options to template")
 	}

@@ -25,14 +25,13 @@ require (
 	github.com/klauspost/pgzip v1.2.6
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
 	github.com/niclabs/tcrsa v0.0.5
-	github.com/pkg/errors v0.9.1
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
 	github.com/xlzd/gotp v0.1.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/crypto v0.16.0
+	golang.org/x/crypto v0.17.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/term v0.15.0
 	golang.org/x/time v0.3.0
@@ -47,6 +46,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
