@@ -1124,6 +1124,23 @@ func NewECDSAPrikeyAndCert(curve ECDSACurve, opts ...X509CertOption) (
 	return prikeyPem, certDer, errors.Wrap(err, "generate cert")
 }
 
+// NewEd25519PrikeyAndCert convient function to new ed25519 private key and cert
+func NewEd25519PrikeyAndCert(opts ...X509CertOption) (
+	prikeyPem, certDer []byte, err error) {
+	prikey, err := NewEd25519Prikey()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new ed25519 prikey")
+	}
+
+	prikeyPem, err = Prikey2Pem(prikey)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "convert prikey to pem")
+	}
+
+	certDer, err = NewX509Cert(prikey, opts...)
+	return prikeyPem, certDer, errors.Wrap(err, "generate cert")
+}
+
 // Privkey2Signer convert privkey to signer
 func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 	switch privkey := privkey.(type) {

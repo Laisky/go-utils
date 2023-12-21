@@ -883,3 +883,34 @@ func TestReadableX509CSR(t *testing.T) {
 	require.Equal(t, "test", got["subject"].(map[string]any)["common_name"])
 
 }
+func TestNewEd25519PrikeyAndCert(t *testing.T) {
+	t.Parallel()
+
+	t.Run("generate ed25519 prikey and cert", func(t *testing.T) {
+		_, certDer, err := NewEd25519PrikeyAndCert(
+			WithX509CertCommonName("test_common_name"),
+		)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certDer)
+		require.NoError(t, err)
+
+		got, err := ReadableX509Cert(cert)
+		require.NoError(t, err)
+		require.Equal(t, "test_common_name", got["subject"].(map[string]any)["common_name"])
+	})
+
+	t.Run("generate ed25519 prikey and cert with options", func(t *testing.T) {
+		_, certDer, err := NewEd25519PrikeyAndCert(
+			WithX509CertIsCA(),
+			WithX509CertCommonName("test_common_name"),
+		)
+		require.NoError(t, err)
+
+		cert, err := Der2Cert(certDer)
+		require.NoError(t, err)
+
+		require.True(t, cert.IsCA)
+		require.Equal(t, "test_common_name", cert.Subject.CommonName)
+	})
+}
