@@ -34,6 +34,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/Laisky/go-utils/v4/algorithm"
 	"github.com/Laisky/go-utils/v4/common"
 	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
@@ -1420,4 +1421,58 @@ func RemoveEmptyVal(m map[string]any) map[string]any {
 	}
 
 	return m
+}
+
+// CombineSortedChain return the intersection of multiple sorted chans
+func CombineSortedChain[T Sortable](sortOrder common.SortOrder, chans ...chan T) (result chan T, err error) {
+	if len(chans) == 0 {
+		return nil, errors.New("chans cannot be empty")
+	} else if len(chans) == 1 {
+		return chans[0], nil
+	}
+
+	isHighest := sortOrder == common.SortOrderAsc
+	heap, err := algorithm.NewLimitSizeHeap[T](len(chans), isHighest)
+	if err != nil {
+		return nil, errors.Wrapf(err, "new heap with size %d, isHighest %v", len(chans), isHighest)
+	}
+
+	result = make(chan T)
+	go func() {
+		defer close(result)
+
+		closedChans := make(map[int]struct{})
+		for {
+			for idx, c := range chans {
+				if _, ok := closedChans[idx]; ok {
+					continue
+				}
+
+				v, ok := <-c
+				if !ok {
+					closedChans[idx] = struct{}{}
+					if len(closedChans) == len(chans) {
+
+						for i := 0; i < len(chans); i++ {
+							it := heap.Push(latestIt)
+							if it == nil {
+								return
+							}
+
+							result <- it.GetKey().(T)
+						}
+					}
+
+					continue
+				}
+
+				it := heap.Push(algorithm.NewHeapComparableItem[T](v))
+				if it != nil {
+					result <- it.GetKey().(T)
+				}
+			}
+		}
+	}()
+
+	return result, nil
 }

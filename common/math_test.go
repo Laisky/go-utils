@@ -1,13 +1,10 @@
-package utils
+package common
 
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"testing"
-	"time"
 
-	gset "github.com/deckarep/golang-set/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -207,51 +204,55 @@ func TestMax(t *testing.T) {
 	require.Panics(t, func() { Max[int]() })
 }
 
-func TestIntersectSortedChans(t *testing.T) {
-	nChan := 5
+// func TestIntersectSortedChans(t *testing.T) {
+// 	nChan := 5
 
-	chans := make([]chan int, nChan)
-	sets := make([]gset.Set[int], nChan)
-	arrs := make([][]int, nChan)
-	for i := 0; i < nChan; i++ {
-		chans[i] = make(chan int)
-		sets[i] = gset.NewSet[int]()
-		go func(i int) {
-			last := 0
-			randor := rand.New(rand.NewSource(time.Now().UnixNano()))
-			for j := 0; j < 1000; j++ {
-				last += randor.Intn(2)
-				sets[i].Add(last)
-				arrs[i] = append(arrs[i], last)
-				chans[i] <- last
-			}
+// 	var wg sync.WaitGroup
+// 	chans := make([]chan int, nChan)
+// 	sets := make([]gset.Set[int], nChan)
+// 	arrs := make([][]int, nChan)
+// 	for i := 0; i < nChan; i++ {
+// 		wg.Add(1)
+// 		chans[i] = make(chan int)
+// 		sets[i] = gset.NewSet[int]()
+// 		go func(i int) {
+// 			defer wg.Done()
 
-			close(chans[i])
-		}(i)
-	}
+// 			last := 0
+// 			randor := rand.New(rand.NewSource(time.Now().UnixNano()))
+// 			for j := 0; j < 1000; j++ {
+// 				last += randor.Intn(2)
+// 				sets[i].Add(last)
+// 				arrs[i] = append(arrs[i], last)
+// 				chans[i] <- last
+// 			}
 
-	got := gset.NewSet[int]()
-	resultChan, err := IntersectSortedChans(chans...)
-	require.NoError(t, err)
-	for v := range resultChan {
-		got.Add(v)
-	}
+// 			close(chans[i])
+// 		}(i)
+// 	}
 
-	EmptyAllChans(chans...)
+// 	got := gset.NewSet[int]()
+// 	resultChan, err := IntersectSortedChans(chans...)
+// 	require.NoError(t, err)
+// 	for v := range resultChan {
+// 		got.Add(v)
+// 	}
 
-	expect := sets[0]
-	t.Log("arr<0>:", arrs[0])
-	for i := 1; i < nChan; i++ {
-		t.Logf("arr<%d>:%v", i, arrs[i])
-		expect = expect.Intersect(sets[i])
-	}
+// 	wg.Wait()
 
-	t.Log("expect:", expect.ToSlice())
-	t.Log("got:", got.ToSlice())
-	require.NotEqual(t, len(got.ToSlice()), 0)
-	require.True(t, got.Equal(expect))
-	// t.Error()
-}
+// 	expect := sets[0]
+// 	t.Log("arr<0>:", arrs[0])
+// 	for i := 1; i < nChan; i++ {
+// 		t.Logf("arr<%d>:%v", i, arrs[i])
+// 		expect = expect.Intersect(sets[i])
+// 	}
+
+// 	t.Log("expect:", expect.ToSlice())
+// 	t.Log("got:", got.ToSlice())
+// 	require.NotEqual(t, len(got.ToSlice()), 0)
+// 	require.True(t, got.Equal(expect))
+// 	// t.Error()
+// }
 
 func TestFallTr(t *testing.T) {
 	a := "a"

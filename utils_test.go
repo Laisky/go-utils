@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/Laisky/go-utils/v4/common"
 	"github.com/Laisky/go-utils/v4/json"
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -1966,4 +1967,56 @@ func TestSanitizeCMDArgs(t *testing.T) {
 				sanitizedArgs, test.expected)
 		})
 	}
+}
+
+func TestCombineSortedChain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty input channels", func(t *testing.T) {
+		t.Parallel()
+		_, err := CombineSortedChain[int](common.SortOrderAsc)
+		require.Error(t, err)
+		require.Equal(t, "chans cannot be empty", err.Error())
+	})
+
+	t.Run("single input channel", func(t *testing.T) {
+		t.Parallel()
+		ch := make(chan int)
+		go func() {
+			defer close(ch)
+			ch <- 1
+		}()
+
+		result, err := CombineSortedChain(common.SortOrderAsc, ch)
+		require.NoError(t, err)
+		require.Equal(t, 1, <-result)
+	})
+
+	t.Run("multiple input channels", func(t *testing.T) {
+		t.Parallel()
+		ch1 := make(chan int)
+		ch2 := make(chan int)
+		ch3 := make(chan int)
+
+		go func() {
+			defer close(ch1)
+			ch1 <- 1
+		}()
+
+		go func() {
+			defer close(ch2)
+			ch2 <- 3
+		}()
+
+		go func() {
+			defer close(ch3)
+			ch3 <- 2
+		}()
+
+		result, err := CombineSortedChain(common.SortOrderAsc, ch1, ch2, ch3)
+		require.NoError(t, err)
+		require.Equal(t, 1, <-result)
+		require.Equal(t, 2, <-result)
+		require.Equal(t, 3, <-result)
+	})
 }
