@@ -1431,46 +1431,64 @@ func CombineSortedChain[T Sortable](sortOrder common.SortOrder, chans ...chan T)
 		return chans[0], nil
 	}
 
-	isHighest := sortOrder == common.SortOrderAsc
-	heap, err := algorithm.NewLimitSizeHeap[T](len(chans), isHighest)
-	if err != nil {
-		return nil, errors.Wrapf(err, "new heap with size %d, isHighest %v", len(chans), isHighest)
+	heap := algorithm.NewPriorityQ[T](sortOrder)
+
+	activeChans := make(map[int]chan T, len(chans))
+	for i, ch := range chans {
+		activeChans[i] = ch
 	}
 
 	result = make(chan T)
 	go func() {
 		defer close(result)
 
-		closedChans := make(map[int]struct{})
+		for idx, c := range activeChans {
+			v, ok := <-c
+			if !ok {
+				continue
+			}
+
+			heap.Push(algorithm.PriorityItem[T]{
+				Val:  v,
+				Name: idx,
+			})
+		}
+
 		for {
-			for idx, c := range chans {
-				if _, ok := closedChans[idx]; ok {
-					continue
-				}
+			if heap.Len() == 0 {
+				return
+			}
 
-				v, ok := <-c
-				if !ok {
-					closedChans[idx] = struct{}{}
-					if len(closedChans) == len(chans) {
+			it := heap.Pop()
+			result <- it.GetVal()
 
-						for i := 0; i < len(chans); i++ {
-							it := heap.Push(latestIt)
-							if it == nil {
-								return
-							}
+			idx := it.(algorithm.PriorityItem[T]).Name.(int) //nolint:forcetypeassert // panic
+			ch, ok := activeChans[idx]
+			if !ok { // this chan is already exhausted and removed
+				continue
+			}
 
-							result <- it.GetKey().(T)
-						}
+			v, ok := <-ch
+			if !ok { // this chan is exhausted
+				delete(activeChans, idx)
+
+				// there is no active chans
+				if len(activeChans) == 0 {
+					for i := 0; i < heap.Len(); i++ {
+						it := heap.Pop()
+						result <- it.GetVal()
 					}
 
-					continue
+					return
 				}
 
-				it := heap.Push(algorithm.NewHeapComparableItem[T](v))
-				if it != nil {
-					result <- it.GetKey().(T)
-				}
+				continue
 			}
+
+			heap.Push(algorithm.PriorityItem[T]{
+				Val:  v,
+				Name: idx,
+			})
 		}
 	}()
 

@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/Laisky/errors/v2"
+
 	"github.com/Laisky/go-utils/v4/common"
 )
 
@@ -53,7 +54,9 @@ func GetTopKItems[T common.Sortable](
 
 	q := NewPriorityQ[T](heapSort)
 	for v := range inputChan {
-		q.Push(v)
+		q.Push(PriorityItem[T]{
+			Val: v,
+		})
 		if q.Len() > topN {
 			q.Pop()
 		}
@@ -62,7 +65,7 @@ func GetTopKItems[T common.Sortable](
 	result = make([]T, 0, topN)
 	for q.Len() != 0 {
 		it := q.Pop()
-		result = append(result, it)
+		result = append(result, it.GetVal())
 	}
 
 	return result, nil

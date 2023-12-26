@@ -13,21 +13,44 @@ type PriorityQ[T common.Sortable] struct {
 	q *innerPriorityQ[T]
 }
 
+// PriotiryItemItf priority item interface
+type PriotiryItemItf[T common.Sortable] interface {
+	GetVal() T
+}
+
+// PriorityItem priority item
+type PriorityItem[T common.Sortable] struct {
+	// Val 	T
+	Val T
+	// Name whatever to identify this item
+	Name any
+}
+
+// GetVal get value of priority item
+func (t PriorityItem[T]) GetVal() T {
+	return t.Val
+}
+
 // NewPriorityQ create new PriorityQ
+//
+// Args:
+//   - order: common.SortOrderAsc or common.SortOrderDesc,
+//     if you want to get topN items, use common.SortOrderDesc,
+//     if you want to get bottomN items, use common.SortOrderAsc.
 func NewPriorityQ[T common.Sortable](order common.SortOrder) *PriorityQ[T] {
 	return &PriorityQ[T]{
-		q: newPriorityQueue[T](order),
+		q: newinnerPriorityQ[T](order),
 	}
 }
 
 // Push push item into priority queue
-func (pq *PriorityQ[T]) Push(v T) {
+func (pq *PriorityQ[T]) Push(v PriotiryItemItf[T]) {
 	heap.Push(pq.q, v)
 }
 
 // Pop pop item from priority queue
-func (pq *PriorityQ[T]) Pop() T {
-	return heap.Pop(pq.q).(T)
+func (pq *PriorityQ[T]) Pop() PriotiryItemItf[T] {
+	return heap.Pop(pq.q).(PriotiryItemItf[T]) //nolint:forcetypeassert // panic
 }
 
 // Len return length of priority queue
@@ -36,7 +59,7 @@ func (pq *PriorityQ[T]) Len() int {
 }
 
 // Peek peek item from priority queue
-func (pq *PriorityQ[T]) Peek() T {
+func (pq *PriorityQ[T]) Peek() PriotiryItemItf[T] {
 	return pq.q.vals[len(pq.q.vals)-1]
 }
 
@@ -85,16 +108,16 @@ func (pq *PriorityQ[T]) Peek() T {
 //
 // Do not use this structure directly, use `NewPriorityQueue` instead.
 type innerPriorityQ[T common.Sortable] struct {
-	vals  []T
+	vals  []PriotiryItemItf[T]
 	order common.SortOrder
 }
 
-// newPriorityQueue create new PriorityQ
+// newinnerPriorityQ create new PriorityQ
 //
 // https://pkg.go.dev/container/heap@go1.21.5#example-package-IntHeap
-func newPriorityQueue[T common.Sortable](order common.SortOrder) *innerPriorityQ[T] {
+func newinnerPriorityQ[T common.Sortable](order common.SortOrder) *innerPriorityQ[T] {
 	return &innerPriorityQ[T]{
-		vals:  []T{},
+		vals:  []PriotiryItemItf[T]{},
 		order: order,
 	}
 }
@@ -105,9 +128,9 @@ func (pq *innerPriorityQ[T]) Len() int { return len(pq.vals) }
 // Less compare two items in heapq
 func (pq *innerPriorityQ[T]) Less(i, j int) bool {
 	if pq.order == common.SortOrderAsc {
-		return pq.vals[i] < pq.vals[j]
+		return pq.vals[i].GetVal() < pq.vals[j].GetVal()
 	} else {
-		return pq.vals[i] > pq.vals[j]
+		return pq.vals[i].GetVal() > pq.vals[j].GetVal()
 	}
 }
 
@@ -119,7 +142,7 @@ func (pq *innerPriorityQ[T]) Swap(i, j int) {
 }
 
 func (pq *innerPriorityQ[T]) Push(v any) {
-	pq.vals = append(pq.vals, v.(T))
+	pq.vals = append(pq.vals, v.(PriotiryItemItf[T])) //nolint:forcetypeassert // panic
 }
 
 // Pop pop item from heapq
