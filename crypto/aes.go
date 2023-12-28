@@ -3,6 +3,8 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/sha256"
 	"io"
 	"os"
 	"strings"
@@ -324,4 +326,14 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 	}
 
 	return pool.Wait()
+}
+
+// HMAC calculate HMAC
+func HMAC(key, data []byte) ([]byte, error) {
+	h := hmac.New(sha256.New, key)
+	if _, err := h.Write(data); err != nil {
+		return nil, errors.Wrap(err, "write data")
+	}
+
+	return h.Sum(nil), nil
 }

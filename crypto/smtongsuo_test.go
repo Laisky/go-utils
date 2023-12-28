@@ -155,3 +155,55 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.Contains(t, certinfo, "Issuer: CN = test-common-name")
 	})
 }
+
+func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	key, err := Salt(16)
+	require.NoError(t, err)
+	incorrectKey, err := Salt(16)
+	require.NoError(t, err)
+	plaintext := []byte("Hello, World!")
+	iv, err := Salt(16)
+	require.NoError(t, err)
+
+	t.Run("correct passphare", func(t *testing.T) {
+		t.Parallel()
+
+		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
+		// Decrypt the ciphertext to verify the encryption
+		decrypted, err := ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, tag)
+		require.NoError(t, err)
+		require.Equal(t, plaintext, decrypted)
+	})
+
+	t.Run("incorrect passphare", func(t *testing.T) {
+		t.Parallel()
+
+		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
+		// Decrypt the ciphertext with incorrect key
+		_, err = ins.DecryptBySm4Baisc(ctx, []byte("incorrect key"), ciphertext, iv, tag)
+		require.ErrorContains(t, err, "hmac not match")
+
+		// Decrypt the ciphertext with incorrect tag
+		_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, []byte("incorrect tag"))
+		require.ErrorContains(t, err, "hmac not match")
+
+		// Decrypt the ciphertext with incorrect key and empty tag
+		_, err = ins.DecryptBySm4Baisc(ctx, incorrectKey, ciphertext, iv, nil)
+		require.ErrorContains(t, err, "got bad decrypt")
+	})
+}

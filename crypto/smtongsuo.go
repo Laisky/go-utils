@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -252,4 +253,69 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	}
 
 	return certDer, nil
+}
+
+func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context, key, plaintext, iv []byte) (ciphertext, hmac []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "generate tem dir")
+	}
+	defer t.removeAll(dir)
+
+	cipherPath := filepath.Join(dir, "cipher")
+	if _, err = t.runCMD(ctx, []string{
+		"enc", "-sm4-cbc", "-e",
+		"-in", "/dev/stdin", "-out", cipherPath,
+		"-K", hex.EncodeToString(key), "-iv", hex.EncodeToString(iv),
+	}, plaintext); err != nil {
+		return nil, nil, errors.Wrap(err, "encrypt")
+	}
+
+	if ciphertext, err = os.ReadFile(cipherPath); err != nil {
+		return nil, nil, errors.Wrap(err, "read cipher")
+	}
+
+	if hmac, err = HMAC(key, ciphertext); err != nil {
+		return nil, nil, errors.Wrap(err, "calculate hmac")
+	}
+
+	return ciphertext, hmac, nil
+}
+
+// DecryptBySm4Baisc decrypt by sm4
+//
+// # Args
+//   - key: sm4 key
+//   - ciphertext: sm4 encrypted data
+//   - iv: sm4 iv
+//   - hmac: if not nil, will check ciphertext's integrity by hmac
+func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context, key, ciphertext, iv, hmac []byte) (plaintext []byte, err error) {
+	if len(hmac) != 0 { // check hmac
+		if expectedHmac, err := HMAC(key, ciphertext); err != nil {
+			return nil, errors.Wrap(err, "calculate hmac")
+		} else if !bytes.Equal(hmac, expectedHmac) {
+			return nil, errors.Errorf("hmac not match")
+		}
+	}
+
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate tem dir")
+	}
+	defer t.removeAll(dir)
+
+	cipherPath := filepath.Join(dir, "cipher")
+	if err = os.WriteFile(cipherPath, ciphertext, 0600); err != nil {
+		return nil, errors.Wrap(err, "write cipher")
+	}
+
+	if plaintext, err = t.runCMD(ctx, []string{
+		"enc", "-sm4-cbc", "-d",
+		"-in", cipherPath, "-out", "/dev/stdout",
+		"-K", hex.EncodeToString(key), "-iv", hex.EncodeToString(iv),
+	}, ciphertext); err != nil {
+		return nil, errors.Wrap(err, "decrypt")
+	}
+
+	return plaintext, nil
 }
