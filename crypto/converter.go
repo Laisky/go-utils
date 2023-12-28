@@ -400,6 +400,7 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 		prompt = no
 		string_mask = utf8only
 		x509_extensions = v3_ca
+		req_extensions = req_ext
 
 		[ req_distinguished_name ]
 		commonName = %s`), cert.Subject.CommonName)
@@ -450,6 +451,27 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 
 		cnt = strings.TrimRight(cnt, ", ")
 		cnt += "\n\n" + policySecions
+	}
+
+	// set req_ext
+	cnt += "\n"
+	cnt += gutils.Dedent(`
+			[ req_ext ]
+			subjectAltName = @alt_names
+
+			[ alt_names ]`)
+	cnt += "\n"
+	for i, v := range cert.DNSNames {
+		cnt += fmt.Sprintf("DNS.%d = %s\n", i+1, v)
+	}
+	for i, v := range cert.EmailAddresses {
+		cnt += fmt.Sprintf("email.%d = %s\n", i+1, v)
+	}
+	for i, v := range cert.IPAddresses {
+		cnt += fmt.Sprintf("IP.%d = %s\n", i+1, v.String())
+	}
+	for i, v := range cert.URIs {
+		cnt += fmt.Sprintf("URI.%d = %s\n", i+1, v.String())
 	}
 
 	return []byte(cnt)
@@ -547,6 +569,7 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	cnt := gutils.Dedent(`
 		[req]
 		x509_extensions = v3_ca
+		req_extensions = req_ext
 
 		[ v3_ca ]
 		subjectKeyIdentifier = hash

@@ -532,6 +532,13 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			},
 			IsCA:              true,
 			PolicyIdentifiers: []asn1.ObjectIdentifier{[]int{2, 5, 29, 32}},
+			DNSNames: []string{
+				"localhost",
+				"example.com",
+			},
+			IPAddresses: []net.IP{
+				net.ParseIP("1.2.3.4"),
+			},
 		}
 
 		expected := gutils.Dedent(`
@@ -540,6 +547,7 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			prompt = no
 			string_mask = utf8only
 			x509_extensions = v3_ca
+			req_extensions = req_ext
 
 			[ req_distinguished_name ]
 			commonName = example.com
@@ -556,7 +564,17 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			certificatePolicies = @policy-0
 
 			[ policy-0 ]
-			policyIdentifier = 2.5.29.32`)
+			policyIdentifier = 2.5.29.32
+
+			[ req_ext ]
+			subjectAltName = @alt_names
+
+			[ alt_names ]
+			DNS.1 = localhost
+			DNS.2 = example.com
+			IP.1 = 1.2.3.4
+			`)
+
 		expected += "\n"
 
 		opensslConf := X509Cert2OpensslConf(cert)
@@ -581,6 +599,13 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 				[]int{2, 5, 29, 32},
 				[]int{1, 2, 3},
 			},
+			DNSNames: []string{
+				"localhost",
+				"example.com",
+			},
+			IPAddresses: []net.IP{
+				net.ParseIP("1.2.3.4"),
+			},
 		}
 
 		expected := gutils.Dedent(`
@@ -589,6 +614,7 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			prompt = no
 			string_mask = utf8only
 			x509_extensions = v3_ca
+			req_extensions = req_ext
 
 			[ req_distinguished_name ]
 			commonName = example.com
@@ -609,7 +635,16 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 			[ policy-0 ]
 			policyIdentifier = 2.5.29.32
 			[ policy-1 ]
-			policyIdentifier = 1.2.3`)
+			policyIdentifier = 1.2.3
+
+			[ req_ext ]
+			subjectAltName = @alt_names
+
+			[ alt_names ]
+			DNS.1 = localhost
+			DNS.2 = example.com
+			IP.1 = 1.2.3.4
+			`)
 		expected += "\n"
 
 		opensslConf := X509Cert2OpensslConf(cert)
