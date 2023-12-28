@@ -384,3 +384,15 @@ func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) 
 
 	return t.DecryptBySm4Baisc(ctx, key, cipher, iv, hmac)
 }
+
+// func (t *Tongsuo) CloneX509Csr(ctx context.Context,
+// 	prikeyPem []byte, originCsr []byte) (clonedCsr []byte, err error) {
+// 	// extract subject info
+// 	// got: subject=CN=Leaf Cert,OU=XSS,O=BBT,L=Shanghai,ST=Shanghai,C=CN
+// 	sbjLine, err := t.runCMD(ctx, []string{
+// 		"req", "-in", "/dev/stdin", "-noout", "-subject", "-nameopt", "RFC2253",
+// 	}, originCsr)
+// 	if err != nil {
+// 		return nil, errors.Wrap(err, "extract subject info")
+// 	}
+// }

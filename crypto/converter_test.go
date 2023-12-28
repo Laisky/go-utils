@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"net"
 	"testing"
 	"time"
 
@@ -627,6 +628,13 @@ func TestX509Csr2OpensslConf(t *testing.T) {
 			Organization:       []string{"Acme Corp"},
 			OrganizationalUnit: []string{"IT"},
 		},
+		DNSNames: []string{
+			"localhost",
+			"example.com",
+		},
+		IPAddresses: []net.IP{
+			net.ParseIP("1.2.3.4"),
+		},
 	}
 
 	expectedConf := gutils.Dedent(`
@@ -634,7 +642,7 @@ func TestX509Csr2OpensslConf(t *testing.T) {
 		distinguished_name = req_distinguished_name
 		prompt = no
 		string_mask = utf8only
-		req_extensions = v3_req
+		req_extensions = req_ext
 
 		[ req_distinguished_name ]
 		commonName = example.com
@@ -642,7 +650,16 @@ func TestX509Csr2OpensslConf(t *testing.T) {
 		stateOrProvinceName = California
 		localityName = San Francisco
 		organizationName = Acme Corp
-		organizationalUnitName = IT`)
+		organizationalUnitName = IT
+
+		[ req_ext ]
+		subjectAltName = @alt_names
+
+		[ alt_names ]
+		DNS.1 = localhost
+		DNS.2 = example.com
+		IP.1 = 1.2.3.4
+		`)
 	expectedConf += "\n"
 
 	opensslConf := X509Csr2OpensslConf(csr)

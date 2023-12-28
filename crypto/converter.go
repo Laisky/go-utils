@@ -463,6 +463,10 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 //	distinguished_name = req_distinguished_name
 //	prompt = no
 //	string_mask = utf8only
+//	req_extensions = req_ext
+//
+//	[ req_ext ]
+//	subjectAltName = @alt_names
 //
 //	[ req_distinguished_name ]
 //	commonName = Intermedia CA
@@ -471,6 +475,10 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 //	localityName = Shanghai
 //	organizationName = BBT
 //	organizationalUnitName = XSS
+//
+//	[ alt_names ]
+//	DNS.1 = localhost
+//	DNS.2 = example.com
 func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 	// set req & req_distinguished_name
 	cnt := fmt.Sprintf(gutils.Dedent(`
@@ -478,6 +486,7 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 		distinguished_name = req_distinguished_name
 		prompt = no
 		string_mask = utf8only
+		req_extensions = req_ext
 
 		[ req_distinguished_name ]
 		commonName = %s`), csr.Subject.CommonName)
@@ -501,6 +510,28 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 		if len(subjectMaps[name]) != 0 {
 			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
 		}
+	}
+
+	// set req_ext
+	cnt += "\n"
+	cnt += gutils.Dedent(`
+		[ req_ext ]
+		subjectAltName = @alt_names
+
+		[ alt_names ]`)
+	cnt += "\n"
+
+	for i, v := range csr.DNSNames {
+		cnt += fmt.Sprintf("DNS.%d = %s\n", i+1, v)
+	}
+	for i, v := range csr.EmailAddresses {
+		cnt += fmt.Sprintf("email.%d = %s\n", i+1, v)
+	}
+	for i, v := range csr.IPAddresses {
+		cnt += fmt.Sprintf("IP.%d = %s\n", i+1, v.String())
+	}
+	for i, v := range csr.URIs {
+		cnt += fmt.Sprintf("URI.%d = %s\n", i+1, v.String())
 	}
 
 	return []byte(cnt)
