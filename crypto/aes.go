@@ -328,8 +328,15 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 	return pool.Wait()
 }
 
-// HMAC calculate HMAC
-func HMAC(key, data []byte) ([]byte, error) {
+// HMACSha256 calculate HMAC by sha256
+//
+// # Args:
+//   - key: passphare
+//   - data: data to calculate
+//
+// # Returns:
+//   - hmac: hmac result, 32 bytes
+func HMACSha256(key, data []byte) ([]byte, error) {
 	h := hmac.New(sha256.New, key)
 	if _, err := h.Write(data); err != nil {
 		return nil, errors.Wrap(err, "write data")

@@ -255,7 +255,28 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	return certDer, nil
 }
 
-func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context, key, plaintext, iv []byte) (ciphertext, hmac []byte, err error) {
+// EncryptBySm4Baisc encrypt by sm4
+//
+// # Args
+//   - key: sm4 key, should be 16 bytes
+//   - plaintext: data to be encrypted
+//   - iv: sm4 iv, should be 16 bytes
+//
+// # Returns
+//   - ciphertext: sm4 encrypted data
+//   - hmac: hmac of ciphertext, 32 bytes
+func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context,
+	key, plaintext, iv []byte) (ciphertext, hmac []byte, err error) {
+	if len(key) != 16 {
+		return nil, nil, errors.Errorf("key should be 16 bytes")
+	}
+	if len(iv) != 16 {
+		return nil, nil, errors.Errorf("iv should be 16 bytes")
+	}
+	if len(hmac) != 0 && len(hmac) != 32 {
+		return nil, nil, errors.Errorf("hmac should be 0 or 32 bytes")
+	}
+
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "generate tem dir")
@@ -275,7 +296,7 @@ func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context, key, plaintext, iv []by
 		return nil, nil, errors.Wrap(err, "read cipher")
 	}
 
-	if hmac, err = HMAC(key, ciphertext); err != nil {
+	if hmac, err = HMACSha256(key, ciphertext); err != nil {
 		return nil, nil, errors.Wrap(err, "calculate hmac")
 	}
 
@@ -289,9 +310,20 @@ func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context, key, plaintext, iv []by
 //   - ciphertext: sm4 encrypted data
 //   - iv: sm4 iv
 //   - hmac: if not nil, will check ciphertext's integrity by hmac
-func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context, key, ciphertext, iv, hmac []byte) (plaintext []byte, err error) {
+func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context,
+	key, ciphertext, iv, hmac []byte) (plaintext []byte, err error) {
+	if len(key) != 16 {
+		return nil, errors.Errorf("key should be 16 bytes")
+	}
+	if len(iv) != 16 {
+		return nil, errors.Errorf("iv should be 16 bytes")
+	}
+	if len(hmac) != 0 && len(hmac) != 32 {
+		return nil, errors.Errorf("hmac should be 0 or 32 bytes")
+	}
+
 	if len(hmac) != 0 { // check hmac
-		if expectedHmac, err := HMAC(key, ciphertext); err != nil {
+		if expectedHmac, err := HMACSha256(key, ciphertext); err != nil {
 			return nil, errors.Wrap(err, "calculate hmac")
 		} else if !bytes.Equal(hmac, expectedHmac) {
 			return nil, errors.Errorf("hmac not match")
@@ -318,4 +350,37 @@ func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context, key, ciphertext, iv, hm
 	}
 
 	return plaintext, nil
+}
+
+// EncryptBySm4 encrypt by sm4, should be decrypted by `DecryptBySm4` only
+func (t *Tongsuo) EncryptBySm4(ctx context.Context, key, plaintext []byte) (combinedCipher []byte, err error) {
+	iv, err := Salt(16)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate iv")
+	}
+
+	cipher, hmac, err := t.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+	if err != nil {
+		return nil, errors.Wrap(err, "encrypt by sm4 basic")
+	}
+
+	combinedCipher = make([]byte, 0, len(iv)+len(cipher)+len(hmac))
+	combinedCipher = append(combinedCipher, iv...)
+	combinedCipher = append(combinedCipher, cipher...)
+	combinedCipher = append(combinedCipher, hmac...)
+
+	return combinedCipher, nil
+}
+
+// DecryptBySm4 decrypt by sm4, should be encrypted by `EncryptBySm4` only
+func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) (plaintext []byte, err error) {
+	if len(combinedCipher) <= 48 {
+		return nil, errors.Errorf("invalid combined cipher")
+	}
+
+	iv := combinedCipher[:16]
+	cipher := combinedCipher[16 : len(combinedCipher)-32]
+	hmac := combinedCipher[len(combinedCipher)-32:]
+
+	return t.DecryptBySm4Baisc(ctx, key, cipher, iv, hmac)
 }

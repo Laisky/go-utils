@@ -173,6 +173,8 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	plaintext := []byte("Hello, World!")
 	iv, err := Salt(16)
 	require.NoError(t, err)
+	incorrectTag, err := Salt(32)
+	require.NoError(t, err)
 
 	t.Run("correct passphare", func(t *testing.T) {
 		t.Parallel()
@@ -180,30 +182,82 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
+		require.Len(t, tag, 32)
 
 		// Decrypt the ciphertext to verify the encryption
 		decrypted, err := ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, tag)
 		require.NoError(t, err)
 		require.Equal(t, plaintext, decrypted)
+		// require.Equal(t, len(plaintext), len(ciphertext))
 	})
 
-	t.Run("incorrect passphare", func(t *testing.T) {
+	t.Run("Decrypt the ciphertext with incorrect key", func(t *testing.T) {
 		t.Parallel()
 
 		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 
-		// Decrypt the ciphertext with incorrect key
-		_, err = ins.DecryptBySm4Baisc(ctx, []byte("incorrect key"), ciphertext, iv, tag)
+		_, err = ins.DecryptBySm4Baisc(ctx, incorrectKey, ciphertext, iv, tag)
 		require.ErrorContains(t, err, "hmac not match")
 
-		// Decrypt the ciphertext with incorrect tag
-		_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, []byte("incorrect tag"))
+		t.Run("key in incorrect length", func(t *testing.T) {
+			_, err = ins.DecryptBySm4Baisc(ctx, append(key, 'd'), ciphertext, iv, tag)
+			require.ErrorContains(t, err, "key should be 16 bytes")
+		})
+
+		t.Run("iv in incorrect length", func(t *testing.T) {
+			_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, append(iv, 'a'), tag)
+			require.ErrorContains(t, err, "iv should be 16 bytes")
+		})
+	})
+
+	t.Run("Decrypt the ciphertext with incorrect tag", func(t *testing.T) {
+		t.Parallel()
+
+		ciphertext, _, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
+		_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, incorrectTag)
 		require.ErrorContains(t, err, "hmac not match")
 
-		// Decrypt the ciphertext with incorrect key and empty tag
+		t.Run("tag in incorrect length", func(t *testing.T) {
+			_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, append(incorrectTag, []byte("123")...))
+			require.ErrorContains(t, err, "hmac should be 0 or 32 bytes")
+		})
+	})
+
+	t.Run("Decrypt the ciphertext with incorrect key and empty tag", func(t *testing.T) {
+		t.Parallel()
+
+		ciphertext, _, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
 		_, err = ins.DecryptBySm4Baisc(ctx, incorrectKey, ciphertext, iv, nil)
 		require.ErrorContains(t, err, "got bad decrypt")
 	})
+}
+
+func TestTongsuo_DecryptBySm4(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	key, err := Salt(16)
+	require.NoError(t, err)
+	plaintext := []byte("Hello, World!")
+
+	cipher, err := ins.EncryptBySm4(ctx, key, plaintext)
+	require.NoError(t, err)
+
+	gotPlain, err := ins.DecryptBySm4(ctx, key, cipher)
+	require.NoError(t, err)
+	require.Equal(t, plaintext, gotPlain)
 }
