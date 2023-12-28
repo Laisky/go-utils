@@ -261,3 +261,49 @@ func TestTongsuo_DecryptBySm4(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, plaintext, gotPlain)
 }
+
+func TestTongsuo_CloneX509Csr(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	prikeyOld, err := ins.NewPrikey(ctx)
+	require.NoError(t, err)
+	prikeyNew, err := ins.NewPrikey(ctx)
+	require.NoError(t, err)
+
+	csrder, err := ins.NewX509CSR(ctx, prikeyOld,
+		WithX509CSRCommonName("test-common-name"),
+		WithX509CSRCountry("CN"),
+		WithX509CSROrganization("BBT"),
+		WithX509CSRLocality("Shanghai"),
+		WithX509CSRDNSNames("www.example.com", "www.example.net", "www.example.origin"),
+		WithX509CSREmailAddrs("test@laisky.com"),
+	)
+	require.NoError(t, err)
+
+	t.Run("valid csr info", func(t *testing.T) {
+		t.Parallel()
+
+		clonedCsr, err := ins.CloneX509Csr(ctx, prikeyNew, csrder)
+		require.NoError(t, err)
+		require.NotNil(t, clonedCsr)
+
+		// Verify the generated cloned CSR
+		clonedCsrInfo, err := ins.ShowCsrInfo(ctx, clonedCsr)
+		require.NoError(t, err)
+		require.Contains(t, clonedCsrInfo, "C = CN")
+		require.Contains(t, clonedCsrInfo, "L = Shanghai")
+		require.Contains(t, clonedCsrInfo, "O = BBT")
+		require.Contains(t, clonedCsrInfo, "CN = test-common-name")
+		require.Contains(t, clonedCsrInfo, "DNS:www.example.com")
+		require.Contains(t, clonedCsrInfo, "DNS:www.example.net")
+		require.Contains(t, clonedCsrInfo, "DNS:www.example.origin")
+	})
+
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -385,14 +386,73 @@ func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) 
 	return t.DecryptBySm4Baisc(ctx, key, cipher, iv, hmac)
 }
 
-// func (t *Tongsuo) CloneX509Csr(ctx context.Context,
-// 	prikeyPem []byte, originCsr []byte) (clonedCsr []byte, err error) {
-// 	// extract subject info
-// 	// got: subject=CN=Leaf Cert,OU=XSS,O=BBT,L=Shanghai,ST=Shanghai,C=CN
-// 	sbjLine, err := t.runCMD(ctx, []string{
-// 		"req", "-in", "/dev/stdin", "-noout", "-subject", "-nameopt", "RFC2253",
-// 	}, originCsr)
-// 	if err != nil {
-// 		return nil, errors.Wrap(err, "extract subject info")
-// 	}
-// }
+var (
+	reX509Subject = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
+	reX509Sans    = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
+)
+
+// CloneX509Csr generat a cloned csr with different private key
+//
+// # Args
+//   - prikeyPem: new private key for cloned csr
+//   - originCsrDer: origin csr
+func (t *Tongsuo) CloneX509Csr(ctx context.Context,
+	prikeyPem []byte, originCsrDer []byte) (clonedCsrDer []byte, err error) {
+	csrinfo, err := t.ShowCsrInfo(ctx, originCsrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "show csr info")
+	}
+
+	var opts []X509CSROption
+
+	// extract subjects
+	// Subject: C = CN, ST = Shanghai, L = Shanghai, O = BBT, CN = Intermediate CA
+	matched := reX509Subject.FindStringSubmatch(csrinfo)
+	if len(matched) != 2 {
+		return nil, errors.Errorf("invalid csr info")
+	}
+	sbjs := strings.Split(matched[1], ", ")
+	for _, sbj := range sbjs {
+		kv := strings.Split(sbj, " = ")
+		if len(kv) != 2 {
+			return nil, errors.Errorf("invalid subject info %q", sbj)
+		}
+
+		switch kv[0] {
+		case "C":
+			opts = append(opts, WithX509CSRCountry(kv[1]))
+		case "ST":
+			opts = append(opts, WithX509CSRProvince(kv[1]))
+		case "L":
+			opts = append(opts, WithX509CSRLocality(kv[1]))
+		case "O":
+			opts = append(opts, WithX509CSROrganization(kv[1]))
+		case "CN":
+			opts = append(opts, WithX509CSRCommonName(kv[1]))
+		}
+	}
+
+	// extract SANs
+	// X509v3 Subject Alternative Name:
+	//     DNS:www.example.com, DNS:www.example.net, DNS:www.example.origin
+	matched = reX509Sans.FindStringSubmatch(csrinfo)
+	if len(matched) == 2 {
+		sans := strings.Split(matched[1], ", ")
+		for _, san := range sans {
+			kv := strings.Split(san, ":")
+			if len(kv) != 2 {
+				return nil, errors.Errorf("invalid csr info %q", san)
+			}
+
+			opts = append(opts, WithX509CSRSANS(kv[1]))
+		}
+	}
+
+	// generate new csr
+	clonedCsrDer, err = t.NewX509CSR(ctx, prikeyPem, opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate cloned csr")
+	}
+
+	return clonedCsrDer, nil
+}
