@@ -129,22 +129,32 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 		return nil, nil, errors.Wrap(err, "new private key")
 	}
 
+	certDer, err = t.NewX509Cert(ctx, prikeyPem, opts...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new root ca")
+	}
+
+	return prikeyPem, certDer, nil
+}
+
+// NewX509Cert generate new x509 cert
+func (t *Tongsuo) NewX509Cert(ctx context.Context, prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
 	opt, tpl, err := x509CertOption2Template(opts...)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "X509CertOption2Template")
+		return nil, errors.Wrap(err, "X509CertOption2Template")
 	}
 
 	opensslConf := X509Cert2OpensslConf(tpl)
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "generate tem dir")
+		return nil, errors.Wrap(err, "generate tem dir")
 	}
 	defer t.removeAll(dir)
 
 	// write conf
 	confPath := filepath.Join(dir, "rootca.cnf")
 	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, nil, errors.Wrap(err, "write openssl conf")
+		return nil, errors.Wrap(err, "write openssl conf")
 	}
 
 	outCertPemPath := filepath.Join(dir, "rootca.pem")
@@ -161,19 +171,19 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 		"-extensions", "v3_ca",
 		"-config", confPath,
 	}, prikeyPem); err != nil {
-		return nil, nil, errors.Wrap(err, "generate new root ca")
+		return nil, errors.Wrap(err, "generate new root ca")
 	}
 
 	certPem, err := os.ReadFile(outCertPemPath)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "read root ca")
+		return nil, errors.Wrap(err, "read root ca")
 	}
 
 	if certDer, err = Pem2Der(certPem); err != nil {
-		return nil, nil, errors.Wrap(err, "Pem2Der")
+		return nil, errors.Wrap(err, "Pem2Der")
 	}
 
-	return prikeyPem, certDer, nil
+	return certDer, nil
 }
 
 // NewX509CSR generate new x509 csr
