@@ -73,14 +73,25 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (outp
 	return output, nil
 }
 
+type Certificate struct {
+	Raw          []byte
+	SerialNumber string
+}
+
 // ShowCertInfo show cert info
-func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (output string, err error) {
-	out, err := t.runCMD(ctx, []string{"x509", "-inform", "DER", "-text"}, certDer)
+func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Certificate, err error) {
+	certInfo.Raw, err = t.runCMD(ctx, []string{"x509", "-inform", "DER", "-text"}, certDer)
 	if err != nil {
-		return "", errors.Wrap(err, "run cmd to show cert info")
+		return certInfo, errors.Wrap(err, "run cmd to show cert info")
 	}
 
-	return string(out), nil
+	matched := reX509CertSerialNo.FindAllSubmatch(certInfo.Raw, 1)
+	if len(matched) != 1 && len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("invalid cert info")
+	}
+	certInfo.SerialNumber = strings.ReplaceAll(string(matched[0][1]), ":", "")
+
+	return certInfo, nil
 }
 
 // ShowCsrInfo show csr info
@@ -387,8 +398,9 @@ func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) 
 }
 
 var (
-	reX509Subject = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
-	reX509Sans    = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
+	reX509Subject      = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
+	reX509Sans         = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
+	reX509CertSerialNo = regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`)
 )
 
 // CloneX509Csr generat a cloned csr with different private key
