@@ -73,13 +73,14 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (outp
 	return output, nil
 }
 
-type Certificate struct {
+// OpensslCertificateOutput output of `openssl x509 -inform DER -text`
+type OpensslCertificateOutput struct {
 	Raw          []byte
 	SerialNumber string
 }
 
 // ShowCertInfo show cert info
-func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Certificate, err error) {
+func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo OpensslCertificateOutput, err error) {
 	certInfo.Raw, err = t.runCMD(ctx, []string{"x509", "-inform", "DER", "-text"}, certDer)
 	if err != nil {
 		return certInfo, errors.Wrap(err, "run cmd to show cert info")
@@ -138,7 +139,8 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 }
 
 // NewX509Cert generate new x509 cert
-func (t *Tongsuo) NewX509Cert(ctx context.Context, prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
+func (t *Tongsuo) NewX509Cert(ctx context.Context,
+	prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
 	opt, tpl, err := x509CertOption2Template(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "X509CertOption2Template")

@@ -234,6 +234,7 @@ func Pem2Cert(certInPem []byte) (*x509.Certificate, error) {
 
 // Pem2Certs parse multiple certificate in pem
 func Pem2Certs(certInPem []byte) ([]*x509.Certificate, error) {
+	certInPem = bytes.ReplaceAll(certInPem, []byte("----------BEGIN"), []byte("-----\n-----BEGIN"))
 	der, err := Pem2Der(certInPem)
 	if err != nil {
 		return nil, err
@@ -338,6 +339,7 @@ func CSRDer2Pem(CSRInDer []byte) (CSRInPem []byte) {
 //
 // support one or more certs
 func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
+	pemBytes = bytes.ReplaceAll(pemBytes, []byte("----------BEGIN"), []byte("-----\n-----BEGIN"))
 	pemBytes = bytes.Trim(pemBytes, " \n")
 	var (
 		data = pemBytes
