@@ -106,6 +106,7 @@ func TestTLSPrivatekey(t *testing.T) {
 
 		pem, err := Prikey2Pem(prikey)
 		require.NoError(t, err)
+		require.Equal(t, "\n", string(pem[len(pem)-1]))
 
 		_, err = Pem2Der(append(pem, '\n'))
 		require.NoError(t, err)
@@ -152,6 +153,7 @@ func TestTLSPrivatekey(t *testing.T) {
 			require.NoError(t, err)
 
 			pem := Cert2Pem(cert)
+			require.Equal(t, "\n", string(pem[len(pem)-1]))
 			cert, err = Pem2Cert(pem)
 			require.NoError(t, err)
 			require.Equal(t, der, Cert2Der(cert))
@@ -200,6 +202,7 @@ func TestTLSPublickey(t *testing.T) {
 
 		pem, err := Pubkey2Pem(pubkey)
 		require.NoError(t, err)
+		require.Equal(t, "\n", string(pem[len(pem)-1]))
 
 		der2, err := Pem2Der(pem)
 		require.NoError(t, err)
@@ -260,16 +263,21 @@ func TestSecureCipherSuites(t *testing.T) {
 func TestVerifyCertByPrikey(t *testing.T) {
 	t.Parallel()
 
-	prikey, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+	prikey, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertCommonName("TestVerifyCertByPrikey"),
+	)
 	require.NoError(t, err)
 
 	certPem := CertDer2Pem(certDer)
+	require.Equal(t, "\n", string(certPem[len(certPem)-1]))
 
 	err = VerifyCertByPrikey(certPem, prikey)
 	require.NoError(t, err)
 
 	t.Run("different cert", func(t *testing.T) {
-		_, certDer2, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		_, certDer2, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+		)
 		require.NoError(t, err)
 		certPem2 := CertDer2Pem(certDer2)
 		err = VerifyCertByPrikey(certPem2, prikey)
@@ -291,6 +299,7 @@ func TestDer2CSR(t *testing.T) {
 		require.NoError(t, err)
 
 		pem := CSRDer2Pem(csrDer)
+		require.Equal(t, "\n", string(pem[len(pem)-1]))
 
 		csr2, err := Pem2CSR(pem)
 		require.NoError(t, err)
@@ -306,6 +315,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 	defer cancel()
 
 	rootprikeyPem, rootcaDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits4096,
+		WithX509CertCommonName("laisky-test"),
 		WithX509CertIsCA(),
 	)
 	require.NoError(t, err)
@@ -324,7 +334,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 		require.NoError(t, err)
 
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
@@ -378,7 +388,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 		require.NoError(t, err)
 
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer,
@@ -411,6 +421,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 	defer cancel()
 
 	rootprikeyPem, rootcaDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits4096,
+		WithX509CertCommonName("laisky-test"),
 		WithX509CertIsCA(),
 	)
 	require.NoError(t, err)
@@ -429,7 +440,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 		require.NoError(t, err)
 
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer,
@@ -489,7 +500,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
 		require.NoError(t, err)
 
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)

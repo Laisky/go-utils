@@ -106,7 +106,7 @@ func Prikey2Pubkey(prikey crypto.PrivateKey) (pubkey crypto.PublicKey) {
 	return prikey.(interface{ Public() crypto.PublicKey }).Public() // nolint:forcetypeassert // panic if not support
 }
 
-// Prikey2Pem marshal private key to pem
+// Prikey2Pem marshal private key to pem, tailing with line break
 func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
 	der, err := Prikey2Der(key)
 	if err != nil {
@@ -129,7 +129,7 @@ func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
 	return x509.MarshalPKIXPublicKey(key)
 }
 
-// Pubkey2Pem marshal public key to pem
+// Pubkey2Pem marshal public key to pem, tailing with line break
 func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
 	der, err := Pubkey2Der(key)
 	if err != nil {
@@ -139,7 +139,7 @@ func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
 	return PubkeyDer2Pem(der), nil
 }
 
-// Cert2Pem marshal x509 certificate to pem
+// Cert2Pem marshal x509 certificate to pem, tailing with line break
 func Cert2Pem(certs ...*x509.Certificate) (ret []byte) {
 	for i := range certs {
 		ret = append(ret, CertDer2Pem(Cert2Der(certs[i]))...)
@@ -325,12 +325,12 @@ func PubkeyDer2Pem(pubkeyInDer []byte) (prikeyInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubkeyInDer})
 }
 
-// CertDer2Pem convert certificate in der to pem
+// CertDer2Pem convert certificate in der to pem, tailing with line break
 func CertDer2Pem(certInDer []byte) (certInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certInDer})
 }
 
-// CSRDer2Pem convert CSR in der to pem
+// CSRDer2Pem convert CSR in der to pem, tailing with line break
 func CSRDer2Pem(CSRInDer []byte) (CSRInPem []byte) {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: CSRInDer})
 }
