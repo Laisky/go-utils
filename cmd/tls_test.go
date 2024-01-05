@@ -18,7 +18,10 @@ import (
 )
 
 func Test_showPemFileX509CertInfo(t *testing.T) {
-	_, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072)
+	t.Parallel()
+
+	_, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072,
+		gcrypto.WithX509CertCommonName("laisky-test"))
 	require.NoError(t, err)
 	certPem := gcrypto.CertDer2Pem(certDer)
 
@@ -41,10 +44,13 @@ func Test_showPemFileX509CertInfo(t *testing.T) {
 }
 
 func Test_showRemoteX509CertInfo(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	prikeyPem, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072)
+	prikeyPem, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072,
+		gcrypto.WithX509CertCommonName("laisky-test"))
 	require.NoError(t, err)
 	prikey, err := gcrypto.Pem2Prikey(prikeyPem)
 	require.NoError(t, err)

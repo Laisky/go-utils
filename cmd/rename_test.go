@@ -47,6 +47,8 @@ var renameAvTestCases = []struct {
 }
 
 func Test_convertAvFilename(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range renameAvTestCases {
 		got := convertAvFilename(c.source)
 		require.Equal(t, c.target, got, "[%s]source is %q, expected is %q, but got %q",

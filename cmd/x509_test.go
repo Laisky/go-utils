@@ -16,7 +16,11 @@ import (
 )
 
 func Test_tlsInfoCMD(t *testing.T) {
-	prikeypem, certder, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits4096)
+	t.Parallel()
+
+	prikeypem, certder, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits4096,
+		gcrypto.WithX509CertCommonName("laisky-test"),
+	)
 	require.NoError(t, err)
 
 	certPem := gcrypto.CertDer2Pem(certder)

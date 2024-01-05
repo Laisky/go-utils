@@ -71,7 +71,10 @@ func TestCheckResp(t *testing.T) {
 		t.Errorf("error message error <%v>", err.Error())
 	}
 }
+
 func TestJaegerTracingID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		traceID      uint64
@@ -111,20 +114,20 @@ func TestJaegerTracingID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := NewJaegerTracingID(tt.traceID, tt.spanID, tt.parentSpanID, tt.flag)
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("JaegerTracingID() error = %v, wantErr %v", err, tt.wantErr)
-				}
-
+			require.NoError(t, err)
+			if tt.wantErr {
+				require.NotEqual(t, tt.want.String(), got.String())
+				_, _, _, _, err = got.Parse()
+				require.NoError(t, err)
 				return
 			}
 
-			if got != tt.want {
-				t.Errorf("JaegerTracingID() = %v, want %v", got, tt.want)
-				return
-			}
+			require.Equal(t, tt.want.String(), got.String())
 
 			traceID, spanID, parentSpanID, flag, err := got.Parse()
 			require.NoError(t, err)

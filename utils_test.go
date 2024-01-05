@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -822,35 +823,45 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 }
 
 func TestNewSimpleExpCache(t *testing.T) {
+	t.Parallel()
+
 	// another test may change the clock's interval.
 	// default interval is 10ms, so we need to set interval bigger than 10ms.
 	//
 	// time.clock's test set interval to 100ms.
 	fmt.Println("interval", Clock.Interval())
 	Clock.SetInterval(1 * time.Microsecond)
-	c := NewSingleItemExpCache(200 * time.Millisecond)
 
-	_, ok := c.Get()
-	require.False(t, ok)
-	_, ok = c.GetString()
-	require.False(t, ok)
-	_, ok = c.GetUintSlice()
-	require.False(t, ok)
+	// This test case used to have a small chance of failure
+	for i := 0; i < 30; i++ {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 
-	data := "yo"
-	c.Set(data)
-	itf, ok := c.Get()
-	require.True(t, ok)
-	require.Equal(t, data, itf.(string))
+			c := NewSingleItemExpCache(200 * time.Millisecond)
 
-	ret, ok := c.GetString()
-	require.True(t, ok)
-	require.Equal(t, data, ret)
+			_, ok := c.Get()
+			require.False(t, ok)
+			_, ok = c.GetString()
+			require.False(t, ok)
+			_, ok = c.GetUintSlice()
+			require.False(t, ok)
 
-	time.Sleep(200 * time.Millisecond)
-	itf, ok = c.Get()
-	require.False(t, ok)
-	require.Equal(t, data, itf.(string))
+			data := "yo"
+			c.Set(data)
+			itf, ok := c.Get()
+			require.True(t, ok)
+			require.Equal(t, data, itf.(string))
+
+			ret, ok := c.GetString()
+			require.True(t, ok)
+			require.Equal(t, data, ret)
+
+			time.Sleep(200 * time.Millisecond)
+			itf, ok = c.Get()
+			require.False(t, ok)
+			require.Equal(t, data, itf.(string))
+		})
+	}
 }
 
 func TestNewExpiredMap(t *testing.T) {

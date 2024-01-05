@@ -90,11 +90,9 @@ func removeDuplicate(dry bool, dir string) error {
 		fpath := fpath
 		pool.Go(func() (err error) {
 			glog.Shared.Debug("check duplicate by content hash", zap.String("file", fpath))
-			deleted, err := checkDupByHash(dry, fileHashes, fpath)
-			if err != nil {
-				glog.Shared.Error("checkDupByHash", zap.String("file", fpath), zap.Error(err))
-			}
-			if deleted {
+			if deleted, err := checkDupByHash(dry, fileHashes, fpath); err != nil {
+				glog.Shared.Warn("checkDupByHash", zap.String("file", fpath), zap.Error(err))
+			} else if deleted {
 				return nil
 			}
 
@@ -102,7 +100,7 @@ func removeDuplicate(dry bool, dir string) error {
 			// maybe some day, there will add some other checker
 			//nolint: staticcheck // SA4006: this value of `deleted` is never used
 			if _, err := checkDupByImageSimilar(dry, similarStore, fpath); err != nil {
-				glog.Shared.Error("checkDupByImageSimilar", zap.String("file", fpath), zap.Error(err))
+				glog.Shared.Warn("checkDupByImageSimilar", zap.String("file", fpath), zap.Error(err))
 			}
 
 			return nil
@@ -217,7 +215,13 @@ func checkDupByHash(dry bool, hashes *sync.Map, fpath string) (deleted bool, err
 		return false, errors.Wrapf(err, "get stat of file %q", fpath)
 	}
 
-	if vi, ok := hashes.Load(fhash); ok {
+	cacheItem := &dupFile{
+		path:      fpath,
+		hash:      fhash,
+		sizeBytes: fstat.Size(),
+	}
+
+	if vi, loaded := hashes.LoadOrStore(fhash, cacheItem); loaded {
 		raw := vi.(*dupFile) //nolint:forcetypeassert
 		glog.Shared.Info("remove duplicate since same hash",
 			zap.String("remove", fpath),
@@ -229,12 +233,6 @@ func checkDupByHash(dry bool, hashes *sync.Map, fpath string) (deleted bool, err
 
 		return true, nil
 	}
-
-	hashes.Store(fhash, &dupFile{
-		path:      fpath,
-		hash:      fhash,
-		sizeBytes: fstat.Size(),
-	})
 
 	return false, nil
 }

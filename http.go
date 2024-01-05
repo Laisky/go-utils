@@ -67,6 +67,9 @@ type HTTPClientOptFunc func(*httpClientOption) error
 //   - spanID: span id, 64bit number, will encode to hex string
 //   - parentSpanID: parent span id, 64bit number, will encode to hex string
 //   - flag: 8bit number, one byte bitmap, as one or two hex digits (leading zero may be omitted)
+//
+// Even if some of the parameters have incorrect formatting,
+// it won't result in an error; instead, it will generate a new random value.
 func NewJaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal JaegerTracingID, err error) {
 	if traceID == 0 {
 		if traceID, err = RandomNonZeroUint64(); err != nil {

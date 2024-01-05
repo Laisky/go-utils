@@ -12,6 +12,8 @@ import (
 )
 
 func Test_signFileByRSA(t *testing.T) {
+	t.Parallel()
+
 	dir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
