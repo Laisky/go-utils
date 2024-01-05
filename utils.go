@@ -837,22 +837,22 @@ var (
 )
 
 // SingleItemExpCache single item with expires
-type SingleItemExpCache struct {
+type SingleItemExpCache[T any] struct {
 	expiredAt time.Time
 	ttl       time.Duration
-	data      any
+	data      T
 	mu        sync.RWMutex
 }
 
 // NewSingleItemExpCache new expcache contains single data
-func NewSingleItemExpCache(ttl time.Duration) *SingleItemExpCache {
-	return &SingleItemExpCache{
+func NewSingleItemExpCache[T any](ttl time.Duration) *SingleItemExpCache[T] {
+	return &SingleItemExpCache[T]{
 		ttl: ttl,
 	}
 }
 
 // Set set data and refresh expires
-func (c *SingleItemExpCache) Set(data any) {
+func (c *SingleItemExpCache[T]) Set(data T) {
 	c.mu.Lock()
 	c.data = data
 	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
@@ -862,7 +862,7 @@ func (c *SingleItemExpCache) Set(data any) {
 // Get get data
 //
 // if data is expired, ok=false
-func (c *SingleItemExpCache) Get() (data any, ok bool) {
+func (c *SingleItemExpCache[T]) Get() (data T, ok bool) {
 	c.mu.RLock()
 	data = c.data
 
@@ -870,26 +870,6 @@ func (c *SingleItemExpCache) Get() (data any, ok bool) {
 	c.mu.RUnlock()
 
 	return
-}
-
-// GetString same as Get, but return string
-func (c *SingleItemExpCache) GetString() (data string, ok bool) {
-	var itf any
-	if itf, ok = c.Get(); !ok {
-		return "", false
-	}
-
-	return itf.(string), true //nolint:forcetypeassert
-}
-
-// GetUintSlice same as Get, but return []uint
-func (c *SingleItemExpCache) GetUintSlice() (data []uint, ok bool) {
-	var itf any
-	if itf, ok = c.Get(); !ok {
-		return nil, false
-	}
-
-	return itf.([]uint), true //nolint:forcetypeassert
 }
 
 // ExpCache cache with expires

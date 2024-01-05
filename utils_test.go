@@ -719,7 +719,9 @@ func ExampleExpCache() {
 }
 
 func TestExpCache_Store(t *testing.T) {
-	Clock.SetInterval(10 * time.Millisecond)
+	t.Parallel()
+
+	Clock.SetInterval(1 * time.Millisecond)
 	startAt := Clock.GetUTCNow()
 	ttl := 100 * time.Millisecond
 	cm := NewExpCache[string](context.Background(), ttl)
@@ -765,6 +767,8 @@ func BenchmarkExpMap(b *testing.B) {
 }
 
 func TestGetStructFieldByName(t *testing.T) {
+	t.Parallel()
+
 	type foo struct {
 		A string
 		B *string
@@ -810,7 +814,7 @@ func TestGetStructFieldByName(t *testing.T) {
 }
 
 func Benchmark_NewSimpleExpCache(b *testing.B) {
-	c := NewSingleItemExpCache(time.Millisecond)
+	c := NewSingleItemExpCache[string](time.Millisecond)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			if rand.Intn(10) < 5 {
@@ -837,29 +841,29 @@ func TestNewSimpleExpCache(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			c := NewSingleItemExpCache(200 * time.Millisecond)
+			c := NewSingleItemExpCache[string](10 * time.Millisecond)
 
 			_, ok := c.Get()
 			require.False(t, ok)
-			_, ok = c.GetString()
+			_, ok = c.Get()
 			require.False(t, ok)
-			_, ok = c.GetUintSlice()
+			_, ok = c.Get()
 			require.False(t, ok)
 
 			data := "yo"
 			c.Set(data)
-			itf, ok := c.Get()
+			v, ok := c.Get()
 			require.True(t, ok)
-			require.Equal(t, data, itf.(string))
+			require.Equal(t, data, v)
 
-			ret, ok := c.GetString()
+			ret, ok := c.Get()
 			require.True(t, ok)
 			require.Equal(t, data, ret)
 
-			time.Sleep(200 * time.Millisecond)
-			itf, ok = c.Get()
+			time.Sleep(20 * time.Millisecond)
+			v, ok = c.Get()
 			require.False(t, ok)
-			require.Equal(t, data, itf.(string))
+			require.Equal(t, data, v)
 		})
 	}
 }
