@@ -59,6 +59,8 @@ var (
 	Str2Bytes = common.Str2Bytes
 	// Bytes2Str unsafe convert bytes to str
 	Bytes2Str = common.Bytes2Str
+	// Number2Roman convert number to roman
+	Number2Roman = common.Number2Roman
 )
 
 const (
