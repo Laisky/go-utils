@@ -51,7 +51,9 @@ func TestNewX509CSR(t *testing.T) {
 
 	t.Run("sign by non-ca", func(t *testing.T) {
 		t.Parallel()
-		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+		)
 		require.NoError(t, err)
 
 		prikey, err := Pem2Prikey(prikeyPem)
@@ -289,6 +291,7 @@ func TestNewX509CRL(t *testing.T) {
 	t.Run("ca without crl sign key usage", func(t *testing.T) {
 		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertIsCA())
 		require.NoError(t, err)
 
@@ -312,6 +315,7 @@ func TestNewX509CRL(t *testing.T) {
 	})
 
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertCommonName("laisky-test"),
 		WithX509CertIsCRLCA())
 	require.NoError(t, err)
 
@@ -501,6 +505,7 @@ func Test_OIDs(t *testing.T) {
 	require.NotEqual(t, a2, a3)
 
 	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+		WithX509CertCommonName("laisky-test"),
 		WithX509CertPolicies(a1, a2),
 	)
 	require.NoError(t, err)
@@ -646,7 +651,8 @@ func Test_ExtKeyUsage(t *testing.T) {
 
 	t.Run("empty ext key usage", func(t *testing.T) {
 		t.Parallel()
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072)
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"))
 		require.NoError(t, err)
 
 		cert, err := Der2Cert(certder)
@@ -664,6 +670,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	t.Run("ext key usage not match", func(t *testing.T) {
 		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
 		)
 		require.NoError(t, err)
@@ -683,6 +690,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	t.Run("ext key usage match", func(t *testing.T) {
 		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
 		)
 		require.NoError(t, err)
@@ -702,6 +710,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 	t.Run("ext key usage match any", func(t *testing.T) {
 		t.Parallel()
 		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
 		)
 		require.NoError(t, err)
@@ -725,6 +734,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 		t.Parallel()
 		// new ca
 		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertIsCA(),
 			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
 		)
@@ -737,7 +747,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 		// new leaf cert
 		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
 		require.NoError(t, err)
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
 			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
@@ -765,6 +775,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 		t.Parallel()
 		// new ca
 		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
 			WithX509CertIsCA(),
 		)
 		require.NoError(t, err)
@@ -776,7 +787,7 @@ func Test_ExtKeyUsage(t *testing.T) {
 		// new leaf cert
 		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
 		require.NoError(t, err)
-		csrDer, err := NewX509CSR(prikey)
+		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
 		require.NoError(t, err)
 		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
 			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
