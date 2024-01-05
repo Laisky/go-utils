@@ -1476,3 +1476,17 @@ func CombineSortedChain[T Sortable](sortOrder common.SortOrder, chans ...chan T)
 
 	return result, nil
 }
+
+// FilterSlice filters a slice inplace
+func FilterSlice[T any](s []T, f func(v T) bool) []T {
+	var j int
+	for _, v := range s {
+		if f(v) {
+			s[j] = v
+			j++
+		}
+	}
+
+	clear(s[j:])
+	return s[:j:j]
+}

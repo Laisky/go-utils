@@ -2269,3 +2269,52 @@ func Benchmark_CombineSortedChain(b *testing.B) {
 		}
 	})
 }
+
+func TestFilterSlice(t *testing.T) {
+	t.Parallel()
+
+	// Test case 1: Filter even numbers
+	s1 := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	f1 := func(v int) bool {
+		return v%2 == 0
+	}
+	expected1 := []int{2, 4, 6, 8, 10}
+	result1 := FilterSlice(s1, f1)
+	if !reflect.DeepEqual(result1, expected1) {
+		t.Errorf("FilterSlice failed for test case 1, expected: %v, got: %v", expected1, result1)
+	}
+
+	// Test case 2: Filter strings with length greater than 3
+	s2 := []string{"apple", "banana", "cat", "dog", "elephant"}
+	f2 := func(v string) bool {
+		return len(v) > 3
+	}
+	expected2 := []string{"apple", "banana", "elephant"}
+	result2 := FilterSlice(s2, f2)
+	if !reflect.DeepEqual(result2, expected2) {
+		t.Errorf("FilterSlice failed for test case 2, expected: %v, got: %v", expected2, result2)
+	}
+
+	// Test case 3: Filter structs based on a condition
+	type Person struct {
+		Name   string
+		Age    int
+		Gender string
+	}
+	s3 := []Person{
+		{Name: "Alice", Age: 25, Gender: "Female"},
+		{Name: "Bob", Age: 30, Gender: "Male"},
+		{Name: "Charlie", Age: 20, Gender: "Male"},
+		{Name: "Diana", Age: 35, Gender: "Female"},
+	}
+	f3 := func(v Person) bool {
+		return v.Age > 25 && v.Gender == "Female"
+	}
+	expected3 := []Person{
+		{Name: "Diana", Age: 35, Gender: "Female"},
+	}
+	result3 := FilterSlice(s3, f3)
+	if !reflect.DeepEqual(result3, expected3) {
+		t.Errorf("FilterSlice failed for test case 3, expected: %v, got: %v", expected3, result3)
+	}
+}
