@@ -272,3 +272,86 @@ func HumanReadableByteCount(bytes int64, si bool) (ret string) {
 
 // 	return result, nil
 // }
+
+// Number2Roman convert number to roman
+func Number2Roman(n int) (roman string) {
+	if n < 1 || n > 3999 {
+		return ""
+	}
+
+	for n > 0 {
+		if n <= 12 {
+			switch n {
+			case 1:
+				roman += "\u2160"
+			case 2:
+				roman += "\u2161"
+			case 3:
+				roman += "\u2162"
+			case 4:
+				roman += "\u2163"
+			case 5:
+				roman += "\u2164"
+			case 6:
+				roman += "\u2165"
+			case 7:
+				roman += "\u2166"
+			case 8:
+				roman += "\u2167"
+			case 9:
+				roman += "\u2168"
+			case 10:
+				roman += "\u2169"
+			case 11:
+				roman += "\u216A"
+			case 12:
+				roman += "\u216B"
+			}
+			return
+		}
+
+		switch {
+		case n >= 1000:
+			roman += "\u216F"
+			n -= 1000
+		case n >= 900:
+			roman += "\u216D\u216F"
+			n -= 900
+		case n >= 500:
+			roman += "\u216E"
+			n -= 500
+		case n >= 400:
+			roman += "\u216D\u216E"
+			n -= 400
+		case n >= 100:
+			roman += "\u216D"
+			n -= 100
+		case n >= 90:
+			roman += "\u2169\u216D"
+			n -= 90
+		case n >= 50:
+			roman += "\u216C"
+			n -= 50
+		case n >= 40:
+			roman += "\u2169\u216C"
+			n -= 40
+		case n >= 10:
+			roman += "\u2169"
+			n -= 10
+		case n >= 9:
+			roman += "\u2168"
+			n -= 9
+		case n >= 5:
+			roman += "\u2164"
+			n -= 5
+		case n >= 4:
+			roman += "\u2163"
+			n -= 4
+		case n >= 1:
+			roman += "\u2160"
+			n -= 1
+		}
+	}
+
+	return roman
+}

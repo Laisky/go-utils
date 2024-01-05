@@ -267,3 +267,35 @@ func TestFallTr(t *testing.T) {
 
 	require.Equal(t, "b", got)
 }
+
+func TestNumber2Roman(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want string
+	}{
+		{"1", 1, "\u2160"},
+		{"2", 2, "\u2161"},
+		{"3", 3, "\u2162"},
+		{"4", 4, "\u2163"},
+		{"5", 5, "\u2164"},
+		{"6", 6, "\u2165"},
+		{"7", 7, "\u2166"},
+		{"8", 8, "\u2167"},
+		{"9", 9, "\u2168"},
+		{"10", 10, "\u2169"},
+		{"11", 11, "\u216A"},
+		{"12", 12, "\u216B"},
+		{"19", 19, "\u2169\u2168"},
+		{"20", 20, "\u2169\u2169"},
+		{"3999", 3999, "ⅯⅯⅯⅭⅯⅩⅭⅨ"},
+		{"4000", 4000, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Number2Roman(tt.n)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
