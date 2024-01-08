@@ -712,3 +712,48 @@ func TestX509Csr2OpensslConf(t *testing.T) {
 	t.Logf("got\n%s", string(opensslConf))
 	require.Equal(t, expectedConf, string(opensslConf))
 }
+
+func TestSplitCertsPemChain(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		pemChain string
+		expected []string
+	}{
+		{
+			name:     "Single Certificate",
+			pemChain: "-----BEGIN CERTIFICATE-----\nCERT1\n-----END CERTIFICATE-----",
+			expected: []string{"-----BEGIN CERTIFICATE-----\nCERT1\n-----END CERTIFICATE-----"},
+		},
+		{
+			name: "Multiple Certificates",
+			pemChain: `-----BEGIN CERTIFICATE-----
+CERT1
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+CERT2
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+CERT3
+-----END CERTIFICATE-----`,
+			expected: []string{
+				"-----BEGIN CERTIFICATE-----\nCERT1\n-----END CERTIFICATE-----",
+				"-----BEGIN CERTIFICATE-----\nCERT2\n-----END CERTIFICATE-----",
+				"-----BEGIN CERTIFICATE-----\nCERT3\n-----END CERTIFICATE-----",
+			},
+		},
+		{
+			name:     "Empty Chain",
+			pemChain: "",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SplitCertsPemChain(tc.pemChain)
+			require.Equal(t, tc.expected, got)
+		})
+	}
+}

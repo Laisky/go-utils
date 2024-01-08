@@ -607,3 +607,15 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 
 	return opt, []byte(cnt), nil
 }
+
+// SplitCertsPemChain split pem chain to multiple pem
+func SplitCertsPemChain(pemChain string) (pems []string) {
+	vs := strings.Split(pemChain, "-----END CERTIFICATE-----")
+	for _, v := range vs {
+		if v != "" {
+			pems = append(pems, strings.TrimSpace(v)+"\n-----END CERTIFICATE-----")
+		}
+	}
+
+	return
+}
