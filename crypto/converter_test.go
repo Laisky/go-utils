@@ -736,7 +736,8 @@ CERT2
 -----END CERTIFICATE-----
 -----BEGIN CERTIFICATE-----
 CERT3
------END CERTIFICATE-----`,
+-----END CERTIFICATE-----
+`,
 			expected: []string{
 				"-----BEGIN CERTIFICATE-----\nCERT1\n-----END CERTIFICATE-----",
 				"-----BEGIN CERTIFICATE-----\nCERT2\n-----END CERTIFICATE-----",
