@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Laisky/errors/v2"
 )
 
 const (
@@ -78,6 +80,16 @@ func ParseHexNano2UTC(ts string) (t time.Time, err error) {
 	}
 
 	return ParseUnixNano2UTC(ut), nil
+}
+
+// ParseTimeWithTruncate parse time with truncate
+func ParseTimeWithTruncate(layout, value string, precision time.Duration) (t time.Time, err error) {
+	t, err = time.Parse(layout, value)
+	if err != nil {
+		return t, errors.Wrap(err, "parse time")
+	}
+
+	return t.Truncate(precision), nil
 }
 
 var ( // compatable to old version

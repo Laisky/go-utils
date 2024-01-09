@@ -66,6 +66,16 @@ func TestTimeCompare(t *testing.T) {
 	// will actually include the millisecond automatically
 	require.False(t, ts1.Equal(ts2))
 	require.True(t, ts2.After(ts1))
+
+	// truncate to second
+	require.True(t, ts1.Equal(ts2.Truncate(time.Second)))
+
+	t.Run("truncate", func(t *testing.T) {
+		ts2, err := ParseTimeWithTruncate(time.RFC3339, str2, time.Second)
+		require.NoError(t, err)
+
+		require.True(t, ts1.Equal(ts2))
+	})
 }
 
 func TestParseUnix2UTC(t *testing.T) {
@@ -393,6 +403,7 @@ func TestTimeEqual(t *testing.T) {
 		str1 := "2019-10-12T02:03:14Z"
 		str2 := "2019-10-12T02:03:14.123Z"
 
+		// RFC3339     = "2006-01-02T15:04:05Z07:00"
 		t1, err := time.Parse(time.RFC3339, str1)
 		require.NoError(t, err)
 		t2, err := time.Parse(time.RFC3339, str2)

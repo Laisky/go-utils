@@ -349,7 +349,7 @@ func Number2Roman(n int) (roman string) {
 			n -= 4
 		case n >= 1:
 			roman += "\u2160"
-			n -= 1
+			n--
 		}
 	}
 
