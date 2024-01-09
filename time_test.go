@@ -61,7 +61,7 @@ func TestTimeCompare(t *testing.T) {
 	ts2, err := time.Parse(time.RFC3339, str2)
 	require.NoError(t, err)
 
-	// ⚠️ Even though RFC3339 doesn't support milliseconds,
+	// ⚠️ Even though RFC3339 doesn't specifically define milliseconds,
 	// if the string has a decimal point, the parsing result
 	// will actually include the millisecond automatically
 	require.False(t, ts1.Equal(ts2))
@@ -70,6 +70,8 @@ func TestTimeCompare(t *testing.T) {
 	// truncate to second
 	require.True(t, ts1.Equal(ts2.Truncate(time.Second)))
 
+	// If you want to compare times, you need to manually adjust the precision
+	// after `Parse` through `Truncate`
 	t.Run("truncate", func(t *testing.T) {
 		ts2, err := ParseTimeWithTruncate(time.RFC3339, str2, time.Second)
 		require.NoError(t, err)
