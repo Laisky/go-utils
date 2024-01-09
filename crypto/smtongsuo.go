@@ -415,14 +415,9 @@ var (
 	reX509CertSerialNo = regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`)
 )
 
-// CloneX509Csr generat a cloned csr with different private key
-//
-// # Args
-//   - prikeyPem: new private key for cloned csr
-//   - originCsrDer: origin csr
-func (t *Tongsuo) CloneX509Csr(ctx context.Context,
-	prikeyPem []byte, originCsrDer []byte) (clonedCsrDer []byte, err error) {
-	csrinfo, err := t.ShowCsrInfo(ctx, originCsrDer)
+// ParseCsr2Opts parse csr to opts
+func (t *Tongsuo) ParseCsr2Opts(ctx context.Context, csrDer []byte) ([]X509CSROption, error) {
+	csrinfo, err := t.ShowCsrInfo(ctx, csrDer)
 	if err != nil {
 		return nil, errors.Wrap(err, "show csr info")
 	}
@@ -470,6 +465,21 @@ func (t *Tongsuo) CloneX509Csr(ctx context.Context,
 
 			opts = append(opts, WithX509CSRSANS(kv[1]))
 		}
+	}
+
+	return opts, nil
+}
+
+// CloneX509Csr generat a cloned csr with different private key
+//
+// # Args
+//   - prikeyPem: new private key for cloned csr
+//   - originCsrDer: origin csr
+func (t *Tongsuo) CloneX509Csr(ctx context.Context,
+	prikeyPem []byte, originCsrDer []byte) (clonedCsrDer []byte, err error) {
+	opts, err := t.ParseCsr2Opts(ctx, originCsrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse csr to opts")
 	}
 
 	// generate new csr

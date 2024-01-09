@@ -750,6 +750,19 @@ func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
 // X509CertOption option to generate tls certificate
 type X509CertOption func(*x509V3CertOption) error
 
+// WithX509CsrOptions set csr options
+func WithX509CsrOptions(csrOpts []X509CSROption) X509CertOption {
+	return func(o *x509V3CertOption) error {
+		for _, f := range csrOpts {
+			if err := f(&o.x509CSROption); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
 // WithX509CertCaMaxPathLen set max path length
 func WithX509CertCaMaxPathLen(maxPathLen int) X509CertOption {
 	return func(o *x509V3CertOption) error {
