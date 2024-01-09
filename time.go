@@ -63,6 +63,13 @@ func ParseHex2UTC(ts string) (t time.Time, err error) {
 	return ParseUnix2UTC(ut), nil
 }
 
+// TimeEqual compare two time with difference,
+// return true if time difference less than difference
+func TimeEqual(ts1, ts2 time.Time, difference time.Duration) bool {
+	sub := ts1.Sub(ts2)
+	return sub < difference && sub > -difference
+}
+
 // ParseHexNano2UTC parse hex contains nano to UTC time
 func ParseHexNano2UTC(ts string) (t time.Time, err error) {
 	var ut int64

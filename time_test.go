@@ -52,6 +52,22 @@ func TestParseTs2String(t *testing.T) {
 	}
 }
 
+func TestTimeCompare(t *testing.T) {
+	str1 := "2019-10-12T02:03:14Z"
+	str2 := "2019-10-12T02:03:14.123Z"
+
+	ts1, err := time.Parse(time.RFC3339, str1)
+	require.NoError(t, err)
+	ts2, err := time.Parse(time.RFC3339, str2)
+	require.NoError(t, err)
+
+	// ⚠️ Even though RFC3339 doesn't support milliseconds,
+	// if the string has a decimal point, the parsing result
+	// will actually include the millisecond automatically
+	require.False(t, ts1.Equal(ts2))
+	require.True(t, ts2.After(ts1))
+}
+
 func TestParseUnix2UTC(t *testing.T) {
 	ut := int64(1570845794)
 	ts := ParseUnix2UTC(ut).Format(time.RFC3339)
@@ -366,5 +382,51 @@ func TestSleepWithContext(t *testing.T) {
 		SleepWithContext(ctx, time.Hour)
 		require.Less(t, time.Since(startAt), time.Second*2)
 		require.Greater(t, time.Since(startAt), time.Millisecond*10)
+	})
+}
+
+func TestTimeEqual(t *testing.T) {
+	t.Parallel()
+
+	t.Run("eq: no timezone", func(t *testing.T) {
+		t.Parallel()
+		str1 := "2019-10-12T02:03:14Z"
+		str2 := "2019-10-12T02:03:14.123Z"
+
+		t1, err := time.Parse(time.RFC3339, str1)
+		require.NoError(t, err)
+		t2, err := time.Parse(time.RFC3339, str2)
+		require.NoError(t, err)
+
+		require.False(t, t1.Equal(t2))
+		require.True(t, TimeEqual(t1, t2, time.Second))
+	})
+
+	t.Run("ne: no timezone", func(t *testing.T) {
+		t.Parallel()
+		str1 := "2019-10-12T02:03:14Z"
+		str2 := "2019-10-12T02:03:15.123Z"
+
+		t1, err := time.Parse(time.RFC3339, str1)
+		require.NoError(t, err)
+		t2, err := time.Parse(time.RFC3339, str2)
+		require.NoError(t, err)
+
+		require.False(t, t1.Equal(t2))
+		require.False(t, TimeEqual(t1, t2, time.Second))
+	})
+
+	t.Run("eq: in different timezone", func(t *testing.T) {
+		t.Parallel()
+		str1 := "2019-10-12T02:03:14+07:00"
+		str2 := "2019-10-12T03:03:14.123+08:00"
+
+		t1, err := time.Parse(time.RFC3339, str1)
+		require.NoError(t, err)
+		t2, err := time.Parse(time.RFC3339, str2)
+		require.NoError(t, err)
+
+		require.False(t, t1.Equal(t2))
+		require.True(t, TimeEqual(t1, t2, time.Second))
 	})
 }
