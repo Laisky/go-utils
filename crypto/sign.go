@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -48,9 +49,9 @@ import (
 // }
 
 // SignByRSAWithSHA256 generate signature by rsa private key use sha256
-func SignByRSAWithSHA256(priKey *rsa.PrivateKey, content []byte) ([]byte, error) {
+func SignByRSAWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
 	hashed := sha256.Sum256(content)
-	return rsa.SignPKCS1v15(rand.Reader, priKey, crypto.SHA256, hashed[:])
+	return rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hashed[:])
 }
 
 // VerifyByRSAWithSHA256 verify signature by rsa public key use sha256
@@ -60,13 +61,13 @@ func VerifyByRSAWithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) er
 }
 
 // SignReaderByRSAWithSHA256 generate signature by rsa private key use sha256
-func SignReaderByRSAWithSHA256(priKey *rsa.PrivateKey, reader io.Reader) (sig []byte, err error) {
+func SignReaderByRSAWithSHA256(prikey *rsa.PrivateKey, reader io.Reader) (sig []byte, err error) {
 	hasher := sha256.New()
 	if _, err = io.Copy(hasher, reader); err != nil {
 		return nil, errors.Wrap(err, "read content")
 	}
 
-	return rsa.SignPKCS1v15(rand.Reader, priKey, crypto.SHA256, hasher.Sum(nil))
+	return rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hasher.Sum(nil))
 }
 
 // VerifyReaderByRSAWithSHA256 verify signature by rsa public key use sha256
@@ -80,9 +81,9 @@ func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []
 }
 
 // SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
-func SignByECDSAWithSHA256(priKey *ecdsa.PrivateKey, content []byte) (r, s *big.Int, err error) {
+func SignByECDSAWithSHA256(prikey *ecdsa.PrivateKey, content []byte) (r, s *big.Int, err error) {
 	hash := sha256.Sum256(content)
-	return ecdsa.Sign(rand.Reader, priKey, hash[:])
+	return ecdsa.Sign(rand.Reader, prikey, hash[:])
 }
 
 // VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
@@ -92,9 +93,9 @@ func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.
 }
 
 // SignByECDSAWithSHA256AndBase64 generate signature by ecdsa private key use sha256
-func SignByECDSAWithSHA256AndBase64(priKey *ecdsa.PrivateKey, content []byte) (signature string, err error) {
+func SignByECDSAWithSHA256AndBase64(prikey *ecdsa.PrivateKey, content []byte) (signature string, err error) {
 	hash := sha256.Sum256(content)
-	r, s, err := ecdsa.Sign(rand.Reader, priKey, hash[:])
+	r, s, err := ecdsa.Sign(rand.Reader, prikey, hash[:])
 	if err != nil {
 		return "", errors.Wrap(err, "sign")
 	}
@@ -114,13 +115,13 @@ func VerifyByECDSAWithSHA256AndBase64(pubKey *ecdsa.PublicKey, content []byte, s
 }
 
 // SignReaderByECDSAWithSHA256 generate signature by ecdsa private key use sha256
-func SignReaderByECDSAWithSHA256(priKey *ecdsa.PrivateKey, reader io.Reader) (r, s *big.Int, err error) {
+func SignReaderByECDSAWithSHA256(prikey *ecdsa.PrivateKey, reader io.Reader) (r, s *big.Int, err error) {
 	hasher := sha256.New()
 	if _, err = io.Copy(hasher, reader); err != nil {
 		return nil, nil, errors.Wrap(err, "read content")
 	}
 
-	return ecdsa.Sign(rand.Reader, priKey, hasher.Sum(nil))
+	return ecdsa.Sign(rand.Reader, prikey, hasher.Sum(nil))
 }
 
 // VerifyReaderByECDSAWithSHA256 verify signature by ecdsa public key use sha256
@@ -131,6 +132,57 @@ func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r,
 	}
 
 	return ecdsa.Verify(pubKey, hasher.Sum(nil), r, s), nil
+}
+
+const (
+	streamChunkSize = 4 * 1024 * 1024
+)
+
+// SignReaderByEd25519WithSHA256 generate signature by ecdsa private key use sha256
+func SignReaderByEd25519WithSHA256(prikey ed25519.PrivateKey, reader io.Reader) (sig []byte, err error) {
+	hasher := sha256.New()
+	chunk := make([]byte, streamChunkSize)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, errors.Wrap(err, "read chunk")
+		}
+
+		if _, err = hasher.Write(chunk[:n]); err != nil {
+			return nil, errors.Wrap(err, "write chunk")
+		}
+	}
+
+	return prikey.Sign(rand.Reader, hasher.Sum(nil), crypto.Hash(0))
+}
+
+// VerifyReaderByEd25519WithSHA256 verify signature by ecdsa public key use sha256
+func VerifyReaderByEd25519WithSHA256(pubKey ed25519.PublicKey, reader io.Reader, sig []byte) error {
+	hasher := sha256.New()
+	chunk := make([]byte, streamChunkSize)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return errors.Wrap(err, "read chunk")
+		}
+
+		if _, err = hasher.Write(chunk[:n]); err != nil {
+			return errors.Wrap(err, "write chunk")
+		}
+	}
+
+	err := ed25519.VerifyWithOptions(pubKey, hasher.Sum(nil), sig, &ed25519.Options{
+		Hash: crypto.Hash(0),
+	})
+	return errors.Wrap(err, "verify")
 }
 
 const ecdsaSignDelimiter = "."

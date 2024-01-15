@@ -1,7 +1,9 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -11,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Laisky/zap"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v4/log"
 )
@@ -459,3 +462,35 @@ func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 // 		t.Fatalf("%+v", err)
 // 	}
 // }
+
+func TestSignReaderByEd25519WithSHA256(t *testing.T) {
+	t.Parallel()
+
+	raw, err := Salt(100 * 1024 * 1024)
+	require.NoError(t, err)
+
+	prikey, err := NewEd25519Prikey()
+	require.NoError(t, err)
+
+	sig, err := SignReaderByEd25519WithSHA256(prikey, bytes.NewReader(raw))
+	require.NoError(t, err)
+
+	pubkey := Prikey2Pubkey(prikey).(ed25519.PublicKey)
+	err = VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), sig)
+	require.NoError(t, err)
+
+	t.Run("false pubkey", func(t *testing.T) {
+		prikey, err := NewEd25519Prikey()
+		require.NoError(t, err)
+		pubkey := Prikey2Pubkey(prikey).(ed25519.PublicKey)
+
+		err = VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), sig)
+		require.ErrorContains(t, err, "invalid signature")
+	})
+
+	t.Run("false sig", func(t *testing.T) {
+		falseSig := []byte("2l3fj238f83fu")
+		err := VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), falseSig)
+		require.ErrorContains(t, err, "invalid signature")
+	})
+}
