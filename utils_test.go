@@ -834,7 +834,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 	//
 	// time.clock's test set interval to 100ms.
 	fmt.Println("interval", Clock.Interval())
-	Clock.SetInterval(1 * time.Microsecond)
+	Clock.SetInterval(1 * time.Millisecond)
 
 	// This test case used to have a small chance of failure
 	for i := 0; i < 30; i++ {
