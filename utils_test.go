@@ -827,7 +827,7 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 }
 
 func TestNewSimpleExpCache(t *testing.T) {
-	t.Parallel()
+	// this test cannot run in parallel
 
 	// another test may change the clock's interval.
 	// default interval is 10ms, so we need to set interval bigger than 10ms.
