@@ -18,7 +18,7 @@ import (
 )
 
 func Test_showPemFileX509CertInfo(t *testing.T) {
-	t.Parallel()
+	// This test cannot run in parallel.
 
 	_, certDer, err := gcrypto.NewRSAPrikeyAndCert(gcrypto.RSAPrikeyBits3072,
 		gcrypto.WithX509CertCommonName("laisky-test"))
@@ -44,7 +44,7 @@ func Test_showPemFileX509CertInfo(t *testing.T) {
 }
 
 func Test_showRemoteX509CertInfo(t *testing.T) {
-	t.Parallel()
+	// This test cannot run in parallel.
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
