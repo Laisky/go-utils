@@ -722,6 +722,8 @@ func TestExpCache_Store(t *testing.T) {
 	t.Parallel()
 
 	Clock.SetInterval(1 * time.Millisecond)
+	time.Sleep(time.Second) // wait for clock's interval to take effect
+
 	startAt := Clock.GetUTCNow()
 	ttl := 100 * time.Millisecond
 	cm := NewExpCache[string](context.Background(), ttl)
@@ -827,7 +829,7 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 }
 
 func TestNewSimpleExpCache(t *testing.T) {
-	// this test cannot run in parallel
+	t.Parallel()
 
 	// another test may change the clock's interval.
 	// default interval is 10ms, so we need to set interval bigger than 10ms.
@@ -835,6 +837,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 	// time.clock's test set interval to 100ms.
 	fmt.Println("interval", Clock.Interval())
 	Clock.SetInterval(1 * time.Millisecond)
+	time.Sleep(time.Second) // wait for clock's interval to take effect
 
 	// This test case used to have a small chance of failure
 	for i := 0; i < 30; i++ {
@@ -860,7 +863,7 @@ func TestNewSimpleExpCache(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, data, ret)
 
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(25 * time.Millisecond)
 			v, ok = c.Get()
 			require.False(t, ok)
 			require.Equal(t, data, v)
