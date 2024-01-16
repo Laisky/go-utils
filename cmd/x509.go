@@ -9,6 +9,7 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,7 +45,7 @@ var tlsInfoCMD = &cobra.Command{
 
 		Install:
 
-		  go install github.com/Laisky/go-utils/v4/cmd/gutils@latest
+	      go install github.com/Laisky/go-utils/v4/cmd/gutils@latest
 
 		Examples:
 
@@ -135,14 +136,37 @@ var csrfilepath string
 var csrInfoCMD = &cobra.Command{
 	Use:   "csrinfo",
 	Short: "show x509 cert request info",
-	Args:  NoExtraArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Long: gutils.Dedent(`
+		Show details of x509 certificate request.
+
+		Examples:
+
+		  gutils csrinfo -f ./csr.pem
+
+		file coulld be in DER or base64 format.
+	`),
+	Args: NoExtraArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
 		payload, err := os.ReadFile(csrfilepath)
 		if err != nil {
 			return errors.Wrapf(err, "read file %q", csrfilepath)
 		}
 
-		csr, err := gcrypto.Der2CSR(payload)
+		// try read pem
+		csr, err := gcrypto.Pem2CSR(payload)
+
+		// try decode by base64
+		if err != nil {
+			decodedPayload, err := base64.StdEncoding.DecodeString(string(payload))
+			if err == nil { // raw content is base64 encoded
+				payload = decodedPayload
+			}
+		}
+
+		if err != nil {
+			csr, err = gcrypto.Der2CSR(payload)
+		}
+
 		if err != nil {
 			return errors.Wrap(err, "parse csr")
 		}
