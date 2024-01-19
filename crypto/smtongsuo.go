@@ -106,9 +106,11 @@ func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (output string
 }
 
 // NewPrikey generate new sm2 private key
+//
+//	tongsuo ecparam -genkey -name SM2 -out rootca.key
 func (t *Tongsuo) NewPrikey(ctx context.Context) (prikeyPem []byte, err error) {
 	prikeyPem, err = t.runCMD(ctx, []string{
-		"genpkey", "-outform", "PEM", "-algorithm", "SM2",
+		"ecparam", "-genkey", "-name", "SM2",
 	}, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate new private key")
@@ -139,6 +141,14 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 }
 
 // NewX509Cert generate new x509 cert
+//
+//	tongsuo req -out rootca.crt -outform PEM -key rootca.key \
+//	    -set_serial 123456 \
+//	    -days 3650 -x509 -new -nodes -utf8 -batch \
+//	    -sm3 \
+//	    -copy_extensions copyall \
+//	    -extensions v3_ca \
+//	    -config rootca.cnf
 func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
 	opt, tpl, err := x509CertOption2Template(opts...)
@@ -168,7 +178,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 		"-set_serial", strconv.Itoa(int(t.serialGenerator.SerialNum())),
 		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
 		"-x509", "-new", "-nodes", "-utf8", "-batch",
-		"-sm3", "-sigopt", "sm2-za:no",
+		"-sm3",
 		"-copy_extensions", "copyall",
 		"-extensions", "v3_ca",
 		"-config", confPath,
@@ -212,7 +222,7 @@ func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509
 	if _, err = t.runCMD(ctx, []string{
 		"req", "-new", "-outform", "DER", "-out", outCsrDerPath,
 		"-key", "/dev/stdin",
-		"-sm3", "-sigopt", "sm2-za:no",
+		"-sm3",
 		"-config", confPath,
 	}, prikeyPem); err != nil {
 		return nil, errors.Wrap(err, "generate new csr")
@@ -265,7 +275,7 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 		"-CA", parentCertDerPath, "-CAkey", "/dev/stdin", "-CAcreateserial",
 		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
 		"-utf8", "-batch",
-		"-sm3", "-sigopt", "sm2-za:no", "-vfyopt", "sm2-za:no",
+		"-sm3",
 		"-copy_extensions", "copyall",
 		"-extfile", confPath, "-extensions", "v3_ca",
 	}, parentPrikeyPem); err != nil {
