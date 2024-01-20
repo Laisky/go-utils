@@ -583,3 +583,22 @@ func BenchmarkCompressor(b *testing.B) {
 		buf.Reset()
 	}
 }
+
+func TestGzCompress(t *testing.T) {
+	t.Parallel()
+
+	// Prepare test data
+	input := strings.NewReader("Hello, World!")
+	output := &bytes.Buffer{}
+
+	// Call the function
+	err := GzCompress(input, output)
+	require.NoError(t, err)
+
+	// Verify the compressed data
+	decompressOut := &bytes.Buffer{}
+	err = GzDecompress(output, decompressOut)
+	require.NoError(t, err)
+
+	require.Equal(t, "Hello, World!", decompressOut.String())
+}

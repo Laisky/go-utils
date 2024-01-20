@@ -25,6 +25,36 @@ const (
 	defaultPgzipBlockSize = 250000
 )
 
+// GzCompress compress data by gzip
+func GzCompress(in io.Reader, out io.Writer) error {
+	gz, err := NewGZip(out)
+	if err != nil {
+		return errors.Wrap(err, "new gzip")
+	}
+
+	_, err = io.Copy(gz, in)
+	if err != nil {
+		return errors.Wrap(err, "copy data")
+	}
+
+	if err = gz.WriteFooter(); err != nil {
+		return errors.Wrap(err, "write footer")
+	}
+
+	return gz.Flush()
+}
+
+// GzDecompress decompress data by gzip
+func GzDecompress(in io.Reader, out io.Writer) error {
+	gz, err := gzip.NewReader(in)
+	if err != nil {
+		return errors.Wrap(err, "new gzip reader")
+	}
+
+	_, err = io.Copy(out, gz)
+	return errors.Wrap(err, "copy data")
+}
+
 // Compressor interface of compressor
 type Compressor interface {
 	Write([]byte) (int, error)
