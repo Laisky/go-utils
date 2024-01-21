@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v4"
+	gcrypto "github.com/Laisky/go-utils/v4/crypto"
 	"github.com/Laisky/go-utils/v4/log"
 )
 
@@ -587,18 +588,17 @@ func BenchmarkCompressor(b *testing.B) {
 func TestGzCompress(t *testing.T) {
 	t.Parallel()
 
-	// Prepare test data
-	input := strings.NewReader("Hello, World!")
-	output := &bytes.Buffer{}
+	raw, err := gcrypto.Salt(1024 * 1024 * 10)
+	require.NoError(t, err)
 
-	// Call the function
-	err := GzCompress(input, output)
+	var output bytes.Buffer
+	err = GzCompress(bytes.NewReader(raw), &output)
 	require.NoError(t, err)
 
 	// Verify the compressed data
-	decompressOut := &bytes.Buffer{}
-	err = GzDecompress(output, decompressOut)
+	var decompressOut bytes.Buffer
+	err = GzDecompress(&output, &decompressOut)
 	require.NoError(t, err)
 
-	require.Equal(t, "Hello, World!", decompressOut.String())
+	require.Equal(t, raw, decompressOut.Bytes())
 }
