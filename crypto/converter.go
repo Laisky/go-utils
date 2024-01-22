@@ -586,10 +586,56 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 		basicConstraints = critical, CA:`)
 
 	if opt.isCA {
-		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
+		cnt += "TRUE\n"
 	} else {
-		cnt += "FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
+		cnt += "FALSE\n"
+	}
+
+	var extKeyUsages, keyUsages []string
+	for name, usage := range map[string]x509.KeyUsage{
+		"digitalSignature": x509.KeyUsageDigitalSignature,
+		"nonRepudiation":   x509.KeyUsageContentCommitment, // nonRepudiation is also known as contentCommitment
+		"keyEncipherment":  x509.KeyUsageKeyEncipherment,
+		"dataEncipherment": x509.KeyUsageDataEncipherment,
+		"keyAgreement":     x509.KeyUsageKeyAgreement,
+		"keyCertSign":      x509.KeyUsageCertSign, // Corrected from "CertSign" to "keyCertSign"
+		"cRLSign":          x509.KeyUsageCRLSign,
+		"encipherOnly":     x509.KeyUsageEncipherOnly,
+		"decipherOnly":     x509.KeyUsageDecipherOnly,
+	} {
+		if opt.keyUsage&usage != 0 {
+			keyUsages = append(keyUsages, name)
+		}
+	}
+	if len(keyUsages) != 0 {
+		cnt += fmt.Sprintf("keyUsage = %s\n", strings.Join(keyUsages, ", "))
+	}
+
+	if gutils.Contains(opt.extKeyUsage, x509.ExtKeyUsageAny) {
 		cnt += "extendedKeyUsage = anyExtendedKeyUsage\n"
+	} else {
+		for name, usage := range map[string]x509.ExtKeyUsage{
+			"serverAuth":                     x509.ExtKeyUsageServerAuth,
+			"clientAuth":                     x509.ExtKeyUsageClientAuth,
+			"codeSigning":                    x509.ExtKeyUsageCodeSigning,
+			"emailProtection":                x509.ExtKeyUsageEmailProtection,
+			"ipsecEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
+			"ipsecTunnel":                    x509.ExtKeyUsageIPSECTunnel,
+			"ipsecUser":                      x509.ExtKeyUsageIPSECUser,
+			"timestamping":                   x509.ExtKeyUsageTimeStamping,
+			"ocspSigning":                    x509.ExtKeyUsageOCSPSigning,
+			"microsoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+			"netscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
+			"microsoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+			"microsoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+		} {
+			if gutils.Contains(opt.extKeyUsage, usage) {
+				extKeyUsages = append(extKeyUsages, name)
+			}
+		}
+		if len(extKeyUsages) != 0 {
+			cnt += fmt.Sprintf("extendedKeyUsage = %s\n", strings.Join(extKeyUsages, ", "))
+		}
 	}
 
 	if len(opt.policies) > 0 {
