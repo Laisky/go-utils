@@ -200,13 +200,13 @@ var genCsrArgs struct {
 
 var genCsrCMD = &cobra.Command{
 	Use:   "gencsr",
-	Short: "generate csr in base64",
+	Short: "generate csr in DER format",
 	Long: gutils.Dedent(`
-		Generate csr in base64 format.
+		Generate csr in DER format.
 
 		Examples:
 
-		  gutils gencsr -p ./prikey -o ./csr.b64 -c blog.laisky.com
+		  gutils gencsr -p ./prikey -o ./csr.der -c blog.laisky.com
 	`),
 	Args: NoExtraArgs,
 	RunE: func(_ *cobra.Command, _ []string) error {
@@ -231,8 +231,7 @@ var genCsrCMD = &cobra.Command{
 			return errors.Wrap(err, "gen csr")
 		}
 
-		payload := base64.StdEncoding.EncodeToString(csrder)
-		if err := os.WriteFile(genCsrArgs.out, []byte(payload), 0644); err != nil {
+		if err = os.WriteFile(genCsrArgs.out, csrder, 0644); err != nil {
 			return errors.Wrapf(err, "write file %q", genCsrArgs.out)
 		}
 
