@@ -99,8 +99,8 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 	require.NoError(t, err)
 
 	// new root ca
-	caPrikeyPem, caDer, err := ins.NewPrikeyAndCert(ctx,
-		WithX509CertCommonName("test-common-name"),
+	rootCaPrikeyPem, rootCaDer, err := ins.NewPrikeyAndCert(ctx,
+		WithX509CertCommonName("test-rootca"),
 		WithX509CertIsCA())
 	require.NoError(t, err)
 
@@ -110,13 +110,13 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 
 	// new csr
 	csrder, err := ins.NewX509CSR(ctx, prikeyPem,
-		WithX509CSRCommonName("test-common-name"),
+		WithX509CSRCommonName("test-intermediate"),
 		WithX509CSROrganization("test org"),
 	)
 	require.NoError(t, err)
 
 	t.Run("sign csr as ca", func(t *testing.T) {
-		certDer, err := ins.NewX509CertByCSR(ctx, caDer, caPrikeyPem, csrder,
+		certDer, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootCaPrikeyPem, csrder,
 			WithX509SignCSRIsCA(),
 			WithX509SignCSRPolicies(
 				asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3},
@@ -127,19 +127,19 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(certinfo)
+		t.Logf("test log test-intermediate: %s", string(certinfo.Raw))
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "test-common-name")
+		require.Contains(t, string(certinfo.Raw), "Subject: CN = test-intermediate")
 		require.Contains(t, string(certinfo.Raw), "test org")
 		require.Contains(t, string(certinfo.Raw), "CA:TRUE")
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-common-name")
+		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
 		require.NotEmpty(t, certinfo.SerialNumber)
 	})
 
 	t.Run("sign csr as not ca", func(t *testing.T) {
-		certDer, err := ins.NewX509CertByCSR(ctx, caDer, caPrikeyPem, csrder,
+		certDer, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootCaPrikeyPem, csrder,
 			WithX509SignCSRPolicies(
 				asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3},
 			),
@@ -150,12 +150,12 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		certinfo, err := ins.ShowCertInfo(ctx, certDer)
 		// t.Log(certinfo)
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "test-common-name")
+		require.Contains(t, string(certinfo.Raw), "Subject: CN = test-intermediate")
 		require.Contains(t, string(certinfo.Raw), "test org")
 		require.Contains(t, string(certinfo.Raw), "CA:FALSE")
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
 		require.NotContains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-common-name")
+		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
 		require.NotEmpty(t, certinfo.SerialNumber)
 	})
 }
