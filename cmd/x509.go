@@ -7,6 +7,7 @@ package cmd
 // =========================================
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -29,6 +30,11 @@ func init() {
 
 	csrInfoCMD.Flags().StringVarP(&csrfilepath, "file", "f", "", "csr file")
 	rootCmd.AddCommand(csrInfoCMD)
+
+	genCsrCMD.Flags().StringVarP(&genCsrArgs.commonName, "common-name", "c", "", "common name")
+	genCsrCMD.Flags().StringVarP(&genCsrArgs.out, "out", "o", "", "output file")
+	genCsrCMD.Flags().StringVarP(&genCsrArgs.prikey, "prikey", "p", "", "private key file")
+	rootCmd.AddCommand(genCsrCMD)
 }
 
 var tlsInfoCMDArgs = struct {
@@ -182,6 +188,55 @@ var csrInfoCMD = &cobra.Command{
 		}
 
 		fmt.Println(string(output))
+		return nil
+	},
+}
+
+var genCsrArgs struct {
+	commonName string
+	out        string
+	prikey     string
+}
+
+var genCsrCMD = &cobra.Command{
+	Use:   "gencsr",
+	Short: "generate csr in base64",
+	Long: gutils.Dedent(`
+		Generate csr in base64 format.
+
+		Examples:
+
+		  gutils gencsr -p ./prikey -o ./csr.b64 -c blog.laisky.com
+	`),
+	Args: NoExtraArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		// load prikey
+		prikeyBody, err := os.ReadFile(genCsrArgs.prikey)
+		if err != nil {
+			return errors.Wrapf(err, "read file %q", genCsrArgs.prikey)
+		}
+
+		var prikey crypto.PrivateKey
+		prikey, _ = gcrypto.Pem2Prikey(prikeyBody)
+		if prikey == nil {
+			if prikey, err = gcrypto.Der2Prikey(prikeyBody); err != nil {
+				return errors.Wrap(err, "parse prikey")
+			}
+		}
+
+		csrder, err := gcrypto.NewX509CSR(prikey,
+			gcrypto.WithX509CSRCommonName(genCsrArgs.commonName),
+		)
+		if err != nil {
+			return errors.Wrap(err, "gen csr")
+		}
+
+		payload := base64.StdEncoding.EncodeToString(csrder)
+		if err := os.WriteFile(genCsrArgs.out, []byte(payload), 0644); err != nil {
+			return errors.Wrapf(err, "write file %q", genCsrArgs.out)
+		}
+
+		fmt.Println("csr generated at", genCsrArgs.out)
 		return nil
 	},
 }
