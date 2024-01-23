@@ -569,6 +569,61 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 	return []byte(cnt)
 }
 
+var (
+	sortedKeyUsages = []string{
+		"digitalSignature",
+		"nonRepudiation",
+		"keyEncipherment",
+		"dataEncipherment",
+		"keyAgreement",
+		"keyCertSign",
+		"cRLSign",
+		"encipherOnly",
+		"decipherOnly",
+	}
+	keyUsagesMap = map[string]x509.KeyUsage{
+		"digitalSignature": x509.KeyUsageDigitalSignature,
+		"nonRepudiation":   x509.KeyUsageContentCommitment, // nonRepudiation is also known as contentCommitment
+		"keyEncipherment":  x509.KeyUsageKeyEncipherment,
+		"dataEncipherment": x509.KeyUsageDataEncipherment,
+		"keyAgreement":     x509.KeyUsageKeyAgreement,
+		"keyCertSign":      x509.KeyUsageCertSign, // Corrected from "CertSign" to "keyCertSign"
+		"cRLSign":          x509.KeyUsageCRLSign,
+		"encipherOnly":     x509.KeyUsageEncipherOnly,
+		"decipherOnly":     x509.KeyUsageDecipherOnly,
+	}
+	sortedExtKeyUsages = []string{
+		"serverAuth",
+		"clientAuth",
+		"codeSigning",
+		"emailProtection",
+		"ipsecEndSystem",
+		"ipsecTunnel",
+		"ipsecUser",
+		"timestamping",
+		"ocspSigning",
+		"microsoftServerGatedCrypto",
+		"netscapeServerGatedCrypto",
+		"microsoftCommercialCodeSigning",
+		"microsoftKernelCodeSigning",
+	}
+	extKeyUsageMap = map[string]x509.ExtKeyUsage{
+		"serverAuth":                     x509.ExtKeyUsageServerAuth,
+		"clientAuth":                     x509.ExtKeyUsageClientAuth,
+		"codeSigning":                    x509.ExtKeyUsageCodeSigning,
+		"emailProtection":                x509.ExtKeyUsageEmailProtection,
+		"ipsecEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
+		"ipsecTunnel":                    x509.ExtKeyUsageIPSECTunnel,
+		"ipsecUser":                      x509.ExtKeyUsageIPSECUser,
+		"timestamping":                   x509.ExtKeyUsageTimeStamping,
+		"ocspSigning":                    x509.ExtKeyUsageOCSPSigning,
+		"microsoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+		"netscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
+		"microsoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+		"microsoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+	}
+)
+
 // x509SignCsrOptions2OpensslConf marshal x509 csr to openssl conf
 func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, opensslConf []byte, err error) {
 	opt, err = new(signCSROption).fillDefault(nil).applyOpts(opts...)
@@ -592,17 +647,8 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	}
 
 	var extKeyUsages, keyUsages []string
-	for name, usage := range map[string]x509.KeyUsage{
-		"digitalSignature": x509.KeyUsageDigitalSignature,
-		"nonRepudiation":   x509.KeyUsageContentCommitment, // nonRepudiation is also known as contentCommitment
-		"keyEncipherment":  x509.KeyUsageKeyEncipherment,
-		"dataEncipherment": x509.KeyUsageDataEncipherment,
-		"keyAgreement":     x509.KeyUsageKeyAgreement,
-		"keyCertSign":      x509.KeyUsageCertSign, // Corrected from "CertSign" to "keyCertSign"
-		"cRLSign":          x509.KeyUsageCRLSign,
-		"encipherOnly":     x509.KeyUsageEncipherOnly,
-		"decipherOnly":     x509.KeyUsageDecipherOnly,
-	} {
+	for _, name := range sortedKeyUsages {
+		usage := keyUsagesMap[name]
 		if opt.keyUsage&usage != 0 {
 			keyUsages = append(keyUsages, name)
 		}
@@ -612,23 +658,14 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	}
 
 	if gutils.Contains(opt.extKeyUsage, x509.ExtKeyUsageAny) {
-		cnt += "extendedKeyUsage = anyExtendedKeyUsage\n"
+		// The main purpose of this function is to cater to the needs of non-compatible national SM2 standards.
+		// Since Tongsuo does not support anyExtendedKeyUsage, so it is better to use enumeration instead.
+		cnt += "extendedKeyUsage = serverAuth, clientAuth, codeSigning, emailProtection, ipsecEndSystem, " +
+			"ipsecTunnel, ipsecUser, timestamping, ocspSigning, microsoftServerGatedCrypto, " +
+			"netscapeServerGatedCrypto, microsoftCommercialCodeSigning, microsoftKernelCodeSigning\n"
 	} else {
-		for name, usage := range map[string]x509.ExtKeyUsage{
-			"serverAuth":                     x509.ExtKeyUsageServerAuth,
-			"clientAuth":                     x509.ExtKeyUsageClientAuth,
-			"codeSigning":                    x509.ExtKeyUsageCodeSigning,
-			"emailProtection":                x509.ExtKeyUsageEmailProtection,
-			"ipsecEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
-			"ipsecTunnel":                    x509.ExtKeyUsageIPSECTunnel,
-			"ipsecUser":                      x509.ExtKeyUsageIPSECUser,
-			"timestamping":                   x509.ExtKeyUsageTimeStamping,
-			"ocspSigning":                    x509.ExtKeyUsageOCSPSigning,
-			"microsoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
-			"netscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
-			"microsoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
-			"microsoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
-		} {
+		for _, name := range sortedExtKeyUsages {
+			usage := extKeyUsageMap[name]
 			if gutils.Contains(opt.extKeyUsage, usage) {
 				extKeyUsages = append(extKeyUsages, name)
 			}

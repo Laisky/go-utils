@@ -758,3 +758,64 @@ CERT3
 		})
 	}
 }
+
+func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
+	t.Parallel()
+
+	t.Run("normal", func(t *testing.T) {
+		opts := []SignCSROption{
+			WithX509SignCSRIsCA(),
+			WithX509SignCSRKeyUsage(x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment),
+			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth),
+			WithX509SignCSRPolicies(asn1.ObjectIdentifier{1, 2, 3, 4, 5}, asn1.ObjectIdentifier{6, 7, 8, 9, 10}),
+		}
+
+		_, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
+		require.NoError(t, err)
+
+		expectedConf := []byte(gutils.Dedent(`
+		[req]
+		x509_extensions = v3_ca
+
+		[ v3_ca ]
+		subjectKeyIdentifier = hash
+		authorityKeyIdentifier = keyid:always, issuer
+		basicConstraints = critical, CA:TRUE
+		keyUsage = digitalSignature, keyEncipherment, keyCertSign, cRLSign
+		extendedKeyUsage = serverAuth, clientAuth
+		certificatePolicies = @policy-0, @policy-1
+
+		[ policy-0 ]
+		policyIdentifier = 1.2.3.4.5
+		[ policy-1 ]
+		policyIdentifier = 6.7.8.9.10
+	`))
+		expectedConf = append(expectedConf, '\n')
+
+		require.Equal(t, string(expectedConf), string(opensslConf))
+	})
+
+	t.Run("any ext key usages", func(t *testing.T) {
+		opts := []SignCSROption{
+			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageAny),
+		}
+
+		_, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
+		require.NoError(t, err)
+
+		expectedConf := []byte(gutils.Dedent(`
+			[req]
+			x509_extensions = v3_ca
+
+			[ v3_ca ]
+			subjectKeyIdentifier = hash
+			authorityKeyIdentifier = keyid:always, issuer
+			basicConstraints = critical, CA:FALSE
+			keyUsage = digitalSignature, keyEncipherment
+			extendedKeyUsage = serverAuth, clientAuth, codeSigning, emailProtection, ipsecEndSystem, ipsecTunnel, ipsecUser, timestamping, ocspSigning, microsoftServerGatedCrypto, netscapeServerGatedCrypto, microsoftCommercialCodeSigning, microsoftKernelCodeSigning
+		`))
+		expectedConf = append(expectedConf, '\n')
+
+		require.Equal(t, string(expectedConf), string(opensslConf))
+	})
+}
