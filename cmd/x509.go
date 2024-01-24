@@ -226,6 +226,7 @@ var genCsrCMD = &cobra.Command{
 
 		csrder, err := gcrypto.NewX509CSR(prikey,
 			gcrypto.WithX509CSRCommonName(genCsrArgs.commonName),
+			gcrypto.WithX509CSRSANS(genCsrArgs.commonName),
 		)
 		if err != nil {
 			return errors.Wrap(err, "gen csr")
