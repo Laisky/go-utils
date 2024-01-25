@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base64"
 	"net"
 	"testing"
 	"time"
@@ -306,6 +307,15 @@ func TestDer2CSR(t *testing.T) {
 
 		require.Equal(t, csr, csr2)
 	}
+
+	t.Run("parse openssl generated csr", func(t *testing.T) {
+		csrder, err := base64.StdEncoding.DecodeString("MIICRTCCAS0CAQAwADCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALx3QQ3rtGhaiuIDr8ZlifeN4iZ7X2Cc5DH5BnkYRbFohDFntG7hEEhg+Oci04i/bxH+x8cN9rTNhkczXxDdjQlsUy4gVrBEM0CK2VMfX5nbb2lRHFz5v7Q32vfFEYjwivpgl7zDspbxKYQGnfOrMt8vyYNJbD1lqa3XVcv1gzdwsCnAMBU9uRCr4MFT4IdXZDS4TCSNPCL3EpII3NOhVGqriTeSfxTpmvD2F3cHOSK34w96v3n6B1Ss5I8GGCkW96VRxPlHTFt52XuQ2O054o2AfReqIrDrM7fnWWS0cH4b2xg/PeHhyz//mEOXeHMkswFddBz3m/zrGK4VmvKEZqkCAwEAAaAAMA0GCSqGSIb3DQEBCwUAA4IBAQAcKp1P04R/P8728IlQuOSlrOBgeXgWRgpVN7K260R81MdTnjEuv9qhYbUy3pPyY8XN22/FIgk40jkrg5pxYKFcZ7pvCorDvlpW3nrl/UCgikhIFTfif5QpfT9vov0jHWB4jgMKbE22Nt/T7X8eHA914y/M1YB1KYkYt++1HlzlCj+FRakb1IRy9tAGj5uPW3KNRZ9iHd/Q9MTrm+cCKBJukBAtvJPiTg0oB3mFacYfyYExaIknYtlhgB1s4rzXIzggvGbqqH8vFc0djOSF3NUjqb9gNDGESzznnmENayzRXjABmzYKVA1COIi2dn9DWsLNlQJIy+xhZR6LbVkO7eOW")
+		require.NoError(t, err)
+
+		csr, err := Der2CSR(csrder)
+		require.NoError(t, err)
+		require.Equal(t, "", csr.Subject.CommonName)
+	})
 }
 
 func Test_UseCaAsClientTlsCert(t *testing.T) {
