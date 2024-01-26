@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -692,13 +693,7 @@ func TrimEleSpaceAndRemoveEmpty(vs []string) (r []string) {
 
 // Contains if collection contains ele
 func Contains[V comparable](collection []V, ele V) bool {
-	for _, v := range collection {
-		if v == ele {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(collection, ele)
 }
 
 // IsPtr check if t is pointer
