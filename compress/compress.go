@@ -44,15 +44,79 @@ func GzCompress(in io.Reader, out io.Writer) error {
 	return gz.Flush()
 }
 
+type gzDecompressOption struct {
+	maxBytes int64
+}
+
+func (o *gzDecompressOption) apply(fs ...GzDecompressOption) (*gzDecompressOption, error) {
+	// set default
+	o.maxBytes = 1 * 1024 * 1024 * 1024 // 1GB
+
+	// apply opts
+	for _, f := range fs {
+		if err := f(o); err != nil {
+			return nil, err
+		}
+	}
+
+	return o, nil
+}
+
+// GzDecompressOption optional arguments for GzDecompress
+type GzDecompressOption func(*gzDecompressOption) error
+
+// WithGzDecompressMaxBytes decompressed bytes will not exceed this limit,
+//
+// default is 1GB, it's better to set this value to avoid decompression bomb.
+// set 0 to unlimit.
+func WithGzDecompressMaxBytes(bytes int64) GzDecompressOption {
+	return func(o *gzDecompressOption) error {
+		if bytes <= 0 {
+			return errors.Errorf("max bytes must >= 0")
+		}
+
+		o.maxBytes = bytes
+		return nil
+	}
+}
+
 // GzDecompress decompress data by gzip
-func GzDecompress(in io.Reader, out io.Writer) error {
+//
+// be careful about the decompression bomb, see https://en.wikipedia.org/wiki/Zip_bomb,
+// default maxBytes is 1GB, it's better to set this value to avoid decompression bomb.
+func GzDecompress(in io.Reader, out io.Writer, opts ...GzDecompressOption) error {
+	opt, err := new(gzDecompressOption).apply(opts...)
+	if err != nil {
+		return errors.Wrap(err, "apply opts")
+	}
+
 	gz, err := gzip.NewReader(in)
 	if err != nil {
 		return errors.Wrap(err, "new gzip reader")
 	}
 
-	_, err = io.Copy(out, gz)
-	return errors.Wrap(err, "copy data")
+	chunk := make([]byte, 4*1024*1024)
+	var totalBytes int64
+	for {
+		n, err := gz.Read(chunk)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return errors.Wrap(err, "read gzip")
+		}
+
+		if totalBytes += int64(n); totalBytes > opt.maxBytes {
+			return errors.Errorf("decompressed bytes %d exceed limit %d", totalBytes, opt.maxBytes)
+		}
+
+		if _, err = out.Write(chunk[:n]); err != nil {
+			return errors.Wrap(err, "write decompressed data")
+		}
+	}
+
+	return nil
 }
 
 // Compressor interface of compressor

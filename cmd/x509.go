@@ -232,7 +232,7 @@ var genCsrCMD = &cobra.Command{
 			return errors.Wrap(err, "gen csr")
 		}
 
-		if err = os.WriteFile(genCsrArgs.out, csrder, 0644); err != nil {
+		if err = os.WriteFile(genCsrArgs.out, csrder, 0600); err != nil {
 			return errors.Wrapf(err, "write file %q", genCsrArgs.out)
 		}
 

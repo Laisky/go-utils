@@ -1192,6 +1192,28 @@ func EmptyAllChans[T any](chans ...chan T) {
 	}
 }
 
+type prettyBuildInfoOption struct {
+	withDeps bool
+}
+
+func (o *prettyBuildInfoOption) apply(fs ...PrettyBuildInfoOption) *prettyBuildInfoOption {
+	for _, f := range fs {
+		f(o)
+	}
+
+	return o
+}
+
+// PrettyBuildInfoOption options for PrettyBuildInfo
+type PrettyBuildInfoOption func(*prettyBuildInfoOption)
+
+// WithPrettyBuildInfoDeps include deps in build info
+func WithPrettyBuildInfoDeps() PrettyBuildInfoOption {
+	return func(opt *prettyBuildInfoOption) {
+		opt.withDeps = true
+	}
+}
+
 // PrettyBuildInfo get build info in formatted json
 //
 // Print:
@@ -1202,14 +1224,20 @@ func EmptyAllChans[T any](chans ...chan T) {
 //	  "Sum": "h1:08Ty2gR+Xxz0B3djHVuV71boW4lpNdQ9hFn4ZIGrhec=",
 //	  "Replace": null
 //	}
-func PrettyBuildInfo() string {
+func PrettyBuildInfo(opts ...PrettyBuildInfoOption) string {
+	opt := new(prettyBuildInfoOption).apply(opts...)
+
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		log.Shared.Error("failed to read build info")
 		return ""
 	}
 
-	ver, err := json.MarshalIndent(info.Main, "", "  ")
+	if !opt.withDeps {
+		info.Deps = nil
+	}
+
+	ver, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		log.Shared.Error("failed to marshal version", zap.Error(err))
 		return ""

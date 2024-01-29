@@ -601,4 +601,17 @@ func TestGzCompress(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, raw, decompressOut.Bytes())
+
+	t.Run("exceed limit", func(t *testing.T) {
+		var output bytes.Buffer
+		err = GzCompress(bytes.NewReader(raw), &output)
+		require.NoError(t, err)
+
+		// Verify the compressed data
+		var decompressOut bytes.Buffer
+		err = GzDecompress(&output, &decompressOut,
+			WithGzDecompressMaxBytes(1),
+		)
+		require.ErrorContains(t, err, "exceed limit")
+	})
 }
