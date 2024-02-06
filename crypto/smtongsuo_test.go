@@ -309,5 +309,30 @@ func TestTongsuo_CloneX509Csr(t *testing.T) {
 		require.Contains(t, clonedCsrInfo, "DNS:www.example.net")
 		require.Contains(t, clonedCsrInfo, "DNS:www.example.origin")
 	})
+}
 
+func TestTongsuo_SignBySM2SM3(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	prikeyPem, err := ins.NewPrikey(ctx)
+	require.NoError(t, err)
+
+	pubkeyPem, err := ins.Prikey2Pubkey(ctx, prikeyPem)
+	require.NoError(t, err)
+
+	raw, err := Salt(1024 * 8)
+	require.NoError(t, err)
+
+	signature, err := ins.SignBySM2SM3(ctx, prikeyPem, raw)
+	require.NoError(t, err)
+
+	err = ins.VerifyBySM2SM3(ctx, pubkeyPem, signature, raw)
+	require.NoError(t, err)
 }

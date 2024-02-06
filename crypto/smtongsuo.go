@@ -125,6 +125,29 @@ func (t *Tongsuo) removeAll(path string) {
 	}
 }
 
+// Prikey2Pubkey convert private key to public key
+func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (pubkeyPem []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	pubkeyPath := filepath.Join(dir, "pubkey")
+	if _, err = t.runCMD(ctx,
+		[]string{
+			"ec", "-in", "/dev/stdin", "-pubout", "-out", pubkeyPath,
+		}, prikeyPem); err != nil {
+		return nil, errors.Wrap(err, "convert private key to public key")
+	}
+
+	if pubkeyPem, err = os.ReadFile(pubkeyPath); err != nil {
+		return nil, errors.Wrap(err, "read public key")
+	}
+
+	return pubkeyPem, nil
+}
+
 // NewPrikeyAndCert generate new private key and root ca
 func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (prikeyPem, certDer []byte, err error) {
 	// new private key
@@ -159,7 +182,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	opensslConf := X509Cert2OpensslConf(tpl)
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, errors.Wrap(err, "generate tem dir")
+		return nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
@@ -202,7 +225,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509CSROption) (csrDer []byte, err error) {
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, errors.Wrap(err, "generate tem dir")
+		return nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
@@ -248,7 +271,7 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, errors.Wrap(err, "generate tem dir")
+		return nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
@@ -313,7 +336,7 @@ func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context,
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "generate tem dir")
+		return nil, nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
@@ -366,7 +389,7 @@ func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context,
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
-		return nil, errors.Wrap(err, "generate tem dir")
+		return nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
@@ -499,4 +522,82 @@ func (t *Tongsuo) CloneX509Csr(ctx context.Context,
 	}
 
 	return clonedCsrDer, nil
+}
+
+// SignBySM2SM3 sign by sm2 sm3
+//
+// https://www.yuque.com/tsdoc/ts/ewh6xg7qlddxlec2#rehkK
+func (t *Tongsuo) SignBySM2SM3(ctx context.Context,
+	parentPrikeyPem []byte, content []byte) (signature []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	contentPath := filepath.Join(dir, "input")
+	if err = os.WriteFile(contentPath, content, 0600); err != nil {
+		return nil, errors.Wrap(err, "write input")
+	}
+
+	outputPath := filepath.Join(dir, "output")
+
+	_, err = t.runCMD(ctx,
+		[]string{
+			"dgst", "-sm3", "-sign", "/dev/stdin",
+			"-out", outputPath,
+			contentPath,
+		},
+		parentPrikeyPem,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign by sm2 sm3")
+	}
+
+	if signature, err = os.ReadFile(outputPath); err != nil {
+		return nil, errors.Wrap(err, "read signature")
+	}
+
+	return signature, nil
+}
+
+// VerifyBySM2SM3 verify by sm2 sm3
+//
+// https://www.yuque.com/tsdoc/ts/ewh6xg7qlddxlec2#rehkK
+func (t *Tongsuo) VerifyBySM2SM3(ctx context.Context,
+	pubkeyPem, signature, content []byte) error {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	contentPath := filepath.Join(dir, "input")
+	if err = os.WriteFile(contentPath, content, 0600); err != nil {
+		return errors.Wrap(err, "write input")
+	}
+
+	pubkeyPath := filepath.Join(dir, "pubkey")
+	if err = os.WriteFile(pubkeyPath, pubkeyPem, 0600); err != nil {
+		return errors.Wrap(err, "write pubkey")
+	}
+
+	signaturePath := filepath.Join(dir, "signature")
+	if err = os.WriteFile(signaturePath, signature, 0600); err != nil {
+		return errors.Wrap(err, "write signature")
+	}
+
+	_, err = t.runCMD(ctx,
+		[]string{
+			"dgst", "-sm3", "-verify", pubkeyPath,
+			"-signature", signaturePath,
+			contentPath,
+		},
+		nil,
+	)
+	if err != nil {
+		return errors.Wrap(err, "verify by sm2 sm3")
+	}
+
+	return nil
 }
