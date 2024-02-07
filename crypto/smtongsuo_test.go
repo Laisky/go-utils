@@ -330,9 +330,34 @@ func TestTongsuo_SignBySM2SM3(t *testing.T) {
 	raw, err := Salt(1024 * 8)
 	require.NoError(t, err)
 
-	signature, err := ins.SignBySM2SM3(ctx, prikeyPem, raw)
+	signature, err := ins.SignBySm2Sm3(ctx, prikeyPem, raw)
 	require.NoError(t, err)
 
-	err = ins.VerifyBySM2SM3(ctx, pubkeyPem, signature, raw)
+	err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, raw)
 	require.NoError(t, err)
+}
+
+func TestTongsuo_HashBySm3(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	content := []byte("Hello, World!")
+
+	hash, err := ins.HashBySm3(ctx, content)
+	require.NoError(t, err)
+	require.NotNil(t, hash)
+
+	hash2, err := ins.HashBySm3(ctx, content)
+	require.NoError(t, err)
+	require.Equal(t, hash, hash2)
+
+	hash3, err := ins.HashBySm3(ctx, append(content[:len(content)-1:len(content)-1], 'a'))
+	require.NoError(t, err)
+	require.NotEqual(t, hash, hash3)
 }

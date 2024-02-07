@@ -524,10 +524,10 @@ func (t *Tongsuo) CloneX509Csr(ctx context.Context,
 	return clonedCsrDer, nil
 }
 
-// SignBySM2SM3 sign by sm2 sm3
+// SignBySm2Sm3 sign by sm2 sm3
 //
 // https://www.yuque.com/tsdoc/ts/ewh6xg7qlddxlec2#rehkK
-func (t *Tongsuo) SignBySM2SM3(ctx context.Context,
+func (t *Tongsuo) SignBySm2Sm3(ctx context.Context,
 	parentPrikeyPem []byte, content []byte) (signature []byte, err error) {
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
@@ -561,10 +561,10 @@ func (t *Tongsuo) SignBySM2SM3(ctx context.Context,
 	return signature, nil
 }
 
-// VerifyBySM2SM3 verify by sm2 sm3
+// VerifyBySm2Sm3 verify by sm2 sm3
 //
 // https://www.yuque.com/tsdoc/ts/ewh6xg7qlddxlec2#rehkK
-func (t *Tongsuo) VerifyBySM2SM3(ctx context.Context,
+func (t *Tongsuo) VerifyBySm2Sm3(ctx context.Context,
 	pubkeyPem, signature, content []byte) error {
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
@@ -600,4 +600,37 @@ func (t *Tongsuo) VerifyBySM2SM3(ctx context.Context,
 	}
 
 	return nil
+}
+
+// HashBySm3 hash by sm3
+func (t *Tongsuo) HashBySm3(ctx context.Context, content []byte) (hash []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	// contentPath := filepath.Join(dir, "input")
+	// if err = os.WriteFile(contentPath, content, 0600); err != nil {
+	// 	return nil, errors.Wrap(err, "write input")
+	// }
+
+	outputPath := filepath.Join(dir, "output")
+
+	_, err = t.runCMD(ctx,
+		[]string{
+			"dgst", "-sm3",
+			"-out", outputPath,
+		},
+		content,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "hash by sm3")
+	}
+
+	if hash, err = os.ReadFile(outputPath); err != nil {
+		return nil, errors.Wrap(err, "read hash")
+	}
+
+	return hash, nil
 }
