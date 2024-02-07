@@ -312,7 +312,7 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	return certDer, nil
 }
 
-// EncryptBySm4Baisc encrypt by sm4
+// EncryptBySm4CbcBaisc encrypt by sm4
 //
 // # Args
 //   - key: sm4 key, should be 16 bytes
@@ -322,7 +322,7 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 // # Returns
 //   - ciphertext: sm4 encrypted data
 //   - hmac: hmac of ciphertext, 32 bytes
-func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context,
+func (t *Tongsuo) EncryptBySm4CbcBaisc(ctx context.Context,
 	key, plaintext, iv []byte) (ciphertext, hmac []byte, err error) {
 	if len(key) != 16 {
 		return nil, nil, errors.Errorf("key should be 16 bytes")
@@ -360,14 +360,14 @@ func (t *Tongsuo) EncryptBySm4Baisc(ctx context.Context,
 	return ciphertext, hmac, nil
 }
 
-// DecryptBySm4Baisc decrypt by sm4
+// DecryptBySm4CbcBaisc decrypt by sm4
 //
 // # Args
 //   - key: sm4 key
 //   - ciphertext: sm4 encrypted data
 //   - iv: sm4 iv
 //   - hmac: if not nil, will check ciphertext's integrity by hmac
-func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context,
+func (t *Tongsuo) DecryptBySm4CbcBaisc(ctx context.Context,
 	key, ciphertext, iv, hmac []byte) (plaintext []byte, err error) {
 	if len(key) != 16 {
 		return nil, errors.Errorf("key should be 16 bytes")
@@ -409,14 +409,14 @@ func (t *Tongsuo) DecryptBySm4Baisc(ctx context.Context,
 	return plaintext, nil
 }
 
-// EncryptBySm4 encrypt by sm4, should be decrypted by `DecryptBySm4` only
-func (t *Tongsuo) EncryptBySm4(ctx context.Context, key, plaintext []byte) (combinedCipher []byte, err error) {
+// EncryptBySm4Cbc encrypt by sm4, should be decrypted by `DecryptBySm4` only
+func (t *Tongsuo) EncryptBySm4Cbc(ctx context.Context, key, plaintext []byte) (combinedCipher []byte, err error) {
 	iv, err := Salt(16)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate iv")
 	}
 
-	cipher, hmac, err := t.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+	cipher, hmac, err := t.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
 	if err != nil {
 		return nil, errors.Wrap(err, "encrypt by sm4 basic")
 	}
@@ -429,8 +429,8 @@ func (t *Tongsuo) EncryptBySm4(ctx context.Context, key, plaintext []byte) (comb
 	return combinedCipher, nil
 }
 
-// DecryptBySm4 decrypt by sm4, should be encrypted by `EncryptBySm4` only
-func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) (plaintext []byte, err error) {
+// DecryptBySm4Cbc decrypt by sm4, should be encrypted by `EncryptBySm4` only
+func (t *Tongsuo) DecryptBySm4Cbc(ctx context.Context, key, combinedCipher []byte) (plaintext []byte, err error) {
 	if len(combinedCipher) <= 48 {
 		return nil, errors.Errorf("invalid combined cipher")
 	}
@@ -439,7 +439,7 @@ func (t *Tongsuo) DecryptBySm4(ctx context.Context, key, combinedCipher []byte) 
 	cipher := combinedCipher[16 : len(combinedCipher)-32]
 	hmac := combinedCipher[len(combinedCipher)-32:]
 
-	return t.DecryptBySm4Baisc(ctx, key, cipher, iv, hmac)
+	return t.DecryptBySm4CbcBaisc(ctx, key, cipher, iv, hmac)
 }
 
 var (

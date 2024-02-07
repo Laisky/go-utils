@@ -4,7 +4,7 @@ go 1.21.1
 
 require (
 	github.com/GmSSL/GmSSL-Go v1.3.1
-	github.com/Laisky/go-utils/v4 v4.8.0
+	github.com/Laisky/go-utils/v4 v4.0.1
 	github.com/stretchr/testify v1.8.4
 )
 
@@ -41,4 +41,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/Laisky/go-utils/v4 v4.8.0 => ./../..
+replace github.com/Laisky/go-utils/v4 v4.0.1 => ./../..

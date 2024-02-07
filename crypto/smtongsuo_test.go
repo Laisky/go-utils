@@ -183,13 +183,13 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	t.Run("correct passphare", func(t *testing.T) {
 		t.Parallel()
 
-		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		ciphertext, tag, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 		require.Len(t, tag, 32)
 
 		// Decrypt the ciphertext to verify the encryption
-		decrypted, err := ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, tag)
+		decrypted, err := ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, tag)
 		require.NoError(t, err)
 		require.Equal(t, plaintext, decrypted)
 		// require.Equal(t, len(plaintext), len(ciphertext))
@@ -198,20 +198,20 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	t.Run("Decrypt the ciphertext with incorrect key", func(t *testing.T) {
 		t.Parallel()
 
-		ciphertext, tag, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		ciphertext, tag, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 
-		_, err = ins.DecryptBySm4Baisc(ctx, incorrectKey, ciphertext, iv, tag)
+		_, err = ins.DecryptBySm4CbcBaisc(ctx, incorrectKey, ciphertext, iv, tag)
 		require.ErrorContains(t, err, "hmac not match")
 
 		t.Run("key in incorrect length", func(t *testing.T) {
-			_, err = ins.DecryptBySm4Baisc(ctx, append(key, 'd'), ciphertext, iv, tag)
+			_, err = ins.DecryptBySm4CbcBaisc(ctx, append(key, 'd'), ciphertext, iv, tag)
 			require.ErrorContains(t, err, "key should be 16 bytes")
 		})
 
 		t.Run("iv in incorrect length", func(t *testing.T) {
-			_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, append(iv, 'a'), tag)
+			_, err = ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, append(iv, 'a'), tag)
 			require.ErrorContains(t, err, "iv should be 16 bytes")
 		})
 	})
@@ -219,15 +219,15 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	t.Run("Decrypt the ciphertext with incorrect tag", func(t *testing.T) {
 		t.Parallel()
 
-		ciphertext, _, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		ciphertext, _, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 
-		_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, incorrectTag)
+		_, err = ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, incorrectTag)
 		require.ErrorContains(t, err, "hmac not match")
 
 		t.Run("tag in incorrect length", func(t *testing.T) {
-			_, err = ins.DecryptBySm4Baisc(ctx, key, ciphertext, iv, append(incorrectTag, []byte("123")...))
+			_, err = ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, append(incorrectTag, []byte("123")...))
 			require.ErrorContains(t, err, "hmac should be 0 or 32 bytes")
 		})
 	})
@@ -235,11 +235,11 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	t.Run("Decrypt the ciphertext with incorrect key and empty tag", func(t *testing.T) {
 		t.Parallel()
 
-		ciphertext, _, err := ins.EncryptBySm4Baisc(ctx, key, plaintext, iv)
+		ciphertext, _, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 
-		_, err = ins.DecryptBySm4Baisc(ctx, incorrectKey, ciphertext, iv, nil)
+		_, err = ins.DecryptBySm4CbcBaisc(ctx, incorrectKey, ciphertext, iv, nil)
 		require.ErrorContains(t, err, "got bad decrypt")
 	})
 }
@@ -258,10 +258,10 @@ func TestTongsuo_DecryptBySm4(t *testing.T) {
 	require.NoError(t, err)
 	plaintext := []byte("Hello, World!")
 
-	cipher, err := ins.EncryptBySm4(ctx, key, plaintext)
+	cipher, err := ins.EncryptBySm4Cbc(ctx, key, plaintext)
 	require.NoError(t, err)
 
-	gotPlain, err := ins.DecryptBySm4(ctx, key, cipher)
+	gotPlain, err := ins.DecryptBySm4Cbc(ctx, key, cipher)
 	require.NoError(t, err)
 	require.Equal(t, plaintext, gotPlain)
 }
@@ -352,6 +352,7 @@ func TestTongsuo_HashBySm3(t *testing.T) {
 	hash, err := ins.HashBySm3(ctx, content)
 	require.NoError(t, err)
 	require.NotNil(t, hash)
+	require.Len(t, hash, 32)
 	require.NotContains(t, string(hash), "stdin")
 
 	hash2, err := ins.HashBySm3(ctx, content)

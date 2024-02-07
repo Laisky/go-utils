@@ -43,3 +43,54 @@ func Test_HashBySm3(t *testing.T) {
 
 	require.Equal(t, sigByGmssl, sigByTongsuo)
 }
+
+func TestTOngsuo_EncryptBySm4Cbc(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := gcrypto.NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	key, err := gcrypto.Salt(16)
+	require.NoError(t, err)
+	iv, err := gcrypto.Salt(16)
+	require.NoError(t, err)
+	plaintext, err := gcrypto.Salt(1024 * 1024)
+	require.NoError(t, err)
+
+	t.Run("tongsuo -> gmssl", func(t *testing.T) {
+
+		// encrypt by tongsuo
+		cipher, _, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
+		require.NoError(t, err)
+
+		// decrypt by gmssl
+		gmsslSm4, err := gmssl.NewSm4Cbc(key, iv, false)
+		require.NoError(t, err)
+		decrypted, err := gmsslSm4.Update(cipher)
+		require.NoError(t, err)
+		decrypted_last, err := gmsslSm4.Finish()
+		require.NoError(t, err)
+		decrypted = append(decrypted, decrypted_last...)
+		require.Equal(t, plaintext, decrypted)
+	})
+
+	t.Run("gmssl -> tongsuo", func(t *testing.T) {
+		// encrypt by gmssl
+		gmsslSm4, err := gmssl.NewSm4Cbc(key, iv, true)
+		require.NoError(t, err)
+		cipher, err := gmsslSm4.Update(plaintext)
+		require.NoError(t, err)
+		cipher_last, err := gmsslSm4.Finish()
+		require.NoError(t, err)
+		cipher = append(cipher, cipher_last...)
+
+		// decrypt by tongsuo
+		decrypted, err := ins.DecryptBySm4CbcBaisc(ctx, key, cipher, iv, nil)
+		require.NoError(t, err)
+		require.Equal(t, plaintext, decrypted)
+	})
+}
