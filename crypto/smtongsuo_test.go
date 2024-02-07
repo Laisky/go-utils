@@ -352,6 +352,7 @@ func TestTongsuo_HashBySm3(t *testing.T) {
 	hash, err := ins.HashBySm3(ctx, content)
 	require.NoError(t, err)
 	require.NotNil(t, hash)
+	require.NotContains(t, string(hash), "stdin")
 
 	hash2, err := ins.HashBySm3(ctx, content)
 	require.NoError(t, err)

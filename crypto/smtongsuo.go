@@ -619,7 +619,7 @@ func (t *Tongsuo) HashBySm3(ctx context.Context, content []byte) (hash []byte, e
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3",
+			"dgst", "-sm3", "-binary",
 			"-out", outputPath,
 		},
 		content,
