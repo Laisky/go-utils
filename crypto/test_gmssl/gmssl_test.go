@@ -2,7 +2,9 @@ package testgmssl
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	gmssl "github.com/GmSSL/GmSSL-Go"
@@ -92,5 +94,53 @@ func TestTOngsuo_EncryptBySm4Cbc(t *testing.T) {
 		decrypted, err := ins.DecryptBySm4CbcBaisc(ctx, key, cipher, iv, nil)
 		require.NoError(t, err)
 		require.Equal(t, plaintext, decrypted)
+	})
+}
+
+func TestTongsuo_SignBySM2SM3(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	ctx := context.Background()
+	ins, err := gcrypto.NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	gmsslPrikey, err := gmssl.GenerateSm2Key()
+	require.NoError(t, err)
+
+	pubkeyPath := filepath.Join(dir, "pubkey.pem")
+	err = gmsslPrikey.ExportPublicKeyInfoPem(pubkeyPath)
+	require.NoError(t, err)
+
+	pubkeyPem, err := os.ReadFile(pubkeyPath)
+	require.NoError(t, err)
+
+	plaintext, err := gcrypto.Salt(1024 * 1024)
+	require.NoError(t, err)
+
+	// sign by gmssl
+	gmsslSign, err := gmssl.NewSm2Signature(gmsslPrikey, gmssl.Sm2DefaultId, true)
+	require.NoError(t, err)
+	gmsslSign.Update(plaintext)
+	signature, err := gmsslSign.Sign()
+	require.NoError(t, err)
+
+	// verify by tongsuo
+	err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, plaintext)
+	require.NoError(t, err)
+
+	t.Run("invalid signature", func(t *testing.T) {
+		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, append(signature[:len(signature)-1:len(signature)-1], 'a'), plaintext)
+		require.ErrorContains(t, err, "Verification failure")
+	})
+	t.Run("invalid plaintext", func(t *testing.T) {
+		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, append(plaintext[:len(plaintext)-1:len(plaintext)-1], 'a'))
+		require.ErrorContains(t, err, "Verification failure")
 	})
 }
