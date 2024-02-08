@@ -52,7 +52,8 @@ func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
 	return ins, nil
 }
 
-func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (output []byte, err error) {
+func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
+	output []byte, err error) {
 	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
 		return nil, errors.Wrap(err, "sanitize cmd args")
 	}
@@ -81,7 +82,9 @@ type OpensslCertificateOutput struct {
 
 // ShowCertInfo show cert info
 func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo OpensslCertificateOutput, err error) {
-	certInfo.Raw, err = t.runCMD(ctx, []string{"x509", "-inform", "DER", "-text"}, certDer)
+	certInfo.Raw, err = t.runCMD(ctx,
+		[]string{"x509", "-inform", "DER", "-text"},
+		certDer)
 	if err != nil {
 		return certInfo, errors.Wrap(err, "run cmd to show cert info")
 	}
@@ -96,7 +99,8 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 }
 
 // ShowCsrInfo show csr info
-func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (output string, err error) {
+func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (
+	output string, err error) {
 	out, err := t.runCMD(ctx, []string{"req", "-inform", "DER", "-text"}, csrDer)
 	if err != nil {
 		return "", errors.Wrap(err, "run cmd to show csr info")
@@ -119,6 +123,29 @@ func (t *Tongsuo) NewPrikey(ctx context.Context) (prikeyPem []byte, err error) {
 	return prikeyPem, nil
 }
 
+// NewPrikeyWithPassword generate new sm2 private key with password
+func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
+	encryptedPrikeyPem []byte, err error) {
+	if len(password) == 0 {
+		return nil, errors.Errorf("password should not be empty")
+	}
+
+	prikeyPem, err := t.NewPrikey(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate new private key")
+	}
+
+	encryptedPrikeyPem, err = t.runCMD(ctx, []string{
+		"ec", "-in", "/dev/stdin", "-out", "/dev/stdout",
+		"-sm4-cbc", "-passout", "pass:" + password,
+	}, prikeyPem)
+	if err != nil {
+		return nil, errors.Wrap(err, "encrypt private key")
+	}
+
+	return encryptedPrikeyPem, nil
+}
+
 func (t *Tongsuo) removeAll(path string) {
 	if err := os.RemoveAll(path); err != nil {
 		glog.Shared.Error("remove dir", zap.String("path", path), zap.Error(err))
@@ -126,7 +153,8 @@ func (t *Tongsuo) removeAll(path string) {
 }
 
 // Prikey2Pubkey convert private key to public key
-func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (pubkeyPem []byte, err error) {
+func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (
+	pubkeyPem []byte, err error) {
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
 		return nil, errors.Wrap(err, "generate temp dir")
@@ -149,7 +177,8 @@ func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (pubkeyPe
 }
 
 // NewPrikeyAndCert generate new private key and root ca
-func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (prikeyPem, certDer []byte, err error) {
+func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (
+	prikeyPem, certDer []byte, err error) {
 	// new private key
 	if prikeyPem, err = t.NewPrikey(ctx); err != nil {
 		return nil, nil, errors.Wrap(err, "new private key")
@@ -410,7 +439,8 @@ func (t *Tongsuo) DecryptBySm4CbcBaisc(ctx context.Context,
 }
 
 // EncryptBySm4Cbc encrypt by sm4, should be decrypted by `DecryptBySm4` only
-func (t *Tongsuo) EncryptBySm4Cbc(ctx context.Context, key, plaintext []byte) (combinedCipher []byte, err error) {
+func (t *Tongsuo) EncryptBySm4Cbc(ctx context.Context, key, plaintext []byte) (
+	combinedCipher []byte, err error) {
 	iv, err := Salt(16)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate iv")
@@ -430,7 +460,8 @@ func (t *Tongsuo) EncryptBySm4Cbc(ctx context.Context, key, plaintext []byte) (c
 }
 
 // DecryptBySm4Cbc decrypt by sm4, should be encrypted by `EncryptBySm4` only
-func (t *Tongsuo) DecryptBySm4Cbc(ctx context.Context, key, combinedCipher []byte) (plaintext []byte, err error) {
+func (t *Tongsuo) DecryptBySm4Cbc(ctx context.Context, key, combinedCipher []byte) (
+	plaintext []byte, err error) {
 	if len(combinedCipher) <= 48 {
 		return nil, errors.Errorf("invalid combined cipher")
 	}

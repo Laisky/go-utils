@@ -266,6 +266,28 @@ func TestTongsuo_DecryptBySm4(t *testing.T) {
 	require.Equal(t, plaintext, gotPlain)
 }
 
+func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	t.Run("with password", func(t *testing.T) {
+		prikeyPem, err := ins.NewPrikeyWithPassword(ctx, "test-password")
+		require.NoError(t, err)
+		require.NotNil(t, prikeyPem)
+	})
+
+	t.Run("without password", func(t *testing.T) {
+		_, err := ins.NewPrikeyWithPassword(ctx, "")
+		require.ErrorContains(t, err, "password should not be empty")
+	})
+}
+
 func TestTongsuo_CloneX509Csr(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {

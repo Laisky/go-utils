@@ -111,36 +111,74 @@ func TestTongsuo_SignBySM2SM3(t *testing.T) {
 	ins, err := gcrypto.NewTongsuo("/usr/local/bin/tongsuo")
 	require.NoError(t, err)
 
-	gmsslPrikey, err := gmssl.GenerateSm2Key()
-	require.NoError(t, err)
-
-	pubkeyPath := filepath.Join(dir, "pubkey.pem")
-	err = gmsslPrikey.ExportPublicKeyInfoPem(pubkeyPath)
-	require.NoError(t, err)
-
-	pubkeyPem, err := os.ReadFile(pubkeyPath)
-	require.NoError(t, err)
-
 	plaintext, err := gcrypto.Salt(1024 * 1024)
 	require.NoError(t, err)
 
-	// sign by gmssl
-	gmsslSign, err := gmssl.NewSm2Signature(gmsslPrikey, gmssl.Sm2DefaultId, true)
-	require.NoError(t, err)
-	gmsslSign.Update(plaintext)
-	signature, err := gmsslSign.Sign()
-	require.NoError(t, err)
+	t.Run("gmssl -> tongsuo", func(t *testing.T) {
+		gmsslPrikey, err := gmssl.GenerateSm2Key()
+		require.NoError(t, err)
 
-	// verify by tongsuo
-	err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, plaintext)
-	require.NoError(t, err)
+		pubkeyPath := filepath.Join(dir, "pubkey.pem")
+		err = gmsslPrikey.ExportPublicKeyInfoPem(pubkeyPath)
+		require.NoError(t, err)
 
-	t.Run("invalid signature", func(t *testing.T) {
-		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, append(signature[:len(signature)-1:len(signature)-1], 'a'), plaintext)
-		require.ErrorContains(t, err, "Verification failure")
+		pubkeyPem, err := os.ReadFile(pubkeyPath)
+		require.NoError(t, err)
+
+		// sign by gmssl
+		gmsslSign, err := gmssl.NewSm2Signature(gmsslPrikey, gmssl.Sm2DefaultId, true)
+		require.NoError(t, err)
+		gmsslSign.Update(plaintext)
+		signature, err := gmsslSign.Sign()
+		require.NoError(t, err)
+
+		// verify by tongsuo
+		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, plaintext)
+		require.NoError(t, err)
+
+		t.Run("invalid signature", func(t *testing.T) {
+			err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, append(signature[:len(signature)-1:len(signature)-1], 'a'), plaintext)
+			require.ErrorContains(t, err, "Verification failure")
+		})
+		t.Run("invalid plaintext", func(t *testing.T) {
+			err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, append(plaintext[:len(plaintext)-1:len(plaintext)-1], 'a'))
+			require.ErrorContains(t, err, "Verification failure")
+		})
 	})
-	t.Run("invalid plaintext", func(t *testing.T) {
-		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, append(plaintext[:len(plaintext)-1:len(plaintext)-1], 'a'))
-		require.ErrorContains(t, err, "Verification failure")
+
+	t.Run("tongsuo -> gmssl", func(t *testing.T) {
+		prikeyPem, err := ins.NewPrikey(ctx)
+		require.NoError(t, err)
+
+		// sign by tongsuo
+		signature, err := ins.SignBySm2Sm3(ctx, prikeyPem, plaintext)
+		require.NoError(t, err)
+
+		pubkeyPem, err := ins.Prikey2Pubkey(ctx, prikeyPem)
+		require.NoError(t, err)
+
+		pubkeyPath := filepath.Join(dir, "pubkey.pem")
+		err = os.WriteFile(pubkeyPath, []byte(pubkeyPem), 0644)
+		require.NoError(t, err)
+
+		gmsslPubKey, err := gmssl.ImportSm2PublicKeyInfoPem(pubkeyPath)
+		require.NoError(t, err)
+
+		// verify by gmssl
+		gmsslSign, err := gmssl.NewSm2Signature(gmsslPubKey, gmssl.Sm2DefaultId, false)
+		require.NoError(t, err)
+		err = gmsslSign.Update(plaintext)
+		require.NoError(t, err)
+		ok := gmsslSign.Verify(signature)
+		require.True(t, ok)
+
+		t.Run("invalid signature", func(t *testing.T) {
+			ok = gmsslSign.Verify(append(signature[:len(signature)-1:len(signature)-1], 'a'))
+			require.False(t, ok)
+		})
+		t.Run("invalid plaintext", func(t *testing.T) {
+			ok = gmsslSign.Verify(signature)
+			require.False(t, ok)
+		})
 	})
 }
