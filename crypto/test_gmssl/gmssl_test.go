@@ -32,6 +32,7 @@ func Test_HashBySm3(t *testing.T) {
 	raw, err := gcrypto.Salt(1024 * 1024)
 	require.NoError(t, err)
 
+	// signed by gmssl
 	gmsslSm3 := gmssl.NewSm3()
 	gmsslSm3.Update(raw)
 	sigByGmssl := gmsslSm3.Digest()
@@ -40,9 +41,11 @@ func Test_HashBySm3(t *testing.T) {
 	ins, err := gcrypto.NewTongsuo("/usr/local/bin/tongsuo")
 	require.NoError(t, err)
 
+	// signed by tongsuo
 	sigByTongsuo, err := ins.HashBySm3(ctx, raw)
 	require.NoError(t, err)
 
+	// should be equal
 	require.Equal(t, sigByGmssl, sigByTongsuo)
 }
 
