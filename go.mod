@@ -7,7 +7,7 @@ toolchain go1.21.0
 require (
 	github.com/GoWebProd/uuid7 v0.0.0-20231130161441-17ee54b097d4
 	github.com/Laisky/errors/v2 v2.0.1
-	github.com/Laisky/fast-skiplist v0.0.0-20210907063351-e00546c800a6
+	github.com/Laisky/fast-skiplist/v2 v2.0.1-0.20240221081752-d520b12337ef
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.25.3-0.20231205071752-1cdfcee9191f

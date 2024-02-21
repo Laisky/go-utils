@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewSkiplist(t *testing.T) {
-	l := NewSkiplist()
+	l := NewSkiplist[float64]()
 
 	var keys []float64
 	for i := 0; i < 1000; i++ {
