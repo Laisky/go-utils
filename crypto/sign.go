@@ -12,6 +12,9 @@ import (
 	"strings"
 
 	"github.com/Laisky/errors/v2"
+	"go.dedis.ch/kyber/v3"
+	"go.dedis.ch/kyber/v3/sign/schnorr"
+	dediskey "go.dedis.ch/kyber/v3/util/key"
 )
 
 // // EncodeRSAPrivateKey encode rsa private key to pem bytes
@@ -47,6 +50,26 @@ import (
 
 // 	return pubkey, nil
 // }
+
+// SignBySchnorrSha256 sign content by schnorr
+func SignBySchnorrSha256(suite dediskey.Suite, prikey kyber.Scalar, reader io.Reader) ([]byte, error) {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return nil, errors.Wrap(err, "read content")
+	}
+
+	return schnorr.Sign(suite, prikey, hasher.Sum(nil))
+}
+
+// VerifyBySchnorrSha256 verify signature by schnorr
+func VerifyBySchnorrSha256(suite dediskey.Suite, pubkey kyber.Point, reader io.Reader, sig []byte) error {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return errors.Wrap(err, "read content")
+	}
+
+	return schnorr.Verify(suite, pubkey, hasher.Sum(nil), sig)
+}
 
 // SignByRSAWithSHA256 generate signature by rsa private key use sha256
 func SignByRSAWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {

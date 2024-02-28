@@ -73,6 +73,10 @@ type DHKXOptionFunc func(*dhkxOption) error
 // each DHKX instance has it's unique group and private key
 //
 // Note: recommoend to use ECDH instead of DHKX
+//
+// Known vulnerabilities: DHKX is not secure against active attacks,
+// MITM attacker could replace the public keys with his own and decrypt the messages.
+// its better to verify peer's public key by signature.
 func NewDHKX(optfs ...DHKXOptionFunc) (d *DHKX, err error) {
 	opt, err := new(dhkxOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
@@ -124,6 +128,10 @@ type ECDH struct {
 }
 
 // NewEcdh create a new ECDH instance
+//
+// Known vulnerabilities: DHKX is not secure against active attacks,
+// MITM attacker could replace the public keys with his own and decrypt the messages.
+// its better to verify peer's public key by signature.
 func NewEcdh(curve ECDSACurve) (ins *ECDH, err error) {
 	ins = new(ECDH)
 	switch curve {

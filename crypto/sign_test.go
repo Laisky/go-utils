@@ -12,10 +12,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/Laisky/go-utils/v4/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
-
-	"github.com/Laisky/go-utils/v4/log"
+	"go.dedis.ch/kyber/v3/group/edwards25519"
+	dediskey "go.dedis.ch/kyber/v3/util/key"
 )
 
 func TestPassword(t *testing.T) {
@@ -493,4 +494,62 @@ func TestSignReaderByEd25519WithSHA256(t *testing.T) {
 		err := VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), falseSig)
 		require.ErrorContains(t, err, "invalid signature")
 	})
+}
+
+func TestVerifyBySchnorrSha256(t *testing.T) {
+	t.Parallel()
+
+	suite := edwards25519.NewBlakeSHA256Ed25519()
+	keyPair := dediskey.NewKeyPair(suite)
+
+	content := []byte("hello, world")
+
+	t.Run("pubkey marshal & unmarshal", func(t *testing.T) {
+		pub, err := keyPair.Public.MarshalBinary()
+		require.NoError(t, err)
+
+		pub2 := suite.Point()
+		err = pub2.UnmarshalBinary(pub)
+		require.NoError(t, err)
+
+		require.True(t, keyPair.Public.Equal(pub2))
+	})
+
+	t.Run("prikey marshal & unmarshal", func(t *testing.T) {
+		priBytes, err := keyPair.Private.MarshalBinary()
+		require.NoError(t, err)
+
+		pri2 := suite.Scalar()
+		pri2.UnmarshalBinary(priBytes)
+		require.NoError(t, err)
+
+		t.Run("sign & verify", func(t *testing.T) {
+			sig, err := SignBySchnorrSha256(suite, pri2, bytes.NewReader(content))
+			require.NoError(t, err)
+
+			err = VerifyBySchnorrSha256(suite, keyPair.Public, bytes.NewReader(content), sig)
+			require.NoError(t, err)
+		})
+
+		t.Run("sign & invalid verify", func(t *testing.T) {
+			keyPair2 := dediskey.NewKeyPair(suite)
+
+			sig, err := SignBySchnorrSha256(suite, keyPair.Private, bytes.NewReader(content))
+			require.NoError(t, err)
+
+			err = VerifyBySchnorrSha256(suite, keyPair2.Public, bytes.NewReader(content), sig)
+			require.ErrorContains(t, err, "invalid signature")
+		})
+
+		t.Run("sign & invalid verify", func(t *testing.T) {
+			keyPair2 := dediskey.NewKeyPair(suite)
+
+			sig, err := SignBySchnorrSha256(suite, keyPair2.Private, bytes.NewReader(content))
+			require.NoError(t, err)
+
+			err = VerifyBySchnorrSha256(suite, keyPair.Public, bytes.NewReader(content), sig)
+			require.ErrorContains(t, err, "invalid signature")
+		})
+	})
+
 }

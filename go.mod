@@ -30,6 +30,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
 	github.com/xlzd/gotp v0.1.0
+	go.dedis.ch/kyber/v3 v3.1.0
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.19.0
 	golang.org/x/sync v0.6.0
@@ -50,6 +51,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
+	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/sys v0.17.0 // indirect
