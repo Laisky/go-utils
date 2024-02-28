@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -552,5 +553,126 @@ func TestVerifyBySchnorrSha256(t *testing.T) {
 			require.ErrorContains(t, err, "invalid signature")
 		})
 	})
+}
 
+// goos: linux
+// goarch: amd64
+// pkg: github.com/Laisky/go-utils/v4/crypto
+// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+// Benchmark_Sign
+// Benchmark_Sign/sign_rsa-2048_4k
+// Benchmark_Sign/sign_rsa-2048_4k-104         	      98	  12063393 ns/op	     896 B/op	       5 allocs/op
+// Benchmark_Sign/sign_rsa-4096_4k
+// Benchmark_Sign/sign_rsa-4096_4k-104         	      22	  53844454 ns/op	   38656 B/op	      56 allocs/op
+// Benchmark_Sign/sign_ecdsa-P256_4k
+// Benchmark_Sign/sign_ecdsa-P256_4k-104       	   10752	    114306 ns/op	    2719 B/op	      37 allocs/op
+// Benchmark_Sign/sign_ecdsa-P384_4k
+// Benchmark_Sign/sign_ecdsa-P384_4k-104       	     253	   4663023 ns/op	    2920 B/op	      38 allocs/op
+// Benchmark_Sign/sign_ed25519_4k
+// Benchmark_Sign/sign_ed25519_4k-104				2299	    521442 ns/op	      64 B/op	       1 allocs/op
+// Benchmark_Sign/sign_schnorr-ed25519_4k
+// Benchmark_Sign/sign_schnorr-ed25519_4k-104  	     493	   2252567 ns/op	    3822 B/op	      48 allocs/op
+// PASS
+// coverage: 1.7% of statements
+// ok  	github.com/Laisky/go-utils/v4/crypto	16.896s
+func Benchmark_Sign(b *testing.B) {
+	raw4k, err := Salt(4 * 1024)
+	require.NoError(b, err)
+
+	b.Run("sign rsa-2048 4k", func(b *testing.B) {
+		prikey, err := NewRSAPrikey(RSAPrikeyBits2048)
+		require.NoError(b, err)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := SignByRSAWithSHA256(prikey, raw4k)
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("sign rsa-4096 4k", func(b *testing.B) {
+		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
+		require.NoError(b, err)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := SignByRSAWithSHA256(prikey, raw4k)
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("sign ecdsa-P256 4k", func(b *testing.B) {
+		prikey, err := NewECDSAPrikey(ECDSACurveP256)
+		require.NoError(b, err)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, err := SignByECDSAWithSHA256(prikey, raw4k)
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("sign ecdsa-P384 4k", func(b *testing.B) {
+		prikey, err := NewECDSAPrikey(ECDSACurveP384)
+		require.NoError(b, err)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, err := SignByECDSAWithSHA256(prikey, raw4k)
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("sign ed25519 4k", func(b *testing.B) {
+		prikey, err := NewEd25519Prikey()
+		require.NoError(b, err)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := prikey.Sign(rand.Reader, raw4k, crypto.Hash(0))
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("sign schnorr-ed25519 4k", func(b *testing.B) {
+		suite := edwards25519.NewBlakeSHA256Ed25519()
+		keyPair := dediskey.NewKeyPair(suite)
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := SignBySchnorrSha256(suite, keyPair.Private, bytes.NewReader(raw4k))
+			require.NoError(b, err)
+		}
+	})
+
+}
+
+func TestVerifyByEd25519(t *testing.T) {
+	t.Parallel()
+
+	prikey, err := NewEd25519Prikey()
+	require.NoError(t, err)
+	pubkey := prikey.Public().(ed25519.PublicKey)
+
+	content := []byte("hello, world")
+
+	sig, err := SignByEd25519WithSHA512(prikey, bytes.NewReader(content))
+	require.NoError(t, err)
+
+	err = VerifyByEd25519WithSHA512(pubkey, bytes.NewReader(content), sig)
+	require.NoError(t, err)
+
+	t.Run("invalid sig", func(t *testing.T) {
+		err := VerifyByEd25519WithSHA512(pubkey, bytes.NewReader(content), []byte("2l3fj238f83"))
+		require.ErrorContains(t, err, "invalid signature")
+	})
+
+	t.Run("invalid key", func(t *testing.T) {
+		prikey, err := NewEd25519Prikey()
+		require.NoError(t, err)
+		pubkey := prikey.Public().(ed25519.PublicKey)
+
+		err = VerifyByEd25519WithSHA512(pubkey, bytes.NewReader(content), []byte("2l3fj238f83"))
+		require.ErrorContains(t, err, "invalid signature")
+	})
 }

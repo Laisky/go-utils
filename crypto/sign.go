@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"io"
 	"math/big"
 	"strings"
@@ -101,6 +102,30 @@ func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []
 	}
 
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hasher.Sum(nil), sig)
+}
+
+// SignByEd25519WithSHA512 generate signature by ed25519 private key
+func SignByEd25519WithSHA512(prikey ed25519.PrivateKey, reader io.Reader) ([]byte, error) {
+	hasher := sha512.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return nil, errors.Wrap(err, "read content")
+	}
+
+	return prikey.Sign(rand.Reader, hasher.Sum(nil), crypto.Hash(0))
+}
+
+// VerifyByEd25519WithSHA512 verify signature by ed25519 public key
+func VerifyByEd25519WithSHA512(pubKey ed25519.PublicKey, reader io.Reader, sig []byte) error {
+	hasher := sha512.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return errors.Wrap(err, "read content")
+	}
+
+	if !ed25519.Verify(pubKey, hasher.Sum(nil), sig) {
+		return errors.New("invalid signature")
+	}
+
+	return nil
 }
 
 // SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
