@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 	Short: "go-utils",
 	Long:  `go-utils`,
 	Args:  NoExtraArgs,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		if cmdVersion {
 			fmt.Println(gutils.PrettyBuildInfo())
 			os.Exit(0)
@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 		}
 
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 
 	},
 }

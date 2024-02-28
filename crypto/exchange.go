@@ -72,11 +72,12 @@ type DHKXOptionFunc func(*dhkxOption) error
 //
 // each DHKX instance has it's unique group and private key
 //
-// Note: recommoend to use ECDH instead of DHKX
-//
 // Known vulnerabilities: DHKX is not secure against active attacks,
 // MITM attacker could replace the public keys with his own and decrypt the messages.
 // its better to verify peer's public key by signature.
+//
+// Deprecated: ECDH is much more faster and efficient than DHKX,
+// use ECDH instead.
 func NewDHKX(optfs ...DHKXOptionFunc) (d *DHKX, err error) {
 	opt, err := new(dhkxOption).fillDefault().applyOpts(optfs...)
 	if err != nil {

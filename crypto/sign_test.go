@@ -12,11 +12,12 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/Laisky/go-utils/v4/log"
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 	"go.dedis.ch/kyber/v3/group/edwards25519"
 	dediskey "go.dedis.ch/kyber/v3/util/key"
+
+	"github.com/Laisky/go-utils/v4/log"
 )
 
 func TestPassword(t *testing.T) {

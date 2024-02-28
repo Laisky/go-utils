@@ -53,7 +53,7 @@ var renameAvCmd = &cobra.Command{
 			$ gutils rename av -d /path/to/dir
 	`),
 	Args: NoExtraArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		opts := []gutils.ListFilesInDirOptionFunc{}
 		if renameAvCmdArgs.recurse {
 			opts = append(opts, gutils.ListFilesInDirRecursive())

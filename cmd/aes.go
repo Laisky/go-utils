@@ -65,10 +65,10 @@ var EncryptAESCMD = &cobra.Command{
 	Use:   "aes",
 	Short: "encrypt file by aes, key's length must be 16/24/32",
 	Long:  `encrypt file by aes`,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, _ []string) error {
 		return setupEncryptAESArgs(cmd)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		fs, err := os.Stat(inputpath)
 		if err != nil {
 			log.Shared.Panic("read path", zap.Error(err))

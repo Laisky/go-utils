@@ -116,7 +116,7 @@ func (t *MockTB) Private() {
 func TestNewGoroutineTest(t *testing.T) {
 	testInGoroutine := func(t testing.TB) {
 		time.Sleep(time.Second)
-		t.FailNow()
+		t.Fail()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

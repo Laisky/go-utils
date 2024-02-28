@@ -56,7 +56,7 @@ var removeDupCMD = &cobra.Command{
 			gutils remove-dup -d examples/images --dry
 	`),
 	Args: NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		if err := removeDuplicate(removeDupArg.Dry, removeDupArg.Dir); err != nil {
 			glog.Shared.Panic("remove duplicate", zap.Error(err))
 		}

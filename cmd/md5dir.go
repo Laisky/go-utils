@@ -43,7 +43,7 @@ var md5DirCMD = &cobra.Command{
 			gutils md5dir -i examples/md5dir/
 	`),
 	Args: NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		if err := checkMd5DirArg(); err != nil {
 			glog.Shared.Panic("command args invalid", zap.Error(err))
 		}

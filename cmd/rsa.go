@@ -21,7 +21,7 @@ var RSA = &cobra.Command{
 	Use:   "rsa",
 	Short: "rsa",
 	Args:  NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 	},
 }
 
@@ -51,7 +51,7 @@ var RSASign = &cobra.Command{
 	Use:   "sign",
 	Short: "sign by RSA & SHA256",
 	Args:  NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		err := SignFileByRSA(rsaPrikeyPemFilepath, fileWantToSignature)
 		if err != nil {
 			log.Shared.Panic("sign by rsa", zap.Error(err))
@@ -64,7 +64,7 @@ var RSAVerify = &cobra.Command{
 	Use:   "verify",
 	Short: "verify by RSA & SHA256",
 	Args:  NoExtraArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		err := VerifyFileByRSA(rsaPubkeyPemFilepath, fileWantToSignature)
 		if err != nil {
 			log.Shared.Panic("verify by rsa", zap.Error(err))

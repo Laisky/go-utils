@@ -88,14 +88,14 @@ func (c *TtlCache[T]) Get(key string) (val T, ok bool) {
 		return
 	}
 
-	exp := v.(expCacheItem).exp
+	exp := v.(expCacheItem).exp //nolint:forcetypeassert
 	if exp.Before(time.Now()) {
 		c.kv.Delete(key)
 		c.sk.Remove(exp.UnixNano())
 		return
 	}
 
-	return v.(expCacheItem).data.(T), true
+	return v.(expCacheItem).data.(T), true //nolint:forcetypeassert
 }
 
 // Delete remove key
@@ -109,7 +109,7 @@ func (c *TtlCache[T]) Delete(key string) {
 	vi, ok := c.kv.LoadAndDelete(key)
 
 	if ok {
-		c.sk.Remove(vi.(expCacheItem).exp.UnixNano())
+		c.sk.Remove(vi.(expCacheItem).exp.UnixNano()) //nolint:forcetypeassert
 	}
 }
 

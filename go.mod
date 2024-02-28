@@ -7,7 +7,7 @@ toolchain go1.21.0
 require (
 	github.com/GoWebProd/uuid7 v0.0.0-20231130161441-17ee54b097d4
 	github.com/Laisky/errors/v2 v2.0.1
-	github.com/Laisky/fast-skiplist/v2 v2.0.1-0.20240221081752-d520b12337ef
+	github.com/Laisky/fast-skiplist/v2 v2.0.1
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.25.3-0.20231205071752-1cdfcee9191f
@@ -32,7 +32,7 @@ require (
 	github.com/xlzd/gotp v0.1.0
 	go.dedis.ch/kyber/v3 v3.1.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/crypto v0.19.0
+	golang.org/x/crypto v0.20.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/term v0.17.0
 	golang.org/x/time v0.3.0
@@ -43,7 +43,7 @@ require (
 	github.com/GoWebProd/gip v0.0.0-20230623090727-b60d41d5d320 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.17.6 // indirect
+	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect

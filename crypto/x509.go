@@ -74,7 +74,7 @@ type X509CSROption func(*x509CSROption) error
 // Deprecated: this field is ignored by golang's built-in x509 library,
 // use ExtraExtensions instead if you want to add custom extensions.
 func WithX509CSRExtension(_ pkix.Extension) X509CSROption {
-	return func(o *x509CSROption) error {
+	return func(_ *x509CSROption) error {
 		// o.extensions = append(o.extensions, ext)
 		return nil
 	}
@@ -116,7 +116,7 @@ func WithX509CSRSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CSROption
 //
 // Deprecated: this field is ignored by golang's built-in x509 library
 func WithX509CSRPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) X509CSROption {
-	return func(o *x509CSROption) error {
+	return func(_ *x509CSROption) error {
 		// o.publicKeyAlgorithm = pubAlg
 		return nil
 	}
@@ -513,7 +513,7 @@ func WithX509SignSignatureAlgorithm(algo x509.SignatureAlgorithm) SignCSROption 
 //
 // Deprecated: this field is ignored by golang built-in x509 library
 func WithX509SignPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) SignCSROption {
-	return func(o *signCSROption) error {
+	return func(_ *signCSROption) error {
 		// o.pubkeyAlgo = algo
 		return nil
 	}
@@ -528,7 +528,7 @@ func WithX509SignPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) SignCSROption {
 // Deprecated: this field is ignored by golang built-in x509 library,
 // use WithX509SignCSRExtraExtenstions instead if you want to set extensions.
 func WithX509SignCSRExtenstions(_ ...pkix.Extension) SignCSROption {
-	return func(o *signCSROption) error {
+	return func(_ *signCSROption) error {
 		// o.extensions = append(o.extensions, exts...)
 		return nil
 	}
@@ -776,7 +776,7 @@ func WithX509CertCaMaxPathLen(maxPathLen int) X509CertOption {
 // Deprecated: this field is ignored in x509 v3 certificate,
 // use WithX509CertExtraExtensions instead if you want to set extensions.
 func WithX509CertExtentions(_ ...pkix.Extension) X509CertOption {
-	return func(o *x509V3CertOption) error {
+	return func(_ *x509V3CertOption) error {
 		// o.signCSROption.extensions = append(o.signCSROption.extensions, exts...)
 		return nil
 	}
@@ -885,7 +885,7 @@ func WithX509CertSignatureAlgorithm(sigAlg x509.SignatureAlgorithm) X509CertOpti
 //
 // Deprecated: this field is ignored in x509 v3 certificate
 func WithX509CertPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) X509CertOption {
-	return func(o *x509V3CertOption) error {
+	return func(_ *x509V3CertOption) error {
 		// o.publicKeyAlgorithm = pubkeyAlg
 		return nil
 	}

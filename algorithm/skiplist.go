@@ -2,6 +2,7 @@ package algorithm
 
 import skiplist "github.com/Laisky/fast-skiplist/v2"
 
+// SkipList skiplist
 type SkipList[T skiplist.Sortable] struct {
 	*skiplist.SkipList[T]
 }
