@@ -626,7 +626,7 @@ var (
 
 // x509SignCsrOptions2OpensslConf marshal x509 csr to openssl conf
 func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, opensslConf []byte, err error) {
-	opt, err = new(signCSROption).fillDefault(nil).applyOpts(opts...)
+	opt, err = new(signCSROption).applyOpts(nil, opts...)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "apply options")
 	}

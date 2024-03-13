@@ -428,7 +428,9 @@ type signCSROption struct {
 	// crls crl endpoints
 	crls []string
 	// ocsps ocsp servers
-	ocsps         []string
+	ocsps []string
+	// signatureAlgo the signature algorithm that parent certificate used to sign csr,
+	// default to parent's signature algorithm
 	signatureAlgo x509.SignatureAlgorithm
 	// pubkeyAlgo    x509.PublicKeyAlgorithm
 
@@ -442,29 +444,39 @@ type signCSROption struct {
 	maxPathLen *int
 }
 
-func (o *signCSROption) fillDefault(csr *x509.CertificateRequest) *signCSROption {
+func (o *signCSROption) applyOpts(
+	// parent *x509.Certificate,
+	csr *x509.CertificateRequest,
+	opts ...SignCSROption,
+) (*signCSROption, error) {
+	// fill default
 	o.notBefore = time.Now().UTC()
 	o.notAfter = o.notBefore.Add(7 * 24 * time.Hour)
 	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
 	o.serialNumGenerator = internalCertSerialNumGenerator
 
+	// if parent != nil {
+	// 	if o.signatureAlgo == x509.UnknownSignatureAlgorithm {
+	// 		switch parent.PublicKeyAlgorithm {
+	// 		case x509.RSA:
+	// 			o.signatureAlgo = x509.SHA512WithRSA
+	// 		case x509.DSA:
+	// 			o.signatureAlgo = x509.DSAWithSHA256
+	// 		case x509.ECDSA:
+	// 			o.signatureAlgo = x509.ECDSAWithSHA512
+	// 		case x509.Ed25519:
+	// 			o.signatureAlgo = x509.PureEd25519
+	// 		default:
+	// 			return nil, errors.Errorf("unknown public key algorithm %q", parent.PublicKeyAlgorithm.String())
+	// 		}
+	// 	}
+	// }
+
 	if csr != nil {
-		if o.signatureAlgo == x509.UnknownSignatureAlgorithm {
-			o.signatureAlgo = csr.SignatureAlgorithm
-		}
-
-		// if o.pubkeyAlgo == x509.UnknownPublicKeyAlgorithm {
-		// 	o.pubkeyAlgo = csr.PublicKeyAlgorithm
-		// }
-
-		// o.extensions = append(o.extensions, csr.Extensions...)
 		o.extraExtensions = append(o.extraExtensions, csr.ExtraExtensions...)
 	}
 
-	return o
-}
-
-func (o *signCSROption) applyOpts(opts ...SignCSROption) (*signCSROption, error) {
+	// apply options
 	for _, f := range opts {
 		if err := f(o); err != nil {
 			return nil, err
@@ -501,7 +513,7 @@ func WithX509SerialNumGenerator(gen X509CertSerialNumberGenerator) SignCSROption
 	}
 }
 
-// WithX509SignSignatureAlgorithm set signature algorithm
+// WithX509SignSignatureAlgorithm set signature algorithm that parent certificate used to sign csr
 func WithX509SignSignatureAlgorithm(algo x509.SignatureAlgorithm) SignCSROption {
 	return func(o *signCSROption) error {
 		o.signatureAlgo = algo
@@ -691,7 +703,7 @@ func NewX509CertByCSR(
 		return nil, errors.Wrap(err, "parse csr")
 	}
 
-	opt, err := new(signCSROption).fillDefault(csr).applyOpts(opts...)
+	opt, err := new(signCSROption).applyOpts(csr, opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply options")
 	}
@@ -738,13 +750,6 @@ type x509V3CertOption struct {
 	parent *x509.Certificate
 	signCSROption
 	x509CSROption
-}
-
-func (o *x509V3CertOption) fillDefault() *x509V3CertOption {
-	o.signCSROption.fillDefault(nil)
-	o.x509CSROption.fillDefault()
-
-	return o
 }
 
 // X509CertOption option to generate tls certificate
@@ -1082,6 +1087,14 @@ func WithX509CertPubkey(pubkey crypto.PublicKey) X509CertOption {
 
 func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 	*x509V3CertOption, error) {
+	// fill default
+	if _, err := o.signCSROption.applyOpts(nil); err != nil {
+		return nil, errors.Wrap(err, "sign csr option")
+	}
+
+	o.x509CSROption.fillDefault()
+
+	// apply options
 	if o.err != nil {
 		return nil, o.err
 	}
@@ -1274,7 +1287,7 @@ func NewX509CRL(ca *x509.Certificate,
 // x509CertOption2Template convert X509CertOption to x509.Certificate template
 func x509CertOption2Template(opts ...X509CertOption) (
 	opt *x509V3CertOption, certTemplate *x509.Certificate, err error) {
-	if opt, err = new(x509V3CertOption).fillDefault().applyOpts(opts...); err != nil {
+	if opt, err = new(x509V3CertOption).applyOpts(opts...); err != nil {
 		return nil, nil, errors.Wrap(err, "apply options")
 	}
 

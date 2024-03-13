@@ -17,6 +17,43 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func TestCrossAlgorithmSign(t *testing.T) {
+	rootcaPrikeyPem, rootcaCertDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+		WithX509CertCommonName("rootca"),
+		WithX509CertIsCA(),
+	)
+	require.NoError(t, err)
+
+	rootcaPrikey, err := Pem2Prikey(rootcaPrikeyPem)
+	require.NoError(t, err)
+	rootca, err := Der2Cert(rootcaCertDer)
+	require.NoError(t, err)
+
+	ecPrikey, err := NewECDSAPrikey(ECDSACurveP256)
+	require.NoError(t, err)
+
+	ecCsrDer, err := NewX509CSR(ecPrikey,
+		WithX509CSRCommonName("ec-leaf"),
+	)
+	require.NoError(t, err)
+
+	// sign ec leaf cert by rsa rootca
+	leafCertDer, err := NewX509CertByCSR(rootca, rootcaPrikey, ecCsrDer) // WithX509SignSignatureAlgorithm(x509.SHA384WithRSA),
+
+	require.NoError(t, err)
+
+	// verify cert
+	leafCert, err := Der2Cert(leafCertDer)
+	require.NoError(t, err)
+
+	roots := x509.NewCertPool()
+	roots.AddCert(rootca)
+	_, err = leafCert.Verify(x509.VerifyOptions{
+		Roots: roots,
+	})
+	require.NoError(t, err)
+}
+
 func TestNewECDSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -232,7 +269,7 @@ func TestNewX509CSR(t *testing.T) {
 		require.Contains(t, newCert.CRLDistributionPoints, "crl")
 		require.Contains(t, newCert.OCSPServer, "ocsp")
 		require.True(t, OIDContains([]asn1.ObjectIdentifier{{1, 2, 3, 4}}, newCert.PolicyIdentifiers[0]))
-		require.Equal(t, x509.SHA512WithRSA, newCert.SignatureAlgorithm)
+		require.Equal(t, x509.SHA256WithRSA, newCert.SignatureAlgorithm)
 		require.Equal(t, x509.RSA, newCert.PublicKeyAlgorithm)
 		require.Contains(t, newCert.DNSNames, "laisky.com")
 		require.True(t, newCert.IPAddresses[0].Equal(net.ParseIP("1.2.3.4")))
