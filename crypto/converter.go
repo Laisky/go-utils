@@ -85,7 +85,7 @@ func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
 // NewEd25519Prikey new ed25519 private key
 func NewEd25519Prikey() (ed25519.PrivateKey, error) {
 	_, pri, err := ed25519.GenerateKey(rand.Reader)
-	return pri, err
+	return pri, errors.WithStack(err)
 }
 
 // Prikey2Der marshal private key by x509.8
@@ -110,7 +110,7 @@ func Prikey2Pubkey(prikey crypto.PrivateKey) (pubkey crypto.PublicKey) {
 func Prikey2Pem(key crypto.PrivateKey) ([]byte, error) {
 	der, err := Prikey2Der(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return PrikeyDer2Pem(der), nil
@@ -133,7 +133,7 @@ func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
 func Pubkey2Pem(key crypto.PublicKey) ([]byte, error) {
 	der, err := Pubkey2Der(key)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return PubkeyDer2Pem(der), nil
@@ -196,7 +196,7 @@ func CRLPem2Der(crlPem []byte) ([]byte, error) {
 func Pem2CRL(crlPem []byte) (*x509.RevocationList, error) {
 	der, err := Pem2Der(crlPem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return Der2CRL(der)
@@ -226,7 +226,7 @@ func Pem2CSR(csrInPem []byte) (*x509.CertificateRequest, error) {
 func Pem2Cert(certInPem []byte) (*x509.Certificate, error) {
 	der, err := Pem2Der(certInPem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return Der2Cert(der)
@@ -237,7 +237,7 @@ func Pem2Certs(certInPem []byte) ([]*x509.Certificate, error) {
 	certInPem = bytes.ReplaceAll(certInPem, []byte("----------BEGIN"), []byte("-----\n-----BEGIN"))
 	der, err := Pem2Der(certInPem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return x509.ParseCertificates(der)
@@ -247,7 +247,7 @@ func Pem2Certs(certInPem []byte) ([]*x509.Certificate, error) {
 func RSAPem2Prikey(x509v1Pem []byte) (*rsa.PrivateKey, error) {
 	der, err := Pem2Der(x509v1Pem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return RSADer2Prikey(der)
@@ -262,7 +262,7 @@ func RSADer2Prikey(x509v1Der []byte) (*rsa.PrivateKey, error) {
 func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
 	der, err := Pem2Der(x509v8Pem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return Der2Prikey(der)
@@ -272,7 +272,7 @@ func Pem2Prikey(x509v8Pem []byte) (crypto.PrivateKey, error) {
 func Pem2Pubkey(pubkeyPem []byte) (crypto.PublicKey, error) {
 	der, err := Pem2Der(pubkeyPem)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return Der2Pubkey(der)
@@ -357,7 +357,7 @@ func Pem2Der(pemBytes []byte) (derBytes []byte, err error) {
 		}
 	}
 
-	return derBytes, err
+	return derBytes, errors.WithStack(err)
 }
 
 // Pem2Ders convert pem to ders
@@ -384,13 +384,13 @@ func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
 		}
 	}
 
-	return dersBytes, err
+	return dersBytes, errors.WithStack(err)
 }
 
 // VerifyCertByPrikey verify cert by prikey
 func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
 	_, err := tls.X509KeyPair(certPem, prikeyPem)
-	return err
+	return errors.WithStack(err)
 }
 
 // X509Cert2OpensslConf marshal x509

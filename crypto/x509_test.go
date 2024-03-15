@@ -414,6 +414,8 @@ func TestNewX509CRL(t *testing.T) {
 }
 
 func Test_Pem2Certs(t *testing.T) {
+	t.Parallel()
+
 	rawPems := []byte(`-----BEGIN CERTIFICATE-----
 MIIFBzCCAu+gAwIBAgIHPIuIgY/99DANBgkqhkiG9w0BAQsFADAiMSAwHgYDVQQD
 Exdwa2ktYXV0b3Rlc3QtbmV3LXJvb3RjYTAeFw0yNDAxMDIxMDMwMzZaFw0zOTAx
@@ -532,6 +534,30 @@ Avbn48m2szXQtlzZkRHJfF6GSgNnEEpEomsQAw==
 -----END CERTIFICATE-----`)
 	_, err := Pem2Certs(rawPems)
 	require.NoError(t, err)
+
+	t.Run("sm2 certs", func(t *testing.T) {
+		t.Parallel()
+
+		certPem := `-----BEGIN CERTIFICATE-----
+MIICSDCCATCgAwIBAgIUIF7aDNWh4PqTC0f3gApFXUrNjaMwDQYJKoZIhvcNAQEL
+BQAwFTETMBEGA1UEAxMKcnNhLXJvb3RjYTAeFw0yNDAzMTUwNTUyMThaFw0yNDAz
+MjEwNTUyMThaMBMxETAPBgNVBAMMCGxlYWYtc20yMFkwEwYHKoZIzj0CAQYIKoEc
+z1UBgi0DQgAEp8k8YC8eJ0DPsrESd7mlE+RU7UCVWFfV6Uqy4NI03oXx7HpUFHNG
+jn1Cxmg0MSRpfXLgBcRToGYrpu3FzaiwoaNdMFswHQYDVR0OBBYEFKwDNCFqItl/
+1K8aEfYAuRTp0ZUiMB8GA1UdIwQYMBaAFGQcftJFina89WFIs//UUiOsewjjMAwG
+A1UdEwEB/wQCMAAwCwYDVR0PBAQDAgWgMA0GCSqGSIb3DQEBCwUAA4IBAQBHmLtB
+4nPrkgscisPRjLsIPQtC3hgfEMpZzvovffUH+dfnZXOtHJREYrW0I6gjBtNR6mc6
+Gxh3fGa3d+6S1ebHmnWQ1NyYV5utGNfVTaZKbGam4MxYt3zjPP1K+JgiantgSD71
+H36fK3Jytv9ArW5/P3DJ4rkJJsIqnG8OOgSdVW4Avumc5HQBbD+sdAgw6BI/R1Ob
+1NCXCdZO6QVKqE45YjOJTXKMiznOmWjnMSDXQJsB97G+XwVZ+WyMHGcEdt4GfdcS
+US7t8YmgMM3Ho3oc4yLVcuACfWYbKSL1KcZi1/xOpynJHqV3D8I26pVha+qudXn6
++u8fW6e5cD2qzqe2
+-----END CERTIFICATE-----
+`
+
+		_, err := Pem2Certs([]byte(certPem))
+		require.ErrorContains(t, err, "x509: unsupported elliptic curve")
+	})
 }
 
 func Test_OIDs(t *testing.T) {
