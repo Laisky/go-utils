@@ -37,6 +37,9 @@ func TestCrossAlgorithmSign(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	csr, err := Der2CSR(ecCsrDer)
+	require.NoError(t, err, csr)
+
 	// sign ec leaf cert by rsa rootca
 	leafCertDer, err := NewX509CertByCSR(rootca, rootcaPrikey, ecCsrDer) // WithX509SignSignatureAlgorithm(x509.SHA384WithRSA),
 

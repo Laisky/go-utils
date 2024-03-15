@@ -298,6 +298,13 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 		return nil, errors.Wrap(err, "X509SignCsrOptions2OpensslConf")
 	}
 
+	digestAlgo := "-sha256"
+	if certinfo, err := t.ShowCertInfo(ctx, parentCertDer); err != nil {
+		return nil, errors.Wrap(err, "show parent cert info")
+	} else if strings.Contains(string(certinfo.Raw), "ASN1 OID: SM2") {
+		digestAlgo = "-sm3"
+	}
+
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
 		return nil, errors.Wrap(err, "generate temp dir")
@@ -308,6 +315,8 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
 		return nil, errors.Wrap(err, "write openssl conf")
 	}
+
+	// fmt.Println(string(opensslConf)) // FIXME
 
 	parentCertDerPath := filepath.Join(dir, "ca.der")
 	if err = os.WriteFile(parentCertDerPath, parentCertDer, 0600); err != nil {
@@ -327,7 +336,7 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 		"-CA", parentCertDerPath, "-CAkey", "/dev/stdin", "-CAcreateserial",
 		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
 		"-utf8", "-batch",
-		"-sm3",
+		digestAlgo,
 		"-copy_extensions", "copyall",
 		"-extfile", confPath, "-extensions", "v3_ca",
 	}, parentPrikeyPem); err != nil {
@@ -590,6 +599,59 @@ func (t *Tongsuo) SignBySm2Sm3(ctx context.Context,
 	}
 
 	return signature, nil
+}
+
+// VerifyCertsChain verify certs chain
+//
+// the first element of certsPem should be leaf cert, the last element should be root ca,
+// and the intermediate certs should be in the middle if exists.
+func (t *Tongsuo) VerifyCertsChain(ctx context.Context, certsPem [][]byte) error {
+	if len(certsPem) < 2 {
+		return errors.Errorf("certs chain should have at least 2 certs")
+	}
+
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	// write leaf cert
+	leafCertPath := filepath.Join(dir, "leaf.crt")
+	if err = os.WriteFile(leafCertPath, certsPem[0], 0600); err != nil {
+		return errors.Wrap(err, "write leaf cert")
+	}
+
+	// write root ca
+	rootCaPath := filepath.Join(dir, "rootca.crt")
+	if err = os.WriteFile(rootCaPath, certsPem[len(certsPem)-1], 0600); err != nil {
+		return errors.Wrap(err, "write root ca")
+	}
+
+	// write intermediate certs
+	var interCaPath string
+	if len(certsPem) > 2 {
+		interCaPems := bytes.Join(certsPem[1:len(certsPem)-1], nil)
+		interCaPath := filepath.Join(dir, "interca.crt")
+		if err := os.WriteFile(interCaPath, interCaPems, 0600); err != nil {
+			return errors.Wrap(err, "write intermediate certs")
+		}
+	}
+
+	cmd := []string{
+		"verify", "-CAfile", rootCaPath,
+	}
+	if len(certsPem) > 2 {
+		cmd = append(cmd, []string{"-untrusted", interCaPath}...)
+	}
+	cmd = append(cmd, leafCertPath)
+
+	_, err = t.runCMD(ctx, cmd, nil)
+	if err != nil {
+		return errors.Wrap(err, "cannot verify certs chain")
+	}
+
+	return nil
 }
 
 // VerifyBySm2Sm3 verify by sm2 sm3

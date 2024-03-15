@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/asn1"
 	"os/exec"
 	"testing"
@@ -9,6 +10,93 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestSm2CrossAlgorithmSign(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	t.Run("sm2 -> rsa", func(t *testing.T) {
+		// root ca
+		rootcaPrikeyPem, rootCaDer, err := ins.NewPrikeyAndCert(ctx,
+			WithX509CertCommonName("sm2-rootca"),
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+
+		// leaf cert & csr
+		leafPrikey, err := NewRSAPrikey(RSAPrikeyBits2048)
+		require.NoError(t, err)
+
+		leafCsrDer, err := NewX509CSR(leafPrikey,
+			WithX509CSRCommonName("leaf-rsa"),
+		)
+		require.NoError(t, err)
+
+		// sign leaf cert by root ca
+		leafCertDer, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootcaPrikeyPem, leafCsrDer)
+		require.NoError(t, err)
+
+		leafCert, err := Der2Cert(leafCertDer)
+		require.NoError(t, err, leafCert)
+		require.Equal(t, x509.RSA, leafCert.PublicKeyAlgorithm)
+
+		// print
+		rootCaPem := CertDer2Pem(rootCaDer)
+		// t.Logf("root ca: %s", rootCaPem)
+		leafCertPem := CertDer2Pem(leafCertDer)
+		// t.Logf("leaf cert: %s", leafCertPem)
+
+		// verify
+		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCaPem})
+		require.NoError(t, err)
+
+		t.Run("verify error", func(t *testing.T) {
+			_, fakeLeafCertDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+				WithX509CertCommonName("fake-leaf-rsa"),
+			)
+			require.NoError(t, err)
+
+			fakeLeafCertPem := CertDer2Pem(fakeLeafCertDer)
+			err = ins.VerifyCertsChain(ctx, [][]byte{fakeLeafCertPem, rootCaPem})
+			require.ErrorContains(t, err, "cannot verify certs chain")
+		})
+	})
+
+	t.Run("rsa -> sm2", func(t *testing.T) {
+		// root ca
+		rootcaPrikeyPem, rootCaDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+			WithX509CertCommonName("rsa-rootca"),
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+
+		// leaf cert & csr
+		leafPrikeyPem, err := ins.NewPrikey(ctx)
+		require.NoError(t, err)
+		leafCsrDer, err := ins.NewX509CSR(ctx, leafPrikeyPem,
+			WithX509CSRCommonName("leaf-sm2"),
+		)
+		require.NoError(t, err)
+
+		// sign leaf cert by root ca
+		leafCertDer, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootcaPrikeyPem, leafCsrDer)
+		require.NoError(t, err)
+
+		leafCertPem := CertDer2Pem(leafCertDer)
+		// t.Logf("leaf cert: %s", leafCertPem)
+		rootCaPem := CertDer2Pem(rootCaDer)
+
+		// verify
+		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCaPem})
+		require.NoError(t, err)
+	})
+}
 
 func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	t.Helper()
@@ -46,7 +134,7 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(certinfo)
+		// t.Log(string(certinfo.Raw))
 		require.NoError(t, err)
 		require.Contains(t, string(certinfo.Raw), "test-common-name")
 		require.Contains(t, string(certinfo.Raw), "test org")
