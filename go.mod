@@ -10,7 +10,7 @@ require (
 	github.com/Laisky/fast-skiplist/v2 v2.0.1
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/graphql v1.0.6
-	github.com/Laisky/zap v1.25.3-0.20231205071752-1cdfcee9191f
+	github.com/Laisky/zap v1.27.0
 	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/corvus-ch/shamir v1.0.1

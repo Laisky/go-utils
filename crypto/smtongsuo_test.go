@@ -98,6 +98,90 @@ func TestSm2CrossAlgorithmSign(t *testing.T) {
 	})
 }
 
+func Test_VerifyCertsChain(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	t.Run("sm2 -> sm2", func(t *testing.T) {
+		rootcaPrikeyPem, rootcaCertDer, err := ins.NewPrikeyAndCert(ctx,
+			WithX509CertCommonName("sm2-root-ca"),
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+
+		leafPrikeyPem, err := ins.NewPrikey(ctx)
+		require.NoError(t, err)
+
+		leafCsrDer, err := ins.NewX509CSR(ctx, leafPrikeyPem,
+			WithX509CSRCommonName("sm2-leaf"),
+		)
+		require.NoError(t, err)
+
+		leafCertDer, err := ins.NewX509CertByCSR(ctx, rootcaCertDer, rootcaPrikeyPem, leafCsrDer)
+		require.NoError(t, err)
+
+		rootCertPem := CertDer2Pem(rootcaCertDer)
+		leafCertPem := CertDer2Pem(leafCertDer)
+		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		require.NoError(t, err)
+	})
+
+	t.Run("rsa -> sm2", func(t *testing.T) {
+		rootcaPrikeyPem, rootcaCertDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+			WithX509CertCommonName("rsa-root-ca"),
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+
+		leafPrikeyPem, err := ins.NewPrikey(ctx)
+		require.NoError(t, err)
+
+		leafCsrDer, err := ins.NewX509CSR(ctx, leafPrikeyPem,
+			WithX509CSRCommonName("sm2-leaf"),
+		)
+		require.NoError(t, err)
+
+		leafCertDer, err := ins.NewX509CertByCSR(ctx, rootcaCertDer, rootcaPrikeyPem, leafCsrDer)
+		require.NoError(t, err)
+
+		rootCertPem := CertDer2Pem(rootcaCertDer)
+		leafCertPem := CertDer2Pem(leafCertDer)
+		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		require.NoError(t, err)
+	})
+
+	t.Run("sm2 -> rsa", func(t *testing.T) {
+		rootcaPrikeyPem, rootcaCertDer, err := ins.NewPrikeyAndCert(ctx,
+			WithX509CertCommonName("sm2-root-ca"),
+			WithX509CertIsCA(),
+		)
+		require.NoError(t, err)
+
+		leafPrikeyPem, err := NewRSAPrikey(RSAPrikeyBits2048)
+		require.NoError(t, err)
+
+		leafCsrDer, err := NewX509CSR(leafPrikeyPem,
+			WithX509CSRCommonName("rsa-leaf"),
+		)
+		require.NoError(t, err)
+
+		leafCertDer, err := ins.NewX509CertByCSR(ctx, rootcaCertDer, rootcaPrikeyPem, leafCsrDer)
+		require.NoError(t, err)
+
+		rootCertPem := CertDer2Pem(rootcaCertDer)
+		leafCertPem := CertDer2Pem(leafCertDer)
+		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		require.NoError(t, err)
+	})
+
+}
+
 func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	t.Helper()
 	if _, err := exec.LookPath("tongsuo"); err != nil {
