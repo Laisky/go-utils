@@ -80,6 +80,7 @@ func (t *GoroutineTest) Errorf(format string, args ...any) {
 func (t *GoroutineTest) Fail() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.cancel()
 	t.TB.Fail()
 }
 
@@ -102,6 +103,7 @@ func (t *GoroutineTest) Failed() bool {
 func (t *GoroutineTest) Fatal(args ...any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.cancel()
 	t.TB.Fatal(args...)
 }
 
@@ -109,6 +111,7 @@ func (t *GoroutineTest) Fatal(args ...any) {
 func (t *GoroutineTest) Fatalf(format string, args ...any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.cancel()
 	t.TB.Fatalf(format, args...)
 }
 
