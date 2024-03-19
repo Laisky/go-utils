@@ -2207,3 +2207,31 @@ func TestPrettyBuildInfo(t *testing.T) {
 		require.Contains(t, ret, `"Deps":`)
 	})
 }
+
+func TestGetEnvInsensitive(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment variables
+	os.Setenv("KEY1", "value1")
+	os.Setenv("key2", "value2")
+	os.Setenv("Key3", "value3")
+	os.Setenv("KEY4", "value4")
+	os.Setenv("key4", "value5")
+	os.Setenv("Key4", "value6")
+
+	require.True(t, strings.EqualFold("key1", "KEY1"))
+
+	// Test case: Key not found
+	expected1 := []string{}
+	result1 := GetEnvInsensitive("key")
+	require.ElementsMatch(t, expected1, result1)
+
+	// Test case: Case-sensitive key match
+	expected2 := []string{"value4", "value5", "value6"}
+	result2 := GetEnvInsensitive("KEY4")
+	require.ElementsMatch(t, expected2, result2)
+
+	expected3 := []string{}
+	result3 := GetEnvInsensitive("nonexistent")
+	require.ElementsMatch(t, expected3, result3)
+}

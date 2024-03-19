@@ -46,8 +46,23 @@ const (
 )
 
 var (
-	httpClient, _ = NewHTTPClient()
+	internalHttpCli *http.Client
 )
+
+func init() {
+	var err error
+
+	// new http client
+	opts := []HTTPClientOptFunc{
+		WithHTTPClientTimeout(30 * time.Second),
+	}
+	if len(GetEnvInsensitive("HTTP_PROXY")) != 0 {
+		opts = append(opts, WithHTTPClientProxy(GetEnvInsensitive("HTTP_PROXY")[0]))
+	}
+	if internalHttpCli, err = NewHTTPClient(opts...); err != nil {
+		log.Shared.Panic("new http client got error", zap.Error(err))
+	}
+}
 
 type httpClientOption struct {
 	timeout   time.Duration
@@ -267,7 +282,7 @@ type RequestData struct {
 
 // RequestJSON request JSON and return JSON by default client
 func RequestJSON(method, url string, request *RequestData, resp any) (err error) {
-	return RequestJSONWithClient(httpClient, method, url, request, resp)
+	return RequestJSONWithClient(internalHttpCli, method, url, request, resp)
 }
 
 // RequestJSONWithClient request JSON and return JSON with specific client

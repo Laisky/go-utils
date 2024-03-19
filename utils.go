@@ -1283,3 +1283,15 @@ func FilterSlice[T any](s []T, f func(v T) bool) []T {
 	clear(s[j:])
 	return s[:j:j]
 }
+
+// GetEnvInsensitive get env case insensitive
+func GetEnvInsensitive(key string) (values []string) {
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		if strings.EqualFold(pair[0], key) {
+			values = append(values, pair[1])
+		}
+	}
+
+	return
+}
