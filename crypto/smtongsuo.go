@@ -76,11 +76,62 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 
 // OpensslCertificateOutput output of `openssl x509 -inform DER -text`
 type OpensslCertificateOutput struct {
-	Raw          []byte
-	SerialNumber string
+	Raw                 []byte
+	SerialNumber        string
+	NotBefore, NotAfter time.Time
 }
 
 // ShowCertInfo show cert info
+//
+// # Raw
+//
+//			Version: 3 (0x2)
+//			Serial Number: 17108345756590001 (0x3cc7f327841fb1)
+//			Signature Algorithm: SM2-with-SM3
+//			Issuer: CN = test-common-name, O = test org
+//			Validity
+//				Not Before: Mar 19 07:49:35 2024 GMT
+//				Not After : Mar 25 07:49:35 2024 GMT
+//			Subject: CN = test-common-name, O = test org
+//			Subject Public Key Info:
+//				Public Key Algorithm: id-ecPublicKey
+//					Public-Key: (256 bit)
+//					pub:
+//						04:31:66:dd:ef:4e:31:29:fd:4b:b1:a1:66:0b:c9:
+//						81:9f:6f:a4:e1:bd:44:24:6a:a8:93:62:0b:85:be:
+//						0e:56:14:76:ab:56:0d:7c:cc:26:77:47:d0:fe:77:
+//						38:31:ab:3d:b8:01:60:96:ae:07:72:e4:3d:df:4c:
+//						9d:02:98:9f:d3
+//					ASN1 OID: SM2
+//			X509v3 extensions:
+//				X509v3 Basic Constraints: critical
+//					CA:TRUE
+//				X509v3 Key Usage:
+//					Certificate Sign, CRL Sign
+//				X509v3 Subject Key Identifier:
+//					AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
+//				X509v3 Authority Key Identifier:
+//					AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
+//				X509v3 Certificate Policies:
+//					Policy: 1.3.6.1.4.1.59936.1.1.3
+//		Signature Algorithm: SM2-with-SM3
+//		Signature Value:
+//			30:45:02:21:00:a8:a6:db:d5:8c:b4:d2:58:ff:1e:1f:9d:c1:
+//			e7:0b:eb:ba:4b:50:99:2c:c4:b9:3b:50:9d:6f:5f:1f:32:40:
+//			17:02:20:38:91:fb:16:41:80:52:d8:28:f8:ee:34:0f:f9:ab:
+//			c5:c8:1a:1f:31:d9:05:13:04:12:4d:0c:3d:fd:52:fe:51
+//	-----BEGIN CERTIFICATE-----
+//	MIIByzCCAXGgAwIBAgIHPMfzJ4QfsTAKBggqgRzPVQGDdTAuMRkwFwYDVQQDDBB0
+//	ZXN0LWNvbW1vbi1uYW1lMREwDwYDVQQKDAh0ZXN0IG9yZzAeFw0yNDAzMTkwNzQ5
+//	MzVaFw0yNDAzMjUwNzQ5MzVaMC4xGTAXBgNVBAMMEHRlc3QtY29tbW9uLW5hbWUx
+//	ETAPBgNVBAoMCHRlc3Qgb3JnMFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAEMWbd
+//	704xKf1LsaFmC8mBn2+k4b1EJGqok2ILhb4OVhR2q1YNfMwmd0fQ/nc4Mas9uAFg
+//	lq4HcuQ930ydApif06N6MHgwDwYDVR0TAQH/BAUwAwEB/zALBgNVHQ8EBAMCAQYw
+//	HQYDVR0OBBYEFK+aMzc/3j7dd2GhyD/VDDnw1qZ7MB8GA1UdIwQYMBaAFK+aMzc/
+//	3j7dd2GhyD/VDDnw1qZ7MBgGA1UdIAQRMA8wDQYLKwYBBAGD1CABAQMwCgYIKoEc
+//	z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
+//	kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
+//	-----END CERTIFICATE-----
 func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo OpensslCertificateOutput, err error) {
 	certInfo.Raw, err = t.runCMD(ctx,
 		[]string{"x509", "-inform", "DER", "-text"},
@@ -89,11 +140,31 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 		return certInfo, errors.Wrap(err, "run cmd to show cert info")
 	}
 
-	matched := reX509CertSerialNo.FindAllSubmatch(certInfo.Raw, 1)
-	if len(matched) != 1 && len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("invalid cert info")
+	// parse serial no
+	if matched := regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`).
+		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("cert info should contain serial number")
+	} else {
+		certInfo.SerialNumber = strings.ReplaceAll(string(matched[0][1]), ":", "")
 	}
-	certInfo.SerialNumber = strings.ReplaceAll(string(matched[0][1]), ":", "")
+
+	// parse not before and not after
+	if matched := regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`).FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("cert info should contain not before")
+	} else {
+		certInfo.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
+		if err != nil {
+			return certInfo, errors.Wrap(err, "parse not before")
+		}
+	}
+	if matched := regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`).FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("cert info should contain not after")
+	} else {
+		certInfo.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
+		if err != nil {
+			return certInfo, errors.Wrap(err, "parse not after")
+		}
+	}
 
 	return certInfo, nil
 }
@@ -228,7 +299,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 		"req", "-outform", "PEM", "-out", outCertPemPath,
 		"-key", "/dev/stdin",
 		"-set_serial", strconv.Itoa(int(t.serialGenerator.SerialNum())),
-		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
+		"-days", strconv.Itoa(1 + int(time.Until(opt.notAfter)/time.Hour/24)),
 		"-x509", "-new", "-nodes", "-utf8", "-batch",
 		"-sm3",
 		"-copy_extensions", "copyall",
@@ -483,9 +554,8 @@ func (t *Tongsuo) DecryptBySm4Cbc(ctx context.Context, key, combinedCipher []byt
 }
 
 var (
-	reX509Subject      = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
-	reX509Sans         = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
-	reX509CertSerialNo = regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`)
+	reX509Subject = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
+	reX509Sans    = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
 )
 
 // ParseCsr2Opts parse csr to opts

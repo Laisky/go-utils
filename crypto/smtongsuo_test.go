@@ -204,11 +204,16 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 
 	t.Run("ca", func(t *testing.T) {
 		t.Parallel()
+
+		notbefore := time.Now().UTC().Truncate(time.Second)
+		notafter := notbefore.Add(time.Hour * 24 * 7)
 		opts := []X509CertOption{
 			WithX509CertIsCA(),
 			WithX509CertCommonName("test-common-name"),
 			WithX509CertOrganization("test org"),
 			WithX509CertPolicies(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3}),
+			WithX509CertNotBefore(notbefore),
+			WithX509CertNotAfter(notafter),
 		}
 
 		prikeyPem, certDer, err := ins.NewPrikeyAndCert(context.Background(), opts...)
@@ -225,6 +230,8 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.Contains(t, string(certinfo.Raw), "CA:TRUE")
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
 		require.NotEmpty(t, certinfo.SerialNumber)
+		require.Equal(t, notbefore, certinfo.NotBefore.UTC())
+		require.Equal(t, notafter, certinfo.NotAfter.UTC())
 	})
 
 	t.Run("not ca", func(t *testing.T) {
