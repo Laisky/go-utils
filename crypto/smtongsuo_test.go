@@ -221,6 +221,16 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.NotNil(t, prikeyPem)
 		require.NotNil(t, certDer)
 
+		t.Run("verify pubkey", func(t *testing.T) {
+			pubkeyFromPrikey, err := ins.Prikey2Pubkey(ctx, prikeyPem)
+			require.NoError(t, err)
+
+			pubkeyFromCert, err := ins.GetPubkeyFromCertPem(ctx, CertDer2Pem(certDer))
+			require.NoError(t, err)
+
+			require.Equal(t, pubkeyFromPrikey, pubkeyFromCert)
+		})
+
 		// Verify that the generated certificate is valid
 		certinfo, err := ins.ShowCertInfo(ctx, certDer)
 		// t.Log(string(certinfo.Raw))

@@ -29,6 +29,10 @@ type Tongsuo struct {
 
 // NewTongsuo new tongsuo wrapper
 //
+// Notice, only support
+//   - github.com/tongsuo-project/tongsuo-go-sdk v0.0.0-20231225081335-82a881b9b3d3
+//   - https://github.com/Tongsuo-Project/Tongsuo 8.4.0-pre3
+//
 // #Args
 //   - exePath: path of tongsuo executable binary
 func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
@@ -798,4 +802,32 @@ func (t *Tongsuo) HashBySm3(ctx context.Context, content []byte) (hash []byte, e
 	}
 
 	return hash, nil
+}
+
+// GetPubkeyFromCertPem get pubkey from cert pem
+func (t *Tongsuo) GetPubkeyFromCertPem(ctx context.Context, certPem []byte) (pubkeyPem []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	certPath := filepath.Join(dir, "cert.crt")
+	if err = os.WriteFile(certPath, certPem, 0600); err != nil {
+		return nil, errors.Wrap(err, "write cert")
+	}
+
+	pubkeyPath := filepath.Join(dir, "pubkey")
+	if _, err = t.runCMD(ctx, []string{
+		"x509", "-pubkey", "-noout",
+		"-in", certPath, "-out", pubkeyPath,
+	}, nil); err != nil {
+		return nil, errors.Wrap(err, "get pubkey from cert")
+	}
+
+	if pubkeyPem, err = os.ReadFile(pubkeyPath); err != nil {
+		return nil, errors.Wrap(err, "read pubkey")
+	}
+
+	return pubkeyPem, nil
 }
