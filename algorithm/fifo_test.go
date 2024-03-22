@@ -18,7 +18,7 @@ func ExampleFIFO() {
 	f.Put(1)
 	v := f.Get()
 	if v == nil {
-		panic(v)
+		panic("empty")
 	}
 
 	fmt.Println(v.(int))

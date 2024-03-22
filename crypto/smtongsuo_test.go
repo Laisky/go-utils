@@ -53,7 +53,7 @@ func TestSm2CrossAlgorithmSign(t *testing.T) {
 		// t.Logf("leaf cert: %s", leafCertPem)
 
 		// verify
-		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCaPem})
+		err = ins.VerifyCertsChain(ctx, leafCertPem, nil, rootCaPem)
 		require.NoError(t, err)
 
 		t.Run("verify error", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestSm2CrossAlgorithmSign(t *testing.T) {
 			require.NoError(t, err)
 
 			fakeLeafCertPem := CertDer2Pem(fakeLeafCertDer)
-			err = ins.VerifyCertsChain(ctx, [][]byte{fakeLeafCertPem, rootCaPem})
+			err = ins.VerifyCertsChain(ctx, fakeLeafCertPem, nil, rootCaPem)
 			require.ErrorContains(t, err, "cannot verify certs chain")
 		})
 	})
@@ -93,7 +93,7 @@ func TestSm2CrossAlgorithmSign(t *testing.T) {
 		rootCaPem := CertDer2Pem(rootCaDer)
 
 		// verify
-		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCaPem})
+		err = ins.VerifyCertsChain(ctx, leafCertPem, nil, rootCaPem)
 		require.NoError(t, err)
 	})
 }
@@ -128,7 +128,7 @@ func Test_VerifyCertsChain(t *testing.T) {
 
 		rootCertPem := CertDer2Pem(rootcaCertDer)
 		leafCertPem := CertDer2Pem(leafCertDer)
-		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		err = ins.VerifyCertsChain(ctx, leafCertPem, nil, rootCertPem)
 		require.NoError(t, err)
 	})
 
@@ -152,7 +152,7 @@ func Test_VerifyCertsChain(t *testing.T) {
 
 		rootCertPem := CertDer2Pem(rootcaCertDer)
 		leafCertPem := CertDer2Pem(leafCertDer)
-		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		err = ins.VerifyCertsChain(ctx, leafCertPem, nil, rootCertPem)
 		require.NoError(t, err)
 	})
 
@@ -176,7 +176,7 @@ func Test_VerifyCertsChain(t *testing.T) {
 
 		rootCertPem := CertDer2Pem(rootcaCertDer)
 		leafCertPem := CertDer2Pem(leafCertDer)
-		err = ins.VerifyCertsChain(ctx, [][]byte{leafCertPem, rootCertPem})
+		err = ins.VerifyCertsChain(ctx, leafCertPem, nil, rootCertPem)
 		require.NoError(t, err)
 	})
 
@@ -292,6 +292,7 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		WithX509CertCommonName("test-rootca"),
 		WithX509CertIsCA())
 	require.NoError(t, err)
+	rootCaPem := CertDer2Pem(rootCaDer)
 
 	// new prikey
 	prikeyPem, err := ins.NewPrikey(ctx)
@@ -305,7 +306,7 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("sign csr as ca", func(t *testing.T) {
-		certDer, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootCaPrikeyPem, csrder,
+		interL1, err := ins.NewX509CertByCSR(ctx, rootCaDer, rootCaPrikeyPem, csrder,
 			WithX509SignCSRIsCA(),
 			WithX509SignCSRPolicies(
 				asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3},
@@ -315,7 +316,7 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that the generated certificate is valid
-		certinfo, err := ins.ShowCertInfo(ctx, certDer)
+		certinfo, err := ins.ShowCertInfo(ctx, interL1)
 		t.Logf("test log test-intermediate: %s", string(certinfo.Raw))
 		require.NoError(t, err)
 		require.Contains(t, string(certinfo.Raw), "Subject: CN = test-intermediate")
@@ -325,6 +326,57 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
 		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
 		require.NotEmpty(t, certinfo.SerialNumber)
+
+		t.Run("verify with multiple intermediates and roots", func(t *testing.T) {
+			_, uselessRootDer, err := ins.NewPrikeyAndCert(ctx,
+				WithX509CertCommonName("useless-root"),
+				WithX509CertIsCA(),
+			)
+			require.NoError(t, err)
+
+			rootsPem := CertDer2Pem(uselessRootDer)
+			rootsPem = append(rootsPem, rootCaPem...)
+
+			interL2PrikeyPem, err := ins.NewPrikey(ctx)
+			require.NoError(t, err)
+
+			interL2CsrDer, err := ins.NewX509CSR(ctx, interL2PrikeyPem,
+				WithX509CSRCommonName("test-intermediate-l2"),
+			)
+			require.NoError(t, err)
+
+			interL2, err := ins.NewX509CertByCSR(ctx, interL1, prikeyPem, interL2CsrDer,
+				WithX509SignCSRIsCA(),
+			)
+			require.NoError(t, err)
+
+			var intersPem []byte
+			intersPem = append(intersPem, CertDer2Pem(interL1)...)
+			intersPem = append(intersPem, CertDer2Pem(interL2)...)
+
+			// leaf
+			leafPrikeyPem, err := ins.NewPrikey(ctx)
+			require.NoError(t, err)
+
+			leafCsrDer, err := ins.NewX509CSR(ctx, leafPrikeyPem,
+				WithX509CSRCommonName("test-leaf"),
+			)
+			require.NoError(t, err)
+
+			leafDer, err := ins.NewX509CertByCSR(ctx, interL2, interL2PrikeyPem, leafCsrDer)
+			require.NoError(t, err)
+			leafPem := CertDer2Pem(leafDer)
+
+			// Verify that the generated certificate is valid
+			err = ins.VerifyCertsChain(ctx, leafPem, intersPem, rootsPem)
+			require.NoError(t, err)
+
+			t.Run("miss read root", func(t *testing.T) {
+				invalidRootsPem := CertDer2Pem(uselessRootDer)
+				err := ins.VerifyCertsChain(ctx, leafPem, intersPem, invalidRootsPem)
+				require.ErrorContains(t, err, "cannot verify certs chain")
+			})
+		})
 	})
 
 	t.Run("sign csr as not ca", func(t *testing.T) {
@@ -347,6 +399,7 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
 		require.NotEmpty(t, certinfo.SerialNumber)
 	})
+
 }
 
 func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {

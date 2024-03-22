@@ -679,11 +679,17 @@ func (t *Tongsuo) SignBySm2Sm3(ctx context.Context,
 
 // VerifyCertsChain verify certs chain
 //
-// the first element of certsPem should be leaf cert, the last element should be root ca,
-// and the intermediate certs should be in the middle if exists.
-func (t *Tongsuo) VerifyCertsChain(ctx context.Context, certsPem [][]byte) error {
-	if len(certsPem) < 2 {
-		return errors.Errorf("certs chain should have at least 2 certs")
+// # Args
+//   - leafCert: leaf cert in PEM
+//   - intermediates: intermediate certs in PEM
+//   - trustRoots: trust roots in PEM
+func (t *Tongsuo) VerifyCertsChain(ctx context.Context,
+	leafCertPem, intermediatesPem, trustRootsPem []byte) error {
+	if len(leafCertPem) == 0 {
+		return errors.Errorf("leaf cert should not be empty")
+	}
+	if len(trustRootsPem) == 0 {
+		return errors.Errorf("trust roots should not be empty")
 	}
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
@@ -694,30 +700,26 @@ func (t *Tongsuo) VerifyCertsChain(ctx context.Context, certsPem [][]byte) error
 
 	// write leaf cert
 	leafCertPath := filepath.Join(dir, "leaf.crt")
-	if err = os.WriteFile(leafCertPath, certsPem[0], 0600); err != nil {
+	if err = os.WriteFile(leafCertPath, leafCertPem, 0600); err != nil {
 		return errors.Wrap(err, "write leaf cert")
 	}
 
 	// write root ca
 	rootCaPath := filepath.Join(dir, "rootca.crt")
-	if err = os.WriteFile(rootCaPath, certsPem[len(certsPem)-1], 0600); err != nil {
+	if err = os.WriteFile(rootCaPath, trustRootsPem, 0600); err != nil {
 		return errors.Wrap(err, "write root ca")
 	}
 
 	// write intermediate certs
-	var interCaPath string
-	if len(certsPem) > 2 {
-		interCaPems := bytes.Join(certsPem[1:len(certsPem)-1], nil)
-		interCaPath := filepath.Join(dir, "interca.crt")
-		if err := os.WriteFile(interCaPath, interCaPems, 0600); err != nil {
-			return errors.Wrap(err, "write intermediate certs")
-		}
+	interCaPath := filepath.Join(dir, "intermediate.crt")
+	if err = os.WriteFile(interCaPath, intermediatesPem, 0600); err != nil {
+		return errors.Wrap(err, "write intermediate certs")
 	}
 
 	cmd := []string{
 		"verify", "-CAfile", rootCaPath,
 	}
-	if len(certsPem) > 2 {
+	if len(intermediatesPem) != 0 {
 		cmd = append(cmd, []string{"-untrusted", interCaPath}...)
 	}
 	cmd = append(cmd, leafCertPath)
