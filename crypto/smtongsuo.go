@@ -149,7 +149,8 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	}
 
 	// parse not before and not after
-	if matched := regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`).FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+	if matched := regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`).
+		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain not before")
 	} else {
 		certInfo.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
@@ -157,7 +158,8 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 			return certInfo, errors.Wrap(err, "parse not before")
 		}
 	}
-	if matched := regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`).FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+	if matched := regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`).
+		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain not after")
 	} else {
 		certInfo.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
