@@ -182,7 +182,7 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	}
 
 	// parse subject's common name
-	if matched := regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,]+)\b`).
+	if matched := regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`).
 		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain common name")
 	} else {
