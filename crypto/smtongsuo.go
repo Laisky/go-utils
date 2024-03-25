@@ -80,9 +80,11 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 
 // OpensslCertificateOutput output of `openssl x509 -inform DER -text`
 type OpensslCertificateOutput struct {
+	// Raw is the raw output of `openssl x509 -inform DER -text`
 	Raw                 []byte
 	SerialNumber        string
 	NotBefore, NotAfter time.Time
+	IsCa                bool
 }
 
 // ShowCertInfo show cert info
@@ -170,6 +172,11 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 		if err != nil {
 			return certInfo, errors.Wrap(err, "parse not after")
 		}
+	}
+
+	// parse isCA
+	if regexp.MustCompile(`\bCA: {0,}TRUE\b`).Match(certInfo.Raw) {
+		certInfo.IsCa = true
 	}
 
 	return certInfo, nil
