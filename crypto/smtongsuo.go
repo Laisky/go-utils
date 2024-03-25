@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"os"
 	"os/exec"
@@ -85,6 +86,7 @@ type OpensslCertificateOutput struct {
 	SerialNumber        string
 	NotBefore, NotAfter time.Time
 	IsCa                bool
+	Subject             pkix.Name
 }
 
 // ShowCertInfo show cert info
@@ -177,6 +179,14 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	// parse isCA
 	if regexp.MustCompile(`\bCA: {0,}TRUE\b`).Match(certInfo.Raw) {
 		certInfo.IsCa = true
+	}
+
+	// parse subject's common name
+	if matched := regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,]+)\b`).
+		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("cert info should contain common name")
+	} else {
+		certInfo.Subject.CommonName = string(matched[0][1])
 	}
 
 	return certInfo, nil

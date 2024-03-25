@@ -242,6 +242,7 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.NotEmpty(t, certinfo.SerialNumber)
 		require.Equal(t, notbefore, certinfo.NotBefore.UTC())
 		require.Equal(t, notafter, certinfo.NotAfter.UTC())
+		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
 		require.True(t, certinfo.IsCa)
 	})
 
@@ -276,6 +277,7 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.Contains(t, string(certinfo.Raw), notafter.UTC().Format("2006 GMT"))
 		require.NotEmpty(t, certinfo.SerialNumber)
 		require.False(t, certinfo.IsCa)
+		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
 	})
 }
 
