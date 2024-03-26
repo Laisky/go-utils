@@ -637,3 +637,63 @@ func TestTongsuo_HashBySm3(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash3)
 }
+
+func TestTongsuo_ShowCertInfo(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	t.Run("test pubkey algorithm", func(t *testing.T) {
+		t.Run("rsa", func(t *testing.T) {
+			_, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+				WithX509CertCommonName("test-rsa"),
+			)
+
+			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.RSA, certinfo.PublicKeyAlgorithm)
+		})
+
+		t.Run("ecdsa", func(t *testing.T) {
+			_, certDer, err := NewECDSAPrikeyAndCert(ECDSACurveP256,
+				WithX509CertCommonName("test-ecdsa"),
+			)
+			require.NoError(t, err)
+
+			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.ECDSA, certinfo.PublicKeyAlgorithm)
+		})
+
+		t.Run("ed25519", func(t *testing.T) {
+			_, certDer, err := NewEd25519PrikeyAndCert(
+				WithX509CertCommonName("test-ed25519"),
+			)
+			require.NoError(t, err)
+
+			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.Ed25519, certinfo.PublicKeyAlgorithm)
+		})
+
+		t.Run("sm2", func(t *testing.T) {
+			_, certDer, err := ins.NewPrikeyAndCert(ctx,
+				WithX509CertCommonName("test-sm2"),
+			)
+			require.NoError(t, err)
+
+			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.ECDSA, certinfo.PublicKeyAlgorithm)
+		})
+	})
+}

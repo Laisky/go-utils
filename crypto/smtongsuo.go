@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/hex"
@@ -89,6 +90,7 @@ type OpensslCertificateOutput struct {
 	IsCa                bool
 	Subject             pkix.Name
 	Policies            []asn1.ObjectIdentifier
+	PublicKeyAlgorithm  x509.PublicKeyAlgorithm
 }
 
 var regexpCertInfo = struct {
@@ -96,14 +98,16 @@ var regexpCertInfo = struct {
 	notBefore, notAfter,
 	isCa,
 	subjectCN,
+	pubkeyAlgo,
 	policies *regexp.Regexp
 }{
-	serialNo:  regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`),
-	notBefore: regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`),
-	notAfter:  regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`),
-	isCa:      regexp.MustCompile(`\bCA: {0,}TRUE\b`),
-	subjectCN: regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`),
-	policies:  regexp.MustCompile(`\bPolicy: +([\d\.]+)\b`),
+	serialNo:   regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`),
+	notBefore:  regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`),
+	notAfter:   regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`),
+	isCa:       regexp.MustCompile(`\bCA: {0,}TRUE\b`),
+	subjectCN:  regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`),
+	pubkeyAlgo: regexp.MustCompile(`\bPublic Key Algorithm: +([\w\-]+)\b`),
+	policies:   regexp.MustCompile(`\bPolicy: +([\d\.]+)\b`),
 }
 
 // ShowCertInfo show cert info
@@ -220,6 +224,23 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 			}
 
 			certInfo.Policies = append(certInfo.Policies, oid)
+		}
+	}
+
+	// parse pubkey algorithm
+	if matched := regexpCertInfo.pubkeyAlgo.
+		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return certInfo, errors.Errorf("cert info should contain pubkey algo")
+	} else {
+		switch string(matched[0][1]) {
+		case "id-ecPublicKey":
+			certInfo.PublicKeyAlgorithm = x509.ECDSA
+		case "rsaEncryption":
+			certInfo.PublicKeyAlgorithm = x509.RSA
+		case "ED25519":
+			certInfo.PublicKeyAlgorithm = x509.Ed25519
+		default:
+			glog.Shared.Warn("unsupported pubkey algo", zap.ByteString("algo", matched[0][1]))
 		}
 	}
 
