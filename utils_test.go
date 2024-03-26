@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -2234,4 +2235,65 @@ func TestGetEnvInsensitive(t *testing.T) {
 	expected3 := []string{}
 	result3 := GetEnvInsensitive("nonexistent")
 	require.ElementsMatch(t, expected3, result3)
+}
+
+func TestParseObjectIdentifier(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input string
+		want  asn1.ObjectIdentifier
+		err   string
+	}{
+		{
+			input: "1.2.3",
+			want:  asn1.ObjectIdentifier{1, 2, 3},
+			err:   "",
+		},
+		{
+			input: "1.2.3.4.5",
+			want:  asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+			err:   "",
+		},
+		{
+			input: "1.2.3.4.55555",
+			want:  asn1.ObjectIdentifier{1, 2, 3, 4, 55555},
+			err:   "",
+		},
+		{
+			input: "1.2.3.4.55555.2",
+			want:  asn1.ObjectIdentifier{1, 2, 3, 4, 55555, 2},
+			err:   "",
+		},
+		{
+			input: "1.2.3.4.55555.-2",
+			want:  nil,
+			err:   fmt.Sprintf("invalid oid format"),
+		},
+		{
+			input: "1.2.a",
+			want:  nil,
+			err:   "invalid oid format",
+		},
+		{
+			input: "1.2.3.",
+			want:  nil,
+			err:   "invalid oid format",
+		},
+		{
+			input: "1.2.3.4.5.",
+			want:  nil,
+			err:   "invalid oid format",
+		},
+	}
+
+	for _, tc := range testCases {
+		got, err := ParseObjectIdentifier(tc.input)
+		if tc.err == "" {
+			require.Equalf(t, tc.want, got, "input: %q", tc.input)
+			continue
+		}
+
+		require.ErrorContainsf(t, err, tc.err, "input: %q", tc.input)
+	}
 }

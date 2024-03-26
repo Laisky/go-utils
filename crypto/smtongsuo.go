@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/hex"
 	"os"
 	"os/exec"
@@ -87,6 +88,22 @@ type OpensslCertificateOutput struct {
 	NotBefore, NotAfter time.Time
 	IsCa                bool
 	Subject             pkix.Name
+	Policies            []asn1.ObjectIdentifier
+}
+
+var regexpCertInfo = struct {
+	serialNo,
+	notBefore, notAfter,
+	isCa,
+	subjectCN,
+	policies *regexp.Regexp
+}{
+	serialNo:  regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`),
+	notBefore: regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`),
+	notAfter:  regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`),
+	isCa:      regexp.MustCompile(`\bCA: {0,}TRUE\b`),
+	subjectCN: regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`),
+	policies:  regexp.MustCompile(`\bPolicy: +([\d\.]+)\b`),
 }
 
 // ShowCertInfo show cert info
@@ -149,7 +166,7 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	}
 
 	// parse serial no
-	if matched := regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`).
+	if matched := regexpCertInfo.serialNo.
 		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain serial number")
 	} else {
@@ -157,7 +174,7 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	}
 
 	// parse not before and not after
-	if matched := regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`).
+	if matched := regexpCertInfo.notBefore.
 		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain not before")
 	} else {
@@ -166,7 +183,7 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 			return certInfo, errors.Wrap(err, "parse not before")
 		}
 	}
-	if matched := regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`).
+	if matched := regexpCertInfo.notAfter.
 		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain not after")
 	} else {
@@ -177,16 +194,33 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo Op
 	}
 
 	// parse isCA
-	if regexp.MustCompile(`\bCA: {0,}TRUE\b`).Match(certInfo.Raw) {
+	if regexpCertInfo.isCa.Match(certInfo.Raw) {
 		certInfo.IsCa = true
 	}
 
 	// parse subject's common name
-	if matched := regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`).
+	if matched := regexpCertInfo.subjectCN.
 		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
 		return certInfo, errors.Errorf("cert info should contain common name")
 	} else {
 		certInfo.Subject.CommonName = string(matched[0][1])
+	}
+
+	// parse policies
+	if matched := regexpCertInfo.policies.
+		FindAllSubmatch(certInfo.Raw, -1); len(matched) != 0 {
+		for _, m := range matched {
+			if len(m) != 2 {
+				return certInfo, errors.Errorf("invalid policy")
+			}
+
+			oid, err := gutils.ParseObjectIdentifier(string(m[1]))
+			if err != nil {
+				return certInfo, errors.Wrap(err, "parse policy")
+			}
+
+			certInfo.Policies = append(certInfo.Policies, oid)
+		}
 	}
 
 	return certInfo, nil

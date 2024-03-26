@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/sha1"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -1294,4 +1295,25 @@ func GetEnvInsensitive(key string) (values []string) {
 	}
 
 	return
+}
+
+// RegexpOidFormat check if oid is valid
+var RegexpOidFormat = regexp.MustCompile(`^\d(?:\.\d+){0,}$`)
+
+// ParseObjectIdentifier parse oid
+func ParseObjectIdentifier(val string) (oid asn1.ObjectIdentifier, err error) {
+	if !RegexpOidFormat.MatchString(val) {
+		return nil, errors.Errorf("invalid oid format: %q", val)
+	}
+
+	vals := strings.Split(val, ".")
+	oid = make(asn1.ObjectIdentifier, len(vals))
+	for i, v := range vals {
+		oid[i], err = strconv.Atoi(v)
+		if err != nil {
+			return nil, errors.Wrapf(err, "parse oid %q", val)
+		}
+	}
+
+	return oid, nil
 }

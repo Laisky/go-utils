@@ -212,6 +212,7 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 			WithX509CertCommonName("test-common-name"),
 			WithX509CertOrganization("test org"),
 			WithX509CertPolicies(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3}),
+			WithX509CertPolicies(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 2, 3}),
 			WithX509CertNotBefore(notbefore),
 			WithX509CertNotAfter(notafter),
 		}
@@ -239,11 +240,14 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.Contains(t, string(certinfo.Raw), "test org")
 		require.Contains(t, string(certinfo.Raw), "CA:TRUE")
 		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
+		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.2.3")
 		require.NotEmpty(t, certinfo.SerialNumber)
 		require.Equal(t, notbefore, certinfo.NotBefore.UTC())
 		require.Equal(t, notafter, certinfo.NotAfter.UTC())
 		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
 		require.True(t, certinfo.IsCa)
+		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
+		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 2, 3})
 	})
 
 	t.Run("not ca", func(t *testing.T) {
@@ -278,6 +282,8 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.NotEmpty(t, certinfo.SerialNumber)
 		require.False(t, certinfo.IsCa)
 		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
+		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
+		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 4})
 	})
 }
 
