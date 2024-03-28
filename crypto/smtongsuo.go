@@ -905,3 +905,71 @@ func (t *Tongsuo) GetPubkeyFromCertPem(ctx context.Context, certPem []byte) (pub
 
 	return pubkeyPem, nil
 }
+
+// EncryptBySm2 encrypt by sm2 public key
+func (t *Tongsuo) EncryptBySm2(ctx context.Context,
+	pubkeyPem []byte, data []byte) (cipher []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	dataPath := filepath.Join(dir, "data")
+	if err = os.WriteFile(dataPath, data, 0600); err != nil {
+		return nil, errors.Wrap(err, "write data")
+	}
+
+	pubkeyPath := filepath.Join(dir, "pubkey")
+	if err = os.WriteFile(pubkeyPath, pubkeyPem, 0600); err != nil {
+		return nil, errors.Wrap(err, "write pubkey")
+	}
+
+	cipherPath := filepath.Join(dir, "cipher")
+	if _, err = t.runCMD(ctx, []string{
+		"pkeyutl", "-inkey", pubkeyPath, "-pubin", "-encrypt",
+		"-in", dataPath, "-out", cipherPath,
+	}, nil); err != nil {
+		return nil, errors.Wrap(err, "encrypt by sm2")
+	}
+
+	if cipher, err = os.ReadFile(cipherPath); err != nil {
+		return nil, errors.Wrap(err, "read cipher")
+	}
+
+	return cipher, nil
+}
+
+// DecryptBySm2 decrypt by sm2 private key
+func (t *Tongsuo) DecryptBySm2(ctx context.Context,
+	prikeyPem []byte, cipher []byte) (data []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	cipherPath := filepath.Join(dir, "cipher")
+	if err = os.WriteFile(cipherPath, cipher, 0600); err != nil {
+		return nil, errors.Wrap(err, "write cipher")
+	}
+
+	prikeyPath := filepath.Join(dir, "prikey")
+	if err = os.WriteFile(prikeyPath, prikeyPem, 0600); err != nil {
+		return nil, errors.Wrap(err, "write prikey")
+	}
+
+	dataPath := filepath.Join(dir, "data")
+	if _, err = t.runCMD(ctx, []string{
+		"pkeyutl", "-inkey", prikeyPath, "-decrypt",
+		"-in", cipherPath, "-out", dataPath,
+	}, nil); err != nil {
+		return nil, errors.Wrap(err, "decrypt by sm2")
+	}
+
+	if data, err = os.ReadFile(dataPath); err != nil {
+		return nil, errors.Wrap(err, "read data")
+	}
+
+	return data, nil
+}
