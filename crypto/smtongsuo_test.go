@@ -708,21 +708,58 @@ func TestTongsuo_EncryptBySm2(t *testing.T) {
 	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
 	require.NoError(t, err)
 
-	prikeyPem, err := ins.NewPrikey(ctx)
-	require.NoError(t, err)
-
-	pubkeyPem, err := ins.Prikey2Pubkey(ctx, prikeyPem)
-	require.NoError(t, err)
-
 	plaintext := []byte("Hello, World!")
 
-	// encrypt by sm2 pubkey
-	ciphertext, err := ins.EncryptBySm2(ctx, pubkeyPem, plaintext)
-	require.NoError(t, err)
-	require.NotNil(t, ciphertext)
+	t.Run("sm2", func(t *testing.T) {
+		prikeyPem, err := ins.NewPrikey(ctx)
+		require.NoError(t, err)
 
-	// decrypt by sm2 prikey
-	decrypted, err := ins.DecryptBySm2(ctx, prikeyPem, ciphertext)
-	require.NoError(t, err)
-	require.Equal(t, plaintext, decrypted)
+		pubkeyPem, err := ins.Prikey2Pubkey(ctx, prikeyPem)
+		require.NoError(t, err)
+
+		// encrypt by sm2 pubkey
+		ciphertext, err := ins.EncryptBySm2(ctx, pubkeyPem, plaintext)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
+		// decrypt by sm2 prikey
+		decrypted, err := ins.DecryptBySm2(ctx, prikeyPem, ciphertext)
+		require.NoError(t, err)
+		require.Equal(t, plaintext, decrypted)
+
+		t.Run("ivalid ciphertext", func(t *testing.T) {
+			decrypted, err := ins.DecryptBySm2(ctx, prikeyPem,
+				append([]byte("halo"), ciphertext...))
+			require.ErrorContains(t, err, "operation error")
+			require.NotEqual(t, plaintext, decrypted)
+		})
+	})
+
+	t.Run("compatable with rsa", func(t *testing.T) {
+		prikey, err := NewRSAPrikey(RSAPrikeyBits2048)
+		require.NoError(t, err)
+		prikeyPem, err := Prikey2Pem(prikey)
+		require.NoError(t, err)
+
+		pubkey := Prikey2Pubkey(prikey)
+		pubkeyPem, err := Pubkey2Pem(pubkey)
+		require.NoError(t, err)
+
+		// encrypt by rsa pubkey
+		ciphertext, err := ins.EncryptBySm2(ctx, pubkeyPem, plaintext)
+		require.NoError(t, err)
+		require.NotNil(t, ciphertext)
+
+		// decrypt by rsa prikey
+		decrypted, err := ins.DecryptBySm2(ctx, prikeyPem, ciphertext)
+		require.NoError(t, err)
+		require.Equal(t, plaintext, decrypted)
+
+		t.Run("ivalid ciphertext", func(t *testing.T) {
+			decrypted, err := ins.DecryptBySm2(ctx, prikeyPem,
+				append(ciphertext, []byte("halo")...))
+			require.ErrorContains(t, err, "operation error")
+			require.NotEqual(t, plaintext, decrypted)
+		})
+	})
 }
