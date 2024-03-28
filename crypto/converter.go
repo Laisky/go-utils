@@ -607,7 +607,7 @@ var (
 		"microsoftCommercialCodeSigning",
 		"microsoftKernelCodeSigning",
 	}
-	extKeyUsageMap = map[string]x509.ExtKeyUsage{
+	extKeyUsagesMap = map[string]x509.ExtKeyUsage{
 		"serverAuth":                     x509.ExtKeyUsageServerAuth,
 		"clientAuth":                     x509.ExtKeyUsageClientAuth,
 		"codeSigning":                    x509.ExtKeyUsageCodeSigning,
@@ -665,7 +665,7 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 			"netscapeServerGatedCrypto, microsoftCommercialCodeSigning, microsoftKernelCodeSigning\n"
 	} else {
 		for _, name := range sortedExtKeyUsages {
-			usage := extKeyUsageMap[name]
+			usage := extKeyUsagesMap[name]
 			if gutils.Contains(opt.extKeyUsage, usage) {
 				extKeyUsages = append(extKeyUsages, name)
 			}

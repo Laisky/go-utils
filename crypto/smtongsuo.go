@@ -105,6 +105,7 @@ var regexpCertInfo = struct {
 	subjectCN,
 	pubkeyAlgo,
 	subjectKeyIdentifier, AuthorityKeyIdentifier,
+	keyUsages, extKeyUsages,
 	policies *regexp.Regexp
 }{
 	serialNo:               regexp.MustCompile(`\bSerial Number: {0,}\n? {0,}([\w:]+)\b`),
@@ -116,62 +117,66 @@ var regexpCertInfo = struct {
 	policies:               regexp.MustCompile(`\bPolicy: {0,}\n? {0,}([\d\.]+)\b`),
 	subjectKeyIdentifier:   regexp.MustCompile(`\bX509v3 Subject Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
 	AuthorityKeyIdentifier: regexp.MustCompile(`\bX509v3 Authority Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
+	keyUsages:              regexp.MustCompile(`\bX509v3 Key Usage: *(?:critical)?\n? *([\w, -]+)\b`),
+	extKeyUsages:           regexp.MustCompile(`\bX509v3 Extended Key Usage: *(?:critical)?\n? *([\w\d \-,\.]+)\b`),
 }
 
 // ShowCertInfo show cert info
 //
+// nolint:gocognit,lll,maintidx // parse cert info part by part LGTM
+//
 // # Raw
 //
-//			Version: 3 (0x2)
-//			Serial Number: 17108345756590001 (0x3cc7f327841fb1)
-//			Serial Number: 51:f5:46:8b:d6:ff:ec:f2:33:e6:38:68:46:4e:9b:19:56:f3:6e:8a
+//					Version: 3 (0x2)
+//					Serial Number: 17108345756590001 (0x3cc7f327841fb1)
+//					Serial Number: 51:f5:46:8b:d6:ff:ec:f2:33:e6:38:68:46:4e:9b:19:56:f3:6e:8a
+//					Signature Algorithm: SM2-with-SM3
+//					Issuer: CN = test-common-name, O = test org
+//					Validity
+//						Not Before: Mar 19 07:49:35 2024 GMT
+//						Not After : Mar 25 07:49:35 2024 GMT
+//					Subject: CN = test-common-name, O = test org
+//					Subject Public Key Info:
+//						Public Key Algorithm: id-ecPublicKey
+//							Public-Key: (256 bit)
+//							pub:
+//								04:31:66:dd:ef:4e:31:29:fd:4b:b1:a1:66:0b:c9:
+//								81:9f:6f:a4:e1:bd:44:24:6a:a8:93:62:0b:85:be:
+//								0e:56:14:76:ab:56:0d:7c:cc:26:77:47:d0:fe:77:
+//								38:31:ab:3d:b8:01:60:96:ae:07:72:e4:3d:df:4c:
+//								9d:02:98:9f:d3
+//							ASN1 OID: SM2
+//					X509v3 extensions:
+//						X509v3 Basic Constraints: critical
+//							CA:TRUE
+//		         X509v3 Key Usage: critical
+//		             Digital Signature, Non Repudiation, Key Encipherment, Data Encipherment, Key Agreement, Certificate Sign, CRL Sign, Encipher Only, Decipher Only
+//	          X509v3 Extended Key Usage:
+//	              Any Extended Key Usage, TLS Web Server Authentication, TLS Web Client Authentication, Code Signing, E-mail Protection, IPSec End System, IPSec Tunnel, IPSec User, Time Stamping, OCSP Signing, Microsoft Server Gated Crypto, Netscape Server Gated Crypto, Microsoft Commercial Code Signing, 1.3.6.1.4.1.311.61.1.1
+//					X509v3 Subject Key Identifier:
+//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
+//					X509v3 Authority Key Identifier:
+//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
+//					X509v3 Certificate Policies:
+//						Policy: 1.3.6.1.4.1.59936.1.1.3
 //			Signature Algorithm: SM2-with-SM3
-//			Issuer: CN = test-common-name, O = test org
-//			Validity
-//				Not Before: Mar 19 07:49:35 2024 GMT
-//				Not After : Mar 25 07:49:35 2024 GMT
-//			Subject: CN = test-common-name, O = test org
-//			Subject Public Key Info:
-//				Public Key Algorithm: id-ecPublicKey
-//					Public-Key: (256 bit)
-//					pub:
-//						04:31:66:dd:ef:4e:31:29:fd:4b:b1:a1:66:0b:c9:
-//						81:9f:6f:a4:e1:bd:44:24:6a:a8:93:62:0b:85:be:
-//						0e:56:14:76:ab:56:0d:7c:cc:26:77:47:d0:fe:77:
-//						38:31:ab:3d:b8:01:60:96:ae:07:72:e4:3d:df:4c:
-//						9d:02:98:9f:d3
-//					ASN1 OID: SM2
-//			X509v3 extensions:
-//				X509v3 Basic Constraints: critical
-//					CA:TRUE
-//				X509v3 Key Usage:
-//					Certificate Sign, CRL Sign
-//				X509v3 Subject Key Identifier:
-//					AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//				X509v3 Authority Key Identifier:
-//					AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//				X509v3 Certificate Policies:
-//					Policy: 1.3.6.1.4.1.59936.1.1.3
-//		Signature Algorithm: SM2-with-SM3
-//		Signature Value:
-//			30:45:02:21:00:a8:a6:db:d5:8c:b4:d2:58:ff:1e:1f:9d:c1:
-//			e7:0b:eb:ba:4b:50:99:2c:c4:b9:3b:50:9d:6f:5f:1f:32:40:
-//			17:02:20:38:91:fb:16:41:80:52:d8:28:f8:ee:34:0f:f9:ab:
-//			c5:c8:1a:1f:31:d9:05:13:04:12:4d:0c:3d:fd:52:fe:51
-//	-----BEGIN CERTIFICATE-----
-//	MIIByzCCAXGgAwIBAgIHPMfzJ4QfsTAKBggqgRzPVQGDdTAuMRkwFwYDVQQDDBB0
-//	ZXN0LWNvbW1vbi1uYW1lMREwDwYDVQQKDAh0ZXN0IG9yZzAeFw0yNDAzMTkwNzQ5
-//	MzVaFw0yNDAzMjUwNzQ5MzVaMC4xGTAXBgNVBAMMEHRlc3QtY29tbW9uLW5hbWUx
-//	ETAPBgNVBAoMCHRlc3Qgb3JnMFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAEMWbd
-//	704xKf1LsaFmC8mBn2+k4b1EJGqok2ILhb4OVhR2q1YNfMwmd0fQ/nc4Mas9uAFg
-//	lq4HcuQ930ydApif06N6MHgwDwYDVR0TAQH/BAUwAwEB/zALBgNVHQ8EBAMCAQYw
-//	HQYDVR0OBBYEFK+aMzc/3j7dd2GhyD/VDDnw1qZ7MB8GA1UdIwQYMBaAFK+aMzc/
-//	3j7dd2GhyD/VDDnw1qZ7MBgGA1UdIAQRMA8wDQYLKwYBBAGD1CABAQMwCgYIKoEc
-//	z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
-//	kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
-//	-----END CERTIFICATE-----
-//
-// nolint:gocognit // parse cert info part by part LGTM
+//			Signature Value:
+//				30:45:02:21:00:a8:a6:db:d5:8c:b4:d2:58:ff:1e:1f:9d:c1:
+//				e7:0b:eb:ba:4b:50:99:2c:c4:b9:3b:50:9d:6f:5f:1f:32:40:
+//				17:02:20:38:91:fb:16:41:80:52:d8:28:f8:ee:34:0f:f9:ab:
+//				c5:c8:1a:1f:31:d9:05:13:04:12:4d:0c:3d:fd:52:fe:51
+//		-----BEGIN CERTIFICATE-----
+//		MIIByzCCAXGgAwIBAgIHPMfzJ4QfsTAKBggqgRzPVQGDdTAuMRkwFwYDVQQDDBB0
+//		ZXN0LWNvbW1vbi1uYW1lMREwDwYDVQQKDAh0ZXN0IG9yZzAeFw0yNDAzMTkwNzQ5
+//		MzVaFw0yNDAzMjUwNzQ5MzVaMC4xGTAXBgNVBAMMEHRlc3QtY29tbW9uLW5hbWUx
+//		ETAPBgNVBAoMCHRlc3Qgb3JnMFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAEMWbd
+//		704xKf1LsaFmC8mBn2+k4b1EJGqok2ILhb4OVhR2q1YNfMwmd0fQ/nc4Mas9uAFg
+//		lq4HcuQ930ydApif06N6MHgwDwYDVR0TAQH/BAUwAwEB/zALBgNVHQ8EBAMCAQYw
+//		HQYDVR0OBBYEFK+aMzc/3j7dd2GhyD/VDDnw1qZ7MB8GA1UdIwQYMBaAFK+aMzc/
+//		3j7dd2GhyD/VDDnw1qZ7MBgGA1UdIAQRMA8wDQYLKwYBBAGD1CABAQMwCgYIKoEc
+//		z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
+//		kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
+//		-----END CERTIFICATE-----
 func (t *Tongsuo) ShowCertInfo(ctx context.Context,
 	certDer []byte) (
 	certinfo string, cert *x509.Certificate, err error) {
@@ -181,6 +186,7 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context,
 	if err != nil {
 		return "", nil, errors.Wrap(err, "run cmd to show cert info")
 	}
+	output = bytes.ReplaceAll(output, []byte{'\t'}, []byte(" "))
 
 	// fmt.Println(string(output)) // FIXME
 
@@ -295,6 +301,78 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context,
 		cert.AuthorityKeyId, err = hex.DecodeString(val)
 		if err != nil {
 			return "", nil, errors.Wrap(err, "parse authority key identifier")
+		}
+	}
+
+	// parse key usages
+	if matched := regexpCertInfo.keyUsages.
+		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
+		usages := strings.Split(string(matched[0][1]), ",")
+		for _, usage := range usages {
+			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
+			switch usage {
+			case "digitalsignature":
+				cert.KeyUsage |= x509.KeyUsageDigitalSignature
+			case "nonrepudiation":
+				cert.KeyUsage |= x509.KeyUsageContentCommitment
+			case "keyencipherment":
+				cert.KeyUsage |= x509.KeyUsageKeyEncipherment
+			case "dataencipherment":
+				cert.KeyUsage |= x509.KeyUsageDataEncipherment
+			case "keyagreement":
+				cert.KeyUsage |= x509.KeyUsageKeyAgreement
+			case "certificatesign":
+				cert.KeyUsage |= x509.KeyUsageCertSign
+			case "crlsign":
+				cert.KeyUsage |= x509.KeyUsageCRLSign
+			case "encipheronly":
+				cert.KeyUsage |= x509.KeyUsageEncipherOnly
+			case "decipheronly":
+				cert.KeyUsage |= x509.KeyUsageDecipherOnly
+			default:
+				glog.Shared.Warn("unsupported key usage", zap.String("usage", usage))
+			}
+		}
+	}
+
+	// parse ext key usages
+	if matched := regexpCertInfo.extKeyUsages.
+		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
+		usages := strings.Split(string(matched[0][1]), ",")
+		for _, usage := range usages {
+			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
+			switch usage {
+			case "anyextendedkeyusage":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageAny)
+			case "tlswebserverauthentication":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+			case "tlswebclientauthentication":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+			case "codesigning":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageCodeSigning)
+			case "e-mailprotection":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageEmailProtection)
+			case "ipsecendsystem":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECEndSystem)
+			case "ipsectunnel":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECTunnel)
+			case "ipsecuser":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECUser)
+			case "timestamping":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageTimeStamping)
+			case "ocspsigning":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning)
+			case "microsoftservergatedcrypto":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftServerGatedCrypto)
+			case "netscapeservergatedcrypto":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageNetscapeServerGatedCrypto)
+			case "microsoftcommercialcodesigning":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftCommercialCodeSigning)
+			case "microsoftkernelcodesigning", "1.3.6.1.4.1.311.61.1.1":
+				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftKernelCodeSigning)
+			default:
+				glog.Shared.Warn("unsupported ext key usage", zap.String("usage", usage))
+			}
 		}
 	}
 

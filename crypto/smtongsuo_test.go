@@ -675,6 +675,22 @@ func TestTongsuo_ShowCertInfo(t *testing.T) {
 					x509.KeyUsageEncipherOnly,
 					x509.KeyUsageDecipherOnly,
 				),
+				WithX509CertExtKeyUsage(
+					x509.ExtKeyUsageAny,
+					x509.ExtKeyUsageServerAuth,
+					x509.ExtKeyUsageClientAuth,
+					x509.ExtKeyUsageCodeSigning,
+					x509.ExtKeyUsageEmailProtection,
+					x509.ExtKeyUsageIPSECEndSystem,
+					x509.ExtKeyUsageIPSECTunnel,
+					x509.ExtKeyUsageIPSECUser,
+					x509.ExtKeyUsageTimeStamping,
+					x509.ExtKeyUsageOCSPSigning,
+					x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+					x509.ExtKeyUsageNetscapeServerGatedCrypto,
+					x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+					x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+				),
 			)
 
 			rawCert, err := Der2Cert(certDer)
@@ -683,10 +699,13 @@ func TestTongsuo_ShowCertInfo(t *testing.T) {
 			certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
 			require.NoError(t, err, certinfo)
 
+			t.Log(certinfo)
 			require.Equal(t, x509.RSA, cert.PublicKeyAlgorithm)
 			require.Equal(t, sno, cert.SerialNumber)
 			require.Equal(t, rawCert.SubjectKeyId, cert.SubjectKeyId)
 			require.Equal(t, rawCert.AuthorityKeyId, cert.AuthorityKeyId)
+			require.Equal(t, rawCert.KeyUsage, cert.KeyUsage)
+			require.Equal(t, rawCert.ExtKeyUsage, cert.ExtKeyUsage)
 		})
 
 		t.Run("ecdsa", func(t *testing.T) {
