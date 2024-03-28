@@ -705,3 +705,19 @@ func SplitCertsPemChain(pemChain string) (pems []string) {
 
 	return
 }
+
+// X509CrlOptions2Tpl marshal x509 crl options to x509.RevocationList
+func X509CrlOptions2Tpl(opts ...X509CRLOption) (*x509.RevocationList, error) {
+	opt, err := new(x509CRLOption).applyOpts(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply options")
+	}
+
+	tpl := &x509.RevocationList{
+		SignatureAlgorithm: opt.signatureAlgorithm,
+		ThisUpdate:         opt.thisUpdate,
+		NextUpdate:         opt.nextUpdate,
+	}
+
+	return tpl, nil
+}

@@ -1266,18 +1266,23 @@ func NewX509CRL(ca *x509.Certificate,
 		return nil, errors.Errorf("seriaNumber is empty")
 	}
 
-	opt, err := new(x509CRLOption).applyOpts(opts...)
+	tpl, err := X509CrlOptions2Tpl(opts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "apply options")
+		return nil, errors.Wrap(err, "convert options to template")
 	}
 
-	tpl := &x509.RevocationList{
-		Number:              seriaNumber,
-		SignatureAlgorithm:  opt.signatureAlgorithm,
-		ThisUpdate:          opt.thisUpdate,
-		NextUpdate:          opt.nextUpdate,
-		ExtraExtensions:     ca.ExtraExtensions,
-		RevokedCertificates: revokeCerts,
+	tpl.Number = seriaNumber
+	tpl.ExtraExtensions = ca.ExtraExtensions
+	// tpl.RevokedCertificates = revokeCerts
+	for i := range revokeCerts {
+		tpl.RevokedCertificateEntries = append(
+			tpl.RevokedCertificateEntries,
+			x509.RevocationListEntry{
+				SerialNumber:   revokeCerts[i].SerialNumber,
+				RevocationTime: revokeCerts[i].RevocationTime,
+				Extensions:     revokeCerts[i].Extensions,
+			},
+		)
 	}
 
 	return x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
