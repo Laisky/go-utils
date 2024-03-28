@@ -3,10 +3,14 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/hex"
+	"io"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,13 +88,14 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 // OpensslCertificateOutput output of `openssl x509 -inform DER -text`
 type OpensslCertificateOutput struct {
 	// Raw is the raw output of `openssl x509 -inform DER -text`
-	Raw                 []byte
-	SerialNumber        string
-	NotBefore, NotAfter time.Time
-	IsCa                bool
-	Subject             pkix.Name
-	Policies            []asn1.ObjectIdentifier
-	PublicKeyAlgorithm  x509.PublicKeyAlgorithm
+	Raw                                          []byte
+	SerialNumber                                 *big.Int
+	NotBefore, NotAfter                          time.Time
+	IsCa                                         bool
+	Subject                                      pkix.Name
+	Policies                                     []asn1.ObjectIdentifier
+	PublicKeyAlgorithm                           x509.PublicKeyAlgorithm
+	SubjectKeyIdentifier, AuthorityKeyIdentifier []byte
 }
 
 var regexpCertInfo = struct {
@@ -99,15 +104,18 @@ var regexpCertInfo = struct {
 	isCa,
 	subjectCN,
 	pubkeyAlgo,
+	subjectKeyIdentifier, AuthorityKeyIdentifier,
 	policies *regexp.Regexp
 }{
-	serialNo:   regexp.MustCompile(`(?m)Serial Number: ?\n? +([^ ]+)\b`),
-	notBefore:  regexp.MustCompile(`(?m)Not Before: ?\n? +(.+)\b`),
-	notAfter:   regexp.MustCompile(`(?m)Not After : ?\n? +(.+)\b`),
-	isCa:       regexp.MustCompile(`\bCA: {0,}TRUE\b`),
-	subjectCN:  regexp.MustCompile(`Subject:.*CN = (?P<CN>[^,\n]+)\b`),
-	pubkeyAlgo: regexp.MustCompile(`\bPublic Key Algorithm: +([\w\-]+)\b`),
-	policies:   regexp.MustCompile(`\bPolicy: +([\d\.]+)\b`),
+	serialNo:               regexp.MustCompile(`\bSerial Number: {0,}\n? {0,}([\w:]+)\b`),
+	notBefore:              regexp.MustCompile(`\bNot Before: {0,}\n? {0,}(.+)\b`),
+	notAfter:               regexp.MustCompile(`\bNot After : {0,}\n? {0,}(.+)\b`),
+	isCa:                   regexp.MustCompile(`\bCA: {0,}\n? {0,}TRUE\b`),
+	subjectCN:              regexp.MustCompile(`\bSubject:.*CN = (?P<CN>[^,\n]+)\b`),
+	pubkeyAlgo:             regexp.MustCompile(`\bPublic Key Algorithm: {0,}\n? {0,}([\w\-]+)\b`),
+	policies:               regexp.MustCompile(`\bPolicy: {0,}\n? {0,}([\d\.]+)\b`),
+	subjectKeyIdentifier:   regexp.MustCompile(`\bX509v3 Subject Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
+	AuthorityKeyIdentifier: regexp.MustCompile(`\bX509v3 Authority Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
 }
 
 // ShowCertInfo show cert info
@@ -116,6 +124,7 @@ var regexpCertInfo = struct {
 //
 //			Version: 3 (0x2)
 //			Serial Number: 17108345756590001 (0x3cc7f327841fb1)
+//			Serial Number: 51:f5:46:8b:d6:ff:ec:f2:33:e6:38:68:46:4e:9b:19:56:f3:6e:8a
 //			Signature Algorithm: SM2-with-SM3
 //			Issuer: CN = test-common-name, O = test org
 //			Validity
@@ -161,90 +170,135 @@ var regexpCertInfo = struct {
 //	z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
 //	kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
 //	-----END CERTIFICATE-----
-func (t *Tongsuo) ShowCertInfo(ctx context.Context, certDer []byte) (certInfo OpensslCertificateOutput, err error) {
-	certInfo.Raw, err = t.runCMD(ctx,
+//
+// nolint:gocognit // parse cert info part by part LGTM
+func (t *Tongsuo) ShowCertInfo(ctx context.Context,
+	certDer []byte) (
+	certinfo string, cert *x509.Certificate, err error) {
+	output, err := t.runCMD(ctx,
 		[]string{"x509", "-inform", "DER", "-text"},
 		certDer)
 	if err != nil {
-		return certInfo, errors.Wrap(err, "run cmd to show cert info")
+		return "", nil, errors.Wrap(err, "run cmd to show cert info")
 	}
 
+	// fmt.Println(string(output)) // FIXME
+
+	cert = new(x509.Certificate)
+	cert.Raw = certDer
+
 	// parse serial no
+	var ok bool
 	if matched := regexpCertInfo.serialNo.
-		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("cert info should contain serial number")
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf(
+			"cert info should contain serial number, got %q", output)
 	} else {
-		certInfo.SerialNumber = strings.ReplaceAll(string(matched[0][1]), ":", "")
+		sno := string(matched[0][1])
+
+		if strings.Contains(sno, ":") {
+			cert.SerialNumber, ok = big.NewInt(0).SetString(strings.ReplaceAll(sno, ":", ""), 16)
+			if !ok {
+				return "", nil, errors.Errorf("cannot parse serial number as hex %q", sno)
+			}
+		} else {
+			cert.SerialNumber, ok = big.NewInt(0).SetString(sno, 10)
+			if !ok {
+				return "", nil, errors.Errorf("cannot parse serial number as decimal %q", sno)
+			}
+		}
 	}
 
 	// parse not before and not after
 	if matched := regexpCertInfo.notBefore.
-		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("cert info should contain not before")
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf("cert info should contain not before")
 	} else {
-		certInfo.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
+		cert.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
 		if err != nil {
-			return certInfo, errors.Wrap(err, "parse not before")
+			return "", nil, errors.Wrap(err, "parse not before")
 		}
 	}
 	if matched := regexpCertInfo.notAfter.
-		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("cert info should contain not after")
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf("cert info should contain not after")
 	} else {
-		certInfo.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
+		cert.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
 		if err != nil {
-			return certInfo, errors.Wrap(err, "parse not after")
+			return "", nil, errors.Wrap(err, "parse not after")
 		}
 	}
 
 	// parse isCA
-	if regexpCertInfo.isCa.Match(certInfo.Raw) {
-		certInfo.IsCa = true
+	if regexpCertInfo.isCa.Match(output) {
+		cert.IsCA = true
 	}
 
 	// parse subject's common name
 	if matched := regexpCertInfo.subjectCN.
-		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("cert info should contain common name")
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf("cert info should contain common name")
 	} else {
-		certInfo.Subject.CommonName = string(matched[0][1])
+		cert.Subject.CommonName = string(matched[0][1])
 	}
 
 	// parse policies
 	if matched := regexpCertInfo.policies.
-		FindAllSubmatch(certInfo.Raw, -1); len(matched) != 0 {
+		FindAllSubmatch(output, -1); len(matched) != 0 {
 		for _, m := range matched {
 			if len(m) != 2 {
-				return certInfo, errors.Errorf("invalid policy")
+				return "", nil, errors.Errorf("invalid policy")
 			}
 
-			oid, err := gutils.ParseObjectIdentifier(string(m[1]))
+			oid, err := OidFromString(string(m[1]))
 			if err != nil {
-				return certInfo, errors.Wrap(err, "parse policy")
+				return "", nil, errors.Wrap(err, "parse policy")
 			}
 
-			certInfo.Policies = append(certInfo.Policies, oid)
+			cert.Policies = append(cert.Policies, oid)
 		}
 	}
 
 	// parse pubkey algorithm
 	if matched := regexpCertInfo.pubkeyAlgo.
-		FindAllSubmatch(certInfo.Raw, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return certInfo, errors.Errorf("cert info should contain pubkey algo")
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf("cert info should contain pubkey algo")
 	} else {
 		switch string(matched[0][1]) {
 		case "id-ecPublicKey":
-			certInfo.PublicKeyAlgorithm = x509.ECDSA
+			cert.PublicKeyAlgorithm = x509.ECDSA
 		case "rsaEncryption":
-			certInfo.PublicKeyAlgorithm = x509.RSA
+			cert.PublicKeyAlgorithm = x509.RSA
 		case "ED25519":
-			certInfo.PublicKeyAlgorithm = x509.Ed25519
+			cert.PublicKeyAlgorithm = x509.Ed25519
 		default:
 			glog.Shared.Warn("unsupported pubkey algo", zap.ByteString("algo", matched[0][1]))
 		}
 	}
 
-	return certInfo, nil
+	// parse SubjectKeyIdentifier
+	if matched := regexpCertInfo.subjectKeyIdentifier.
+		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
+		return "", nil, errors.Errorf("cert info should contain subject key identifier")
+	} else {
+		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
+		cert.SubjectKeyId, err = hex.DecodeString(val)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "parse subject key identifier")
+		}
+	}
+
+	// parse AuthorityKeyIdentifier, optional
+	if matched := regexpCertInfo.AuthorityKeyIdentifier.
+		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
+		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
+		cert.AuthorityKeyId, err = hex.DecodeString(val)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "parse authority key identifier")
+		}
+	}
+
+	return string(output), cert, nil
 }
 
 // ShowCsrInfo show csr info
@@ -376,7 +430,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if _, err = t.runCMD(ctx, []string{
 		"req", "-outform", "PEM", "-out", outCertPemPath,
 		"-key", "/dev/stdin",
-		"-set_serial", strconv.Itoa(int(t.serialGenerator.SerialNum())),
+		"-set_serial", tpl.SerialNumber.String(),
 		"-days", strconv.Itoa(1 + int(time.Until(opt.notAfter)/time.Hour/24)),
 		"-x509", "-new", "-nodes", "-utf8", "-batch",
 		"-sm3",
@@ -448,9 +502,9 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	}
 
 	digestAlgo := "-sha256"
-	if certinfo, err := t.ShowCertInfo(ctx, parentCertDer); err != nil {
+	if certinfo, _, err := t.ShowCertInfo(ctx, parentCertDer); err != nil {
 		return nil, errors.Wrap(err, "show parent cert info")
-	} else if strings.Contains(string(certinfo.Raw), "ASN1 OID: SM2") {
+	} else if strings.Contains(certinfo, "ASN1 OID: SM2") {
 		digestAlgo = "-sm3"
 	}
 
@@ -972,4 +1026,98 @@ func (t *Tongsuo) DecryptBySm2(ctx context.Context,
 	}
 
 	return data, nil
+}
+
+// SignX509CRL sign x509 crl by ca private key
+func (t *Tongsuo) SignX509CRL(ctx context.Context,
+	CrlDer []byte,
+	PrikeyPem []byte,
+) (signedCrlDer []byte, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return nil, errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	// write crl file
+	crlPath := filepath.Join(dir, "crl")
+	crlPem := CRLDer2Pem(CrlDer)
+	if err = os.WriteFile(crlPath, crlPem, 0600); err != nil {
+		return nil, errors.Wrap(err, "write crl")
+	}
+
+	// sign crl
+	signedCrlPath := filepath.Join(dir, "signed_crl")
+	if _, err = t.runCMD(ctx, []string{
+		"crl", "-in", crlPath, "-out", signedCrlPath, "-signkey", "/dev/stdin",
+	}, PrikeyPem); err != nil {
+		return nil, errors.Wrap(err, "sign crl")
+	}
+
+	signedCrlDer, err = os.ReadFile(signedCrlPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "read signed crl")
+	}
+
+	return signedCrlDer, nil
+}
+
+// PrivateKey get private key
+func (t *Tongsuo) PrivateKey(prikeyPem []byte) (crypto.PrivateKey, error) {
+	return &TongsuoPriKey{ts: t, pem: prikeyPem}, nil
+}
+
+// TongsuoPubkey tongsuo public key
+type TongsuoPubkey struct {
+	pem []byte
+}
+
+// Equal compare two public keys
+func (tpub *TongsuoPubkey) Equal(x crypto.PublicKey) bool {
+	xpub, ok := x.(*TongsuoPubkey)
+	if !ok {
+		return false
+	}
+
+	return bytes.Equal(tpub.pem, xpub.pem)
+}
+
+// TongsuoPriKey tongsuo private key
+type TongsuoPriKey struct {
+	ts  *Tongsuo
+	pem []byte
+}
+
+// Sign sign by private key
+func (t *TongsuoPriKey) Sign(_ io.Reader, digest []byte,
+	opts crypto.SignerOpts) (signature []byte, err error) {
+	if opts.HashFunc() == 0 {
+		hasher := sha256.New()
+		hasher.Write(digest)
+		digest = hasher.Sum(nil)
+	}
+
+	return t.ts.SignBySm2Sm3(context.Background(), t.pem, digest)
+}
+
+// Public get public key
+func (t *TongsuoPriKey) Public() crypto.PublicKey {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	pubkeyPem, err := t.ts.Prikey2Pubkey(ctx, t.pem)
+	if err != nil {
+		return nil
+	}
+
+	return &TongsuoPubkey{pem: pubkeyPem}
+}
+
+// Decrypt decrypt by private key
+func (t *TongsuoPriKey) Decrypt(_ io.Reader, msg []byte,
+	_ crypto.DecrypterOpts) (plaintext []byte, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	return t.ts.DecryptBySm2(ctx, t.pem, msg)
 }

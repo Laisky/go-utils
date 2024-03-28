@@ -1111,3 +1111,12 @@ func TestNewEd25519PrikeyAndCert(t *testing.T) {
 		require.Equal(t, "test_common_name", cert.Subject.CommonName)
 	})
 }
+
+func TestOidFromString(t *testing.T) {
+	t.Parallel()
+
+	input := "1.2.3.4"
+	oid, err := OidFromString(input)
+	require.NoError(t, err)
+	require.True(t, oid.EqualASN1OID(asn1.ObjectIdentifier{1, 2, 3, 4}))
+}

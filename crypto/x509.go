@@ -1192,13 +1192,12 @@ type x509CRLOption struct {
 	nextUpdate time.Time
 }
 
-func (o *x509CRLOption) fillDefault() *x509CRLOption {
+func (o *x509CRLOption) applyOpts(opts ...X509CRLOption) (*x509CRLOption, error) {
+	// fill default
 	o.thisUpdate = gutils.Clock.GetUTCNow()
 	o.nextUpdate = o.thisUpdate.Add(30 * 24 * time.Hour)
-	return o
-}
 
-func (o *x509CRLOption) applyOpts(opts ...X509CRLOption) (*x509CRLOption, error) {
+	// apply options
 	for i := range opts {
 		if err := opts[i](o); err != nil {
 			return nil, errors.WithStack(err)
@@ -1267,9 +1266,9 @@ func NewX509CRL(ca *x509.Certificate,
 		return nil, errors.Errorf("seriaNumber is empty")
 	}
 
-	opt, err := new(x509CRLOption).fillDefault().applyOpts(opts...)
+	opt, err := new(x509CRLOption).applyOpts(opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply options")
 	}
 
 	tpl := &x509.RevocationList{
@@ -1563,4 +1562,24 @@ func X509CertSubjectKeyID(pubkey crypto.PublicKey) ([]byte, error) {
 	hasher := sha1.New()
 	hasher.Sum(keyBytes)
 	return hasher.Sum(nil), nil
+}
+
+// OidAsn2X509 convert asn1 object identifier to x509 object identifier
+func OidAsn2X509(oid asn1.ObjectIdentifier) (x509.OID, error) {
+	oids := make([]uint64, 0, len(oid))
+	for i := range oid {
+		oids = append(oids, uint64(oid[i]))
+	}
+
+	return x509.OIDFromInts(oids)
+}
+
+// OidFromString convert string to x509 object identifier
+func OidFromString(val string) (x509Oid x509.OID, err error) {
+	asnOid, err := gutils.ParseObjectIdentifier(val)
+	if err != nil {
+		return x509Oid, errors.Wrapf(err, "parse oid %s", val)
+	}
+
+	return OidAsn2X509(asnOid)
 }

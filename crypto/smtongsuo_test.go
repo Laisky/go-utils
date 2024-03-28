@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/asn1"
+	"math/big"
+	"math/rand"
 	"os/exec"
 	"testing"
 	"time"
@@ -233,21 +235,24 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		})
 
 		// Verify that the generated certificate is valid
-		certinfo, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(string(certinfo.Raw))
+		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
+		// t.Log(certinf))		require.NoError(t, err)
+		require.Contains(t, certinfo, "test-common-name")
+		require.Contains(t, certinfo, "test org")
+		require.Contains(t, certinfo, "CA:TRUE")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.2.3")
+		require.NotEmpty(t, cert.SerialNumber)
+		require.Equal(t, notbefore, cert.NotBefore.UTC())
+		require.Equal(t, notafter, cert.NotAfter.UTC())
+		require.Equal(t, "test-common-name", cert.Subject.CommonName)
+		require.True(t, cert.IsCA)
+		oid, err := OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "test-common-name")
-		require.Contains(t, string(certinfo.Raw), "test org")
-		require.Contains(t, string(certinfo.Raw), "CA:TRUE")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.2.3")
-		require.NotEmpty(t, certinfo.SerialNumber)
-		require.Equal(t, notbefore, certinfo.NotBefore.UTC())
-		require.Equal(t, notafter, certinfo.NotAfter.UTC())
-		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
-		require.True(t, certinfo.IsCa)
-		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
-		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 2, 3})
+		require.Contains(t, cert.Policies, oid)
+		oid, err = OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 2, 3})
+		require.NoError(t, err)
+		require.Contains(t, cert.Policies, oid)
 	})
 
 	t.Run("not ca", func(t *testing.T) {
@@ -270,20 +275,24 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.NotNil(t, certDer)
 
 		// Verify that the generated certificate is valid
-		certinfo, err := ins.ShowCertInfo(ctx, certDer)
+		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
 		// t.Log(certinfo)
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "test-common-name")
-		require.Contains(t, string(certinfo.Raw), "test org")
-		require.Contains(t, string(certinfo.Raw), "CA:FALSE")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, string(certinfo.Raw), notafter.UTC().Format("2006 GMT"))
-		require.NotEmpty(t, certinfo.SerialNumber)
-		require.False(t, certinfo.IsCa)
-		require.Equal(t, "test-common-name", certinfo.Subject.CommonName)
-		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
-		require.Contains(t, certinfo.Policies, asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 4})
+		require.Contains(t, certinfo, "test-common-name")
+		require.Contains(t, certinfo, "test org")
+		require.Contains(t, certinfo, "CA:FALSE")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.4")
+		require.Contains(t, certinfo, notafter.UTC().Format("2006 GMT"))
+		require.NotEmpty(t, cert.SerialNumber)
+		require.False(t, cert.IsCA)
+		require.Equal(t, "test-common-name", cert.Subject.CommonName)
+		oid, err := OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
+		require.NoError(t, err)
+		require.Contains(t, cert.Policies, oid)
+		oid, err = OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 4})
+		require.NoError(t, err)
+		require.Contains(t, cert.Policies, oid)
 	})
 }
 
@@ -326,16 +335,16 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that the generated certificate is valid
-		certinfo, err := ins.ShowCertInfo(ctx, interL1)
-		t.Logf("test log test-intermediate: %s", string(certinfo.Raw))
+		certinfo, cert, err := ins.ShowCertInfo(ctx, interL1)
+		t.Logf("test log test-intermediate: %s", certinfo)
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "Subject: CN = test-intermediate")
-		require.Contains(t, string(certinfo.Raw), "test org")
-		require.Contains(t, string(certinfo.Raw), "CA:TRUE")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
-		require.NotEmpty(t, certinfo.SerialNumber)
+		require.Contains(t, certinfo, "Subject: CN = test-intermediate")
+		require.Contains(t, certinfo, "test org")
+		require.Contains(t, certinfo, "CA:TRUE")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.4")
+		require.Contains(t, certinfo, "Issuer: CN = test-rootca")
+		require.NotEmpty(t, cert.SerialNumber)
 
 		t.Run("verify with multiple intermediates and roots", func(t *testing.T) {
 			_, uselessRootDer, err := ins.NewPrikeyAndCert(ctx,
@@ -398,16 +407,16 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that the generated certificate is valid
-		certinfo, err := ins.ShowCertInfo(ctx, certDer)
+		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
 		// t.Log(certinfo)
 		require.NoError(t, err)
-		require.Contains(t, string(certinfo.Raw), "Subject: CN = test-intermediate")
-		require.Contains(t, string(certinfo.Raw), "test org")
-		require.Contains(t, string(certinfo.Raw), "CA:FALSE")
-		require.Contains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.3")
-		require.NotContains(t, string(certinfo.Raw), "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, string(certinfo.Raw), "Issuer: CN = test-rootca")
-		require.NotEmpty(t, certinfo.SerialNumber)
+		require.Contains(t, certinfo, "Subject: CN = test-intermediate")
+		require.Contains(t, certinfo, "test org")
+		require.Contains(t, certinfo, "CA:FALSE")
+		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
+		require.NotContains(t, certinfo, "1.3.6.1.4.1.59936.1.1.4")
+		require.Contains(t, certinfo, "Issuer: CN = test-rootca")
+		require.NotEmpty(t, cert.SerialNumber)
 	})
 
 }
@@ -648,52 +657,78 @@ func TestTongsuo_ShowCertInfo(t *testing.T) {
 	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
 	require.NoError(t, err)
 
+	sno := big.NewInt(0).SetInt64(rand.Int63())
+
 	t.Run("test pubkey algorithm", func(t *testing.T) {
 		t.Run("rsa", func(t *testing.T) {
 			_, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
 				WithX509CertCommonName("test-rsa"),
+				WithX509CertSeriaNumber(sno),
+				WithX509CertKeyUsage(
+					x509.KeyUsageDigitalSignature,
+					x509.KeyUsageContentCommitment,
+					x509.KeyUsageKeyEncipherment,
+					x509.KeyUsageDataEncipherment,
+					x509.KeyUsageKeyAgreement,
+					x509.KeyUsageCertSign,
+					x509.KeyUsageCRLSign,
+					x509.KeyUsageEncipherOnly,
+					x509.KeyUsageDecipherOnly,
+				),
 			)
 
-			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			rawCert, err := Der2Cert(certDer)
 			require.NoError(t, err)
 
-			require.Equal(t, x509.RSA, certinfo.PublicKeyAlgorithm)
+			certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err, certinfo)
+
+			require.Equal(t, x509.RSA, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
+			require.Equal(t, rawCert.SubjectKeyId, cert.SubjectKeyId)
+			require.Equal(t, rawCert.AuthorityKeyId, cert.AuthorityKeyId)
 		})
 
 		t.Run("ecdsa", func(t *testing.T) {
 			_, certDer, err := NewECDSAPrikeyAndCert(ECDSACurveP256,
 				WithX509CertCommonName("test-ecdsa"),
+				WithX509CertSeriaNumber(sno),
 			)
 			require.NoError(t, err)
 
-			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
 			require.NoError(t, err)
 
-			require.Equal(t, x509.ECDSA, certinfo.PublicKeyAlgorithm)
+			require.Equal(t, x509.ECDSA, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
 		})
 
 		t.Run("ed25519", func(t *testing.T) {
 			_, certDer, err := NewEd25519PrikeyAndCert(
 				WithX509CertCommonName("test-ed25519"),
+				WithX509CertSeriaNumber(sno),
 			)
 			require.NoError(t, err)
 
-			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
 			require.NoError(t, err)
 
-			require.Equal(t, x509.Ed25519, certinfo.PublicKeyAlgorithm)
+			require.Equal(t, x509.Ed25519, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
 		})
 
 		t.Run("sm2", func(t *testing.T) {
-			_, certDer, err := ins.NewPrikeyAndCert(ctx,
+			certinfo, certDer, err := ins.NewPrikeyAndCert(ctx,
 				WithX509CertCommonName("test-sm2"),
+				WithX509CertSeriaNumber(sno),
 			)
 			require.NoError(t, err)
 
-			certinfo, err := ins.ShowCertInfo(ctx, certDer)
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
 			require.NoError(t, err)
 
-			require.Equal(t, x509.ECDSA, certinfo.PublicKeyAlgorithm)
+			require.Equal(t, x509.ECDSA, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber, certinfo)
 		})
 	})
 }
@@ -763,3 +798,56 @@ func TestTongsuo_EncryptBySm2(t *testing.T) {
 		})
 	})
 }
+
+// func TestTongsuo_NewX509CRL(t *testing.T) {
+// 	t.Parallel()
+// 	if testSkipSmTongsuo(t) {
+// 		return
+// 	}
+
+// 	ctx := context.Background()
+// 	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+// 	require.NoError(t, err)
+
+// 	// Generate a CA certificate
+// 	caPrikeyPem, caCertDer, err := ins.NewPrikeyAndCert(ctx,
+// 		WithX509CertCommonName("test-ca"),
+// 		WithX509CertIsCA(),
+// 	)
+// 	require.NoError(t, err)
+
+// 	// Generate a revoked certificate
+// 	certPrikeyPem, err := ins.NewPrikey(ctx)
+// 	require.NoError(t, err)
+
+// 	certCsrDer, err := ins.NewX509CSR(ctx, certPrikeyPem,
+// 		WithX509CSRCommonName("test-cert"),
+// 	)
+// 	require.NoError(t, err)
+
+// 	certDer, err := ins.NewX509CertByCSR(ctx, caCertDer, caPrikeyPem, certCsrDer)
+// 	require.NoError(t, err)
+
+// 	certInfo, err := ins.ShowCertInfo(ctx, certDer)
+// 	require.NoError(t, err,certinfo)
+
+// 	// Generate the CRL
+// 	revokedCert := pkix.RevokedCertificate{
+// 		SerialNumber:   certInfo.SerialNumber,
+// 		RevocationTime: time.Now(),
+// 	}
+// 	revokeCerts := []pkix.RevokedCertificate{revokedCert}
+
+// 	// Generate the CRL
+// 	crlNo := big.NewInt(1)
+// 	crlDer, err := ins.NewX509CRL(ctx, caCertDer, caPrikeyPem, crlNo, revokeCerts)
+// 	require.NoError(t, err)
+// 	require.NotNil(t, crlDer)
+
+// 	// Verify the generated CRL
+// 	crl, err := x509.ParseRevocationList(crlDer)
+// 	require.NoError(t, err)
+// 	require.Equal(t, crlNo, crl.Number)
+// 	require.Len(t, crl.RevokedCertificateEntries, 1)
+// 	require.Equal(t, certInfo.SerialNumber, crl.RevokedCertificateEntries[0].SerialNumber)
+// }
