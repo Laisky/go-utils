@@ -204,14 +204,20 @@ func (a *Alert) runSender(ctx context.Context) {
 			}
 		}
 
-		// only allow use debug level logger
-		Shared.Debug("send alert", zap.String("type", payload.alertType))
 		vars["type"] = graphql.String(payload.alertType)
 		vars["token"] = graphql.String(payload.pushToken)
 		vars["msg"] = graphql.String(payload.msg)
-		if err = a.cli.Mutate(ctx, query, vars); err != nil {
-			Shared.Debug("send alert mutation", zap.Error(err))
+
+		ctxReq, cancel := context.WithTimeout(ctx, time.Second*30)
+		if err = a.cli.Mutate(ctxReq, query, vars); err != nil {
+			Shared.Warn("send alert mutation failed",
+				zap.String("api", a.pushAPI),
+				zap.String("type", payload.alertType),
+				zap.Error(err))
+			cancel()
+			continue
 		}
+		cancel()
 
 		Shared.Debug("send telegram msg",
 			zap.String("alert", payload.alertType),
