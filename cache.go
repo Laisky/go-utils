@@ -6,9 +6,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Laisky/golang-fifo/sieve"
+
 	"github.com/Laisky/go-utils/v4/algorithm"
 	"github.com/Laisky/go-utils/v4/log"
 )
+
+// NewLruCache new lru cache
+func NewLruCache[K comparable, V any](size int, ttl time.Duration) *sieve.Sieve[K, V] {
+	return sieve.New[K, V](size, ttl)
+}
 
 // TtlCache cache with ttl
 type TtlCache[T any] struct {

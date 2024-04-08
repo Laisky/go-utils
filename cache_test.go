@@ -144,6 +144,35 @@ func TestNewExpiredMap(t *testing.T) {
 	require.Equal(t, 666, v)
 }
 
+func TestNewLruCache(t *testing.T) {
+	t.Parallel()
+
+	c := NewLruCache[string, string](100, time.Millisecond*100)
+	c.Set("key", "val")
+	v, ok := c.Get("key")
+	require.True(t, ok)
+	require.Equal(t, "val", v)
+
+	c.Set("key2", "val2")
+	v, ok = c.Get("key2")
+	require.True(t, ok)
+	require.Equal(t, "val2", v)
+
+	v, ok = c.Get("key")
+	require.True(t, ok)
+	require.Equal(t, "val", v)
+
+	c.Set("key3", "val3")
+	v, ok = c.Get("key3")
+	require.True(t, ok)
+	require.Equal(t, "val3", v)
+
+	c.Set("key4", "val4")
+	v, ok = c.Get("key4")
+	require.True(t, ok)
+	require.Equal(t, "val4", v)
+}
+
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v4
@@ -224,6 +253,47 @@ func Benchmark_ExpCache(b *testing.B) {
 				v := start + rand.Intn(b.N)
 				c.Store(strconv.Itoa(v), strconv.Itoa(v))
 				c.Load(strconv.Itoa(v))
+			}
+		})
+	})
+}
+
+// pkg: github.com/Laisky/go-utils/v4
+// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
+// Benchmark_Sieve
+// Benchmark_Sieve/set
+// Benchmark_Sieve/set-104		144274	      9077 ns/op	     186 B/op	       4 allocs/op
+// Benchmark_Sieve/get
+// Benchmark_Sieve/get-104		587437	      1795 ns/op	      16 B/op	       1 allocs/op
+// Benchmark_Sieve/get_&_set
+// Benchmark_Sieve/get_&_set-104		67621	     20670 ns/op	     179 B/op	       5 allocs/op
+// PASS
+func Benchmark_Sieve(b *testing.B) {
+	c := NewLruCache[string, string](100000, time.Millisecond*100)
+	start := time.Now().Nanosecond()
+
+	b.Run("set", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			v := start + i
+			c.Set(strconv.Itoa(v), strconv.Itoa(v))
+		}
+	})
+
+	b.Run("get", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			c.Get(strconv.Itoa(start + i))
+		}
+	})
+
+	b.Run("get & set", func(b *testing.B) {
+		b.ResetTimer()
+		b.RunParallel(func(p *testing.PB) {
+			for p.Next() {
+				v := start + rand.Intn(b.N)
+				c.Set(strconv.Itoa(v), strconv.Itoa(v))
+				c.Get(strconv.Itoa(v))
 			}
 		})
 	})

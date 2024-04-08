@@ -9,6 +9,7 @@ require (
 	github.com/Laisky/errors/v2 v2.0.1
 	github.com/Laisky/fast-skiplist/v2 v2.0.1
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
+	github.com/Laisky/golang-fifo v1.0.1-0.20240403091456-fc83d5e38c0b
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.27.0
 	github.com/brianvoe/gofakeit/v6 v6.23.2
