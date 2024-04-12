@@ -14,35 +14,30 @@ import (
 	"github.com/Laisky/zap/zapcore"
 )
 
-// ================================
-// alert pusher hook
-// ================================
-
+// alertMutation defines the GraphQL mutation for sending alerts.
 type alertMutation struct {
 	TelegramMonitorAlert struct {
 		Name graphql.String
 	} `graphql:"TelegramMonitorAlert(type: $type, token: $token, msg: $msg)"`
 }
 
-// RateLimiter rate limitor
+// RateLimiter defines an interface for rate limiting alert sending.
 type RateLimiter interface {
 	// Allow check if allow to send alert
 	Allow() bool
 }
 
-// Alert send alert to laisky's alert API
-//
-// https://github.com/Laisky/laisky-blog-graphql/tree/master/telegram
+// Alert sends alerts to Laisky's alert API.
+// See: https://github.com/Laisky/laisky-blog-graphql/tree/master/telegram
 type Alert struct {
 	*alertOption
-
 	cli        *graphql.Client
 	stopChan   chan struct{}
 	senderChan chan *alertMsg
-
-	pushAPI string
+	pushAPI    string
 }
 
+// alertOption holds configuration options for the Alert hook.
 type alertOption struct {
 	encPool     *sync.Pool
 	level       zapcore.LevelEnabler
@@ -52,7 +47,9 @@ type alertOption struct {
 	ratelimiter RateLimiter
 }
 
-func (o *alertOption) fillDefault() *alertOption {
+// applyOpts applies the given AlertOptions to the alertOption.
+func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
+	// fill default
 	o.encPool = &sync.Pool{
 		New: func() any {
 			return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
@@ -60,40 +57,36 @@ func (o *alertOption) fillDefault() *alertOption {
 	}
 	o.level = defaultAlertHookLevel
 	o.timeout = defaultAlertPusherTimeout
-	return o
-}
 
-func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
+	// apply options
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
 			return nil, err
 		}
 	}
-
 	return o, nil
 }
 
-// AlertOption option for create AlertHook
+// AlertOption is a function that configures an Alert hook.
 type AlertOption func(*alertOption) error
 
-// WithAlertHookLevel level to trigger AlertHook
+// WithAlertHookLevel sets the minimum log level that triggers the Alert hook.
 func WithAlertHookLevel(level zapcore.Level) AlertOption {
 	return func(o *alertOption) error {
 		if level.Enabled(zap.DebugLevel) {
-			// because Alert will use `debug` logger,
+			// Because Alert will use `debug` logger,
 			// hook with debug will cause infinite recursive
 			return errors.Errorf("level should higher than debug")
 		}
 		if level.Enabled(zap.WarnLevel) {
 			Shared.Warn("level is better higher than warn")
 		}
-
 		o.level = level
 		return nil
 	}
 }
 
-// WithAlertPushTimeout set Alert HTTP timeout
+// WithAlertPushTimeout sets the HTTP timeout for pushing alerts.
 func WithAlertPushTimeout(timeout time.Duration) AlertOption {
 	return func(o *alertOption) error {
 		o.timeout = timeout
@@ -101,33 +94,31 @@ func WithAlertPushTimeout(timeout time.Duration) AlertOption {
 	}
 }
 
-// WithAlertType set type for alert hooker
+// WithAlertType sets the alert type for the hook.
 func WithAlertType(alertType string) AlertOption {
 	return func(o *alertOption) error {
 		alertType = strings.TrimSpace(alertType)
 		if alertType == "" {
 			return errors.Errorf("alertType should not be empty")
 		}
-
 		o.alertType = alertType
 		return nil
 	}
 }
 
-// WithAlertToken set token for alert hooker
+// WithAlertToken sets the alert token for the hook.
 func WithAlertToken(token string) AlertOption {
 	return func(o *alertOption) error {
 		token = strings.TrimSpace(token)
 		if token == "" {
 			return errors.Errorf("token should not be empty")
 		}
-
 		o.alertToken = token
 		return nil
 	}
 }
 
-// WithRateLimiter set rate limiter for alert
+// WithRateLimiter sets the rate limiter for the hook.
 func WithRateLimiter(rl RateLimiter) AlertOption {
 	return func(o *alertOption) error {
 		o.ratelimiter = rl
@@ -135,26 +126,26 @@ func WithRateLimiter(rl RateLimiter) AlertOption {
 	}
 }
 
+// alertMsg represents a message to be sent as an alert.
 type alertMsg struct {
-	alertType,
-	pushToken,
-	msg string
+	alertType, pushToken, msg string
 }
 
-// NewAlert create new Alert
-func NewAlert(ctx context.Context,
-	pushAPI string,
-	opts ...AlertOption,
-) (a *Alert, err error) {
+// NewAlert creates a new Alert hook.
+//
+// It's better to set an ratelimiter by WithRateLimiter
+// to avoid sending too many alerts.
+func NewAlert(ctx context.Context, pushAPI string,
+	opts ...AlertOption) (a *Alert, err error) {
 	Shared.Debug("create new Alert")
 	if pushAPI == "" {
-		return nil, errors.Errorf("pushAPI should nout empty")
+		return nil, errors.Errorf("pushAPI should not be empty")
 	}
 	if ctx == nil {
 		return nil, errors.Errorf("ctx should not be nil")
 	}
 
-	opt, err := new(alertOption).fillDefault().applyOpts(opts...)
+	opt, err := new(alertOption).applyOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -174,13 +165,13 @@ func NewAlert(ctx context.Context,
 	return a, nil
 }
 
-// Close close Alert
+// Close closes the Alert hook.
 func (a *Alert) Close() {
 	close(a.stopChan) // should close stopChan first
 	close(a.senderChan)
 }
 
-// SendWithType send alert with specific type, token and msg
+// SendWithType sends an alert with the specified type, token, and message.
 func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 	if alertType == "" || pushToken == "" || msg == "" {
 		return errors.Errorf("alertType, pushToken and msg should not be empty")
@@ -199,6 +190,7 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 	return nil
 }
 
+// runSender runs the alert sender goroutine.
 func (a *Alert) runSender(ctx context.Context) {
 	var (
 		ok      bool
@@ -248,12 +240,12 @@ func (a *Alert) runSender(ctx context.Context) {
 	}
 }
 
-// Send send with default alertType and pushToken
+// Send sends an alert with the default alertType and pushToken.
 func (a *Alert) Send(msg string) (err error) {
 	return a.SendWithType(a.alertType, a.alertToken, msg)
 }
 
-// GetZapHook get hook for zap logger
+// GetZapHook returns a Zap hook that sends alerts for log entries.
 func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
 		if !a.level.Enabled(e.Level) {
@@ -266,6 +258,7 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 		if !ok {
 			return errors.Errorf("unknown type for encoder %T", enci)
 		}
+
 		if bb, err = enc.EncodeEntry(e, fs); err != nil {
 			Shared.Debug("zapcore encode fields got error", zap.Error(err))
 			return nil
@@ -281,6 +274,7 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 			"stack: " + e.Stack + "\n" +
 			"message: " + e.Message + "\n" +
 			fsb
+
 		if err = a.Send(msg); err != nil {
 			Shared.Debug("send alert got error", zap.Error(err))
 			return nil
