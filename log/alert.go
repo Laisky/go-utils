@@ -24,6 +24,12 @@ type alertMutation struct {
 	} `graphql:"TelegramMonitorAlert(type: $type, token: $token, msg: $msg)"`
 }
 
+// RateLimiter rate limitor
+type RateLimiter interface {
+	// Allow check if allow to send alert
+	Allow() bool
+}
+
 // Alert send alert to laisky's alert API
 //
 // https://github.com/Laisky/laisky-blog-graphql/tree/master/telegram
@@ -38,11 +44,12 @@ type Alert struct {
 }
 
 type alertOption struct {
-	encPool    *sync.Pool
-	level      zapcore.LevelEnabler
-	timeout    time.Duration
-	alertType  string
-	alertToken string
+	encPool     *sync.Pool
+	level       zapcore.LevelEnabler
+	timeout     time.Duration
+	alertType   string
+	alertToken  string
+	ratelimiter RateLimiter
 }
 
 func (o *alertOption) fillDefault() *alertOption {
@@ -116,6 +123,14 @@ func WithAlertToken(token string) AlertOption {
 		}
 
 		o.alertToken = token
+		return nil
+	}
+}
+
+// WithRateLimiter set rate limiter for alert
+func WithRateLimiter(rl RateLimiter) AlertOption {
+	return func(o *alertOption) error {
+		o.ratelimiter = rl
 		return nil
 	}
 }
@@ -202,6 +217,14 @@ func (a *Alert) runSender(ctx context.Context) {
 			if !ok {
 				return
 			}
+		}
+
+		// check ratelimiter
+		if a.alertOption.ratelimiter != nil && !a.alertOption.ratelimiter.Allow() {
+			Shared.Debug("exceed rate limit, skip alert",
+				zap.String("alert", payload.alertType),
+				zap.String("msg", payload.msg))
+			continue
 		}
 
 		vars["type"] = graphql.String(payload.alertType)
