@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -137,4 +138,12 @@ func TestJaegerTracingID(t *testing.T) {
 			require.Equal(t, tt.flag, flag)
 		})
 	}
+}
+
+func TestOpenURLInDefaultBrowser(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
+	require.NoError(t, err)
 }
