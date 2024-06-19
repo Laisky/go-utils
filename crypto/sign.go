@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -303,4 +304,25 @@ func DecodeES256SignByBase64(sign string) (r, s *big.Int, err error) {
 	}
 
 	return
+}
+
+// HMACSha256 calculate HMAC by sha256
+//
+// The main difference between HMAC and SHA is that
+// HMAC uses a secure key to calculate the hash, while SHA does not.
+// this makes HMAC more secure than SHA.
+//
+// # Args:
+//   - key: secure key, no limit on length
+//   - data: raw data to calculate HMAC
+//
+// # Returns:
+//   - hmac: HMAC result, 32 bytes
+func HMACSha256(key []byte, data io.Reader) ([]byte, error) {
+	h := hmac.New(sha256.New, key)
+	if _, err := io.Copy(h, data); err != nil {
+		return nil, errors.Wrap(err, "write data")
+	}
+
+	return h.Sum(nil), nil
 }

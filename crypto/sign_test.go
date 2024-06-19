@@ -639,3 +639,56 @@ func TestVerifyByEd25519(t *testing.T) {
 		require.ErrorContains(t, err, "invalid signature")
 	})
 }
+
+func TestHMAC(t *testing.T) {
+	t.Parallel()
+
+	for _, keyLen := range []int{
+		1, 1024, 10240,
+	} {
+		keyLen := keyLen
+		key, err := Salt(keyLen)
+		require.NoError(t, err)
+
+		t.Run(fmt.Sprintf("keyLen=%d", keyLen), func(t *testing.T) {
+			t.Parallel()
+
+			for _, plainLen := range []int{
+				1, 1024, 10240,
+			} {
+				plainLen := plainLen
+				plain, err := Salt(plainLen)
+				require.NoError(t, err)
+
+				t.Run(fmt.Sprintf("plainLen=%d", plainLen), func(t *testing.T) {
+					t.Parallel()
+
+					hmac1, err := HMACSha256(key, bytes.NewReader(plain))
+					require.NoError(t, err)
+
+					hmac2, err := HMACSha256(key, bytes.NewReader(plain))
+					require.NoError(t, err)
+					require.Equal(t, hmac1, hmac2)
+
+					t.Run("incorrect plain", func(t *testing.T) {
+						newplain, err := Salt(plainLen)
+						require.NoError(t, err)
+
+						hmacIncorrect, err := HMACSha256(key, bytes.NewReader(newplain))
+						require.NoError(t, err)
+						require.NotEqual(t, hmac1, hmacIncorrect)
+					})
+
+					t.Run("incorrect key", func(t *testing.T) {
+						newkey, err := Salt(keyLen)
+						require.NoError(t, err)
+
+						hmacIncorrect, err := HMACSha256(newkey, bytes.NewReader(plain))
+						require.NoError(t, err)
+						require.NotEqual(t, hmac1, hmacIncorrect)
+					})
+				})
+			}
+		})
+	}
+}
