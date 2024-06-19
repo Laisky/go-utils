@@ -74,10 +74,13 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 
 			cipher, err := RSAEncryptByOAEP(&prikey.PublicKey, plain)
 			require.NoError(t, err)
+			require.NotEqual(t, cipher, plain)
 
-			gotPlain, err := RSADecryptByOAEP(prikey, cipher)
-			require.NoError(t, err)
-			require.Equal(t, plain, gotPlain)
+			t.Run("correct", func(t *testing.T) {
+				gotPlain, err := RSADecryptByOAEP(prikey, cipher)
+				require.NoError(t, err)
+				require.Equal(t, plain, gotPlain)
+			})
 
 			t.Run("wrong cipher", func(t *testing.T) {
 				_, err = RSADecryptByOAEP(prikey, []byte("fewfew"))
@@ -103,5 +106,4 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 			})
 		})
 	}
-
 }
