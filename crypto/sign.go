@@ -72,16 +72,39 @@ func VerifyBySchnorrSha256(suite dediskey.Suite, pubkey kyber.Point, reader io.R
 	return schnorr.Verify(suite, pubkey, hasher.Sum(nil), sig)
 }
 
-// SignByRSAWithSHA256 generate signature by rsa private key use sha256
-func SignByRSAWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
+var (
+	// SignByRSAWithSHA256 sign content by rsa with sha256
+	//
+	// Deprecated: use SignByRSAPKCS1v15WithSHA256 instead
+	SignByRSAWithSHA256 = SignByRSAPKCS1v15WithSHA256
+	// VerifyByRSAWithSHA256 verify signature by rsa with sha256
+	//
+	// Deprecated: use VerifyByRSAPKCS1v15WithSHA256 instead
+	VerifyByRSAWithSHA256 = VerifyByRSAPKCS1v15WithSHA256
+)
+
+// SignByRSAPKCS1v15WithSHA256 generate signature by rsa private key use sha256
+func SignByRSAPKCS1v15WithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
 	hashed := sha256.Sum256(content)
 	return rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hashed[:])
 }
 
-// VerifyByRSAWithSHA256 verify signature by rsa public key use sha256
-func VerifyByRSAWithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
+// VerifyByRSAPKCS1v15WithSHA256 verify signature by rsa public key use sha256
+func VerifyByRSAPKCS1v15WithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
 	hash := sha256.Sum256(content)
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig)
+}
+
+// SignByRSAPSSWithSHA256 generate signature by rsa private key use sha256
+func SignByRSAPSSWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
+	hashed := sha256.Sum256(content)
+	return rsa.SignPSS(rand.Reader, prikey, crypto.SHA256, hashed[:], nil)
+}
+
+// VerifyByRSAPSSWithSHA256 verify signature by rsa public key use sha256
+func VerifyByRSAPSSWithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
+	hash := sha256.Sum256(content)
+	return rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], sig, nil)
 }
 
 // SignReaderByRSAWithSHA256 generate signature by rsa private key use sha256

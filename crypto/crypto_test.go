@@ -91,6 +91,17 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 				_, err = RSADecryptByOAEP(newPrikey, cipher)
 				require.Error(t, err)
 			})
+
+			t.Run("cipher should be different", func(t *testing.T) {
+				cipher1, err := RSAEncryptByOAEP(&prikey.PublicKey, plain)
+				require.NoError(t, err)
+
+				cipher2, err := RSAEncryptByOAEP(&prikey.PublicKey, plain)
+				require.NoError(t, err)
+
+				require.NotEqual(t, cipher1, cipher2)
+			})
 		})
 	}
+
 }

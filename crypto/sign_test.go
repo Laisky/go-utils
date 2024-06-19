@@ -225,47 +225,108 @@ func TestECDSAVerify(t *testing.T) {
 func TestRSAVerify(t *testing.T) {
 	t.Parallel()
 
-	var (
-		err             error
-		priKey, priKey2 *rsa.PrivateKey
-	)
-	if priKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	priKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 
-	if priKey2, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
-		t.Fatalf("%+v", err)
-	}
+	priKey2, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 
-	// case: correct key
-	cnt := []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
-	sig, err := SignByRSAWithSHA256(priKey, cnt)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	for _, plainLen := range []int{
+		1, 1024, 10240,
+	} {
+		plainLen := plainLen
+		t.Run(fmt.Sprintf("plainLen=%d", plainLen), func(t *testing.T) {
+			t.Parallel()
 
-	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, cnt, sig); err != nil {
-		t.Fatalf("%+v", err)
-	}
+			plain, err := Salt(plainLen)
+			require.NoError(t, err)
 
-	// case: incorrect cnt
-	cnt = []byte("fjijf23lijfl23ijrl32jra9pfie9wpfi")
-	sig, err = SignByRSAWithSHA256(priKey, cnt)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+			t.Run("correct key", func(t *testing.T) {
+				sig, err := SignByRSAPKCS1v15WithSHA256(priKey, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
 
-	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, append(cnt, '2'), sig); err == nil {
-		t.Fatalf("should not verify")
-	}
+				if err = VerifyByRSAPKCS1v15WithSHA256(&priKey.PublicKey, plain, sig); err != nil {
+					t.Fatalf("%+v", err)
+				}
+			})
 
-	// case: incorrect key
-	sig, err = SignByRSAWithSHA256(priKey2, cnt)
-	if err != nil {
-		t.Fatalf("%+v", err)
+			t.Run("incorrect plain", func(t *testing.T) {
+				sig, err := SignByRSAPKCS1v15WithSHA256(priKey, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
+
+				if err = VerifyByRSAPKCS1v15WithSHA256(&priKey.PublicKey, append(plain, '2'), sig); err == nil {
+					t.Fatalf("should not verify")
+				}
+			})
+
+			t.Run("incorrect key", func(t *testing.T) {
+				sig, err := SignByRSAPKCS1v15WithSHA256(priKey2, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
+				if err = VerifyByRSAPKCS1v15WithSHA256(&priKey.PublicKey, plain, sig); err == nil {
+					t.Fatalf("should not verify")
+				}
+			})
+		})
 	}
-	if err = VerifyByRSAWithSHA256(&priKey.PublicKey, cnt, sig); err == nil {
-		t.Fatalf("should not verify")
+}
+
+func TestRSAPSSVerify(t *testing.T) {
+	t.Parallel()
+
+	priKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	priKey2, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	for _, plainLen := range []int{
+		1, 1024, 10240,
+	} {
+		plainLen := plainLen
+		t.Run(fmt.Sprintf("plainLen=%d", plainLen), func(t *testing.T) {
+			t.Parallel()
+
+			plain, err := Salt(plainLen)
+			require.NoError(t, err)
+
+			t.Run("correct key", func(t *testing.T) {
+				sig, err := SignByRSAPSSWithSHA256(priKey, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
+
+				if err = VerifyByRSAPSSWithSHA256(&priKey.PublicKey, plain, sig); err != nil {
+					t.Fatalf("%+v", err)
+				}
+			})
+
+			t.Run("incorrect plain", func(t *testing.T) {
+				sig, err := SignByRSAPSSWithSHA256(priKey, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
+
+				if err = VerifyByRSAPSSWithSHA256(&priKey.PublicKey, append(plain, '2'), sig); err == nil {
+					t.Fatalf("should not verify")
+				}
+			})
+
+			t.Run("incorrect key", func(t *testing.T) {
+				sig, err := SignByRSAPSSWithSHA256(priKey2, plain)
+				if err != nil {
+					t.Fatalf("%+v", err)
+				}
+				if err = VerifyByRSAPSSWithSHA256(&priKey.PublicKey, plain, sig); err == nil {
+					t.Fatalf("should not verify")
+				}
+			})
+		})
 	}
 }
 
