@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -199,10 +200,21 @@ func ParseBase642Big(raw string) (*big.Int, error) {
 	return b, nil
 }
 
-// RSAEncrypt encrypt by PKCS1v15
+var (
+	// RSAEncrypt encrypt by RSAEncryptByPKCS1v15, for compatibility
+	//
+	// Deprecated: use RSAEncryptByPKCS1v15 or RsaEncryptByOAEP instead
+	RSAEncrypt = RSAEncryptByPKCS1v15
+	// RSADecrypt decrypt by RSADecryptByPKCS1v15, for compatibility
+	//
+	// Deprecated: use RSADecryptByPKCS1v15 or RSADecryptByOAEP instead
+	RSADecrypt = RSADecryptByPKCS1v15
+)
+
+// RSAEncryptByPKCS1v15 encrypt by PKCS1v15
 //
 // canbe decrypt by RSADecrypt
-func RSAEncrypt(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
+func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
 	chunk := make([]byte, pubkey.Size()-11) // will padding 11 bytes
 	reader := bytes.NewReader(plain)
 	for {
@@ -226,10 +238,10 @@ func RSAEncrypt(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) 
 	return cipher, nil
 }
 
-// RSADecrypt decrypt by rsa PKCS1v15
+// RSADecryptByPKCS1v15 decrypt by rsa PKCS1v15
 //
 // only accept cipher encrypted by RSAEncrypt
-func RSADecrypt(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
+func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
 	chunk := make([]byte, prikey.Size())
 	reader := bytes.NewReader(cipher)
 	for {
@@ -245,6 +257,56 @@ func RSADecrypt(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error)
 		plainChunk, err := rsa.DecryptPKCS1v15(rand.Reader, prikey, chunk[:n])
 		if err != nil {
 			return nil, errors.Wrap(err, "encrypt chunkd")
+		}
+
+		plain = append(plain, plainChunk...)
+	}
+
+	return plain, nil
+}
+
+// RSAEncryptByOAEP encrypts by OAEP with SHA256
+func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
+	chunk := make([]byte, pubkey.Size()-2*sha256.Size-2)
+	reader := bytes.NewReader(plain)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, errors.Wrap(err, "read chunk")
+		}
+
+		cipherChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, chunk[:n], nil)
+		if err != nil {
+			return nil, errors.Wrap(err, "encrypt chunk")
+		}
+
+		cipher = append(cipher, cipherChunk...)
+	}
+
+	return cipher, nil
+}
+
+// RSADecryptByOAEP decrypt by OAEP with SHA256
+func RSADecryptByOAEP(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
+	chunk := make([]byte, prikey.Size())
+	reader := bytes.NewReader(cipher)
+	for {
+		n, err := reader.Read(chunk)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, errors.Wrap(err, "read chunk")
+		}
+
+		plainChunk, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, prikey, chunk[:n], nil)
+		if err != nil {
+			return nil, errors.Wrap(err, "encrypt chunk")
 		}
 
 		plain = append(plain, plainChunk...)

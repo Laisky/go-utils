@@ -3,6 +3,7 @@ package crypto
 
 import (
 	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,45 @@ func TestVerifyHashedPassword(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Logf("hashed password: %q", h)
+		})
+	}
+}
+
+func TestRsaEncryptByOAEP(t *testing.T) {
+	t.Parallel()
+
+	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+	require.NoError(t, err)
+
+	for _, plainSize := range []int{
+		1, 1024, 10240,
+	} {
+		plainSize := plainSize
+		t.Run(fmt.Sprintf("plainSize=%d", plainSize), func(t *testing.T) {
+			t.Parallel()
+
+			plain, err := Salt(plainSize)
+			require.NoError(t, err)
+
+			cipher, err := RSAEncryptByOAEP(&prikey.PublicKey, plain)
+			require.NoError(t, err)
+
+			gotPlain, err := RSADecryptByOAEP(prikey, cipher)
+			require.NoError(t, err)
+			require.Equal(t, plain, gotPlain)
+
+			t.Run("wrong cipher", func(t *testing.T) {
+				_, err = RSADecryptByOAEP(prikey, []byte("fewfew"))
+				require.Error(t, err)
+			})
+
+			t.Run("wrong key", func(t *testing.T) {
+				newPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
+				require.NoError(t, err)
+
+				_, err = RSADecryptByOAEP(newPrikey, cipher)
+				require.Error(t, err)
+			})
 		})
 	}
 }
