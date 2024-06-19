@@ -213,7 +213,9 @@ var (
 
 // RSAEncryptByPKCS1v15 encrypt by PKCS1v15
 //
-// canbe decrypt by RSADecrypt
+// This is not a deterministic encryption scheme,
+// it will return different ciphertexts each time
+// even if the same plaintext is encrypted multiple times.
 func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
 	chunk := make([]byte, pubkey.Size()-11) // will padding 11 bytes
 	reader := bytes.NewReader(plain)
@@ -266,6 +268,10 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 }
 
 // RSAEncryptByOAEP encrypts by OAEP with SHA256
+//
+// This is not a deterministic encryption scheme,
+// it will return different ciphertexts each time
+// even if the same plaintext is encrypted multiple times.
 func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
 	chunk := make([]byte, pubkey.Size()-2*sha256.Size-2)
 	reader := bytes.NewReader(plain)

@@ -96,6 +96,8 @@ func VerifyByRSAPKCS1v15WithSHA256(pubKey *rsa.PublicKey, content []byte, sig []
 }
 
 // SignByRSAPSSWithSHA256 generate signature by rsa private key use sha256
+//
+// RSASSA-PSS is not deterministic, so it will return different signature every time.
 func SignByRSAPSSWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
 	hashed := sha256.Sum256(content)
 	return rsa.SignPSS(rand.Reader, prikey, crypto.SHA256, hashed[:], nil)
