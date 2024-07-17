@@ -67,6 +67,7 @@ func (j JSON) Value() (driver.Value, error) {
 	if j.IsNull() {
 		return nil, nil
 	}
+
 	return string(j), nil
 }
 

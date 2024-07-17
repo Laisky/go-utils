@@ -15,7 +15,7 @@ func TestAlertHook(t *testing.T) {
 		context.Background(),
 		"https://gq.laisky.com/query/",
 		WithAlertType("hello"),
-		WithAlertToken("rwkpVuAgaBZQBASKndHK"),
+		WithAlertToken("YOUR_ALERT_TOKEN"),
 	)
 	require.NoError(t, err)
 
@@ -31,14 +31,15 @@ func TestAlertHook(t *testing.T) {
 	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(errors.Errorf("xxx")))
 	// t.Error()
 
-	time.Sleep(5 * time.Second)
+	// time.Sleep(1 * time.Second)
 }
+
 func ExampleAlert() {
 	pusher, err := NewAlert(
 		context.Background(),
 		"https://gq.laisky.com/query/",
 		WithAlertType("hello"),
-		WithAlertToken("rwkpVuAgaBZQBASKndHK"),
+		WithAlertToken("YOUR_ALERT_TOKEN"),
 		WithAlertHookLevel(zap.InfoLevel),
 	)
 	if err != nil {
