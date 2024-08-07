@@ -65,7 +65,7 @@ type JSON []byte
 // Value val -> db
 func (j JSON) Value() (driver.Value, error) {
 	if j.IsNull() {
-		return nil, nil
+		return "", nil
 	}
 
 	return string(j), nil

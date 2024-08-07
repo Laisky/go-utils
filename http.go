@@ -325,7 +325,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	}
 	defer func() { _ = r.Body.Close() }()
 
-	if r.StatusCode/100 != 2 {
+	if r.StatusCode/100 != 2 { //nolint:usestdlibvars //"100" can be replaced by http.StatusContinue
 		respBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")

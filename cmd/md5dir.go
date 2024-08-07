@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -43,14 +45,15 @@ var md5DirCMD = &cobra.Command{
 			gutils md5dir -i examples/md5dir/
 	`),
 	Args: NoExtraArgs,
-	Run: func(_ *cobra.Command, _ []string) {
+	RunE: func(_ *cobra.Command, _ []string) error {
+		ctx := context.Background()
 		if err := checkMd5DirArg(); err != nil {
-			glog.Shared.Panic("command args invalid", zap.Error(err))
+			return errors.Wrap(err, "command args invalid")
 		}
 
 		files, err := gutils.ListFilesInDir(md5DirArg.SourceDir)
 		if err != nil {
-			glog.Shared.Panic("list files in source dir", zap.Error(err))
+			return errors.Wrap(err, "list files in source dir")
 		}
 
 		glog.Shared.Info("try to move files",
@@ -64,35 +67,58 @@ var md5DirCMD = &cobra.Command{
 
 			hashedBytes, err := gutils.FileHash(gutils.HashTypeMD5, f)
 			if err != nil {
-				glog.Shared.Panic("calculate hash for file",
-					zap.Error(err), zap.String("file", f))
+				return errors.Wrapf(err, "calculate hash for file %q", f)
 			}
 			hashed := hex.EncodeToString(hashedBytes)
 
 			outputDir := filepath.Join(md5DirArg.TargetDir, hashed[:2])
 			if err = os.MkdirAll(outputDir, 0755); err != nil {
-				glog.Shared.Panic("mkdir", zap.String("dir", outputDir), zap.Error(err))
+				return errors.Wrapf(err, "mkdir %q", outputDir)
 			}
 
 			target := filepath.Join(outputDir, hashed+strings.ToLower(filepath.Ext(f)))
-			if err = gutils.CopyFile(f, target,
-				gutils.WithFileFlag(os.O_CREATE|os.O_WRONLY),
-				gutils.Overwrite(),
-				gutils.WithFileMode(0644),
-			); err != nil {
-				glog.Shared.Panic("copy file", zap.Error(err),
-					zap.String("from", f), zap.String("to", target),
-				)
+			if !md5DirArg.RemainSource { // move file
+				if err = os.Rename(f, target); err != nil {
+					return errors.Wrapf(err, "move file from %q to %q", f, target)
+				}
+			} else {
+				if err = gutils.CopyFile(f, target,
+					gutils.WithFileFlag(os.O_CREATE|os.O_WRONLY),
+					gutils.Overwrite(),
+					gutils.WithFileMode(0644),
+				); err != nil {
+					return errors.Wrapf(err, "copy file from %q to %q", f, target)
+				}
+			}
+
+			// save raw file name into file's EXIF
+			if err = saveExifCaption(ctx, target, filepath.Base(f)); err != nil {
+				glog.Shared.Warn("save caption into exif", zap.Error(err))
 			}
 
 			glog.Shared.Info("moved file", zap.String("from", f), zap.String("to", target))
-			if !md5DirArg.RemainSource {
-				if err = os.Remove(f); err != nil {
-					glog.Shared.Panic("remove file", zap.Error(err), zap.String("file", f))
-				}
-			}
 		}
+
+		return nil
 	},
+}
+
+// saveExifCaption save caption into exif
+func saveExifCaption(ctx context.Context, fpath string, caption string) error {
+	// check whether exiftool exists
+	exePath, err := exec.LookPath("exiftool")
+	if err != nil {
+		return errors.Wrap(err, "exiftool not found")
+	}
+
+	// sanitize caption
+	caption = strings.ReplaceAll(caption, `"`, `\"`)
+	_, err = gutils.RunCMD(ctx, exePath, "-caption="+caption, fpath)
+	if err != nil {
+		return errors.Wrap(err, "run exiftool to save caption")
+	}
+
+	return nil
 }
 
 func checkMd5DirArg() (err error) {
