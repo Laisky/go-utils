@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
@@ -1316,4 +1318,35 @@ func ParseObjectIdentifier(val string) (oid asn1.ObjectIdentifier, err error) {
 	}
 
 	return oid, nil
+}
+
+// NewHasPrefixWithMagic create a func to check if s has prefix
+//
+// if the length of prefix is quite short, it will use magic number to check.
+func NewHasPrefixWithMagic(prefix []byte) func(s []byte) bool {
+	switch l := len(prefix); l {
+	case 8:
+		prefixMagicNumber := binary.NativeEndian.Uint64(prefix)
+		return func(s []byte) bool {
+			return len(s) >= l && *(*uint64)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+		}
+	case 4:
+		prefixMagicNumber := binary.NativeEndian.Uint32(prefix)
+		return func(s []byte) bool {
+			return len(s) >= l && *(*uint32)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+		}
+	case 2:
+		prefixMagicNumber := binary.NativeEndian.Uint16(prefix)
+		return func(s []byte) bool {
+			return len(s) >= l && *(*uint16)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+		}
+	case 0:
+		return func(s []byte) bool {
+			return true
+		}
+	default:
+		return func(s []byte) bool {
+			return bytes.HasPrefix(s, prefix)
+		}
+	}
 }

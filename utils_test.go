@@ -2297,3 +2297,101 @@ func TestParseObjectIdentifier(t *testing.T) {
 		require.ErrorContainsf(t, err, tc.err, "input: %q", tc.input)
 	}
 }
+
+func TestNewHasPrefixWithMagic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		prefix []byte
+		input  []byte
+		want   bool
+	}{
+		{
+			name:   "8-byte prefix match",
+			prefix: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+			input:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
+			want:   true,
+		},
+		{
+			name:   "8-byte prefix no match",
+			prefix: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+			input:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x09},
+			want:   false,
+		},
+		{
+			name:   "4-byte prefix match",
+			prefix: []byte{0x01, 0x02, 0x03, 0x04},
+			input:  []byte{0x01, 0x02, 0x03, 0x04, 0x05},
+			want:   true,
+		},
+		{
+			name:   "4-byte prefix no match",
+			prefix: []byte{0x01, 0x02, 0x03, 0x04},
+			input:  []byte{0x01, 0x02, 0x03, 0x05},
+			want:   false,
+		},
+		{
+			name:   "2-byte prefix match",
+			prefix: []byte{0x01, 0x02},
+			input:  []byte{0x01, 0x02, 0x03},
+			want:   true,
+		},
+		{
+			name:   "2-byte prefix no match",
+			prefix: []byte{0x01, 0x02},
+			input:  []byte{0x01, 0x03},
+			want:   false,
+		},
+		{
+			name:   "empty prefix",
+			prefix: []byte{},
+			input:  []byte{0x01, 0x02},
+			want:   true,
+		},
+		{
+			name:   "non-matching prefix",
+			prefix: []byte{0x01, 0x02, 0x03},
+			input:  []byte{0x04, 0x05, 0x06},
+			want:   false,
+		},
+		{
+			name:   "longer prefix",
+			prefix: []byte{0x01, 0x02, 0x03, 0x04, 0x05},
+			input:  []byte{0x01, 0x02, 0x03, 0x04},
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hasPrefix := NewHasPrefixWithMagic(tt.prefix)
+			if got := hasPrefix(tt.input); got != tt.want {
+				t.Errorf("input: %x, prefix: %x, want: %v, got: %v",
+					tt.input, tt.prefix, tt.want, got)
+			}
+		})
+	}
+}
+
+// cpu: AMD Ryzen 7 5700G with Radeon Graphics
+// Benchmark_HasPrefix/std-8         	404345066	         3.031 ns/op	       0 B/op	       0 allocs/op
+// Benchmark_HasPrefix/custom-8      	562408310	         2.133 ns/op	       0 B/op	       0 allocs/op
+// PASS
+func Benchmark_HasPrefix(b *testing.B) {
+	val := []byte("hello, world")
+	prefix := []byte("hell")
+
+	b.Run("std", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			bytes.HasPrefix(val, prefix)
+		}
+	})
+
+	hasprefix := NewHasPrefixWithMagic(prefix)
+	b.Run("custom", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			hasprefix(val)
+		}
+	})
+}
