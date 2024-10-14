@@ -249,10 +249,14 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.True(t, cert.IsCA)
 		oid, err := OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
 		require.NoError(t, err)
-		require.Contains(t, cert.Policies, oid)
+		ansiOid, ok := oid.toASN1OID()
+		require.True(t, ok)
+		require.Contains(t, cert.PolicyIdentifiers, ansiOid)
 		oid, err = OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 2, 3})
 		require.NoError(t, err)
-		require.Contains(t, cert.Policies, oid)
+		ansiOid, ok = oid.toASN1OID()
+		require.True(t, ok)
+		require.Contains(t, cert.PolicyIdentifiers, ansiOid)
 	})
 
 	t.Run("not ca", func(t *testing.T) {
@@ -289,10 +293,14 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 		require.Equal(t, "test-common-name", cert.Subject.CommonName)
 		oid, err := OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3})
 		require.NoError(t, err)
-		require.Contains(t, cert.Policies, oid)
+		ansiOid, ok := oid.toASN1OID()
+		require.True(t, ok)
+		require.Contains(t, cert.PolicyIdentifiers, ansiOid)
 		oid, err = OidAsn2X509(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 59936, 1, 1, 4})
 		require.NoError(t, err)
-		require.Contains(t, cert.Policies, oid)
+		ansiOid, ok = oid.toASN1OID()
+		require.True(t, ok)
+		require.Contains(t, cert.PolicyIdentifiers, ansiOid)
 	})
 }
 

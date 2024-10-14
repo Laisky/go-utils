@@ -261,7 +261,10 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context,
 				return "", nil, errors.Wrap(err, "parse policy")
 			}
 
-			cert.Policies = append(cert.Policies, oid)
+			// cert.Policies = append(cert.Policies, oid)
+			if ansiOid, ok := oid.toASN1OID(); ok {
+				cert.PolicyIdentifiers = append(cert.PolicyIdentifiers, ansiOid)
+			}
 		}
 	}
 
