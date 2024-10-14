@@ -7,7 +7,7 @@ Many useful golang tools
 | v1      | >= v1.16   |
 | v2      | >= v1.18   |
 | v3      | >= v1.19   |
-| v4      | >= v1.20   |
+| v4      | >= v1.21   |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
