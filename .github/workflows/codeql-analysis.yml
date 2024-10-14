@@ -13,13 +13,13 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ v4, v4-dev ]
+    branches: [ v5, v5-dev ]
     paths-ignore:
       - "**/*.md"
       - ".scripts/*.sh"
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ v4, v4-dev ]
+    branches: [ v5, v5-dev ]
     paths-ignore:
       - "**/*.md"
       - ".scripts/*.sh"
