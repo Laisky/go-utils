@@ -267,12 +267,12 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 		bb.Reset()
 		a.encPool.Put(enc)
 
-		msg := "logger: " + e.LoggerName + "\n" +
-			"time: " + e.Time.Format(time.RFC3339Nano) + "\n" +
-			"level: " + e.Level.String() + "\n" +
-			"caller: " + e.Caller.FullPath() + "\n" +
-			"stack: " + e.Stack + "\n" +
-			"message: " + e.Message + "\n" +
+		msg := "logger: `" + e.LoggerName + "`\n" +
+			"⏰time: `" + e.Time.Format(time.RFC3339Nano) + "`\n" +
+			"⚠️level: `" + e.Level.String() + "`\n" +
+			"🤖caller: `" + e.Caller.FullPath() + "`\n" +
+			"🏠stack: `" + e.Stack + "`\n" +
+			"📒message: `" + e.Message + "`\n" +
 			fsb
 
 		if err = a.Send(msg); err != nil {
