@@ -11,7 +11,7 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/xlzd/gotp"
 
-	gutils "github.com/Laisky/go-utils/v4"
+	gutils "github.com/Laisky/go-utils/v5"
 )
 
 // OTPType otp type

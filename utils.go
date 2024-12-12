@@ -36,10 +36,10 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/Laisky/go-utils/v4/algorithm"
-	"github.com/Laisky/go-utils/v4/common"
-	"github.com/Laisky/go-utils/v4/json"
-	"github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/go-utils/v5/algorithm"
+	"github.com/Laisky/go-utils/v5/common"
+	"github.com/Laisky/go-utils/v5/json"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 type jsonT struct {
@@ -49,7 +49,7 @@ type jsonT struct {
 var (
 	// JSON effective json
 	//
-	// Deprecated: use github.com/Laisky/go-utils/v4/json instead
+	// Deprecated: use github.com/Laisky/go-utils/v5/json instead
 	JSON = jsonT{API: jsoniter.ConfigCompatibleWithStandardLibrary}
 
 	internalSFG singleflight.Group

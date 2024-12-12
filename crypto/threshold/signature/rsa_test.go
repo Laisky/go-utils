@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	"github.com/Laisky/go-utils/v4/crypto"
+	gutils "github.com/Laisky/go-utils/v5"
+	"github.com/Laisky/go-utils/v5/crypto"
 )
 
 func TestVerifyBySHA256(t *testing.T) {

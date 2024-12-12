@@ -8,9 +8,9 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	gkms "github.com/Laisky/go-utils/v4/crypto/kms"
-	glog "github.com/Laisky/go-utils/v4/log"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	gkms "github.com/Laisky/go-utils/v5/crypto/kms"
+	glog "github.com/Laisky/go-utils/v5/log"
 )
 
 var (

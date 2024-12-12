@@ -28,7 +28,7 @@ import (
 	"github.com/Laisky/errors/v2"
 	"golang.org/x/crypto/bcrypt"
 
-	gutils "github.com/Laisky/go-utils/v4"
+	gutils "github.com/Laisky/go-utils/v5"
 )
 
 // HashedPassword salt hashed password

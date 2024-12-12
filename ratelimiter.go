@@ -6,7 +6,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 // ThrottleCfg Throttle's configuration

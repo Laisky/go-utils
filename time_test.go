@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 func TestTimeZone(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v4/common"
+	"github.com/Laisky/go-utils/v5/common"
 )
 
 // GetLargestNItems get N highest priority items

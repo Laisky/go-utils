@@ -8,8 +8,8 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/niclabs/tcrsa"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	gutils "github.com/Laisky/go-utils/v5"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
 )
 
 // NewKeyShares generate total keyshares for threshold signature,

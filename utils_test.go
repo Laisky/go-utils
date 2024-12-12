@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Laisky/go-utils/v4/common"
-	"github.com/Laisky/go-utils/v4/json"
-	"github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/go-utils/v5/common"
+	"github.com/Laisky/go-utils/v5/json"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 type testEmbeddedSt struct{}
@@ -218,7 +218,7 @@ func testFoo() {}
 func TestGetFuncName(t *testing.T) {
 	t.Parallel()
 
-	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v4.testFoo" {
+	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v5.testFoo" {
 		t.Fatalf("want `testFoo`, got `%v`", name)
 	}
 }

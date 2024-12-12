@@ -1,6 +1,6 @@
 package utils
 
-import "github.com/Laisky/go-utils/v4/common"
+import "github.com/Laisky/go-utils/v5/common"
 
 // Number is a number type
 type Number common.Number

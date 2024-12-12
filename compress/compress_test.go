@@ -12,9 +12,9 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	"github.com/Laisky/go-utils/v4/log"
+	gutils "github.com/Laisky/go-utils/v5"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 // func TestZipDir(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	gutils "github.com/Laisky/go-utils/v5"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
 )
 
 func Test_tlsInfoCMD(t *testing.T) {

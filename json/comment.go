@@ -3,7 +3,7 @@ package json
 import (
 	"encoding/json"
 
-	"github.com/Laisky/go-utils/v4/common"
+	"github.com/Laisky/go-utils/v5/common"
 
 	// json2 "github.com/go-json-experiment/json"
 	"github.com/Laisky/errors/v2"

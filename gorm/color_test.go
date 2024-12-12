@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v4/log"
-	"github.com/Laisky/go-utils/v4/mocks"
+	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v5/mocks"
 )
 
 func TestGormLogger_Print(t *testing.T) {

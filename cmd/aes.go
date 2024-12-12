@@ -13,9 +13,9 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	"github.com/Laisky/go-utils/v4/log"
+	gutils "github.com/Laisky/go-utils/v5"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 // EncryptCMD encrypt files
@@ -28,7 +28,7 @@ var EncryptCMD = &cobra.Command{
 		Usage
 
 			import (
-				gcmd "github.com/Laisky/go-utils/v4/cmd"
+				gcmd "github.com/Laisky/go-utils/v5/cmd"
 			)
 
 			func init() {

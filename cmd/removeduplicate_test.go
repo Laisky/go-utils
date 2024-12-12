@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v4"
+	gutils "github.com/Laisky/go-utils/v5"
 )
 
 func Test_switch(t *testing.T) {

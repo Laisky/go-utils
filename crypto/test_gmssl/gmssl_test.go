@@ -10,7 +10,7 @@ import (
 	gmssl "github.com/GmSSL/GmSSL-Go"
 	"github.com/stretchr/testify/require"
 
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
 )
 
 func testSkipSmTongsuo(t *testing.T) (skipped bool) {

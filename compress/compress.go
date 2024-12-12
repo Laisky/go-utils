@@ -13,8 +13,8 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	"github.com/Laisky/go-utils/v4/log"
+	gutils "github.com/Laisky/go-utils/v5"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 const (

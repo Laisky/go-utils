@@ -18,7 +18,7 @@ import (
 	"go.dedis.ch/kyber/v3/group/edwards25519"
 	dediskey "go.dedis.ch/kyber/v3/util/key"
 
-	"github.com/Laisky/go-utils/v4/log"
+	"github.com/Laisky/go-utils/v5/log"
 )
 
 func TestPassword(t *testing.T) {
@@ -53,7 +53,7 @@ func ExampleGeneratePasswordHash() {
 
 // goos: linux
 // goarch: amd64
-// pkg: github.com/Laisky/go-utils/v4/crypto
+// pkg: github.com/Laisky/go-utils/v5/crypto
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // BenchmarkGeneratePasswordHash
 // BenchmarkGeneratePasswordHash/generate
@@ -520,7 +520,7 @@ func TestVerifyBySchnorrSha256(t *testing.T) {
 
 // goos: linux
 // goarch: amd64
-// pkg: github.com/Laisky/go-utils/v4/crypto
+// pkg: github.com/Laisky/go-utils/v5/crypto
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_Sign
 // Benchmark_Sign/sign_rsa-2048_4k
@@ -537,7 +537,7 @@ func TestVerifyBySchnorrSha256(t *testing.T) {
 // Benchmark_Sign/sign_schnorr-ed25519_4k-104  	     493	   2252567 ns/op	    3822 B/op	      48 allocs/op
 // PASS
 // coverage: 1.7% of statements
-// ok  	github.com/Laisky/go-utils/v4/crypto	16.896s
+// ok  	github.com/Laisky/go-utils/v5/crypto	16.896s
 func Benchmark_Sign(b *testing.B) {
 	raw4k, err := Salt(4 * 1024)
 	require.NoError(b, err)

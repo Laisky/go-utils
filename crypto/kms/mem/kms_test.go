@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v4"
-	gcounter "github.com/Laisky/go-utils/v4/counter"
-	gcrypto "github.com/Laisky/go-utils/v4/crypto"
-	gkms "github.com/Laisky/go-utils/v4/crypto/kms"
+	gutils "github.com/Laisky/go-utils/v5"
+	gcounter "github.com/Laisky/go-utils/v5/counter"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	gkms "github.com/Laisky/go-utils/v5/crypto/kms"
 )
 
 func TestKMS_Decrypt(t *testing.T) {
