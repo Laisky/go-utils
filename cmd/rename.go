@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,8 +24,16 @@ func init() {
 	renameAvCmd.Flags().BoolVar(&renameAvCmdArgs.dry,
 		"dry", false, "dry run")
 	renameAvCmd.Flags().StringSliceVarP(&renameAvCmdArgs.exts,
-		"exts", "e", []string{".mp4", ".avi", ".mov"}, "files with these exts will be processed")
+		"exts", "e",
+		[]string{".mp4", ".avi", ".mov", "wmv", "rmvb"},
+		"files with these exts will be processed")
 	renameCMD.AddCommand(renameAvCmd)
+
+	renameFlatCmd.Flags().StringVarP(&renameFlatCmdArgs.dir,
+		"dir", "d", "", "directory")
+	renameFlatCmd.Flags().BoolVar(&renameFlatCmdArgs.dry,
+		"dry", false, "dry run")
+	renameCMD.AddCommand(renameFlatCmd)
 }
 
 var renameCMD = &cobra.Command{
@@ -167,4 +176,57 @@ func convertAvFilename(source string) (target string) {
 	target = strings.ReplaceAll(target, "caribbeancom", "caribbean")
 	target = strings.ReplaceAll(target, "1pon", "1pondo")
 	return filepath.Join(dir, target+fileext)
+}
+
+var renameFlatCmdArgs = struct {
+	dir string
+	dry bool
+}{}
+
+var renameFlatCmd = &cobra.Command{
+	Use:   "flat",
+	Short: "flat",
+	Long: gutils.Dedent(`
+		Traverse all subfolders in the target folder, move the files to the target folder, and add the name of the subfolder as a prefix to the new file name.
+
+		/target/child/file.txt -> /target/child_file.txt
+
+		Examples:
+			$ gutils rename flat -d /path/to/dir
+	`),
+	Args: NoExtraArgs,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		baseDir, err := filepath.Abs(renameFlatCmdArgs.dir)
+		if err != nil {
+			return err
+		}
+		err = filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return errors.Wrapf(walkErr, "walk dir %s", path)
+			}
+
+			if d.IsDir() {
+				return nil
+			}
+
+			rel, err := filepath.Rel(baseDir, path)
+			if err != nil {
+				return errors.Wrapf(err, "get relative path of %s", path)
+			}
+
+			prefix := strings.Split(rel, string(os.PathSeparator))[0]
+			newName := prefix + "_" + filepath.Base(path)
+			targetPath := filepath.Join(baseDir, newName)
+			if renameFlatCmdArgs.dry {
+				fmt.Printf("Dry run: would rename %s to %s\n", path, targetPath)
+			} else {
+				if err := os.Rename(path, targetPath); err != nil {
+					return errors.Wrapf(err, "rename %s to %s", path, targetPath)
+				}
+			}
+			return nil
+		})
+
+		return errors.Wrapf(err, "walk dir %s", baseDir)
+	},
 }
