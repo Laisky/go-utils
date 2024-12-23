@@ -225,6 +225,9 @@ var renameFlatCmd = &cobra.Command{
 				if err := os.Rename(path, targetPath); err != nil {
 					return errors.Wrapf(err, "rename %s to %s", path, targetPath)
 				}
+
+				glog.Shared.Info("rename",
+					zap.String("from", path), zap.String("to", targetPath))
 			}
 			return nil
 		})
