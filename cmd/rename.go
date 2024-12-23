@@ -216,6 +216,10 @@ var renameFlatCmd = &cobra.Command{
 				return errors.Wrapf(err, "get relative path of %s", path)
 			}
 
+			if rel == "." {
+				return nil
+			}
+
 			prefix := strings.TrimSpace(strings.Split(rel, string(os.PathSeparator))[0])
 			newName := prefix + "_" + filepath.Base(path)
 			targetPath := filepath.Join(baseDir, newName)
