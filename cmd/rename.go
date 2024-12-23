@@ -27,6 +27,8 @@ func init() {
 		"exts", "e",
 		[]string{".mp4", ".avi", ".mov", "wmv", "rmvb"},
 		"files with these exts will be processed")
+	renameAvCmd.Flags().BoolVar(&renameAvCmdArgs.recurse,
+		"recurse", false, "recurse into subdirectories")
 	renameCMD.AddCommand(renameAvCmd)
 
 	renameFlatCmd.Flags().StringVarP(&renameFlatCmdArgs.dir,
@@ -214,7 +216,7 @@ var renameFlatCmd = &cobra.Command{
 				return errors.Wrapf(err, "get relative path of %s", path)
 			}
 
-			prefix := strings.Split(rel, string(os.PathSeparator))[0]
+			prefix := strings.TrimSpace(strings.Split(rel, string(os.PathSeparator))[0])
 			newName := prefix + "_" + filepath.Base(path)
 			targetPath := filepath.Join(baseDir, newName)
 			if renameFlatCmdArgs.dry {
