@@ -10,22 +10,11 @@ import (
 	"github.com/Laisky/errors/v2"
 )
 
-// FLock lock by file
-type FLock interface {
-	Lock() error
-	Unlock() error
-}
-
-type flock struct {
-	fpath string
-	fd    int
-}
-
 // NewFlock new file lock
-func NewFlock(lockFilePath string) FLock {
+func NewFlock(lockFilePath string) (FLock, error) {
 	return &flock{
 		fpath: lockFilePath,
-	}
+	}, nil
 }
 
 func (f *flock) Unlock() error {
