@@ -407,3 +407,14 @@ func (m *RWManager) Unlock(name string) {
 
 	mu.(*sync.RWMutex).Unlock() //nolint:forcetypeassert
 }
+
+// FLock lock by file
+type FLock interface {
+	Lock() error
+	Unlock() error
+}
+
+type flock struct {
+	fpath string
+	fd    int
+}

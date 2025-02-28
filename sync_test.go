@@ -257,16 +257,16 @@ func TestNewFlock(t *testing.T) {
 	lockfile := filepath.Join(dir, "test.lock")
 
 	t.Run("file not exist", func(t *testing.T) {
-		f := NewFlock("/123/" + lockfile)
+		f, err := NewFlock("/123/" + lockfile)
 		require.NoError(t, err)
 		require.Error(t, f.Lock())
 		require.Error(t, f.Unlock())
 	})
 
 	t.Run("same process", func(t *testing.T) {
-		flock1 := NewFlock(lockfile)
+		flock1, err := NewFlock(lockfile)
 		require.NoError(t, err)
-		flock2 := NewFlock(lockfile)
+		flock2, err := NewFlock(lockfile)
 		require.NoError(t, err)
 
 		err = flock1.Lock()
