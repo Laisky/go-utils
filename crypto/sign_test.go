@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/Laisky/zap"
@@ -457,7 +458,12 @@ func TestSignReaderByEd25519WithSHA256(t *testing.T) {
 	t.Run("false sig", func(t *testing.T) {
 		falseSig := []byte("2l3fj238f83fu")
 		err := VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), falseSig)
-		require.ErrorContains(t, err, "bad signature")
+		errmsg := err.Error()
+		// go1.23 raise "invalid signature", go1.24 raise "bad signature"
+		if !strings.Contains(errmsg, "bad signature") &&
+			!strings.Contains(errmsg, "invalid signature") {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	})
 }
 
