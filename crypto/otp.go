@@ -33,8 +33,12 @@ const (
 )
 
 const (
-	MaxDigits     = 8  // Maximum number of digits allowed
-	MaxPeriodSecs = 60 // Maximum period in seconds
+	// MaxDigits is the maximum number of digits allowed
+	MaxDigits = 8
+	// MaxPeriodSecs is the maximum period in seconds
+	MaxPeriodSecs = 60
+	// MaxInt is the maximum value for int
+	MaxInt = int(^uint(0) >> 1)
 )
 
 // Base32Secret generate base32 encoded secret
@@ -130,8 +134,8 @@ func NewTOTP(arg OTPArgs) (*TOTP, error) {
 	return &TOTP{
 		engine: gotp.NewTOTP(
 			arg.Base32Secret,
-			int(arg.Digits),
-			int(arg.PeriodSecs),
+			int(arg.Digits),     //nolint:gosec  //G115: integer overflow // already checked
+			int(arg.PeriodSecs), //nolint:gosec  //G115: integer overflow // already checked
 			hasher,
 		),
 		arg: arg,
@@ -157,8 +161,8 @@ func (t *TOTP) URI() string {
 		t.arg.IssuerName,
 		string(t.arg.Algorithm),
 		t.arg.InitialCount,
-		int(t.arg.Digits),
-		int(t.arg.PeriodSecs),
+		int(t.arg.Digits),     //nolint:gosec  //G115: integer overflow // already checked
+		int(t.arg.PeriodSecs), //nolint:gosec  //G115: integer overflow // already checked
 	)
 }
 

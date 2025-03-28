@@ -1,12 +1,55 @@
 package kms
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v5"
 )
+
+func TestEncryptedItem_Marshal_Overflow(t *testing.T) {
+	t.Parallel()
+
+	// Test case 1: DekID exceeding uint16 max
+	e := &EncryptedData{
+		Version:    EncryptedItemVer1,
+		KekID:      1,
+		DekID:      make([]byte, 70000), // Exceeds uint16 max
+		Ciphertext: []byte("test"),
+	}
+
+	_, err := e.Marshal()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "exceeds maximum allowed size")
+
+	// Test case 2: DekID at uint16 max boundary
+	maxSize := uint16(math.MaxUint16)
+	e = &EncryptedData{
+		Version:    EncryptedItemVer1,
+		KekID:      1,
+		DekID:      make([]byte, maxSize),
+		Ciphertext: []byte("test"),
+	}
+
+	data, err := e.Marshal()
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	// Test case 3: Verify unmarshaling with max size DekID
+	e2 := &EncryptedData{}
+	err = e2.Unmarshal(data)
+	require.NoError(t, err)
+	require.Equal(t, maxSize, uint16(len(e2.DekID)))
+	require.Equal(t, e.KekID, e2.KekID)
+	require.Equal(t, e.Ciphertext, e2.Ciphertext)
+
+	// Test case 4: Invalid short data
+	err = e2.Unmarshal([]byte{0x1, 0x2})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "data too short")
+}
 
 func TestEncryptedItem_Unmarshal(t *testing.T) {
 	t.Parallel()
