@@ -458,6 +458,8 @@ func TestSignReaderByEd25519WithSHA256(t *testing.T) {
 	t.Run("false sig", func(t *testing.T) {
 		falseSig := []byte("2l3fj238f83fu")
 		err := VerifyReaderByEd25519WithSHA256(pubkey, bytes.NewReader(raw), falseSig)
+		require.Error(t, err)
+
 		errmsg := err.Error()
 		// go1.23 raise "invalid signature", go1.24 raise "bad signature"
 		if !strings.Contains(errmsg, "bad signature") &&
