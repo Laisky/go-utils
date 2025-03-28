@@ -33,12 +33,10 @@ jobs:
           cache: true
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-      # - name: Run golangci-lint
-      #   run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
+      - name: Run golangci-lint
+        run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
 
       - name: Verify dependencies
         run: go mod verify
