@@ -67,5 +67,7 @@ func NewDeque[T any](optfs ...DequeOptFunc) (Deque[T], error) {
 		return nil, err
 	}
 
-	return deque.New[T](opt.currentCapacity, opt.minimalCapacity), nil
+	q := new(deque.Deque[T])
+	q.SetBaseCap(opt.minimalCapacity)
+	return q, nil
 }

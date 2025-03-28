@@ -6,31 +6,62 @@ on:
     paths-ignore:
       - "**/*.md"
       - ".scripts/*.sh"
+  pull_request:
+    branches: [ v5 ]
+
+# Cancel in-progress runs for pull requests
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # Set maximum execution time
     strategy:
+      fail-fast: false  # Continue with other versions if one fails
       matrix:
-        go: [ '1.23' ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
-        with:
-          path: |
-            vendor
-            $HOME/.cache/go-build
-            $GOPATH/pkg/mod
-          key: ${{ runner.os }}-go-utils-deps
+        go: [ '1.23' ]  # Test multiple Go versions
 
-      - uses: actions/setup-go@v2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
+          cache: true
 
-      - run: go version
-      - run: pwd
-      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-      - run: go mod vendor
-      - run: go vet
-      - run: go test -race -mod=vendor -coverprofile=coverage.txt -covermode=atomic ./...
-      - run: bash <(curl -s https://codecov.io/bash)
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+      - name: Run golangci-lint
+        run: golangci-lint run ./...
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Run tests with race detection
+        run: go test -race -mod=vendor -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Run gosec security scanner
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4  # Updated to v4
+        with:
+          file: ./coverage.txt
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Check if Go modules are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
