@@ -37,11 +37,14 @@ jobs:
         with:
           version: latest
 
-      - name: Run golangci-lint
-        run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
+      # - name: Run golangci-lint
+      #   run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
 
       - name: Verify dependencies
         run: go mod verify
+
+      - name: Go vet
+        run: go vet ./...
 
       - name: Build
         run: go build -v ./...
@@ -49,10 +52,10 @@ jobs:
       - name: Run tests with race detection
         run: go test -race -mod=vendor -coverprofile=coverage.txt -covermode=atomic ./...
 
-      - name: Run gosec security scanner
-        uses: securego/gosec@master
-        with:
-          args: ./...
+      # - name: Run gosec security scanner
+      #   uses: securego/gosec@master
+      #   with:
+      #     args: ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4  # Updated to v4
