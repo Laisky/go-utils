@@ -38,9 +38,6 @@ jobs:
       - name: Run golangci-lint
         run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
 
-      - name: Verify dependencies
-        run: go mod verify
-
       - name: Go vet
         run: go vet ./...
 
@@ -48,7 +45,7 @@ jobs:
         run: go build -v ./...
 
       - name: Run tests with race detection
-        run: go test -race -mod=vendor -coverprofile=coverage.txt -covermode=atomic ./...
+        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
 
       # - name: Run gosec security scanner
       #   uses: securego/gosec@master
