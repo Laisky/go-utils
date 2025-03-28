@@ -1,8 +1,10 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"io"
 	"os"
 	"strings"
@@ -191,13 +193,69 @@ func AEADDecryptBasic(key, ciphertext, iv, tag, additionalData []byte) (plaintex
 	return plaintext, nil
 }
 
+// AesCtrStreamEncrypt encrypts the input stream using AES in CTR mode
+func AesCtrStreamEncrypt(key []byte, reader io.Reader) (io.Reader, error) {
+	// Create AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "create aes cipher")
+	}
+
+	// Generate random IV
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, errors.Wrap(err, "generate iv")
+	}
+
+	// Create CTR stream
+	stream := cipher.NewCTR(block, iv)
+
+	// Create a reader that prepends IV and encrypts the input
+	// For empty input, we still need to include the IV
+	return io.MultiReader(
+		bytes.NewReader(iv),
+		&cipher.StreamReader{
+			S: stream,
+			R: reader,
+		},
+	), nil
+}
+
+// AesCtrStreamDecrypt decrypts the input stream using AES in CTR mode
+func AesCtrStreamDecrypt(key []byte, reader io.Reader) (io.Reader, error) {
+	// Create AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "create aes cipher")
+	}
+
+	// Read IV from the beginning of the stream
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(reader, iv); err != nil {
+		return nil, errors.Wrap(err, "read iv")
+	}
+
+	// Create CTR stream
+	stream := cipher.NewCTR(block, iv)
+
+	// Return decrypting reader that handles empty input
+	return &cipher.StreamReader{
+		S: stream,
+		R: reader,
+	}, nil
+}
+
 // AesReaderWrapper used to decrypt encrypted reader
+//
+// Deprecated: use AesCtrStreamDecrypt instead
 type AesReaderWrapper struct {
 	cnt []byte
 	idx int
 }
 
 // NewAesReaderWrapper wrap reader by aes
+//
+// Deprecated: use AesCtrStreamDecrypt instead
 func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
 	cipher, err := io.ReadAll(in)
 	if err != nil {
@@ -212,20 +270,18 @@ func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
 	return w, nil
 }
 
+// Read read from decrypted reader
+//
+// Deprecated: use AesCtrStreamDecrypt instead
 func (w *AesReaderWrapper) Read(p []byte) (n int, err error) {
 	if w.idx == len(w.cnt) {
 		return 0, io.EOF
 	}
 
-	for n = range p {
-		p[n] = w.cnt[w.idx]
-		w.idx++
-		if w.idx == len(w.cnt) {
-			break
-		}
-	}
+	n = copy(p, w.cnt[w.idx:])
+	w.idx += n
 
-	return n + 1, nil
+	return n, nil
 }
 
 const (

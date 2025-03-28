@@ -241,3 +241,244 @@ func TestGcmIvLength(t *testing.T) {
 		require.Equal(t, AesGcmTagLen, gcm.Overhead())
 	}
 }
+
+func TestAesCtrStream(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		plaintext []byte
+		key       []byte
+		wantErr   bool
+	}{
+		{
+			name:      "normal case",
+			plaintext: []byte("Hello, this is a test message!"),
+			key:       []byte("0123456789abcdef"), // 16 bytes key
+			wantErr:   false,
+		},
+		{
+			name:      "empty message",
+			plaintext: []byte(""),
+			key:       []byte("0123456789abcdef"),
+			wantErr:   false,
+		},
+		{
+			name:      "long message",
+			plaintext: bytes.Repeat([]byte("long message "), 1000),
+			key:       []byte("0123456789abcdef"),
+			wantErr:   false,
+		},
+		{
+			name:      "invalid key size",
+			plaintext: []byte("test message"),
+			key:       []byte("short"),
+			wantErr:   true,
+		},
+		{
+			name:      "24 byte key",
+			plaintext: []byte("message with longer key"),
+			key:       bytes.Repeat([]byte("k"), 24),
+			wantErr:   false,
+		},
+		{
+			name:      "32 byte key",
+			plaintext: []byte("message with longest key"),
+			key:       bytes.Repeat([]byte("k"), 32),
+			wantErr:   false,
+		},
+		{
+			name:      "special characters",
+			plaintext: []byte("!@#$%^&*()_+{}[]|\\:;\"'<>,.?/~`"),
+			key:       []byte("0123456789abcdef"),
+			wantErr:   false,
+		},
+		{
+			name:      "null bytes in message",
+			plaintext: []byte("hello\x00world\x00!"),
+			key:       []byte("0123456789abcdef"),
+			wantErr:   false,
+		},
+		{
+			name:      "unicode characters",
+			plaintext: []byte("Hello 世界! Здравствуйте! 👋"),
+			key:       []byte("0123456789abcdef"),
+			wantErr:   false,
+		},
+		{
+			name:      "oversized key",
+			plaintext: []byte("test message"),
+			key:       bytes.Repeat([]byte("k"), 33),
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create reader from plaintext
+			reader := bytes.NewReader(tt.plaintext)
+
+			// Encrypt
+			encryptedReader, err := AesCtrStreamEncrypt(tt.key, reader)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Read encrypted data
+			encryptedData, err := io.ReadAll(encryptedReader)
+			require.NoError(t, err)
+
+			// Verify that encrypted data is different from plaintext
+			if len(tt.plaintext) > 0 {
+				require.NotEqual(t, tt.plaintext, encryptedData[aes.BlockSize:])
+			}
+
+			// Decrypt
+			decryptReader, err := AesCtrStreamDecrypt(tt.key, bytes.NewReader(encryptedData))
+			require.NoError(t, err)
+
+			// Read decrypted data
+			decryptedData, err := io.ReadAll(decryptReader)
+			require.NoError(t, err)
+
+			// Verify decrypted data matches original plaintext
+			require.Equal(t, tt.plaintext, decryptedData)
+		})
+	}
+
+	t.Run("different IV produces different ciphertext", func(t *testing.T) {
+		t.Parallel()
+
+		plaintext := []byte("test message")
+		key := []byte("0123456789abcdef")
+
+		// First encryption
+		reader1 := bytes.NewReader(plaintext)
+		encrypted1, err := AesCtrStreamEncrypt(key, reader1)
+		require.NoError(t, err)
+		data1, err := io.ReadAll(encrypted1)
+		require.NoError(t, err)
+
+		// Second encryption
+		reader2 := bytes.NewReader(plaintext)
+		encrypted2, err := AesCtrStreamEncrypt(key, reader2)
+		require.NoError(t, err)
+		data2, err := io.ReadAll(encrypted2)
+		require.NoError(t, err)
+
+		// Verify different IVs were used
+		require.NotEqual(t, data1[:aes.BlockSize], data2[:aes.BlockSize])
+		// Verify ciphertexts are different
+		require.NotEqual(t, data1[aes.BlockSize:], data2[aes.BlockSize:])
+	})
+
+	t.Run("wrong key size for decryption", func(t *testing.T) {
+		t.Parallel()
+
+		plaintext := []byte("test message")
+		key := []byte("0123456789abcdef")
+
+		// Encrypt with correct key
+		reader := bytes.NewReader(plaintext)
+		encryptedReader, err := AesCtrStreamEncrypt(key, reader)
+		require.NoError(t, err)
+		encryptedData, err := io.ReadAll(encryptedReader)
+		require.NoError(t, err)
+
+		// Try to decrypt with wrong key size
+		wrongKey := []byte("wrong")
+		_, err = AesCtrStreamDecrypt(wrongKey, bytes.NewReader(encryptedData))
+		require.Error(t, err)
+	})
+}
+
+func TestWithAESFilesInDirFileSuffix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		suffix    string
+		wantError bool
+		errMsg    string
+	}{
+		{
+			name:      "valid suffix",
+			suffix:    ".test",
+			wantError: false,
+		},
+		{
+			name:      "invalid suffix without dot",
+			suffix:    "test",
+			wantError: true,
+			errMsg:    "suffix should start with `.`",
+		},
+		{
+			name:      "empty suffix",
+			suffix:    "",
+			wantError: true,
+			errMsg:    "suffix should start with `.`",
+		},
+		{
+			name:      "multiple dots",
+			suffix:    ".test.encrypted",
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := new(encryptFilesOption)
+			opt.fillDefault()
+
+			err := WithAESFilesInDirFileSuffix(tt.suffix)(opt)
+			if tt.wantError {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.errMsg)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.suffix, opt.suffix)
+			}
+		})
+	}
+
+	t.Run("practical usage with AESEncryptFilesInDir", func(t *testing.T) {
+		dirName, err := os.MkdirTemp("", "go-utils-test-settings*")
+		require.NoError(t, err)
+		defer os.RemoveAll(dirName)
+
+		// Create test file
+		cnt := []byte("test content")
+		err = os.WriteFile(filepath.Join(dirName, "test.toml"), cnt, 0640)
+		require.NoError(t, err)
+
+		// Custom suffix
+		customSuffix := ".custom"
+		// Use a proper AES key size (16 bytes for AES-128)
+		secret := []byte("1234567890123456")
+		err = AESEncryptFilesInDir(dirName, secret,
+			WithAESFilesInDirFileExt(".toml"),
+			WithAESFilesInDirFileSuffix(customSuffix))
+		require.NoError(t, err)
+
+		// Verify encrypted file exists with custom suffix
+		encryptedFile := filepath.Join(dirName, "test.toml"+customSuffix)
+		_, err = os.Stat(encryptedFile)
+		require.NoError(t, err)
+
+		// Verify content can be decrypted
+		cipher, err := os.ReadFile(encryptedFile)
+		require.NoError(t, err)
+
+		got, err := AesDecrypt(secret, cipher)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
+}
