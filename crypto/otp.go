@@ -32,6 +32,11 @@ const (
 	OTPAlgorithmSHA1 OTPAlgorithm = "sha1"
 )
 
+const (
+	MaxDigits     = 8  // Maximum number of digits allowed
+	MaxPeriodSecs = 60 // Maximum period in seconds
+)
+
 // Base32Secret generate base32 encoded secret
 func Base32Secret(key []byte) string {
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(key)
@@ -109,6 +114,14 @@ func NewTOTP(arg OTPArgs) (*TOTP, error) {
 	arg.Digits = gutils.OptionalVal(&arg.Digits, 6)
 	arg.PeriodSecs = gutils.OptionalVal(&arg.PeriodSecs, 30)
 
+	// Validate ranges
+	if arg.Digits == 0 || arg.Digits > MaxDigits {
+		return nil, errors.Errorf("digits must be between 1 and %d", MaxDigits)
+	}
+	if arg.PeriodSecs == 0 || arg.PeriodSecs > MaxPeriodSecs {
+		return nil, errors.Errorf("period must be between 1 and %d seconds", MaxPeriodSecs)
+	}
+
 	hasher, err := arg.Hasher()
 	if err != nil {
 		return nil, err
@@ -175,18 +188,20 @@ func ParseOTPUri(uri string) (arg OTPArgs, err error) {
 		return arg, errors.Wrap(err, "unescape secret")
 	}
 
-	digit, err := url.QueryUnescape(parsedURL.Query().Get("digit"))
+	digits, err := url.QueryUnescape(parsedURL.Query().Get("digits"))
 	if err != nil {
-		return arg, errors.Wrap(err, "unescape digit")
+		return arg, errors.Wrap(err, "unescape digits")
 	}
-	if gutils.Contains([]string{"0", "6", ""}, digit) {
+	if gutils.Contains([]string{"0", "6", ""}, digits) {
 		arg.Digits = 6
 	} else {
-		v, err := strconv.Atoi(digit)
+		v, err := strconv.Atoi(digits)
 		if err != nil {
-			return arg, errors.Wrapf(err, "parse digit %q", digit)
+			return arg, errors.Wrapf(err, "parse digits %q", digits)
 		}
-
+		if v <= 0 || v > MaxDigits {
+			return arg, errors.Errorf("digits must be between 1 and %d", MaxDigits)
+		}
 		arg.Digits = uint(v)
 	}
 
@@ -201,7 +216,9 @@ func ParseOTPUri(uri string) (arg OTPArgs, err error) {
 		if err != nil {
 			return arg, errors.Wrapf(err, "parse period %q", period)
 		}
-
+		if v <= 0 || v > MaxPeriodSecs {
+			return arg, errors.Errorf("period must be between 1 and %d seconds", MaxPeriodSecs)
+		}
 		arg.PeriodSecs = uint(v)
 	}
 

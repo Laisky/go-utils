@@ -364,11 +364,11 @@ linters:
     - errchkjson
     - errname
     - errorlint
-    - execinquery
+    # - execinquery # deprecated
     - exhaustive
     # - exhaustivestruct # deprecated
     # - exhaustruct # useless, there could be some reasons to not use all fields
-    - exportloopref
+    # - exportloopref # is deprecated (since v1.60.2)
     # - forbidigo # no need
     - forcetypeassert
     # - funlen

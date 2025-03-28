@@ -28,6 +28,9 @@ func NewKeyShares(total, threshold int,
 		return nil, nil, errors.Errorf(
 			"threshold should be between the %d and %d, but got %d",
 			(total/2)+1, total, threshold)
+	case threshold > 65535 || total > 65535: // Add uint16 bound check
+		return nil, nil, errors.Errorf(
+			"threshold and total must not exceed 65535 (uint16 max value)")
 	}
 
 	keyShares, keyMeta, err = tcrsa.NewKey(

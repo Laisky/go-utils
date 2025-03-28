@@ -38,7 +38,7 @@ jobs:
           version: latest
 
       - name: Run golangci-lint
-        run: golangci-lint run ./...
+        run: golangci-lint run -c .golangci.lint.yml --allow-parallel-runners
 
       - name: Verify dependencies
         run: go mod verify
