@@ -268,33 +268,162 @@ func TestFallTr(t *testing.T) {
 	require.Equal(t, "b", got)
 }
 
-func TestNumber2Roman(t *testing.T) {
+func TestNumber2Roman_Comprehensive(t *testing.T) {
 	tests := []struct {
 		name string
 		n    int
 		want string
 	}{
-		{"1", 1, "\u2160"},
-		{"2", 2, "\u2161"},
-		{"3", 3, "\u2162"},
-		{"4", 4, "\u2163"},
-		{"5", 5, "\u2164"},
-		{"6", 6, "\u2165"},
-		{"7", 7, "\u2166"},
-		{"8", 8, "\u2167"},
-		{"9", 9, "\u2168"},
-		{"10", 10, "\u2169"},
-		{"11", 11, "\u216A"},
-		{"12", 12, "\u216B"},
-		{"19", 19, "\u2169\u2168"},
-		{"20", 20, "\u2169\u2169"},
-		{"3999", 3999, "ⅯⅯⅯⅭⅯⅩⅭⅨ"},
-		{"4000", 4000, ""},
+		// Edge cases
+		{"negative", -1, ""},
+		{"zero", 0, ""},
+		{"above max", 4000, ""},
+		{"max valid", 3999, "ⅯⅯⅯⅭⅯⅩⅭⅨ"},
+
+		// Single digit numbers
+		{"1 to 9", 1, "Ⅰ"},
+		{"2", 2, "Ⅱ"},
+		{"3", 3, "Ⅲ"},
+		{"4", 4, "Ⅳ"},
+		{"5", 5, "Ⅴ"},
+		{"6", 6, "Ⅵ"},
+		{"7", 7, "Ⅶ"},
+		{"8", 8, "Ⅷ"},
+		{"9", 9, "Ⅸ"},
+
+		// Tens
+		{"10", 10, "Ⅹ"},
+		{"40", 40, "ⅩⅬ"},
+		{"50", 50, "Ⅼ"},
+		{"90", 90, "ⅩⅭ"},
+
+		// Hundreds
+		{"100", 100, "Ⅽ"},
+		{"400", 400, "ⅭⅮ"},
+		{"500", 500, "Ⅾ"},
+		{"900", 900, "ⅭⅯ"},
+
+		// Thousands
+		{"1000", 1000, "Ⅿ"},
+		{"2000", 2000, "ⅯⅯ"},
+		{"3000", 3000, "ⅯⅯⅯ"},
+
+		// Complex numbers
+		{"1994", 1994, "ⅯⅭⅯⅩⅭⅣ"},
+		{"2023", 2023, "ⅯⅯⅩⅩⅢ"},
+		{"3549", 3549, "ⅯⅯⅯⅮⅩⅬⅨ"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Number2Roman(tt.n)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func FuzzNumber2Roman(f *testing.F) {
+	// Add initial corpus
+	f.Add(1)
+	f.Add(49)
+	f.Add(99)
+	f.Add(499)
+	f.Add(999)
+	f.Add(3999)
+
+	f.Fuzz(func(t *testing.T, n int) {
+		result := Number2Roman(n)
+
+		// Verify properties that should always be true
+		if n < 1 || n > 3999 {
+			require.Empty(t, result)
+		} else {
+			require.NotEmpty(t, result)
+			// Verify result only contains valid Roman numeral characters
+			validChars := "\u2160\u2161\u2162\u2163\u2164\u2165\u2166\u2167\u2168\u2169\u216A\u216B\u216C\u216D\u216E\u216F"
+			for _, ch := range result {
+				require.Contains(t, validChars, string(ch))
+			}
+		}
+	})
+}
+func TestMin_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		args []int
+		want int
+	}{
+		{
+			name: "single value",
+			args: []int{42},
+			want: 42,
+		},
+		{
+			name: "all same values",
+			args: []int{5, 5, 5},
+			want: 5,
+		},
+		{
+			name: "negative numbers",
+			args: []int{-10, -5, -15},
+			want: -15,
+		},
+		{
+			name: "max int",
+			args: []int{math.MaxInt, 0, 1},
+			want: 0,
+		},
+		{
+			name: "min int",
+			args: []int{math.MinInt, 0, -1},
+			want: math.MinInt,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Min(tt.args...)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMax_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		args []int
+		want int
+	}{
+		{
+			name: "single value",
+			args: []int{42},
+			want: 42,
+		},
+		{
+			name: "all same values",
+			args: []int{5, 5, 5},
+			want: 5,
+		},
+		{
+			name: "negative numbers",
+			args: []int{-10, -5, -15},
+			want: -5,
+		},
+		{
+			name: "max int",
+			args: []int{math.MaxInt, 0, 1},
+			want: math.MaxInt,
+		},
+		{
+			name: "min int",
+			args: []int{math.MinInt, 0, -1},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Max(tt.args...)
 			require.Equal(t, tt.want, got)
 		})
 	}

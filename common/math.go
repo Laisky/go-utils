@@ -35,14 +35,14 @@ func Min[T Sortable](vals ...T) T {
 		panic("empty vals")
 	}
 
-	min := vals[0]
+	minVal := vals[0]
 	for _, v := range vals {
-		if v < min {
-			min = v
+		if v < minVal {
+			minVal = v
 		}
 	}
 
-	return min
+	return minVal
 }
 
 // Max return the maximal value
@@ -51,14 +51,14 @@ func Max[T Sortable](vals ...T) T {
 		panic("empty vals")
 	}
 
-	max := vals[0]
+	maxVal := vals[0]
 	for _, v := range vals {
-		if v > max {
-			max = v
+		if v > maxVal {
+			maxVal = v
 		}
 	}
 
-	return max
+	return maxVal
 }
 
 // AbsInt64 abs(v)

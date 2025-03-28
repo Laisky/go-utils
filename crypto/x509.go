@@ -1570,10 +1570,18 @@ func X509CertSubjectKeyID(pubkey crypto.PublicKey) ([]byte, error) {
 }
 
 // OidAsn2X509 convert asn1 object identifier to x509 object identifier
-func OidAsn2X509(oid asn1.ObjectIdentifier) (x509.OID, error) {
+func OidAsn2X509(oid asn1.ObjectIdentifier) (x509oid x509.OID, err error) {
+	if len(oid) == 0 {
+		return x509oid, nil // Return an empty x509.OID without error
+	}
+
 	oids := make([]uint64, 0, len(oid))
 	for i := range oid {
-		oids = append(oids, uint64(oid[i]))
+		// Check for negative numbers or numbers too large for uint64
+		if oid[i] < 0 {
+			return x509oid, errors.New("invalid oid")
+		}
+		oids = append(oids, uint64(oid[i])) //nolint:gosec // G115: integer overflow // impossible
 	}
 
 	return x509.OIDFromInts(oids)

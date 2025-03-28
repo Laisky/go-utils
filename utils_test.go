@@ -2395,3 +2395,158 @@ func Benchmark_HasPrefix(b *testing.B) {
 		}
 	})
 }
+
+func TestDecodeByBase64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		input     string
+		expected  []byte
+		expectErr bool
+	}{
+		{
+			name:      "empty string",
+			input:     "",
+			expected:  []byte{},
+			expectErr: false,
+		},
+		{
+			name:      "valid base64 string",
+			input:     "aGVsbG8=",
+			expected:  []byte("hello"),
+			expectErr: false,
+		},
+		{
+			name:      "invalid base64 string",
+			input:     "invalid!@#$",
+			expected:  nil,
+			expectErr: true,
+		},
+		{
+			name:      "base64 with padding",
+			input:     "YWJjZA==",
+			expected:  []byte("abcd"),
+			expectErr: false,
+		},
+		{
+			name:      "base64 without padding",
+			input:     "YWJjZA",
+			expected:  []byte(""),
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DecodeByBase64(tt.input)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestEncodeByBase64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected string
+	}{
+		{
+			name:     "empty bytes",
+			input:    []byte{},
+			expected: "",
+		},
+		{
+			name:     "basic string",
+			input:    []byte("hello"),
+			expected: "aGVsbG8=",
+		},
+		{
+			name:     "binary data",
+			input:    []byte{0x00, 0x01, 0x02, 0x03},
+			expected: "AAECAw==",
+		},
+		{
+			name:     "special characters",
+			input:    []byte("!@#$%^&*()"),
+			expected: "IUAjJCVeJiooKQ==",
+		},
+		{
+			name:     "unicode string",
+			input:    []byte("你好"),
+			expected: "5L2g5aW9",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EncodeByBase64(tt.input)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestBase64RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "empty",
+			input: []byte{},
+		},
+		{
+			name:  "ascii string",
+			input: []byte("Hello, World!"),
+		},
+		{
+			name:  "binary data",
+			input: []byte{0xFF, 0x00, 0xAB, 0xCD},
+		},
+		{
+			name:  "unicode string",
+			input: []byte("你好世界"),
+		},
+		{
+			name:  "long string",
+			input: []byte(RandomStringWithLength(1024)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded := EncodeByBase64(tt.input)
+			decoded, err := DecodeByBase64(encoded)
+			require.NoError(t, err)
+			require.Equal(t, tt.input, decoded)
+		})
+	}
+}
+
+func ExampleEncodeByBase64() {
+	input := []byte("Hello, World!")
+	encoded := EncodeByBase64(input)
+	fmt.Println(encoded)
+	// Output: SGVsbG8sIFdvcmxkIQ==
+}
+
+func ExampleDecodeByBase64() {
+	input := "SGVsbG8sIFdvcmxkIQ=="
+	decoded, err := DecodeByBase64(input)
+	if err != nil {
+		log.Shared.Error("decode base64", zap.Error(err))
+		return
+	}
+	fmt.Println(string(decoded))
+	// Output: Hello, World!
+}

@@ -27,14 +27,22 @@ func NewKeyShares(total, threshold int,
 	case threshold < (total/2+1) || threshold > total:
 		return nil, nil, errors.Errorf(
 			"threshold should be between the %d and %d, but got %d",
-			(total/2)+1, total, threshold)
+			(total/2 + 1), total, threshold)
 	case threshold > 65535 || total > 65535: // Add uint16 bound check
 		return nil, nil, errors.Errorf(
 			"threshold and total must not exceed 65535 (uint16 max value)")
+	case int(rsabits) <= 0 || int(rsabits) > 16384: // Add reasonable RSA bits bound check
+		return nil, nil, errors.Errorf(
+			"RSA bits must be between 1 and 16384")
 	}
 
+	// Safe conversions after bounds checking
+	rsaBitsInt := int(rsabits)
+	thresholdUint16 := uint16(threshold)
+	totalUint16 := uint16(total) //nolint:gosec // G115: integer overflow // already checked
+
 	keyShares, keyMeta, err = tcrsa.NewKey(
-		int(rsabits), uint16(threshold), uint16(total), nil)
+		rsaBitsInt, thresholdUint16, totalUint16, nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new key")
 	}

@@ -1179,12 +1179,12 @@ func RemoveEmptyVal(m map[string]any) map[string]any {
 
 			switch v := v.(type) {
 			case map[string]any:
-				if v := RemoveEmptyVal(v); len(v) == 0 {
+				v = RemoveEmptyVal(v)
+				if len(v) == 0 {
 					delete(m, k)
 					continue
-				} else {
-					m[k] = v
 				}
+				m[k] = v
 			default:
 				continue
 			}
@@ -1341,7 +1341,7 @@ func NewHasPrefixWithMagic(prefix []byte) func(s []byte) bool {
 			return len(s) >= l && *(*uint16)(unsafe.Pointer(&s[0])) == prefixMagicNumber
 		}
 	case 0:
-		return func(s []byte) bool {
+		return func(_ []byte) bool {
 			return true
 		}
 	default:

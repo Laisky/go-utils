@@ -189,7 +189,9 @@ var renameFlatCmd = &cobra.Command{
 	Use:   "flat",
 	Short: "flat",
 	Long: gutils.Dedent(`
-		Traverse all subfolders in the target folder, move the files to the target folder, and add the name of the subfolder as a prefix to the new file name.
+		Traverse all subfolders in the target folder,
+		move the files to the target folder, and add the name of
+		the subfolder as a prefix to the new file name.
 
 		/target/child/file.txt -> /target/child_file.txt
 

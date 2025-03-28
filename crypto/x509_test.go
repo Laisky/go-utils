@@ -342,18 +342,19 @@ func TestNewX509CRL(t *testing.T) {
 		require.NoError(t, err)
 
 		serialNum := newTestSeriaNo(t)
+		revokeTime := time.Now().UTC()
 
 		_, err = NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
 				{
-					RevocationTime: time.Now(),
+					RevocationTime: revokeTime,
 					SerialNumber:   serialNum,
 				},
 			},
 		)
 		require.NoError(t, err)
 	})
-
+	// Setup CA with CRL signing capability
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertCommonName("laisky-test"),
 		WithX509CertIsCRLCA())
@@ -366,42 +367,84 @@ func TestNewX509CRL(t *testing.T) {
 	require.NoError(t, err)
 
 	serialNum := newTestSeriaNo(t)
+	revokeTime := time.Now().UTC()
 
-	var crlder []byte
 	t.Run("without crl serial number", func(t *testing.T) {
-		var err error
-		crlder, err = NewX509CRL(ca, prikey, nil,
+		t.Parallel()
+		_, err = NewX509CRL(ca, prikey, nil,
 			[]pkix.RevokedCertificate{
 				{
-					SerialNumber: serialNum,
+					RevocationTime: revokeTime,
+					SerialNumber:   serialNum,
 				},
 			})
 		require.ErrorContains(t, err, "seriaNumber is empty")
 	})
 
 	t.Run("with crl serial number", func(t *testing.T) {
-		var err error
-		crlder, err = NewX509CRL(ca, prikey, serialNum,
+		t.Parallel()
+		crlDer, err := NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
 				{
-					SerialNumber: serialNum,
+					RevocationTime: revokeTime,
+					SerialNumber:   serialNum,
 				},
 			},
 		)
 		require.NoError(t, err)
 
-		crl, err := Der2CRL(crlder)
+		crl, err := Der2CRL(crlDer)
 		require.NoError(t, err)
 
 		err = VerifyCRL(ca, crl)
 		require.NoError(t, err)
+
+		require.Equal(t, serialNum, crl.RevokedCertificates[0].SerialNumber)
+		require.Equal(t, revokeTime.Unix(), crl.RevokedCertificates[0].RevocationTime.Unix())
+	})
+
+	t.Run("with multiple revoked certificates", func(t *testing.T) {
+		t.Parallel()
+		serialNum2 := newTestSeriaNo(t)
+		revokeTime2 := time.Now().UTC()
+
+		crlDer, err := NewX509CRL(ca, prikey, serialNum,
+			[]pkix.RevokedCertificate{
+				{
+					RevocationTime: revokeTime,
+					SerialNumber:   serialNum,
+				},
+				{
+					RevocationTime: revokeTime2,
+					SerialNumber:   serialNum2,
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		crl, err := Der2CRL(crlDer)
+		require.NoError(t, err)
+
+		require.Len(t, crl.RevokedCertificates, 2)
+		require.Equal(t, serialNum2, crl.RevokedCertificates[1].SerialNumber)
 	})
 
 	t.Run("crl convert", func(t *testing.T) {
-		pem := CRLDer2Pem(crlder)
+		t.Parallel()
+		crlDer, err := NewX509CRL(ca, prikey, serialNum,
+			[]pkix.RevokedCertificate{
+				{
+					RevocationTime: revokeTime,
+					SerialNumber:   serialNum,
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		pem := CRLDer2Pem(crlDer)
 		gotDer, err := CRLPem2Der(pem)
 		require.NoError(t, err)
-		require.Equal(t, crlder, gotDer)
+		require.Equal(t, crlDer, gotDer)
 
 		crl, err := Pem2CRL(pem)
 		require.NoError(t, err)
@@ -409,7 +452,21 @@ func TestNewX509CRL(t *testing.T) {
 		require.Equal(t, pem, pem2)
 
 		der2 := CRL2Der(crl)
-		require.Equal(t, crlder, der2)
+		require.Equal(t, crlDer, der2)
+	})
+
+	t.Run("invalid revocation time", func(t *testing.T) {
+		t.Parallel()
+		_, err := NewX509CRL(ca, prikey, serialNum,
+			[]pkix.RevokedCertificate{
+				{
+					RevocationTime: time.Time{}, // zero time
+					SerialNumber:   serialNum,
+				},
+			},
+		)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "zero RevocationTime field")
 	})
 }
 
@@ -560,32 +617,150 @@ US7t8YmgMM3Ho3oc4yLVcuACfWYbKSL1KcZi1/xOpynJHqV3D8I26pVha+qudXn6
 	})
 }
 
+func TestOidAsn2X509(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   asn1.ObjectIdentifier
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "valid OID",
+			input:   asn1.ObjectIdentifier{1, 2, 3, 4},
+			want:    "1.2.3.4",
+			wantErr: false,
+		},
+		{
+			name:    "empty OID",
+			input:   asn1.ObjectIdentifier{},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:    "negative value",
+			input:   asn1.ObjectIdentifier{1, -2, 3},
+			wantErr: true,
+		},
+		{
+			name:    "long OID",
+			input:   asn1.ObjectIdentifier{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			want:    "1.2.3.4.5.6.7.8.9.10",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := OidAsn2X509(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err) // <-- 665
+			require.Equal(t, tt.want, got.String())
+		})
+	}
+}
+
 func Test_OIDs(t *testing.T) {
 	t.Parallel()
 
-	a1 := asn1.ObjectIdentifier{1, 2, 3}
-	a2 := asn1.ObjectIdentifier{1, 2, 3}
-	a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
-	require.Equal(t, a1, a2)
-	require.NotEqual(t, a1, a3)
-	require.NotEqual(t, a2, a3)
+	t.Run("compare OIDs", func(t *testing.T) {
+		t.Parallel()
 
-	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-		WithX509CertCommonName("laisky-test"),
-		WithX509CertPolicies(a1, a2),
-	)
-	require.NoError(t, err)
+		a1 := asn1.ObjectIdentifier{1, 2, 3}
+		a2 := asn1.ObjectIdentifier{1, 2, 3}
+		a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
+		require.Equal(t, a1, a2)
+		require.NotEqual(t, a1, a3)
+		require.NotEqual(t, a2, a3)
+	})
 
-	ca, err := Der2Cert(certder)
-	require.NoError(t, err)
+	t.Run("valid policy OIDs", func(t *testing.T) {
+		t.Parallel()
 
-	require.Contains(t, ca.PolicyIdentifiers, a1)
-	require.Contains(t, ca.PolicyIdentifiers, a2)
-	require.NotContains(t, ca.PolicyIdentifiers, a3)
-	require.True(t, OIDContains(ca.PolicyIdentifiers, a1))
-	require.True(t, OIDContains(ca.PolicyIdentifiers, a2))
-	require.False(t, OIDContains(ca.PolicyIdentifiers, a3))
-	require.True(t, OIDContains(ca.PolicyIdentifiers, asn1.ObjectIdentifier{1, 2}, MatchPrefix()))
+		// Using valid policy OIDs
+		// As per RFC 5280, policy OIDs should start with 2.5.29.32
+		policyOID1 := asn1.ObjectIdentifier{2, 5, 29, 32, 0}
+		policyOID2 := asn1.ObjectIdentifier{2, 5, 29, 32, 1}
+
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+			WithX509CertPolicies(policyOID1, policyOID2),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		require.Contains(t, ca.PolicyIdentifiers, policyOID1)
+		require.Contains(t, ca.PolicyIdentifiers, policyOID2)
+		require.NotContains(t, ca.PolicyIdentifiers, asn1.ObjectIdentifier{2, 5, 29, 32, 2})
+	})
+
+	t.Run("OID prefix matching", func(t *testing.T) {
+		t.Parallel()
+
+		policyOID := asn1.ObjectIdentifier{2, 5, 29, 32, 0}
+		prefix := asn1.ObjectIdentifier{2, 5, 29}
+
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+			WithX509CertPolicies(policyOID),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		require.True(t, OIDContains(ca.PolicyIdentifiers, policyOID))
+		require.True(t, OIDContains(ca.PolicyIdentifiers, prefix, MatchPrefix()))
+		require.False(t, OIDContains(ca.PolicyIdentifiers, asn1.ObjectIdentifier{1, 2, 3}))
+	})
+
+	t.Run("empty policy OIDs", func(t *testing.T) {
+		t.Parallel()
+
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		require.Empty(t, ca.PolicyIdentifiers)
+	})
+
+	t.Run("multiple valid policy OIDs", func(t *testing.T) {
+		t.Parallel()
+
+		policies := []asn1.ObjectIdentifier{
+			{2, 5, 29, 32, 0},
+			{2, 5, 29, 32, 1},
+			{2, 5, 29, 32, 2},
+		}
+
+		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
+			WithX509CertCommonName("laisky-test"),
+			WithX509CertPolicies(policies...),
+		)
+		require.NoError(t, err)
+
+		ca, err := Der2Cert(certder)
+		require.NoError(t, err)
+
+		require.Len(t, ca.PolicyIdentifiers, len(policies))
+		for _, policy := range policies {
+			require.Contains(t, ca.PolicyIdentifiers, policy)
+		}
+	})
 }
 
 func TestNewRSAPrikeyAndCert(t *testing.T) {
