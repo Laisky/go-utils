@@ -235,3 +235,349 @@ func TestRBACPermissionElem_UnionAndOverwriteBy(t *testing.T) {
 		require.Nil(t, p.GetElemByKey(RBACPermFullKey("root.e.t")))
 	})
 }
+
+func TestRBACPermissionElem_ComplexScenarios(t *testing.T) {
+	t.Run("deep nested permissions", func(t *testing.T) {
+		p := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key: "admin",
+					Children: []*RBACPermissionElem{
+						{
+							Key: "users",
+							Children: []*RBACPermissionElem{
+								{Key: "create"},
+								{Key: "delete"},
+								{Key: "update"},
+							},
+						},
+						{
+							Key: "settings",
+							Children: []*RBACPermissionElem{
+								{Key: "read"},
+								{Key: "write"},
+							},
+						},
+					},
+				},
+			},
+		}
+		require.NoError(t, p.FillDefault(""))
+
+		// Test deep permission checks
+		require.True(t, p.HasPerm(RBACPermFullKey("root.admin.users.create")))
+		require.True(t, p.HasPerm(RBACPermFullKey("root.admin.settings.write")))
+		require.False(t, p.HasPerm(RBACPermFullKey("root.admin.users.invalid")))
+
+		// Test parent permissions
+		require.True(t, p.HasPerm(RBACPermFullKey("root.admin")))
+		require.True(t, p.HasPerm(RBACPermFullKey("root.admin.users")))
+
+		// Test non-existent paths
+		require.False(t, p.HasPerm(RBACPermFullKey("invalid")))
+		require.False(t, p.HasPerm(RBACPermFullKey("root.invalid")))
+		require.False(t, p.HasPerm(RBACPermFullKey("root.admin.users.create.invalid")))
+	})
+
+	t.Run("complex union operations", func(t *testing.T) {
+		base := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key:   "projects",
+					Title: "Projects",
+					Children: []*RBACPermissionElem{
+						{
+							Key:   "view",
+							Title: "View Projects",
+						},
+					},
+				},
+			},
+		}
+		require.NoError(t, base.FillDefault(""))
+
+		additional := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key:   "projects",
+					Title: "Updated Projects",
+					Children: []*RBACPermissionElem{
+						{
+							Key:   "view",
+							Title: "View All Projects",
+						},
+						{
+							Key:   "edit",
+							Title: "Edit Projects",
+						},
+					},
+				},
+				{
+					Key:   "users",
+					Title: "Users Management",
+				},
+			},
+		}
+		require.NoError(t, additional.FillDefault(""))
+
+		// Test union
+		baseClone := base.Clone()
+		baseClone.UnionAndOverwriteBy(additional)
+
+		// Verify structure after union
+		projectsNode := baseClone.GetElemByKey(RBACPermFullKey("root.projects"))
+		require.NotNil(t, projectsNode)
+		require.Equal(t, "Updated Projects", projectsNode.Title)
+		require.Equal(t, 2, len(projectsNode.Children))
+
+		// Verify new nodes were added
+		usersNode := baseClone.GetElemByKey(RBACPermFullKey("root.users"))
+		require.NotNil(t, usersNode)
+		require.Equal(t, "Users Management", usersNode.Title)
+	})
+
+	t.Run("multiple operations sequence", func(t *testing.T) {
+		p1 := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key:   "finance",
+					Title: "Finance",
+					Children: []*RBACPermissionElem{
+						{Key: "view"},
+						{Key: "edit"},
+					},
+				},
+				{
+					Key:   "hr",
+					Title: "Human Resources",
+					Children: []*RBACPermissionElem{
+						{Key: "employees"},
+					},
+				},
+			},
+		}
+		require.NoError(t, p1.FillDefault(""))
+
+		p2 := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key:   "finance",
+					Title: "Financial Department",
+					Children: []*RBACPermissionElem{
+						{Key: "view"},
+						{Key: "reports"},
+					},
+				},
+				{
+					Key:   "it",
+					Title: "IT Department",
+					Children: []*RBACPermissionElem{
+						{Key: "servers"},
+					},
+				},
+			},
+		}
+		require.NoError(t, p2.FillDefault(""))
+
+		// Multiple operations sequence
+		p := p1.Clone()
+
+		// First union with p2
+		p.UnionAndOverwriteBy(p2)
+		require.Equal(t, "Financial Department", p.GetElemByKey(RBACPermFullKey("root.finance")).Title)
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.finance.edit")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.finance.reports")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.it")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.hr")))
+
+		// Then cut HR
+		p.Cut(RBACPermFullKey("root.hr"))
+		require.Nil(t, p.GetElemByKey(RBACPermFullKey("root.hr")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.finance")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.it")))
+
+		// Add IT security through another union
+		p3 := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{
+					Key: "it",
+					Children: []*RBACPermissionElem{
+						{Key: "security"},
+					},
+				},
+			},
+		}
+		require.NoError(t, p3.FillDefault(""))
+
+		p.UnionAndOverwriteBy(p3)
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.it.servers")))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.it.security")))
+	})
+
+	t.Run("edge cases", func(t *testing.T) {
+		// Test with empty tree
+		emptyTree := NewPermissionTree()
+		emptyTree.Cut(RBACPermFullKey("any.key"))
+		require.Equal(t, rbacPermissionElemKeyRoot, emptyTree.Key)
+		require.Empty(t, emptyTree.Children)
+
+		// Test with root key
+		rootTree := NewPermissionTree()
+		rootTree.Children = append(rootTree.Children, &RBACPermissionElem{Key: "child"})
+		require.NoError(t, rootTree.FillDefault(""))
+
+		// Cutting root shouldn't do anything
+		rootTree.Cut(RBACPermFullKey("root"))
+		require.NotNil(t, rootTree)
+		require.Equal(t, 1, len(rootTree.Children))
+
+		// Test with non-existent key
+		p := &RBACPermissionElem{
+			Key: "root",
+			Children: []*RBACPermissionElem{
+				{Key: "a"},
+			},
+		}
+		require.NoError(t, p.FillDefault(""))
+		p.Cut(RBACPermFullKey("root.nonexistent"))
+		require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.a")))
+	})
+}
+
+func TestRBACPermissionElem_ValueScan(t *testing.T) {
+	// Create a permission tree for testing
+	p := &RBACPermissionElem{
+		Key:   "test",
+		Title: "Test Permission",
+		Children: []*RBACPermissionElem{
+			{
+				Key:   "child1",
+				Title: "Child 1",
+			},
+			{
+				Key:   "child2",
+				Title: "Child 2",
+				Children: []*RBACPermissionElem{
+					{
+						Key:   "grandchild",
+						Title: "Grand Child",
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, p.FillDefault(""))
+
+	// Test Value() method
+	t.Run("Value", func(t *testing.T) {
+		val, err := p.Value()
+		require.NoError(t, err)
+		require.NotNil(t, val)
+
+		// Verify the result is a string
+		jsonStr, ok := val.(string)
+		require.True(t, ok)
+
+		// Verify the JSON contains expected fields
+		require.Contains(t, jsonStr, `"key":"test"`)
+		require.Contains(t, jsonStr, `"title":"Test Permission"`)
+		require.Contains(t, jsonStr, `"child1"`)
+		require.Contains(t, jsonStr, `"child2"`)
+		require.Contains(t, jsonStr, `"grandchild"`)
+	})
+
+	// Test Scan() method
+	t.Run("Scan", func(t *testing.T) {
+		// Get JSON bytes from Value method
+		val, err := p.Value()
+		require.NoError(t, err)
+		jsonBytes := []byte(val.(string))
+
+		// Create a new struct to scan into
+		scanned := &RBACPermissionElem{}
+
+		// Scan the JSON into the new struct
+		err = scanned.Scan(jsonBytes)
+		require.NoError(t, err)
+
+		// Verify struct was properly scanned
+		require.Equal(t, p.Key, scanned.Key)
+		require.Equal(t, p.Title, scanned.Title)
+		require.Equal(t, 2, len(scanned.Children))
+		require.Equal(t, "child1", scanned.Children[0].Key.String())
+		require.Equal(t, "child2", scanned.Children[1].Key.String())
+		require.Equal(t, 1, len(scanned.Children[1].Children))
+		require.Equal(t, "grandchild", scanned.Children[1].Children[0].Key.String())
+	})
+
+	// Test Scan() with invalid input
+	t.Run("Scan_InvalidInput", func(t *testing.T) {
+		scanned := &RBACPermissionElem{}
+
+		// Test with malformed JSON
+		err := scanned.Scan([]byte(`{"key": "test", "children": [{"key": `))
+		require.Error(t, err)
+
+		// Test with wrong JSON structure
+		err = scanned.Scan([]byte(`{"wrong_field": "value"}`))
+		require.NoError(t, err) // Should not error, just create empty struct
+		require.Empty(t, scanned.Key)
+	})
+
+	// Test round-trip conversion
+	t.Run("ValueScan_RoundTrip", func(t *testing.T) {
+		// Complex permission tree with filled defaults
+		original := &RBACPermissionElem{
+			Key:   "complex",
+			Title: "Complex Tree",
+			Children: []*RBACPermissionElem{
+				{
+					Key:   "level1",
+					Title: "Level 1",
+					Children: []*RBACPermissionElem{
+						{
+							Key:   "level2a",
+							Title: "Level 2A",
+						},
+						{
+							Key:   "level2b",
+							Title: "Level 2B",
+						},
+					},
+				},
+			},
+		}
+		require.NoError(t, original.FillDefault(""))
+
+		// Convert to database value
+		val, err := original.Value()
+		require.NoError(t, err)
+
+		// Scan back into a new struct
+		scanned := &RBACPermissionElem{}
+		err = scanned.Scan([]byte(val.(string)))
+		require.NoError(t, err)
+
+		// Must manually fill default values since Scan doesn't do this
+		require.NoError(t, scanned.FillDefault(""))
+
+		// Verify that field values match
+		require.Equal(t, original.Key, scanned.Key)
+		require.Equal(t, original.Title, scanned.Title)
+		require.Equal(t, len(original.Children), len(scanned.Children))
+		require.Equal(t, original.Children[0].Key, scanned.Children[0].Key)
+		require.Equal(t, original.Children[0].Title, scanned.Children[0].Title)
+		require.Equal(t, len(original.Children[0].Children), len(scanned.Children[0].Children))
+
+		// Check full keys
+		require.Equal(t, "complex", scanned.FullKey.String())
+		require.Equal(t, "complex.level1", scanned.Children[0].FullKey.String())
+		require.Equal(t, "complex.level1.level2a", scanned.Children[0].Children[0].FullKey.String())
+	})
+}

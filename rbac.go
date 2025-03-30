@@ -122,7 +122,7 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 
 // HasPerm check whether has specified key
 //
-//	| user prems   | acquired key | match  |
+//	| user perms   | acquired key | match  |
 //	| :----------: | :----------: | :---:  |
 //	|   `"root"`   |   `"root"`   |   ✅   |
 //	|     `""`     |   `"root"`   |   ❌   |
@@ -255,14 +255,13 @@ func (p *RBACPermissionElem) OverwriteBy(another *RBACPermissionElem, intersecti
 	}
 }
 
-// Cut 剪除指定节点
+// Cut removes the specified node
 //
 // Args:
+//   - key: in the format like `root.sys.a.b`, or `root.sys.a.*`
 //
-//	key: 形如 `root.sys.a.b`，或 `root.sys.a.*`
-//
-// 头节点不允许剪除。
-// 可以使用 `*` 作为通配符，代表剪除所有子节点。
+// The root node cannot be removed.
+// You can use `*` as a wildcard to represent removing all child nodes.
 func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 	if p.Key == "" || key == "" || p.Key.String() == key.String() {
 		return
@@ -279,10 +278,10 @@ func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 	p.Children = filteredChildren
 }
 
-// GetElemByKey 通过 key 获取指定的权限树节点
+// GetElemByKey gets the permission tree node by key
 //
 // Args:
-//   - key: 权限树路径，形如 `root.sys`
+//   - key: permission tree path, like `root.sys`
 func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionElem {
 	if p.Key == "" || key == "" {
 		return nil
