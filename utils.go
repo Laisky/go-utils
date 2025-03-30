@@ -318,12 +318,17 @@ func GetStructFieldByName(st any, fieldName string) any {
 	return v.Interface()
 }
 
-// ValidateFileHash validate file content with hashed string
+// ValidateFileHash validate file hash against a hashed string
+//
+// Deprecated: use VerifyFileHash instead
+var ValidateFileHash = VerifyFileHash
+
+// VerifyFileHash verify file hash against a hashed string
 //
 // Args:
 //   - filepath: file path to check
-//   - hashed: hashed string, like `sha256: xxxx`
-func ValidateFileHash(filepath string, hashed string) error {
+//   - hashed: hashed string, like `sha256:xxxx`
+func VerifyFileHash(filepath string, hashed string) error {
 	hs := strings.Split(hashed, ":")
 	if len(hs) != 2 {
 		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)

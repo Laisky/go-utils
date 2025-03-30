@@ -69,9 +69,9 @@ func (h HashType) Hasher() (hash.Hash, error) {
 		return sha512.New(), nil
 	case HashTypeXxhash:
 		return xxhash.New(), nil
+	default:
+		return nil, errors.Errorf("unknon hasher %q", h.String())
 	}
-
-	return nil, errors.Errorf("unknon hasher %q", h.String())
 }
 
 const (
@@ -81,10 +81,20 @@ const (
 	HashTypeSha1 HashType = "sha1"
 	// HashTypeSha256 Sha256
 	HashTypeSha256 HashType = "sha256"
+	// HashTypeSha384 Sha384
+	// HashTypeSha384 HashType = "sha384"
 	// HashTypeSha512 Sha512
 	HashTypeSha512 HashType = "sha512"
 	// HashTypeXxhash Xxhash
 	HashTypeXxhash HashType = "xxhash"
+
+	// Added in go1.24
+	// HashTypeSha3With256 Sha3With256
+	// HashTypeSha3With256 HashType = "sha3-256"
+	// HashTypeSha3With384 Sha3With384
+	// HashTypeSha3With384 HashType = "sha3-384"
+	// HashTypeSha3With512 Sha3With512
+	// HashTypeSha3With512 HashType = "sha3-512"
 )
 
 // Hash generate signature by hash
