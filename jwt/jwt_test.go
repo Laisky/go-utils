@@ -67,6 +67,8 @@ func ExampleJWT() {
 }
 
 func TestJWTSignAndVerify(t *testing.T) {
+	t.Parallel()
+	
 	jwtES256, err := New(
 		WithSignMethod(SignMethodES256),
 		WithPubKeyByte(es256PubByte),
@@ -152,6 +154,8 @@ func TestJWTSignAndVerify(t *testing.T) {
 }
 
 func TestParseJWTTokenWithoutValidate(t *testing.T) {
+	t.Parallel()
+	
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiZHVuZSJdLCJzdWIiOiJsYWlza3kifQ.cYnd2OdN-i3kuPXSUc4xj1rkVk5elJnxln6zDdvlOUc"
 
 	c := new(jwt.RegisteredClaims)
@@ -164,6 +168,8 @@ func TestParseJWTTokenWithoutValidate(t *testing.T) {
 // https://snyk.io/vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515?utm_medium=Partner&utm_source=RedHat&utm_campaign=Code-Ready-Analytics-2020&utm_content=vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515
 // https://github.com/dgrijalva/jwt-go/issues/422
 func TestJWTAudValunerable(t *testing.T) {
+	t.Parallel()
+	
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYXVkIjpbImR1bmUiLCJsYWlza3kiXSwiaWF0IjoxNTE2MjM5MDIyfQ.lmil648BC0ZqwPZQDctuTvu-R6w4mDWnvsmWsqEtxv4"
 
 	// case: v3 的 aud 是 stirng，应该无法解析 []string
@@ -205,6 +211,8 @@ func TestJWTAudValunerable(t *testing.T) {
 }
 
 func TestWithSecretByteValidation(t *testing.T) {
+	t.Parallel()
+	
 	// Test that empty secret is rejected
 	_, err := New(
 		WithSignMethod(SignMethodHS256),
@@ -230,6 +238,8 @@ func TestWithSecretByteValidation(t *testing.T) {
 }
 
 func TestWithPriKeyByteValidation(t *testing.T) {
+	t.Parallel()
+	
 	// Test that empty private key is rejected
 	_, err := New(
 		WithSignMethod(SignMethodES256),
@@ -258,6 +268,8 @@ func TestWithPriKeyByteValidation(t *testing.T) {
 }
 
 func TestWithPubKeyByteValidation(t *testing.T) {
+	t.Parallel()
+	
 	// Test that empty public key is rejected
 	_, err := New(
 		WithSignMethod(SignMethodES256),
@@ -286,6 +298,8 @@ func TestWithPubKeyByteValidation(t *testing.T) {
 }
 
 func TestDivideOptionValidation(t *testing.T) {
+	t.Parallel()
+	
 	j, err := New(
 		WithSignMethod(SignMethodHS256),
 		WithSecretByte(secret),
@@ -332,6 +346,8 @@ func TestDivideOptionValidation(t *testing.T) {
 }
 
 func TestParseWithDivideOptionsOnly(t *testing.T) {
+	t.Parallel()
+	
 	// Test that we can create JWT instance without main keys and use divide options
 	// This should work for parsing tokens where keys are provided via divide options
 
@@ -365,6 +381,8 @@ func TestParseWithDivideOptionsOnly(t *testing.T) {
 }
 
 func TestParseWithoutKeysFailsGracefully(t *testing.T) {
+	t.Parallel()
+	
 	// Test that parsing without any keys fails gracefully with a meaningful error
 
 	// Create a token first
@@ -395,6 +413,8 @@ func TestParseWithoutKeysFailsGracefully(t *testing.T) {
 }
 
 func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
+	t.Parallel()
+	
 	// Ensure that ParseTokenWithoutValidate still works regardless of our validation changes
 
 	// Create a token
@@ -422,6 +442,8 @@ func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
 }
 
 func TestRS256ParsingValidation(t *testing.T) {
+	t.Parallel()
+	
 	// Generate RSA keys using crypto utilities
 	rsaPrivateKey, err := crypto.NewRSAPrikey(crypto.RSAPrikeyBits2048)
 	require.NoError(t, err)
@@ -464,6 +486,8 @@ func TestRS256ParsingValidation(t *testing.T) {
 }
 
 func TestMixedValidationScenarios(t *testing.T) {
+	t.Parallel()
+	
 	// Test combinations of valid and invalid options
 
 	// Test valid secret with invalid divide secret
@@ -506,6 +530,8 @@ func TestMixedValidationScenarios(t *testing.T) {
 }
 
 func TestValidationWithAllSigningMethods(t *testing.T) {
+	t.Parallel()
+	
 	// Test validation works consistently across all signing methods
 
 	testCases := []struct {
@@ -540,6 +566,8 @@ func TestValidationWithAllSigningMethods(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			
 			// Test valid options work
 			validOpts := append([]Option{WithSignMethod(tc.signingMethod)}, tc.validOptions...)
 			_, err := New(validOpts...)
@@ -555,8 +583,12 @@ func TestValidationWithAllSigningMethods(t *testing.T) {
 }
 
 func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
+	t.Parallel()
+	
 	// Test with generated RSA keys
 	t.Run("RSA Keys", func(t *testing.T) {
+		t.Parallel()
+		
 		rsaPrivateKey, err := crypto.NewRSAPrikey(crypto.RSAPrikeyBits2048)
 		require.NoError(t, err)
 
@@ -595,6 +627,8 @@ func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
 
 	// Test with generated ECDSA keys
 	t.Run("ECDSA Keys", func(t *testing.T) {
+		t.Parallel()
+		
 		ecdsaPrivateKey, err := crypto.NewECDSAPrikey(crypto.ECDSACurveP256)
 		require.NoError(t, err)
 
@@ -634,6 +668,8 @@ func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
 
 	// Test with Ed25519 keys (if supported for other crypto operations)
 	t.Run("Ed25519 Keys", func(t *testing.T) {
+		t.Parallel()
+		
 		ed25519PrivateKey, err := crypto.NewEd25519Prikey()
 		require.NoError(t, err)
 
@@ -656,6 +692,8 @@ func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
 }
 
 func TestDivideOptionsWithGeneratedKeys(t *testing.T) {
+	t.Parallel()
+	
 	// Test divide options with dynamically generated keys
 
 	// Generate multiple RSA key pairs for testing divide options
@@ -696,6 +734,8 @@ func TestDivideOptionsWithGeneratedKeys(t *testing.T) {
 }
 
 func TestKeyValidationWithDifferentKeySizes(t *testing.T) {
+	t.Parallel()
+	
 	// Test validation works with different RSA key sizes
 	keySizes := []crypto.RSAPrikeyBits{
 		crypto.RSAPrikeyBits2048,
@@ -705,6 +745,8 @@ func TestKeyValidationWithDifferentKeySizes(t *testing.T) {
 
 	for _, keySize := range keySizes {
 		t.Run(fmt.Sprintf("RSA-%d", int(keySize)), func(t *testing.T) {
+			t.Parallel()
+			
 			rsaPrivateKey, err := crypto.NewRSAPrikey(keySize)
 			require.NoError(t, err)
 
