@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -143,6 +145,23 @@ func TestJaegerTracingID(t *testing.T) {
 func TestOpenURLInDefaultBrowser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Skip test if the required command is not available based on the OS
+	// This mirrors the logic in OpenURLInDefaultBrowser function
+	switch runtime.GOOS {
+	case "windows":
+		if _, err := exec.LookPath("cmd"); err != nil {
+			t.Skip("cmd not found in PATH, skipping browser test")
+		}
+	case "darwin":
+		if _, err := exec.LookPath("open"); err != nil {
+			t.Skip("open not found in PATH, skipping browser test")
+		}
+	default: // Linux and other Unix-like systems
+		if _, err := exec.LookPath("xdg-open"); err != nil {
+			t.Skip("xdg-open not found in PATH, skipping browser test")
+		}
+	}
 
 	err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
 	require.NoError(t, err)
