@@ -10,7 +10,7 @@ import (
 
 func TestNewSkiplist(t *testing.T) {
 	t.Parallel()
-	
+
 	l := NewSkiplist[float64]()
 
 	var keys []float64

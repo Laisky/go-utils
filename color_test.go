@@ -6,7 +6,7 @@ import (
 
 func TestColor(t *testing.T) {
 	t.Parallel()
-	
+
 	type args struct {
 		color int
 		s     string

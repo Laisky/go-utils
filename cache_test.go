@@ -32,14 +32,14 @@ func TestExpCache_Store(t *testing.T) {
 	Clock.SetInterval(1 * time.Millisecond)
 	time.Sleep(time.Second) // wait for clock's interval to take effect
 
-	startAt := Clock.GetUTCNow()
+	startAt := time.Now().UTC()
 	ttl := 100 * time.Millisecond
 	cm := NewExpCache[string](context.Background(), ttl)
 	key := "key"
 	val := "val"
 	cm.Store(key, val)
 	for {
-		now := Clock.GetUTCNow()
+		now := time.Now().UTC()
 		if gotV, ok := cm.Load(key); ok {
 			require.Equal(t, val, gotV)
 			require.Less(t, now.Sub(startAt), ttl)
@@ -296,5 +296,54 @@ func Benchmark_Sieve(b *testing.B) {
 				c.Get(strconv.Itoa(v))
 			}
 		})
+	})
+}
+
+func TestCacheTimingPrecision(t *testing.T) {
+	t.Parallel()
+
+	// Test SingleItemExpCache with precise timing
+	t.Run("SingleItemExpCache", func(t *testing.T) {
+		t.Parallel()
+
+		cache := NewSingleItemExpCache[string](5 * time.Millisecond)
+
+		// Set a value
+		cache.Set("test-value")
+
+		// Should be available immediately
+		val, ok := cache.Get()
+		require.True(t, ok)
+		require.Equal(t, "test-value", val)
+
+		// Wait for expiration + buffer
+		time.Sleep(10 * time.Millisecond)
+
+		// Should be expired now
+		_, ok = cache.Get()
+		require.False(t, ok, "cache item should have expired")
+	})
+
+	// Test ExpCache with precise timing
+	t.Run("ExpCache", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		cache := NewExpCache[string](ctx, 5*time.Millisecond)
+
+		// Set a value
+		cache.Store("test-key", "test-value")
+
+		// Should be available immediately
+		val, ok := cache.Load("test-key")
+		require.True(t, ok)
+		require.Equal(t, "test-value", val)
+
+		// Wait for expiration + buffer
+		time.Sleep(10 * time.Millisecond)
+
+		// Should be expired now
+		_, ok = cache.Load("test-key")
+		require.False(t, ok, "cache item should have expired")
 	})
 }

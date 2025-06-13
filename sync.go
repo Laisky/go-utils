@@ -148,9 +148,9 @@ func (m *Mutex) ForceRelease() {
 
 // SpinLock block until succee acquired lock
 func (m *Mutex) SpinLock(step, timeout time.Duration) {
-	start := Clock.GetUTCNow()
+	start := time.Now().UTC()
 	for {
-		if m.TryLock() || Clock.GetUTCNow().Sub(start) > timeout {
+		if m.TryLock() || time.Now().UTC().Sub(start) > timeout {
 			return
 		}
 		time.Sleep(step)

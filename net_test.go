@@ -9,7 +9,7 @@ import (
 
 func TestCheckUDPPort(t *testing.T) {
 	t.Parallel()
-	
+
 	var pool errgroup.Group
 	for port := 1; port < 10; port++ {
 		port := port
