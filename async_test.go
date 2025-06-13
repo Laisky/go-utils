@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewAsyncTask(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	store := NewAsyncTaskStoreMemory()

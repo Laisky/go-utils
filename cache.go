@@ -139,7 +139,7 @@ func NewSingleItemExpCache[T any](ttl time.Duration) *SingleItemExpCache[T] {
 func (c *SingleItemExpCache[T]) Set(data T) {
 	c.mu.Lock()
 	c.data = data
-	c.expiredAt = Clock.GetUTCNow().Add(c.ttl)
+	c.expiredAt = time.Now().UTC().Add(c.ttl)
 	c.mu.Unlock()
 }
 
@@ -150,7 +150,7 @@ func (c *SingleItemExpCache[T]) Get() (data T, ok bool) {
 	c.mu.RLock()
 	data = c.data
 
-	ok = Clock.GetUTCNow().Before(c.expiredAt)
+	ok = time.Now().UTC().Before(c.expiredAt)
 	c.mu.RUnlock()
 
 	return
@@ -226,7 +226,7 @@ func (c *ExpCache[T]) runClean(ctx context.Context) {
 func (c *ExpCache[T]) Store(key string, val T) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
-		exp:  Clock.GetUTCNow().Add(c.ttl),
+		exp:  time.Now().UTC().Add(c.ttl),
 	})
 }
 
@@ -238,7 +238,7 @@ func (c *ExpCache[T]) Delete(key string) {
 // LoadAndDelete load and delete val from cache
 func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 	//nolint:forcetypeassert
-	if datai, ok := c.data.LoadAndDelete(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
+	if datai, ok := c.data.LoadAndDelete(key); ok && time.Now().UTC().Before(datai.(*expCacheItem).exp) {
 		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	}
 
@@ -248,7 +248,7 @@ func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 // Load load val from cache
 func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
 	//nolint:forcetypeassert
-	if datai, ok := c.data.Load(key); ok && Clock.GetUTCNow().Before(datai.(*expCacheItem).exp) {
+	if datai, ok := c.data.Load(key); ok && time.Now().UTC().Before(datai.(*expCacheItem).exp) {
 		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	} else if ok {
 		// delete expired
@@ -269,7 +269,7 @@ func (e *expiredMapItem[T]) getTime() time.Time {
 }
 
 func (e *expiredMapItem[T]) refreshTime() {
-	atomic.StoreInt64(e.t, Clock.GetUTCNow().Unix())
+	atomic.StoreInt64(e.t, time.Now().UTC().Unix())
 }
 
 // LRUExpiredMap map with expire time, auto delete expired item.
@@ -333,7 +333,7 @@ func (e *LRUExpiredMap[T]) clean(ctx context.Context) {
 func (e *LRUExpiredMap[T]) Get(key string) T {
 	l, _ := e.m.Load(key)
 	if l == nil {
-		t := Clock.GetUTCNow().Unix()
+		t := time.Now().UTC().Unix()
 		l, _ = e.m.LoadOrStore(key, &expiredMapItem[T]{
 			t:    &t,
 			data: e.new(),

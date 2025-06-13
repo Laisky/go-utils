@@ -1194,7 +1194,7 @@ type x509CRLOption struct {
 
 func (o *x509CRLOption) applyOpts(opts ...X509CRLOption) (*x509CRLOption, error) {
 	// fill default
-	o.thisUpdate = gutils.Clock.GetUTCNow()
+	o.thisUpdate = time.Now().UTC()
 	o.nextUpdate = o.thisUpdate.Add(30 * 24 * time.Hour)
 
 	// apply options

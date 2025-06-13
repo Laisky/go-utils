@@ -9,6 +9,8 @@ import (
 )
 
 func TestErrorsIs(t *testing.T) {
+	t.Parallel()
+
 	rawErr := io.EOF
 	wrappedErr := Wrap(rawErr, "wrap")
 

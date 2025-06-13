@@ -26,6 +26,8 @@ func ExampleFIFO() {
 }
 
 func Test_UnsafePtr(t *testing.T) {
+	t.Parallel()
+
 	var a int
 
 	addr := unsafe.Pointer(&a)
@@ -35,6 +37,8 @@ func Test_UnsafePtr(t *testing.T) {
 }
 
 func TestNewFIFO(t *testing.T) {
+	t.Parallel()
+
 	f := NewFIFO()
 	var pool errgroup.Group
 	start := make(chan struct{})

@@ -7,7 +7,11 @@ import (
 )
 
 func TestDeque(t *testing.T) {
+	t.Parallel()
+
 	t.Run("test basic operations", func(t *testing.T) {
+		t.Parallel()
+
 		q, err := NewDeque[int]()
 		require.NoError(t, err)
 		require.Equal(t, 0, q.Len())

@@ -57,6 +57,9 @@ func WithSignMethod(method jwt.SigningMethod) Option {
 // WithSecretByte set jwt symmetric signning key
 func WithSecretByte(secret []byte) Option {
 	return func(e *Type) error {
+		if len(secret) == 0 {
+			return errors.New("secret cannot be empty")
+		}
 		e.secret = secret
 		return nil
 	}
@@ -65,6 +68,9 @@ func WithSecretByte(secret []byte) Option {
 // WithPriKeyByte set jwt asymmetrical private key
 func WithPriKeyByte(prikey []byte) Option {
 	return func(e *Type) error {
+		if len(prikey) == 0 {
+			return errors.New("private key cannot be empty")
+		}
 		e.priKey = prikey
 		return nil
 	}
@@ -73,6 +79,9 @@ func WithPriKeyByte(prikey []byte) Option {
 // WithPubKeyByte set jwt asymmetrical public key
 func WithPubKeyByte(pubkey []byte) Option {
 	return func(e *Type) error {
+		if len(pubkey) == 0 {
+			return errors.New("public key cannot be empty")
+		}
 		e.pubKey = pubkey
 		return nil
 	}
@@ -89,6 +98,9 @@ type DivideOption func(*divideOpt) error
 // WithDivideSecret set symmetric key for each signning/verify
 func WithDivideSecret(secret []byte) DivideOption {
 	return func(opt *divideOpt) error {
+		if len(secret) == 0 {
+			return errors.New("divide secret cannot be empty")
+		}
 		opt.secret = secret
 		return nil
 	}
@@ -97,6 +109,9 @@ func WithDivideSecret(secret []byte) DivideOption {
 // WithDividePriKey set asymmetrical private key for each signning/verify
 func WithDividePriKey(priKey []byte) DivideOption {
 	return func(opt *divideOpt) error {
+		if len(priKey) == 0 {
+			return errors.New("divide private key cannot be empty")
+		}
 		opt.priKey = priKey
 		return nil
 	}
@@ -105,6 +120,9 @@ func WithDividePriKey(priKey []byte) DivideOption {
 // WithDividePubKey set asymmetrical public key for each signning/verify
 func WithDividePubKey(pubKey []byte) DivideOption {
 	return func(opt *divideOpt) error {
+		if len(pubKey) == 0 {
+			return errors.New("divide public key cannot be empty")
+		}
 		opt.pubKey = pubKey
 		return nil
 	}
