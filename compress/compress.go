@@ -55,7 +55,7 @@ func (o *gzDecompressOption) apply(fs ...GzDecompressOption) (*gzDecompressOptio
 	// apply opts
 	for _, f := range fs {
 		if err := f(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply gz decompress option")
 		}
 	}
 
@@ -183,7 +183,7 @@ func NewGZip(writer io.Writer, opts ...Option) (*Gzip, error) {
 	}
 	c.buf = bufio.NewWriterSize(c.writer, c.bufSizeByte)
 	if c.gzWriter, err = gzip.NewWriterLevel(c.buf, c.level); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "create gzip writer")
 	}
 
 	return c, nil
@@ -202,10 +202,10 @@ func (c *Gzip) WriteString(d string) (int, error) {
 // Flush flush buffer bytes into bottom writer with gz meta footer
 func (c *Gzip) Flush() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
-		return err
+		return errors.Wrap(err, "close gzip writer")
 	}
 	if err = c.buf.Flush(); err != nil {
-		return err
+		return errors.Wrap(err, "flush buffer")
 	}
 	c.gzWriter.Reset(c.buf)
 	return nil
@@ -214,7 +214,7 @@ func (c *Gzip) Flush() (err error) {
 // WriteFooter write gz footer
 func (c *Gzip) WriteFooter() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
-		return err
+		return errors.Wrap(err, "close gzip writer for footer")
 	}
 	c.gzWriter.Reset(c.buf)
 	return nil
@@ -296,10 +296,10 @@ func (c *PGZip) WriteString(d string) (int, error) {
 // Flush flush buffer bytes into bottom writer with gz meta footer
 func (c *PGZip) Flush() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
-		return err
+		return errors.Wrap(err, "close pgzip writer")
 	}
 	if err = c.buf.Flush(); err != nil {
-		return err
+		return errors.Wrap(err, "flush pgzip buffer")
 	}
 	c.gzWriter.Reset(c.buf)
 	return nil
@@ -308,7 +308,7 @@ func (c *PGZip) Flush() (err error) {
 // WriteFooter write gz footer
 func (c *PGZip) WriteFooter() (err error) {
 	if err = c.gzWriter.Close(); err != nil {
-		return err
+		return errors.Wrap(err, "close pgzip writer for footer")
 	}
 	c.gzWriter.Reset(c.buf)
 	return nil
@@ -327,7 +327,7 @@ func (o *unzipOption) fillDefault() *unzipOption {
 func (o *unzipOption) applyOpts(optfs ...UnzipOption) (*unzipOption, error) {
 	for _, f := range optfs {
 		if err := f(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply unzip option")
 		}
 	}
 
@@ -379,7 +379,7 @@ func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
 func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, err error) {
 	o, err := new(unzipOption).fillDefault().applyOpts(opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply unzip options")
 	}
 
 	var r *zip.ReadCloser
@@ -450,7 +450,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 func ZipFiles(output string, files []string) (err error) {
 	var newZipFile *os.File
 	if newZipFile, err = os.Create(output); err != nil {
-		return err
+		return errors.Wrapf(err, "create zip file %q", output)
 	}
 	defer gutils.SilentClose(newZipFile)
 

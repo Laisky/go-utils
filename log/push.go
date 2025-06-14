@@ -237,7 +237,7 @@ func NewPusher(ctx context.Context, opts ...PusherOption) (p *Pusher, err error)
 	p.senderChan = make(chan []byte, opt.senderChanLen)
 
 	go p.sender(ctx)
-	return p, err
+	return p, nil
 }
 
 func (p *Pusher) sender(ctx context.Context) {

@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/Laisky/errors/v2"
 )
 
 var (
@@ -28,14 +30,21 @@ func RandomBytesWithLength(n int) ([]byte, error) {
 	_, err := randor.Read(b)
 	randorMu.Unlock()
 
-	return b, err
+	if err != nil {
+		return nil, errors.Wrap(err, "read random bytes")
+	}
+
+	return b, nil
 }
 
 // SecRandomBytesWithLength generate crypto random bytes
 func SecRandomBytesWithLength(n int) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := crand.Read(b)
-	return b, err
+	if err != nil {
+		return nil, errors.Wrap(err, "read secure random bytes")
+	}
+	return b, nil
 }
 
 // RandomStringWithLength generate random string with specific length
@@ -53,7 +62,7 @@ func SecRandomStringWithLength(n int) (string, error) {
 	for i := range b {
 		idx, err := SecRandInt(len(letterRunes))
 		if err != nil {
-			return "", err
+			return "", errors.Wrap(err, "generate random index")
 		}
 
 		b[i] = letterRunes[idx]
@@ -66,7 +75,7 @@ func SecRandomStringWithLength(n int) (string, error) {
 func SecRandInt(n int) (int, error) {
 	bn, err := crand.Int(crand.Reader, big.NewInt(int64(n)))
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "generate secure random int")
 	}
 
 	return int(bn.Int64()), nil

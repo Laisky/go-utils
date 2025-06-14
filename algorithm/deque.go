@@ -26,7 +26,7 @@ type dequeOpt struct {
 func (o *dequeOpt) applyFuncs(optfs ...DequeOptFunc) (*dequeOpt, error) {
 	for _, optf := range optfs {
 		if err := optf(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply deque option")
 		}
 	}
 
@@ -64,7 +64,7 @@ func WithDequeMinimalCapacity(size int) DequeOptFunc {
 func NewDeque[T any](optfs ...DequeOptFunc) (Deque[T], error) {
 	opt, err := new(dequeOpt).applyFuncs(optfs...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply deque options")
 	}
 
 	q := new(deque.Deque[T])

@@ -61,7 +61,7 @@ func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
 	// apply options
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply alert option")
 		}
 	}
 	return o, nil
@@ -147,7 +147,7 @@ func NewAlert(ctx context.Context, pushAPI string,
 
 	opt, err := new(alertOption).applyOpts(opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply alert options")
 	}
 
 	a = &Alert{

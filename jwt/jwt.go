@@ -33,7 +33,10 @@ type JWT interface {
 // ParseTokenWithoutValidate parse and get payload without validate jwt token
 func ParseTokenWithoutValidate(token string, payload jwt.Claims) (err error) {
 	_, _, err = new(jwt.Parser).ParseUnverified(token, payload)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "parse jwt token without validation")
+	}
+	return nil
 }
 
 // Type is token utils that support HS256/ES256

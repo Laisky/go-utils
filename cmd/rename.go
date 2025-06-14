@@ -202,7 +202,7 @@ var renameFlatCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		baseDir, err := filepath.Abs(renameFlatCmdArgs.dir)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "get absolute path of %q", renameFlatCmdArgs.dir)
 		}
 		err = filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, walkErr error) error {
 			if walkErr != nil {

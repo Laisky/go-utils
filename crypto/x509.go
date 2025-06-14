@@ -249,12 +249,12 @@ func (o *x509CSROption) fillDefault() *x509CSROption {
 
 func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error) {
 	if o.err != nil {
-		return nil, o.err
+		return nil, errors.WithStack(o.err)
 	}
 
 	for _, f := range opts {
 		if err := f(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply x509 CSR option")
 		}
 	}
 
@@ -265,7 +265,7 @@ func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error)
 func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest, err error) {
 	opt, err := new(x509CSROption).fillDefault().applyOpts(opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply x509 CSR options")
 	}
 
 	tpl = &x509.CertificateRequest{

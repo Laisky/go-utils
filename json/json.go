@@ -4,6 +4,7 @@ package json
 import (
 	"encoding/json"
 
+	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/go-utils/v5/common"
 	// json2 "github.com/go-json-experiment/json"
 )
@@ -23,5 +24,8 @@ var (
 // MarshalToString marshal v to string
 func MarshalToString(v interface{}) (string, error) {
 	b, err := Marshal(v)
-	return common.Bytes2Str(b), err
+	if err != nil {
+		return "", errors.Wrap(err, "marshal to json")
+	}
+	return common.Bytes2Str(b), nil
 }

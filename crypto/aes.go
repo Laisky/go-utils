@@ -338,7 +338,7 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 	opt.fillDefault()
 	for _, optf := range opts {
 		if err = optf(opt); err != nil {
-			return err
+			return errors.Wrap(err, "apply AES encrypt files option")
 		}
 	}
 	logger := log.Shared.With(

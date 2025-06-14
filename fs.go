@@ -126,7 +126,7 @@ func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
 // for example, you can not move file between docker volumes by `rename`.
 func MoveFile(src, dst string) (err error) {
 	if err = CopyFile(src, dst); err != nil {
-		return err
+		return errors.Wrapf(err, "copy file from %q to %q", src, dst)
 	}
 
 	if err = os.Remove(src); err != nil {
@@ -140,7 +140,7 @@ func MoveFile(src, dst string) (err error) {
 func IsDir(path string) (bool, error) {
 	st, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "stat path %q", path)
 	}
 
 	return st.IsDir(), nil
@@ -150,7 +150,7 @@ func IsDir(path string) (bool, error) {
 func IsDirWritable(dir string) (err error) {
 	f := filepath.Join(dir, ".touch")
 	if err = os.WriteFile(f, []byte(""), 0600); err != nil {
-		return err
+		return errors.Wrapf(err, "write test file %q", f)
 	}
 
 	if err = os.Remove(f); err != nil {
@@ -163,7 +163,10 @@ func IsDirWritable(dir string) (err error) {
 // IsFile is path exists as file
 func IsFile(path string) (bool, error) {
 	isdir, err := IsDir(path)
-	return !isdir, err
+	if err != nil {
+		return false, errors.WithStack(err)
+	}
+	return !isdir, nil
 }
 
 // FileExists is path a valid file
@@ -325,13 +328,17 @@ func FileSHA1(path string) (hashed string, err error) {
 func DirSize(path string) (size int64, err error) {
 	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		if !info.IsDir() {
 			size += info.Size()
 		}
-		return err
+		return nil
 	})
+
+	if err != nil {
+		return size, errors.Wrapf(err, "walk directory %q", path)
+	}
 
 	return
 }
@@ -344,7 +351,7 @@ type listFilesInDirOption struct {
 func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply option")
 		}
 	}
 

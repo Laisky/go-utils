@@ -259,7 +259,7 @@ func MD5JSON(data any) (string, error) {
 
 	b, err := json.Marshal(data)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "marshal data to json")
 	}
 
 	return fmt.Sprintf("%x", md5.Sum(b)), nil
@@ -624,10 +624,10 @@ func SetStructFieldsBySlice(structs, vals any) (err error) {
 		return nil
 	}
 	if err = typeCheck("structs", &sv); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if err = typeCheck("vals", &vv); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	var (
@@ -637,7 +637,7 @@ func SetStructFieldsBySlice(structs, vals any) (err error) {
 	for i := 0; i < Min(sv.Len(), vv.Len()); i++ {
 		eachGrpValsV = vv.Index(i)
 		if err = typeCheck("vals."+strconv.FormatInt(int64(i), 10), &eachGrpValsV); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		switch sv.Index(i).Kind() {
 		case reflect.Ptr:
@@ -1084,7 +1084,7 @@ func CostSecs(cost time.Duration) string {
 func Pipeline[T any](funcs []func(T) error, v T) (T, error) {
 	for _, f := range funcs {
 		if err := f(v); err != nil {
-			return v, err
+			return v, errors.Wrap(err, "execute pipeline function")
 		}
 	}
 

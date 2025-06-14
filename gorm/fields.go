@@ -20,11 +20,11 @@ func (j GzText) Value() (driver.Value, error) {
 	out := new(bytes.Buffer)
 	w := gzip.NewWriter(out)
 	if _, err := w.Write([]byte(j)); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "write to gzip writer")
 	}
 
 	if err := w.Close(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "close gzip writer")
 	}
 
 	return out.Bytes(), nil
@@ -47,12 +47,12 @@ func (j *GzText) Scan(value any) error {
 
 	r, err := gzip.NewReader(bytes.NewReader(val))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "create gzip reader")
 	}
 	defer gutils.SilentClose(r)
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "read from gzip reader")
 	}
 
 	*j = GzText(string(b))

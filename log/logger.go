@@ -171,7 +171,7 @@ func (o *option) fillDefault() *option {
 func (o *option) applyOpts(optfs ...Option) (*option, error) {
 	for _, optf := range optfs {
 		if err := optf(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply logger option")
 		}
 	}
 
@@ -293,7 +293,7 @@ func WithLevel(level Level) Option {
 	return func(c *option) error {
 		lvl, err := LevelToZap(level)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "convert level to zap level")
 		}
 
 		c.Level.SetLevel(lvl)
@@ -305,7 +305,7 @@ func WithLevel(level Level) Option {
 func New(optfs ...Option) (l *LoggerT, err error) {
 	opt, err := new(option).fillDefault().applyOpts(optfs...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "apply logger options")
 	}
 
 	zapLogger, err := opt.Build(opt.zapOptions...)
@@ -344,7 +344,7 @@ func (l *LoggerT) Zap() *zap.Logger {
 func (l *LoggerT) ChangeLevel(level Level) (err error) {
 	lvl, err := LevelToZap(level)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "convert level to zap level")
 	}
 
 	l.level.SetLevel(lvl)

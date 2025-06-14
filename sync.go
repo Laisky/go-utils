@@ -32,7 +32,7 @@ func RaceErr(gs ...func() error) (err error) {
 	cond.Wait()
 	cond.L.Unlock()
 
-	return err
+	return errors.WithStack(err)
 }
 
 // RaceErrWithCtx return when any goroutine returned or ctx canceled
@@ -90,16 +90,22 @@ func WaitComplete(ctx context.Context, goros ...func(ctx context.Context) error)
 
 	select {
 	case <-alldone:
-		return err
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
 	case <-ctx.Done():
 		// if alldone and ctx finished at the same time,
 		// the select will random choose one.
 		// double check if alldone is finished.
 		select {
 		case <-alldone:
-			return err
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
 		default:
-			return ctx.Err()
+			return errors.WithStack(ctx.Err())
 		}
 	}
 }
