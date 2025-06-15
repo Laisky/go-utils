@@ -433,3 +433,57 @@ func isWSL(ctx context.Context) bool {
 
 	return strings.Contains(strings.ToLower(string(releaseData)), "microsoft")
 }
+
+// NewReusableRequest creates a new HTTP request that can be reused with the same body.
+// This function handles different types of body readers and ensures that the
+// request can be reused, which is critical for handling HTTP/2 GOAWAY frames
+// and redirects that require replaying the request body.
+//
+// The function automatically sets the GetBody field for reusable reader types:
+//   - *bytes.Buffer: Fully reusable, GetBody is set automatically
+//   - *bytes.Reader: Fully reusable, GetBody is set automatically
+//   - *strings.Reader: Fully reusable, GetBody is set automatically
+//   - Other io.Reader types: Request is created but may not be reusable for redirects
+//
+// When an HTTP/2 server sends a GOAWAY frame, the client needs to retry the request
+// on a new connection. If the request has a body and GetBody is nil, the retry will
+// fail. This function ensures that common reader types are properly handled.
+//
+// Args:
+//   - ctx: Context for the request, used for cancellation and timeouts
+//   - method: HTTP method (GET, POST, PUT, etc.)
+//   - url: Target URL for the request
+//   - body: Request body reader, nil for requests without body
+//
+// Returns:
+//   - *http.Request: The created request with proper GetBody handling
+//   - error: Error if request creation fails (invalid URL, method, etc.)
+//
+// Example:
+//
+//	// Reusable request with bytes.Buffer
+//	data := bytes.NewBufferString(`{"key": "value"}`)
+//	req, err := NewReusableRequest(ctx, "POST", "https://api.example.com", data)
+//
+//	// Non-reusable request (will work but may fail on HTTP/2 GOAWAY)
+//	reader := io.NopCloser(strings.NewReader(`{"key": "value"}`))
+//	req, err := NewReusableRequest(ctx, "POST", "https://api.example.com", reader)
+//
+// Reference: https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/net/http/request.go;l=924
+func NewReusableRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	switch body.(type) {
+	case *bytes.Buffer, *bytes.Reader, *strings.Reader:
+		// These types are automatically handled by http.NewRequestWithContext
+		// which sets GetBody appropriately for reusability with HTTP/2 GOAWAY
+		// frames and redirects that need to replay the request body
+		return http.NewRequestWithContext(ctx, method, url, body)
+	default:
+		// For other readers, pass through directly but won't be reusable for redirects
+		// or HTTP/2 GOAWAY scenarios that require body replay
+		return http.NewRequestWithContext(ctx, method, url, body)
+	}
+}
