@@ -164,23 +164,29 @@ func IsDirWritable(dir string) (err error) {
 func IsFile(path string) (bool, error) {
 	isdir, err := IsDir(path)
 	if err != nil {
+		if os.IsNotExist(errors.Cause(err)) {
+			return false, nil
+		}
 		return false, errors.WithStack(err)
 	}
 	return !isdir, nil
 }
 
 // FileExists is path a valid file
+//
+// Returns (true, nil) if file exists and is a regular file
+// Returns (false, nil) if file doesn't exist or is not a regular file
+// Returns (false, error) if there's an error accessing the file
 func FileExists(path string) (bool, error) {
-	ok, err := IsFile(path)
+	exists, err := IsFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if os.IsNotExist(errors.Cause(err)) {
 			return false, nil
 		}
-
 		return false, errors.Wrapf(err, "check file %q", path)
 	}
 
-	return ok, nil
+	return exists, nil
 }
 
 type copyFileOption struct {
