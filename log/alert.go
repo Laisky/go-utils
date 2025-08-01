@@ -267,11 +267,16 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 		bb.Reset()
 		a.encPool.Put(enc)
 
+		stacks := strings.Split(e.Stack, "\n")
+		if len(stacks) > 8 {
+			stacks = stacks[:8]
+		}
+
 		msg := "logger: `" + e.LoggerName + "`\n" +
 			"⏰time: `" + e.Time.Format(time.RFC3339Nano) + "`\n" +
 			"⚠️level: `" + e.Level.String() + "`\n" +
 			"🤖caller: `" + e.Caller.FullPath() + "`\n" +
-			"🏠stack: `" + e.Stack + "`\n" +
+			"🏠stack: `" + strings.Join(stacks, "\n") + "`\n" +
 			"📒message: `" + e.Message + "`\n" +
 			fsb
 
