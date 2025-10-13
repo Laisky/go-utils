@@ -201,7 +201,7 @@ type Option func(l *option) error
 // like "stdout"
 func WithOutputPaths(paths []string) Option {
 	return func(c *option) error {
-		c.OutputPaths = append(c.OutputPaths, paths...)
+		c.OutputPaths = append([]string{}, paths...)
 		return nil
 	}
 }

@@ -2,8 +2,11 @@ package log
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Laisky/zap"
 	"github.com/stretchr/testify/require"
@@ -14,25 +17,22 @@ func TestPusherHTTPSender_Send(t *testing.T) {
 
 	// run http server for test
 	var got string
-	var wait = make(chan struct{})
-	srv := &http.Server{
-		Addr: ":18082",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() { wait <- struct{}{} }()
-			w.WriteHeader(200)
-			body := make([]byte, r.ContentLength)
-			_, _ = r.Body.Read(body)
-			got = string(body)
-		}),
-	}
-	go func() {
-		_ = srv.ListenAndServe()
-	}()
-	defer srv.Shutdown(ctx)
+	wait := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %+v", err)
+		}
+		got = string(body)
+		wait <- struct{}{}
+	}))
+	defer srv.Close()
 
 	sender := NewPusherHTTPSender(
-		&http.Client{},
-		"http://0.0.0.0:18082",
+		srv.Client(),
+		srv.URL,
 		map[string]string{"content-type": "application/json"},
 	)
 
@@ -45,7 +45,11 @@ func TestPusherHTTPSender_Send(t *testing.T) {
 	logger = logger.WithOptions(zap.HooksWithFields(p.GetZapHook()))
 	logger.Info("slava, ukriane")
 
-	<-wait
+	select {
+	case <-wait:
+	case <-time.After(3 * time.Second):
+		t.Fatal("did not receive payload in time")
+	}
 	// "{\"level\":\"info\",\"time\":\"2023-06-04T07:45:44.227Z\",\"logger\":\"go-utils.test\",\"caller\":\"log/push_test.go:46\",\"msg\":\"test\"}\n"
 	require.Contains(t, got, "slava, ukriane")
 }

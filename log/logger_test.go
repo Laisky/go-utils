@@ -1,9 +1,11 @@
 package log
 
 import (
+	"encoding/json"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	zap "github.com/Laisky/zap"
@@ -53,6 +55,77 @@ func TestWriteToFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, content, "log/logger_test.go")
 	require.Contains(t, content, "yoo\n")
+}
+
+func TestLoggerWritesEntriesToFile(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "app.log")
+
+	logger, err := New(
+		WithLevel(LevelDebug),
+		WithEncoding(EncodingJSON),
+		WithOutputPaths([]string{file}),
+	)
+	require.NoError(t, err)
+
+	logger.Info("root-info", zap.String("scope", "root"))
+	child := logger.Named("child").With(zap.String("scope", "child"))
+	child.Debug("child-debug", zap.Int("seq", 1))
+
+	require.NoError(t, logger.ChangeLevel(LevelError))
+	logger.Info("ignored-info", zap.Int("seq", 2))
+	child.Debug("ignored-debug", zap.Int("seq", 3))
+	child.Error("child-error", zap.Int("seq", 4))
+
+	require.NoError(t, logger.Sync())
+
+	raw, err := os.ReadFile(file)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	require.Len(t, lines, 3)
+
+	var entries []map[string]any
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		entry := make(map[string]any)
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		entries = append(entries, entry)
+	}
+
+	require.Len(t, entries, 3)
+
+	getString := func(idx int, key string) string {
+		val, ok := entries[idx][key].(string)
+		require.True(t, ok, "expected string field %q", key)
+		return val
+	}
+	getNumber := func(idx int, key string) float64 {
+		val, ok := entries[idx][key].(float64)
+		require.True(t, ok, "expected number field %q", key)
+		return val
+	}
+
+	require.Equal(t, "INFO", getString(0, "level"))
+	require.Equal(t, "root-info", getString(0, "message"))
+	require.Equal(t, "root", getString(0, "scope"))
+
+	require.Equal(t, "DEBUG", getString(1, "level"))
+	require.Equal(t, "child-debug", getString(1, "message"))
+	require.Equal(t, "app.child", getString(1, "logger"))
+	require.Equal(t, "child", getString(1, "scope"))
+	require.Equal(t, float64(1), getNumber(1, "seq"))
+
+	require.Equal(t, "ERROR", getString(2, "level"))
+	require.Equal(t, "child-error", getString(2, "message"))
+	require.Equal(t, "child", getString(2, "scope"))
+	require.Equal(t, float64(4), getNumber(2, "seq"))
+
+	for _, entry := range entries {
+		require.NotEqual(t, "ignored-info", entry["message"])
+		require.NotEqual(t, "ignored-debug", entry["message"])
+	}
 }
 
 func TestSetupLogger(t *testing.T) {
