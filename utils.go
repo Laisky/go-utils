@@ -872,7 +872,7 @@ func IsPanic(f func()) (isPanic bool) {
 	}()
 
 	f()
-	return false
+	return isPanic
 }
 
 // IsPanic2 check is `f()` throw panic, and return panic as error
@@ -937,7 +937,7 @@ func StopSignal(optfs ...StopSignalOptFunc) (stopCh <-chan struct{}) {
 
 	stop := make(chan struct{})
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(c, opt.closeSignals...)
 	go func() {
 		<-c
 		close(stop)
@@ -1011,11 +1011,26 @@ func PrettyBuildInfo(opts ...PrettyBuildInfoOption) string {
 		return ""
 	}
 
-	if !opt.withDeps {
-		info.Deps = nil
+	type prettyBuildInfoPayload struct {
+		GoVersion string               `json:"GoVersion"`
+		Path      string               `json:"Path"`
+		Main      debug.Module         `json:"Main"`
+		Deps      []*debug.Module      `json:"Deps"`
+		Settings  []debug.BuildSetting `json:"Settings"`
 	}
 
-	ver, err := json.MarshalIndent(info, "", "  ")
+	payload := prettyBuildInfoPayload{
+		GoVersion: info.GoVersion,
+		Path:      info.Path,
+		Main:      info.Main,
+		Settings:  info.Settings,
+	}
+
+	if opt.withDeps {
+		payload.Deps = info.Deps
+	}
+
+	ver, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		log.Shared.Error("failed to marshal version", zap.Error(err))
 		return ""
