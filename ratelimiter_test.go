@@ -82,6 +82,79 @@ func TestRateLimiter(t *testing.T) {
 	})
 }
 
+func TestRateLimiterStateLifecycle(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	limiter, err := NewRateLimiter(ctx, RateLimiterArgs{
+		NPerSec: 5,
+		Max:     10,
+	})
+	require.NoError(t, err)
+	t.Cleanup(limiter.Close)
+
+	require.True(t, limiter.AllowN(3))
+
+	state := limiter.ExportState()
+	require.Equal(t, 2, state.AvailableTokens)
+
+	err = limiter.RestoreState(RateLimiterState{
+		Args:            limiter.RateLimiterArgs,
+		AvailableTokens: 7,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 7, limiter.Len())
+
+	err = limiter.RestoreState(RateLimiterState{
+		Args:            RateLimiterArgs{NPerSec: 6, Max: 10},
+		AvailableTokens: 1,
+	})
+	require.Error(t, err)
+}
+
+func TestRateLimiterClone(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	limiter, err := NewRateLimiter(ctx, RateLimiterArgs{
+		NPerSec: 4,
+		Max:     8,
+	})
+	require.NoError(t, err)
+	t.Cleanup(limiter.Close)
+
+	require.True(t, limiter.AllowN(2))
+
+	clone, err := limiter.Clone(ctx)
+	require.NoError(t, err)
+	t.Cleanup(clone.Close)
+
+	require.Equal(t, limiter.RateLimiterArgs, clone.RateLimiterArgs)
+	require.Equal(t, limiter.Len(), clone.Len())
+}
+
+func TestNewRateLimiterWithStateOption(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	state := RateLimiterState{
+		Args: RateLimiterArgs{
+			NPerSec: 3,
+			Max:     6,
+		},
+		AvailableTokens: 1,
+	}
+
+	limiter, err := NewRateLimiter(ctx, state.Args, WithRateLimiterState(state))
+	require.NoError(t, err)
+	t.Cleanup(limiter.Close)
+
+	require.Equal(t, 1, limiter.Len())
+
+	_, err = NewRateLimiter(ctx, state.Args, WithAvailableTokens(7))
+	require.Error(t, err)
+}
+
 /*
 goos: linux
 goarch: amd64
