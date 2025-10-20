@@ -155,6 +155,74 @@ func TestNewRateLimiterWithStateOption(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMemoryRateLimiterStateManager(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	manager := NewMemoryRateLimiterStateManager()
+	args := RateLimiterArgs{NPerSec: 5, Max: 10}
+
+	shouldRefill, err := manager.Setup(ctx, args, 3)
+	require.NoError(t, err)
+	require.True(t, shouldRefill)
+
+	tokens, err := manager.AvailableTokens(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, tokens)
+
+	added, err := manager.AddTokens(ctx, 10)
+	require.NoError(t, err)
+	require.Equal(t, 7, added)
+
+	ok, err := manager.TryConsume(ctx, 4)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = manager.TryConsume(ctx, 20)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, manager.SetAvailableTokens(ctx, 2))
+
+	shouldRefill, err = manager.Setup(ctx, args, 6)
+	require.NoError(t, err)
+	require.False(t, shouldRefill)
+
+	added, err = manager.AddTokens(ctx, 5)
+	require.NoError(t, err)
+	require.Equal(t, 5, added)
+
+	tokens, err = manager.AvailableTokens(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 7, tokens)
+}
+
+func TestRateLimiterWithSharedStateManager(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	manager := NewMemoryRateLimiterStateManager()
+	args := RateLimiterArgs{NPerSec: 2, Max: 4}
+
+	limiterA, err := NewRateLimiter(ctx, args, WithRateLimiterStateManager(manager))
+	require.NoError(t, err)
+	t.Cleanup(limiterA.Close)
+
+	limiterB, err := NewRateLimiter(ctx, args, WithRateLimiterStateManager(manager))
+	require.NoError(t, err)
+	t.Cleanup(limiterB.Close)
+
+	require.True(t, limiterA.Allow())
+	require.True(t, limiterB.Allow())
+
+	require.False(t, limiterA.Allow())
+	require.False(t, limiterB.Allow())
+
+	time.Sleep(1100 * time.Millisecond)
+
+	require.True(t, limiterA.Allow())
+	require.True(t, limiterB.Allow())
+	require.False(t, limiterA.Allow())
+}
+
 /*
 goos: linux
 goarch: amd64
