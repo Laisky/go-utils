@@ -149,6 +149,7 @@ type option struct {
 	zap.Config
 	zapOptions []zap.Option
 	Name       string
+	rotation   *rotationConfig
 }
 
 func (o *option) fillDefault() *option {
@@ -306,6 +307,10 @@ func New(optfs ...Option) (l *LoggerT, err error) {
 	opt, err := new(option).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply logger options")
+	}
+
+	if err := opt.configureRotation(); err != nil {
+		return nil, err
 	}
 
 	zapLogger, err := opt.Build(opt.zapOptions...)
