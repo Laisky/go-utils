@@ -40,6 +40,8 @@ const (
 	defaultAlertPusherTimeout = 10 * time.Second
 	defaultAlertPusherBufSize = 20
 	defaultAlertHookLevel     = zapcore.ErrorLevel
+
+	defaultLoggerName = "app"
 )
 
 var (
@@ -153,7 +155,7 @@ type option struct {
 }
 
 func (o *option) fillDefault() *option {
-	o.Name = "app"
+	o.Name = defaultLoggerName
 	o.Config = zap.Config{
 		Level:            zap.NewAtomicLevel(),
 		Development:      false,

@@ -83,7 +83,14 @@ if err != nil {
 }
 ```
 
-Each completed window is renamed to `service.log.<YYYYMMDDThhmmssZ>`. The active file keeps the original name.
+Each window writes to a date-stamped file named `{logger}-YYYYMMDD.log` by default. For example, with a logger named `service`, the daily rotation creates `service-20251028.log`. Hourly rotations automatically append the window start time (for example `service-20251028-150000.log`) to guarantee unique filenames. Customize the pattern with `log.WithRotationFilenamePattern`, which accepts the tokens `{logger}`, `YYYY`, `MM`, `DD`, `hh`/`HH`, `mm`, and `ss`:
+
+```go
+logger, err := log.New(
+    log.WithRotation("/var/log/app/service.log", log.RotationDaily),
+    log.WithRotationFilenamePattern("{logger}-YYYYMMDD-HH.log"),
+)
+```
 
 ## Retention Policy
 
