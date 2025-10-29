@@ -65,32 +65,19 @@ logger.WarnSample(1000, "always on")  // 100% chance
 
 ## File Rotation
 
-Configure time-based rotation with one of the built-in intervals:
-
-- `log.RotationHourly`
-- `log.RotationDaily`
-- `log.RotationWeekly`
-
-Rotations occur at the top of the interval **in UTC** (hourly at `HH:00`, daily at `00:00`, weekly at `Monday 00:00`).
+Configure time-based rotation to cut a new file at midnight **UTC** each day:
 
 ```go
 logger, err := log.New(
     log.WithEncoding(log.EncodingJSON),
-    log.WithRotation("/var/log/app/service.log", log.RotationDaily),
+    log.WithRotation("/var/log/app/service.log"),
 )
 if err != nil {
     panic(err)
 }
 ```
 
-Each window writes to a date-stamped file named `{logger}-YYYYMMDD.log` by default. For example, with a logger named `service`, the daily rotation creates `service-20251028.log`. Hourly rotations automatically append the window start time (for example `service-20251028-150000.log`) to guarantee unique filenames. Customize the pattern with `log.WithRotationFilenamePattern`, which accepts the tokens `{logger}`, `YYYY`, `MM`, `DD`, `hh`/`HH`, `mm`, and `ss`:
-
-```go
-logger, err := log.New(
-    log.WithRotation("/var/log/app/service.log", log.RotationDaily),
-    log.WithRotationFilenamePattern("{logger}-YYYYMMDD-HH.log"),
-)
-```
+Each window writes to a date-stamped file named `{logger}-YYYYMMDD.log`. The active file and all historical archives follow this pattern, guaranteeing predictable names such as `service-20251028.log`.
 
 ## Retention Policy
 
@@ -98,11 +85,12 @@ Control how long rotated files are retained with `WithRotationRetention`:
 
 ```go
 logger, err := log.New(
-    log.WithRotation("/var/log/app/service.log", log.RotationDaily),
+    log.WithRotation("/var/log/app/service.log"),
     log.WithRotationRetention(7),
 )
 ```
 
+- `log.WithRotation("/var/log/app/service.log", 7)` is equivalent shorthand for configuring the rotation path and keeping seven days of history.
 - `WithRotationRetention(0)` (default) keeps all historical rotations.
 - Positive values keep rotations whose start time falls within the most recent `n` days, evaluated in UTC.
 - The active log file is never removed, ensuring that configuring a retention window will not delete the file currently being written.
@@ -119,7 +107,7 @@ The `log` package layers friendly helpers on top of `zap`, enabling:
 
 - Hierarchical, structured logging with runtime level changes.
 - Probabilistic sampling for low-signal events.
-- UTC-aligned rotation with hourly, daily, or weekly cadences.
+- UTC-aligned rotation with a single daily cadence.
 - Automatic cleanup of rotated files based on a configurable retention window.
 
 Adopt these building blocks to keep your application logs structured, succinct, and easy to manage in production environments.
