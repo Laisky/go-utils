@@ -1575,6 +1575,26 @@ func TestUUID7(t *testing.T) {
 	})
 }
 
+func TestUUID7Bytes(t *testing.T) {
+	t.Parallel()
+
+	// Generate UUID7 bytes
+	b1 := UUID7Bytes()
+	b2 := UUID7Bytes()
+
+	require.Len(t, b1, 16, "UUID7Bytes should return 16 bytes")
+	require.Len(t, b2, 16, "UUID7Bytes should return 16 bytes")
+	require.NotEqual(t, b1, b2, "UUID7Bytes should generate unique values")
+
+	// Check version (UUIDv7)
+	version := (b1[6] >> 4) & 0x0F
+	require.Equal(t, byte(0x07), version, "UUID7Bytes should have version 7")
+
+	// Check variant (RFC4122)
+	variant := (b1[8] >> 6) & 0x03
+	require.Equal(t, byte(0x02), variant, "UUID7Bytes should have RFC4122 variant")
+}
+
 func TestCopy(t *testing.T) {
 	raw := []byte("hello, world")
 	raw = raw[: len(raw)-1 : len(raw)]

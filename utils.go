@@ -27,7 +27,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/GoWebProd/uuid7"
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 	"github.com/google/go-cpy/cpy"
@@ -618,7 +617,7 @@ func SetStructFieldsBySlice(structs, vals any) (err error) {
 		case reflect.Slice:
 		case reflect.Array:
 		default:
-			return errors.Errorf(name + " must be array/slice")
+			return errors.New(name + " must be array/slice")
 		}
 
 		return nil
@@ -1118,11 +1117,14 @@ func UUID4() string {
 	return uuid.Must(uuid.NewRandom()).String()
 }
 
-var uuid7Gen = uuid7.New()
-
 // UUID7 get uuid version 7
 func UUID7() string {
-	return uuid7Gen.Next().String()
+	return uuid.Must(uuid.NewV7()).String()
+}
+
+// UUID7Bytes get uuid7 in bytes
+func UUID7Bytes() uuid.UUID {
+	return uuid.Must(uuid.NewV7())
 }
 
 // UUID7Itf general uuid7 interface
@@ -1135,9 +1137,29 @@ type UUID7Itf interface {
 	Empty() bool
 }
 
+type uuid7 struct {
+	uuid.UUID
+}
+
+// Timestamp get timestamp of uuid7
+func (u *uuid7) Timestamp() uint64 {
+	sec, _ := u.UUID.Time().UnixTime()
+	return uint64(sec)
+}
+
+// Empty check if uuid7 is empty
+func (u *uuid7) Empty() bool {
+	return u.UUID == uuid.Nil
+}
+
 // ParseUUID7 parse uuid7
 func ParseUUID7(val string) (UUID7Itf, error) {
-	return uuid7.Parse(val)
+	u, err := uuid.Parse(val)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parse uuid7 %q", val)
+	}
+
+	return &uuid7{UUID: u}, nil
 }
 
 // Delayer create by NewDelay
