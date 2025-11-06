@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/go-utils/v5/common"
+	"github.com/Laisky/go-utils/v6/common"
 	// json2 "github.com/go-json-experiment/json"
 )
 

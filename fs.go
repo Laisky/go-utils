@@ -19,7 +19,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // ReplaceFile replace file with content atomatically

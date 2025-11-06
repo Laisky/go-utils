@@ -8,7 +8,7 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // AsyncTaskStatus status of async task

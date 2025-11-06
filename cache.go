@@ -8,8 +8,8 @@ import (
 
 	"github.com/Laisky/golang-fifo/sieve"
 
-	"github.com/Laisky/go-utils/v5/algorithm"
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/algorithm"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // NewLruCache new lru cache

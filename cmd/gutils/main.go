@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/Laisky/go-utils/v5/cmd"
+	"github.com/Laisky/go-utils/v6/cmd"
 )
 
 func main() {

@@ -10,8 +10,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v5/crypto"
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/crypto"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 var (

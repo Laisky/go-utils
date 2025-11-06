@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v5/log"
-	"github.com/Laisky/go-utils/v5/mocks"
+	"github.com/Laisky/go-utils/v6/log"
+	"github.com/Laisky/go-utils/v6/mocks"
 )
 
 func ExampleMail() {

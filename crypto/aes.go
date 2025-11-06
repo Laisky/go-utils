@@ -13,8 +13,8 @@ import (
 	"github.com/Laisky/zap"
 	"golang.org/x/sync/errgroup"
 
-	gutils "github.com/Laisky/go-utils/v5"
-	"github.com/Laisky/go-utils/v5/log"
+	gutils "github.com/Laisky/go-utils/v6"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (

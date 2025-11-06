@@ -8,8 +8,8 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/niclabs/tcrsa"
 
-	gutils "github.com/Laisky/go-utils/v5"
-	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	gutils "github.com/Laisky/go-utils/v6"
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
 const minRSAPublicKeyBits = 1024

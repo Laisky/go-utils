@@ -10,7 +10,7 @@ import (
 	"github.com/Laisky/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // RaceErr return when any goroutine returned

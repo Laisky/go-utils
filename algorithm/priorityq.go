@@ -3,7 +3,7 @@ package algorithm
 import (
 	"container/heap"
 
-	"github.com/Laisky/go-utils/v5/common"
+	"github.com/Laisky/go-utils/v6/common"
 )
 
 // PriorityQ priority queue

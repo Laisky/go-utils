@@ -21,8 +21,8 @@ import (
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
 
-	"github.com/Laisky/go-utils/v5/json"
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/json"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (

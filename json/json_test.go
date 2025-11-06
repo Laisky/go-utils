@@ -70,7 +70,7 @@ func TestUnmarshal(t *testing.T) {
 
 // goos: linux
 // goarch: amd64
-// pkg: github.com/Laisky/go-utils/v5/json
+// pkg: github.com/Laisky/go-utils/v6/json
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // Benchmark_json_v1_v2/v1-marshal-16         	 2238842	       542.6 ns/op	     152 B/op	       2 allocs/op
 // Benchmark_json_v1_v2/v1-unmarshal-16       	  856309	      1374 ns/op	     288 B/op	       7 allocs/op

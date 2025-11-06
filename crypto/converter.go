@@ -16,7 +16,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	gutils "github.com/Laisky/go-utils/v5"
+	gutils "github.com/Laisky/go-utils/v6"
 )
 
 // SecureCipherSuites get golang built-in cipher suites without known insecure suites

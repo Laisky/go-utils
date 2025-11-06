@@ -15,7 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 func TestDirSize(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	tscrypto "github.com/tongsuo-project/tongsuo-go-sdk/crypto"
 
-	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
 func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {

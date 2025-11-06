@@ -14,7 +14,7 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/cespare/xxhash"
 
-	"github.com/Laisky/go-utils/v5/log"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // HashSHA128String calculate string's hash by sha256

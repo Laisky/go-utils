@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v5"
+	gutils "github.com/Laisky/go-utils/v6"
 )
 
 func TestRSAEncrypt(t *testing.T) {

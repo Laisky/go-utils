@@ -6,7 +6,7 @@ append to your root cmd.
 
 ```go
 import (
-	gcmd "github.com/Laisky/go-utils/v5/cmd"
+	gcmd "github.com/Laisky/go-utils/v6/cmd"
 )
 
 func init() {

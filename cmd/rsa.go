@@ -12,8 +12,8 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/spf13/cobra"
 
-	gcrypto "github.com/Laisky/go-utils/v5/crypto"
-	"github.com/Laisky/go-utils/v5/log"
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // RSA some rsa command tools

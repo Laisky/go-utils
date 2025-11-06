@@ -19,8 +19,8 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/spf13/cobra"
 
-	gutils "github.com/Laisky/go-utils/v5"
-	gcrypto "github.com/Laisky/go-utils/v5/crypto"
+	gutils "github.com/Laisky/go-utils/v6"
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
 func init() {
@@ -51,7 +51,7 @@ var tlsInfoCMD = &cobra.Command{
 
 		Install:
 
-	      go install github.com/Laisky/go-utils/v5/cmd/gutils@latest
+	      go install github.com/Laisky/go-utils/v6/cmd/gutils@latest
 
 		Examples:
 

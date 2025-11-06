@@ -6,7 +6,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v5/json"
+	"github.com/Laisky/go-utils/v6/json"
 )
 
 const (

@@ -175,7 +175,7 @@ func TestNewLruCache(t *testing.T) {
 
 // goos: linux
 // goarch: amd64
-// pkg: github.com/Laisky/go-utils/v5
+// pkg: github.com/Laisky/go-utils/v6
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_TtlCache
 // Benchmark_TtlCache/set
@@ -217,7 +217,7 @@ func Benchmark_TtlCache(b *testing.B) {
 
 // goos: linux
 // goarch: amd64
-// pkg: github.com/Laisky/go-utils/v5
+// pkg: github.com/Laisky/go-utils/v6
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_ExpCache
 // Benchmark_ExpCache/set
@@ -258,7 +258,7 @@ func Benchmark_ExpCache(b *testing.B) {
 	})
 }
 
-// pkg: github.com/Laisky/go-utils/v5
+// pkg: github.com/Laisky/go-utils/v6
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_Sieve
 // Benchmark_Sieve/set
