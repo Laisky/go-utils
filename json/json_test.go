@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v6"
-	json2 "github.com/go-json-experiment/json"
+	// json2 "github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,18 +105,18 @@ func Benchmark_json_v1_v2(b *testing.B) {
 		}
 	})
 
-	b.Run("v2-marshal", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := json2.Marshal(data)
-			require.NoError(b, err)
-		}
-	})
-	b.Run("v2-unmarshal", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			err = json2.Unmarshal(data, dataStruct)
-			require.NoError(b, err)
-		}
-	})
+	// b.Run("v2-marshal", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		_, err := json2.Marshal(data)
+	// 		require.NoError(b, err)
+	// 	}
+	// })
+	// b.Run("v2-unmarshal", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		err = json2.Unmarshal(data, dataStruct)
+	// 		require.NoError(b, err)
+	// 	}
+	// })
 
 	b.Run("gutils-marshal", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

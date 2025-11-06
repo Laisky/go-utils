@@ -219,12 +219,12 @@ func TestGetFuncName(t *testing.T) {
 	t.Parallel()
 
 	if name := GetFuncName(testFoo); name != "github.com/Laisky/go-utils/v5.testFoo" {
-		t.Fatalf("want `testFoo`, got `%v`", name)
+		t.Fatalf("want `github.com/Laisky/go-utils/v5.testFoo`, got `%v`", name)
 	}
 }
 
 func ExampleGetFuncName() {
-	GetFuncName(testFoo) // "github.com/Laisky/go-utils.testFoo"
+	GetFuncName(testFoo) // "github.com/Laisky/go-utils/v5.testFoo"
 }
 
 func TestFallBack(t *testing.T) {
