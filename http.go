@@ -294,29 +294,40 @@ func RequestJSONWithClient(httpClient *http.Client,
 	request *RequestData,
 	resp any,
 ) (err error) {
+	if httpClient == nil {
+		httpClient = internalHttpCli
+	}
+
 	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
 
 	var (
 		jsonBytes []byte
+		body      io.Reader
 	)
-	jsonBytes, err = json.Marshal(request.Data)
-	if err != nil {
-		return errors.Wrap(err, "marshal request data error")
+
+	if request != nil {
+		jsonBytes, err = json.Marshal(request.Data)
+		if err != nil {
+			return errors.Wrap(err, "marshal request data error")
+		}
+		log.Shared.Debug("request json", zap.String("body", string(jsonBytes)))
+		body = bytes.NewReader(jsonBytes)
 	}
-	log.Shared.Debug("request json", zap.String("body", string(jsonBytes[:])))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx,
-		strings.ToUpper(method), url, bytes.NewBuffer(jsonBytes))
+		strings.ToUpper(method), url, body)
 	if err != nil {
 		return errors.Wrap(err, "new request")
 	}
 
-	req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
-	for k, v := range request.Headers {
-		req.Header.Set(k, v)
+	if request != nil {
+		req.Header.Set(HTTPHeaderContentType, HTTPHeaderContentTypeValJSON)
+		for k, v := range request.Headers {
+			req.Header.Set(k, v)
+		}
 	}
 
 	r, err := httpClient.Do(req)

@@ -777,7 +777,10 @@ func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
 			WithX509SignCSRIsCA(),
 			WithX509SignCSRKeyUsage(x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment),
 			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth),
-			WithX509SignCSRPolicies(asn1.ObjectIdentifier{1, 2, 3, 4, 5}, asn1.ObjectIdentifier{6, 7, 8, 9, 10}),
+			WithX509SignCSRPolicies(
+				asn1.ObjectIdentifier{1, 2, 3, 4, 5},
+				asn1.ObjectIdentifier{2, 23, 140, 1, 2, 1},
+			),
 		}
 
 		_, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
@@ -798,7 +801,7 @@ func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
 		[ policy-0 ]
 		policyIdentifier = 1.2.3.4.5
 		[ policy-1 ]
-		policyIdentifier = 6.7.8.9.10
+		policyIdentifier = 2.23.140.1.2.1
 	`))
 		expectedConf = append(expectedConf, '\n')
 

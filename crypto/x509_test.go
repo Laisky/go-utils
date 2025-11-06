@@ -702,6 +702,12 @@ func Test_OIDs(t *testing.T) {
 		require.Contains(t, ca.PolicyIdentifiers, policyOID1)
 		require.Contains(t, ca.PolicyIdentifiers, policyOID2)
 		require.NotContains(t, ca.PolicyIdentifiers, asn1.ObjectIdentifier{2, 5, 29, 32, 2})
+		oid1, err := OidAsn2X509(policyOID1)
+		require.NoError(t, err)
+		oid2, err := OidAsn2X509(policyOID2)
+		require.NoError(t, err)
+		require.Contains(t, ca.Policies, oid1)
+		require.Contains(t, ca.Policies, oid2)
 	})
 
 	t.Run("OID prefix matching", func(t *testing.T) {
@@ -722,6 +728,7 @@ func Test_OIDs(t *testing.T) {
 		require.True(t, OIDContains(ca.PolicyIdentifiers, policyOID))
 		require.True(t, OIDContains(ca.PolicyIdentifiers, prefix, MatchPrefix()))
 		require.False(t, OIDContains(ca.PolicyIdentifiers, asn1.ObjectIdentifier{1, 2, 3}))
+		require.NotEmpty(t, ca.Policies)
 	})
 
 	t.Run("empty policy OIDs", func(t *testing.T) {
@@ -736,6 +743,7 @@ func Test_OIDs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Empty(t, ca.PolicyIdentifiers)
+		require.Empty(t, ca.Policies)
 	})
 
 	t.Run("multiple valid policy OIDs", func(t *testing.T) {
@@ -759,7 +767,11 @@ func Test_OIDs(t *testing.T) {
 		require.Len(t, ca.PolicyIdentifiers, len(policies))
 		for _, policy := range policies {
 			require.Contains(t, ca.PolicyIdentifiers, policy)
+			oid, err := OidAsn2X509(policy)
+			require.NoError(t, err)
+			require.Contains(t, ca.Policies, oid)
 		}
+		require.Len(t, ca.Policies, len(policies))
 	})
 }
 
@@ -846,7 +858,11 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 		require.NotEmpty(t, cert.KeyUsage&x509.KeyUsageCRLSign)
 		require.Contains(t, cert.CRLDistributionPoints, "crl")
 		require.Contains(t, cert.OCSPServer, "ocsp")
+		require.NotEmpty(t, cert.PolicyIdentifiers)
 		require.True(t, OIDContains([]asn1.ObjectIdentifier{{1, 2, 3, 4}}, cert.PolicyIdentifiers[0]))
+		oid, err := OidAsn2X509(asn1.ObjectIdentifier{1, 2, 3, 4})
+		require.NoError(t, err)
+		require.Contains(t, cert.Policies, oid)
 	})
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v5"
+	gcrypto "github.com/Laisky/go-utils/v5/crypto"
 )
 
 func TestVerifyBySHA256(t *testing.T) {
@@ -21,8 +22,9 @@ func TestVerifyBySHA256(t *testing.T) {
 	threshold := 3
 
 	// Generate key shares once
-	keyShares, keyMeta, err := NewKeyShares(total, threshold, 1024) // Using smaller key size for tests
+	keyShares, keyMeta, err := NewKeyShares(total, threshold, gcrypto.RSAPrikeyBits(1024)) // Using minimum supported key size for tests
 	require.NoError(t, err)
+	require.GreaterOrEqual(t, keyMeta.PublicKey.N.BitLen(), minRSAPublicKeyBits)
 
 	t.Run("verify valid signature", func(t *testing.T) {
 		content := gutils.RandomStringWithLength(128) // Reduced content size
@@ -53,25 +55,36 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 		name      string
 		total     int
 		threshold int
+		rsaBits   gcrypto.RSAPrikeyBits
 		wantErr   string
 	}{
 		{
 			name:      "valid values",
 			total:     5,
 			threshold: 3,
+			rsaBits:   gcrypto.RSAPrikeyBits(1024),
 			wantErr:   "",
 		},
 		{
 			name:      "overflow uint16 max",
 			total:     70000,
 			threshold: 65536,
+			rsaBits:   gcrypto.RSAPrikeyBits(1024),
 			wantErr:   "threshold and total must not exceed 65535",
 		},
 		{
 			name:      "large but valid values",
 			total:     1000,
 			threshold: 501,
+			rsaBits:   gcrypto.RSAPrikeyBits(1024),
 			wantErr:   "",
+		},
+		{
+			name:      "rsa bits too small",
+			total:     5,
+			threshold: 3,
+			rsaBits:   gcrypto.RSAPrikeyBits(512),
+			wantErr:   "RSA bits must be at least 1024",
 		},
 	}
 
@@ -80,7 +93,7 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			shares, meta, err := NewKeyShares(tt.total, tt.threshold, 1024)
+			shares, meta, err := NewKeyShares(tt.total, tt.threshold, tt.rsaBits)
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -90,6 +103,7 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, shares)
 				require.NotNil(t, meta)
+				require.GreaterOrEqual(t, meta.PublicKey.N.BitLen(), minRSAPublicKeyBits)
 			}
 		})
 	}

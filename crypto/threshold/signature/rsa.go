@@ -12,6 +12,8 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v5/crypto"
 )
 
+const minRSAPublicKeyBits = 1024
+
 // NewKeyShares generate total keyshares for threshold signature,
 // any members exceed threshold can generate legal signature.
 //
@@ -38,13 +40,29 @@ func NewKeyShares(total, threshold int,
 
 	// Safe conversions after bounds checking
 	rsaBitsInt := int(rsabits)
+	if rsaBitsInt < minRSAPublicKeyBits {
+		return nil, nil, errors.Errorf(
+			"RSA bits must be at least %d to satisfy crypto/rsa minimum key size", minRSAPublicKeyBits)
+	}
+
+	keyBitsForGeneration := rsaBitsInt
+	if rsaBitsInt == minRSAPublicKeyBits {
+		keyBitsForGeneration++
+	}
 	thresholdUint16 := uint16(threshold)
 	totalUint16 := uint16(total) //nolint:gosec // G115: integer overflow // already checked
 
 	keyShares, keyMeta, err = tcrsa.NewKey(
-		rsaBitsInt, thresholdUint16, totalUint16, nil)
+		keyBitsForGeneration, thresholdUint16, totalUint16, nil)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new key")
+	}
+	if keyMeta == nil || keyMeta.PublicKey == nil || keyMeta.PublicKey.N == nil {
+		return nil, nil, errors.Errorf("generated threshold RSA key metadata is invalid")
+	}
+	if bits := keyMeta.PublicKey.N.BitLen(); bits < minRSAPublicKeyBits {
+		return nil, nil, errors.Errorf(
+			"generated RSA modulus %d bits is smaller than minimum %d bits", bits, minRSAPublicKeyBits)
 	}
 
 	return keyShares, keyMeta, nil

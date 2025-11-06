@@ -424,7 +424,8 @@ type signCSROption struct {
 	// policies certificate policies
 	//
 	// refer to RFC-5280 4.2.1.4
-	policies []asn1.ObjectIdentifier
+	policies   []asn1.ObjectIdentifier
+	policyOIDs []x509.OID
 	// crls crl endpoints
 	crls []string
 	// ocsps ocsp servers
@@ -566,6 +567,13 @@ func WithX509SignCSRExtraExtenstions(exts ...pkix.Extension) SignCSROption {
 func WithX509SignCSRPolicies(policies ...asn1.ObjectIdentifier) SignCSROption {
 	return func(o *signCSROption) error {
 		o.policies = append(o.policies, policies...)
+		for _, policy := range policies {
+			ox509OID, err := OidAsn2X509(policy)
+			if err != nil {
+				return errors.Wrap(err, "convert policy oid to x509 oid")
+			}
+			o.policyOIDs = append(o.policyOIDs, ox509OID)
+		}
 		return nil
 	}
 }
@@ -807,6 +815,13 @@ func WithX509CertParent(parent *x509.Certificate) X509CertOption {
 func WithX509CertPolicies(policies ...asn1.ObjectIdentifier) X509CertOption {
 	return func(o *x509V3CertOption) error {
 		o.policies = append(o.policies, policies...)
+		for _, policy := range policies {
+			ox509OID, err := OidAsn2X509(policy)
+			if err != nil {
+				return errors.Wrap(err, "convert policy oid to x509 oid")
+			}
+			o.policyOIDs = append(o.policyOIDs, ox509OID)
+		}
 		return nil
 	}
 }
@@ -1306,6 +1321,7 @@ func x509CertOption2Template(opts ...X509CertOption) (
 		BasicConstraintsValid: true,
 		IsCA:                  opt.isCA,
 		PolicyIdentifiers:     opt.policies,
+		Policies:              append([]x509.OID(nil), opt.policyOIDs...),
 		CRLDistributionPoints: opt.crls,
 		OCSPServer:            opt.ocsps,
 		EmailAddresses:        opt.emailAddresses,

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -16,7 +17,71 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type capturedRequest struct {
+	Method string
+	Header http.Header
+	Body   []byte
+}
+
+func newJSONEchoServer() (*httptest.Server, <-chan capturedRequest) {
+	captureCh := make(chan capturedRequest, 1)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { _ = r.Body.Close() }()
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var payload map[string]string
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &payload); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		captureCh <- capturedRequest{
+			Method: r.Method,
+			Header: r.Header.Clone(),
+			Body:   append([]byte(nil), body...),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := struct {
+			JSON map[string]string `json:"json"`
+		}{
+			JSON: payload,
+		}
+
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	return server, captureCh
+}
+
+func receiveCapturedRequest(t *testing.T, ch <-chan capturedRequest) capturedRequest {
+	t.Helper()
+
+	select {
+	case req := <-ch:
+		return req
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for request")
+	}
+
+	return capturedRequest{}
+}
+
 func TestRequestJSON(t *testing.T) {
+	server, captureCh := newJSONEchoServer()
+	defer server.Close()
+
 	data := RequestData{
 		Data: map[string]string{
 			"hello": "world",
@@ -25,15 +90,19 @@ func TestRequestJSON(t *testing.T) {
 	var resp struct {
 		JSON map[string]string `json:"json"`
 	}
-	want := "{map[hello:world]}"
-	if err := RequestJSON("POST", "http://httpbin.org/post", &data, &resp); err != nil {
-		t.Fatalf("got: %v", resp)
-	}
-	if fmt.Sprintf("%v", resp) != want {
-		t.Fatalf("got: %v", resp)
-	}
+	err := RequestJSON("POST", server.URL, &data, &resp)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"hello": "world"}, resp.JSON)
+
+	captured := receiveCapturedRequest(t, captureCh)
+	require.Equal(t, http.MethodPost, captured.Method)
+	require.Equal(t, HTTPHeaderContentTypeValJSON, captured.Header.Get(HTTPHeaderContentType))
+	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 func TestRequestJSONWithClient(t *testing.T) {
+	server, captureCh := newJSONEchoServer()
+	defer server.Close()
+
 	data := RequestData{
 		Data: map[string]string{
 			"hello": "world",
@@ -42,7 +111,6 @@ func TestRequestJSONWithClient(t *testing.T) {
 	var resp struct {
 		JSON map[string]string `json:"json"`
 	}
-	want := "{map[hello:world]}"
 	httpClient, err := NewHTTPClient(
 		WithHTTPClientInsecure(),
 		WithHTTPClientMaxConn(20),
@@ -50,12 +118,56 @@ func TestRequestJSONWithClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	if err := RequestJSONWithClient(httpClient, "POST", "http://httpbin.org/post", &data, &resp); err != nil {
-		t.Fatalf("got: %v", resp)
+	err = RequestJSONWithClient(httpClient, "POST", server.URL, &data, &resp)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"hello": "world"}, resp.JSON)
+
+	captured := receiveCapturedRequest(t, captureCh)
+	require.Equal(t, http.MethodPost, captured.Method)
+	require.Equal(t, HTTPHeaderContentTypeValJSON, captured.Header.Get(HTTPHeaderContentType))
+	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
+}
+
+func TestRequestJSONWithClientNilRequest(t *testing.T) {
+	server, captureCh := newJSONEchoServer()
+	defer server.Close()
+
+	var resp struct {
+		JSON map[string]string `json:"json"`
 	}
-	if fmt.Sprintf("%v", resp) != want {
-		t.Fatalf("got: %v", resp)
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(5 * time.Second))
+	require.NoError(t, err)
+
+	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
+	require.NoError(t, err)
+	require.Nil(t, resp.JSON)
+
+	captured := receiveCapturedRequest(t, captureCh)
+	require.Equal(t, http.MethodGet, captured.Method)
+	require.Empty(t, captured.Body)
+	require.Empty(t, captured.Header.Get(HTTPHeaderContentType))
+}
+
+func TestRequestJSONWithClientNilHTTPClient(t *testing.T) {
+	server, captureCh := newJSONEchoServer()
+	defer server.Close()
+
+	data := RequestData{
+		Data: map[string]string{"hello": "world"},
 	}
+
+	var resp struct {
+		JSON map[string]string `json:"json"`
+	}
+
+	err := RequestJSONWithClient(nil, http.MethodPost, server.URL, &data, &resp)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"hello": "world"}, resp.JSON)
+
+	captured := receiveCapturedRequest(t, captureCh)
+	require.Equal(t, http.MethodPost, captured.Method)
+	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 
 func TestCheckResp(t *testing.T) {
