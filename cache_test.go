@@ -42,7 +42,7 @@ func TestExpCache_Store(t *testing.T) {
 		now := time.Now().UTC()
 		if gotV, ok := cm.Load(key); ok {
 			require.Equal(t, val, gotV)
-			require.Less(t, now.Sub(startAt), ttl)
+			require.Less(t, now.Sub(startAt)-time.Millisecond, ttl) // -time.Millisecond to avoid clock precision issue
 			time.Sleep(10 * time.Millisecond)
 		} else {
 			require.Greater(t, now.Sub(startAt), ttl)

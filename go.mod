@@ -24,15 +24,15 @@ require (
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
 	github.com/niclabs/tcrsa v0.0.5
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a
 	github.com/xlzd/gotp v0.1.0
 	go.dedis.ch/kyber/v3 v3.1.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.43.0
-	golang.org/x/sync v0.17.0
-	golang.org/x/term v0.36.0
+	golang.org/x/crypto v0.47.0
+	golang.org/x/sync v0.19.0
+	golang.org/x/term v0.39.0
 	golang.org/x/time v0.3.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
@@ -40,7 +40,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
@@ -50,7 +50,7 @@ require (
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
