@@ -18,10 +18,12 @@ import (
 )
 
 var jsonArg struct {
-	Recursive bool
-	Exts      string
-	Dry       bool
-	Sort      string
+	Recursive   bool
+	Exts        string
+	Dry         bool
+	Sort        string
+	Indent      int
+	Insensitive bool
 }
 
 func init() {
@@ -32,6 +34,8 @@ func init() {
 	jsonSortCmd.Flags().StringVar(&jsonArg.Exts, "ext", ".json", "supported file name suffixes as a list, split by comma")
 	jsonSortCmd.Flags().BoolVar(&jsonArg.Dry, "dry", false, "only list files, do not perform sorting")
 	jsonSortCmd.Flags().StringVar(&jsonArg.Sort, "sort", "asc", "ascending or descending order (asc|desc)")
+	jsonSortCmd.Flags().IntVar(&jsonArg.Indent, "indent", 2, "indent blanks")
+	jsonSortCmd.Flags().BoolVarP(&jsonArg.Insensitive, "insensitive", "i", true, "case-insensitive sorting")
 }
 
 // jsonCmd json tools
@@ -64,7 +68,7 @@ var jsonSortCmd = &cobra.Command{
 		}
 
 		for _, path := range args {
-			if err := sortJSONPath(path, exts, jsonArg.Recursive, jsonArg.Dry, jsonArg.Sort == "desc"); err != nil {
+			if err := sortJSONPath(path, exts, jsonArg.Recursive, jsonArg.Dry, jsonArg.Sort == "desc", jsonArg.Indent, jsonArg.Insensitive); err != nil {
 				glog.Shared.Panic("sort json", zap.String("path", path), zap.Error(err))
 			}
 		}
@@ -79,17 +83,19 @@ var jsonSortCmd = &cobra.Command{
 //   - recursive: recursively find json files
 //   - dry: only list files, do not perform sorting
 //   - desc: descending order
+//   - indent: indent blanks
+//   - insensitive: case-insensitive sorting
 //
 // Returns:
 //   - error: error if any
-func sortJSONPath(path string, exts []string, recursive, dry, desc bool) error {
+func sortJSONPath(path string, exts []string, recursive, dry, desc bool, indent int, insensitive bool) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return errors.Wrapf(err, "stat %q", path)
 	}
 
 	if !info.IsDir() {
-		return sortJSONFile(path, dry, desc)
+		return sortJSONFile(path, dry, desc, indent, insensitive)
 	}
 
 	var files []string
@@ -132,7 +138,7 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool) error {
 	}
 
 	for _, f := range files {
-		if err := sortJSONFile(f, dry, desc); err != nil {
+		if err := sortJSONFile(f, dry, desc, indent, insensitive); err != nil {
 			return err
 		}
 	}
@@ -146,10 +152,12 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool) error {
 //   - fpath: file path
 //   - dry: only list files, do not perform sorting
 //   - desc: descending order
+//   - indent: indent blanks
+//   - insensitive: case-insensitive sorting
 //
 // Returns:
 //   - error: error if any
-func sortJSONFile(fpath string, dry, desc bool) error {
+func sortJSONFile(fpath string, dry, desc bool, indent int, insensitive bool) error {
 	if dry {
 		fmt.Printf("found json file: %s\n", fpath)
 		return nil
@@ -166,8 +174,8 @@ func sortJSONFile(fpath string, dry, desc bool) error {
 		return errors.Wrapf(err, "unmarshal json %q", fpath)
 	}
 
-	sortedData := sortRecursive(data, desc)
-	out, err := json.MarshalIndent(sortedData, "", "  ")
+	sortedData := sortRecursive(data, desc, insensitive)
+	out, err := json.MarshalIndent(sortedData, "", strings.Repeat(" ", indent))
 	if err != nil {
 		return errors.Wrapf(err, "marshal sorted json %q", fpath)
 	}
@@ -182,9 +190,10 @@ func sortJSONFile(fpath string, dry, desc bool) error {
 
 // sortedMap is a helper to marshal map with sorted keys
 type sortedMap struct {
-	keys []string
-	data map[string]interface{}
-	desc bool
+	keys        []string
+	data        map[string]interface{}
+	desc        bool
+	insensitive bool
 }
 
 // MarshalJSON implements json.Marshaler
@@ -192,10 +201,34 @@ func (m sortedMap) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
 	sort.Slice(m.keys, func(i, j int) bool {
-		if m.desc {
-			return m.keys[i] > m.keys[j]
+		ki, kj := m.keys[i], m.keys[j]
+		if m.insensitive {
+			ki = strings.ToLower(ki)
+			kj = strings.ToLower(kj)
 		}
-		return m.keys[i] < m.keys[j]
+
+		var res bool
+		if ki != kj {
+			if m.desc {
+				res = ki > kj
+			} else {
+				res = ki < kj
+			}
+		} else {
+			// fallback to case-sensitive if insensitive keys are equal
+			if m.desc {
+				res = m.keys[i] > m.keys[j]
+			} else {
+				res = m.keys[i] < m.keys[j]
+			}
+		}
+
+		glog.Shared.Debug("compare json keys",
+			zap.String("key_i", m.keys[i]),
+			zap.String("key_j", m.keys[j]),
+			zap.Bool("insensitive", m.insensitive),
+			zap.Bool("result", res))
+		return res
 	})
 
 	for i, k := range m.keys {
@@ -220,24 +253,26 @@ func (m sortedMap) MarshalJSON() ([]byte, error) {
 // Parameters:
 //   - data: json data
 //   - desc: descending order
+//   - insensitive: case-insensitive sorting
 //
 // Returns:
 //   - interface{}: sorted json data
-func sortRecursive(data interface{}, desc bool) interface{} {
+func sortRecursive(data interface{}, desc bool, insensitive bool) interface{} {
 	switch v := data.(type) {
 	case map[string]interface{}:
 		sm := sortedMap{
-			data: make(map[string]interface{}),
-			desc: desc,
+			data:        make(map[string]interface{}),
+			desc:        desc,
+			insensitive: insensitive,
 		}
 		for k, val := range v {
 			sm.keys = append(sm.keys, k)
-			sm.data[k] = sortRecursive(val, desc)
+			sm.data[k] = sortRecursive(val, desc, insensitive)
 		}
 		return sm
 	case []interface{}:
 		for i, val := range v {
-			v[i] = sortRecursive(val, desc)
+			v[i] = sortRecursive(val, desc, insensitive)
 		}
 		return v
 	default:
