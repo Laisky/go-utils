@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"bytes"
 	"crypto/md5"
+	"crypto/subtle"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -133,7 +133,7 @@ func HashVerify(hashType HashTypeInterface, content io.Reader, signature []byte)
 		return errors.Wrap(err, "read from content")
 	}
 
-	if !bytes.Equal(hasher.Sum(nil), signature) {
+	if subtle.ConstantTimeCompare(hasher.Sum(nil), signature) != 1 {
 		return errors.Errorf("signature not match")
 	}
 

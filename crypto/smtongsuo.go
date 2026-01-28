@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -701,7 +702,7 @@ func (t *Tongsuo) DecryptBySm4CbcBaisc(ctx context.Context,
 	if len(hmac) != 0 { // check hmac
 		if expectedHmac, err := HMACSha256(key, bytes.NewReader(ciphertext)); err != nil {
 			return nil, errors.Wrap(err, "calculate hmac")
-		} else if !bytes.Equal(hmac, expectedHmac) {
+		} else if subtle.ConstantTimeCompare(hmac, expectedHmac) != 1 {
 			return nil, errors.Errorf("hmac not match")
 		}
 	}
