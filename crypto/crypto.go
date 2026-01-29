@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/subtle"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -115,7 +116,7 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 		return errors.Wrap(err, "build hashed password by raw password")
 	}
 
-	if !bytes.Equal(hp.hashedPassword, rawH.hashedPassword) {
+	if subtle.ConstantTimeCompare(hp.hashedPassword, rawH.hashedPassword) != 1 {
 		return errors.Errorf("password not match")
 	}
 
@@ -144,11 +145,11 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 		return "", errors.Errorf("only supprt sha256,sha512")
 	}
 
-	n, err := rand.Int(rand.Reader, big.NewInt(10))
+	n, err := rand.Int(rand.Reader, big.NewInt(5000))
 	if err != nil {
 		return "", errors.Wrap(err, "generate hash count")
 	}
-	hashNum := int(n.Int64()) + 1
+	hashNum := int(n.Int64()) + 10000
 
 	h, err := newHashedPassword(salt, password, hasher, hashNum)
 	if err != nil {
