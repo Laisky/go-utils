@@ -56,6 +56,18 @@ func TestVerifyHashedPassword(t *testing.T) {
 	}
 }
 
+func TestPasswordHashIterationCount(t *testing.T) {
+	t.Parallel()
+	h, err := PasswordHash([]byte("password"), gutils.HashTypeSha256)
+	require.NoError(t, err)
+
+	hp, err := parseHashedPassword(h)
+	require.NoError(t, err)
+
+	require.GreaterOrEqual(t, hp.hashNum, 10000)
+	require.Less(t, hp.hashNum, 15000)
+}
+
 func TestRsaEncryptByOAEP(t *testing.T) {
 	t.Parallel()
 

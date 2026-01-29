@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	cryptohmac "crypto/hmac"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -701,7 +702,7 @@ func (t *Tongsuo) DecryptBySm4CbcBaisc(ctx context.Context,
 	if len(hmac) != 0 { // check hmac
 		if expectedHmac, err := HMACSha256(key, bytes.NewReader(ciphertext)); err != nil {
 			return nil, errors.Wrap(err, "calculate hmac")
-		} else if !bytes.Equal(hmac, expectedHmac) {
+		} else if !cryptohmac.Equal(hmac, expectedHmac) {
 			return nil, errors.Errorf("hmac not match")
 		}
 	}
