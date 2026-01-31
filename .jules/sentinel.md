@@ -1,0 +1,4 @@
+## 2026-01-31 - Weak Home-grown Password Hashing
+**Vulnerability:** The `PasswordHash` function in `crypto/crypto.go` used a very low iteration count (random 1-11) for password hashing, making it vulnerable to fast brute-force attacks. It also used `bytes.Equal` for verification, which is susceptible to timing attacks.
+**Learning:** The implementation attempted to provide a flexible hashing mechanism but lacked sufficient complexity (iterations) and timing-safe comparison. The iteration count was likely low for performance during development but was never increased for production-level security.
+**Prevention:** Always use high iteration counts for password hashing (at least 10,000+). Use standard constant-time comparison functions like `crypto/subtle.ConstantTimeCompare` for all sensitive data comparisons. Ensure input slices are copied to prevent side effects.

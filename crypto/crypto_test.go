@@ -4,6 +4,8 @@ package crypto
 import (
 	"crypto/rand"
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,6 +56,21 @@ func TestVerifyHashedPassword(t *testing.T) {
 			t.Logf("hashed password: %q", h)
 		})
 	}
+}
+
+func TestPasswordHashIterationCount(t *testing.T) {
+	password := []byte("mysecretpassword")
+	hashed, err := PasswordHash(password, gutils.HashTypeSha256)
+	require.NoError(t, err)
+
+	// Hashed format: hasher.hashNum.salt.hashedPassword
+	parts := strings.Split(hashed, ".")
+	require.Equal(t, 4, len(parts))
+
+	hashNum, err := strconv.Atoi(parts[1])
+	require.NoError(t, err)
+
+	require.GreaterOrEqual(t, hashNum, 10000, "Iteration count should be at least 10000")
 }
 
 func TestRsaEncryptByOAEP(t *testing.T) {
