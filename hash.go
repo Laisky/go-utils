@@ -2,7 +2,6 @@ package utils
 
 import (
 	"crypto/md5"
-	"crypto/subtle"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"

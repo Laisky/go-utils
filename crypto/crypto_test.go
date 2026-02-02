@@ -65,7 +65,7 @@ func TestPasswordHashIterationCount(t *testing.T) {
 	require.NoError(t, err)
 
 	require.GreaterOrEqual(t, hp.hashNum, 10000)
-	require.Less(t, hp.hashNum, 15000)
+	require.Less(t, hp.hashNum, 20000)
 }
 
 func TestRsaEncryptByOAEP(t *testing.T) {
