@@ -8,6 +8,8 @@ import (
 )
 
 func TestVerifyHashedPassword_DoS(t *testing.T) {
+	t.Parallel()
+
 	t.Run("too many iterations", func(t *testing.T) {
 		// A malicious hashed password string with a very large iteration count
 		// Format: {hasher}.{hashNum}.{salt}.{hashedPassword}
@@ -27,6 +29,13 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 
 	t.Run("negative iterations", func(t *testing.T) {
 		maliciousHash := "sha256.-1.00.00"
+		err := VerifyHashedPassword([]byte("password"), maliciousHash)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid iterations")
+	})
+
+	t.Run("zero iterations", func(t *testing.T) {
+		maliciousHash := "sha256.0.00.00"
 		err := VerifyHashedPassword([]byte("password"), maliciousHash)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid iterations")
