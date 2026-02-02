@@ -89,7 +89,7 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 	if h.hashNum > maxPasswordHashIteration {
 		return h, errors.Errorf("too many iterations %d > %d",
 			h.hashNum, maxPasswordHashIteration)
-	} else if h.hashNum < 0 {
+	} else if h.hashNum < 1 {
 		return h, errors.Errorf("invalid iterations %d", h.hashNum)
 	}
 
