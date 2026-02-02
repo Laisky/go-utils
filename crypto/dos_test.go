@@ -31,4 +31,11 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid iterations")
 	})
+
+	t.Run("zero iterations", func(t *testing.T) {
+		maliciousHash := "sha256.0.00.00"
+		err := VerifyHashedPassword([]byte("password"), maliciousHash)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid iterations")
+	})
 }
