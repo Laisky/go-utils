@@ -86,6 +86,13 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 		return h, errors.Wrap(err, "parse hash num")
 	}
 
+	if h.hashNum > maxPasswordHashIteration {
+		return h, errors.Errorf("too many iterations %d > %d",
+			h.hashNum, maxPasswordHashIteration)
+	} else if h.hashNum < 0 {
+		return h, errors.Errorf("invalid iterations %d", h.hashNum)
+	}
+
 	h.salt, err = hex.DecodeString(hs[2])
 	if err != nil {
 		return h, errors.Wrap(err, "decode salt")
@@ -99,7 +106,10 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 	return h, nil
 }
 
-const defaultPasswordDelay = 2 * time.Second
+const (
+	defaultPasswordDelay     = 2 * time.Second
+	maxPasswordHashIteration = 1000000
+)
 
 // VerifyHashedPassword verify HashedPassword
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
@@ -234,7 +244,7 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 
 		cipherChunk, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, chunk[:n])
 		if err != nil {
-			return nil, errors.Wrap(err, "encrypt chunkd")
+			return nil, errors.Wrap(err, "encrypt chunk")
 		}
 
 		cipher = append(cipher, cipherChunk...)
@@ -261,7 +271,7 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 
 		plainChunk, err := rsa.DecryptPKCS1v15(rand.Reader, prikey, chunk[:n])
 		if err != nil {
-			return nil, errors.Wrap(err, "encrypt chunkd")
+			return nil, errors.Wrap(err, "decrypt chunk")
 		}
 
 		plain = append(plain, plainChunk...)
