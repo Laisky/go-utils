@@ -8,6 +8,7 @@ import (
 )
 
 func TestVerifyHashedPassword_DoS(t *testing.T) {
+	t.Parallel()
 	t.Run("too many iterations", func(t *testing.T) {
 		// A malicious hashed password string with a very large iteration count
 		// Format: {hasher}.{hashNum}.{salt}.{hashedPassword}
