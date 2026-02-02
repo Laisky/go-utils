@@ -10,6 +10,7 @@ import (
 func TestVerifyHashedPassword_DoS(t *testing.T) {
 	t.Parallel()
 	t.Run("too many iterations", func(t *testing.T) {
+		t.Parallel()
 		// A malicious hashed password string with a very large iteration count
 		// Format: {hasher}.{hashNum}.{salt}.{hashedPassword}
 		maliciousHash := "sha256.10000000.00.00"
@@ -27,6 +28,7 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 	})
 
 	t.Run("negative iterations", func(t *testing.T) {
+		t.Parallel()
 		maliciousHash := "sha256.-1.00.00"
 		err := VerifyHashedPassword([]byte("password"), maliciousHash)
 		require.Error(t, err)
