@@ -163,7 +163,6 @@ func (c *ClockT) Close() {
 }
 
 func (c *ClockT) runRefresh(ctx context.Context) {
-	var interval time.Duration
 	for {
 		select {
 		case <-c.stopChan:
@@ -171,10 +170,7 @@ func (c *ClockT) runRefresh(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			c.RLock()
-			interval = c.interval
-			c.RUnlock()
-			time.Sleep(interval)
+			time.Sleep(time.Duration(atomic.LoadInt64((*int64)(&c.interval))))
 		}
 
 		atomic.StoreInt64(&c.now, time.Now().UnixNano())
@@ -188,7 +184,7 @@ func (c *ClockT) GetUTCNow() time.Time {
 
 // GetDate return "yyyy-mm-dd"
 func (c *ClockT) GetDate() (time.Time, error) {
-	return time.Parse(TimeFormatDate, c.GetUTCNow().Format(TimeFormatDate))
+	return c.GetUTCNow().Truncate(24 * time.Hour), nil
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
@@ -198,28 +194,22 @@ func (c *ClockT) GetTimeInRFC3339Nano() string {
 
 // SetInterval setup update interval
 func (c *ClockT) SetInterval(interval time.Duration) {
-	c.Lock()
-	defer c.Unlock()
-
-	c.interval = interval
+	atomic.StoreInt64((*int64)(&c.interval), int64(interval))
 }
 
 // GetTimeInHex return current time in hex
 func (c *ClockT) GetTimeInHex() string {
-	return strconv.FormatInt(c.GetUTCNow().Unix(), BaseHex)
+	return strconv.FormatInt(atomic.LoadInt64(&c.now)/Nano2Sec, BaseHex)
 }
 
 // GetNanoTimeInHex return current time with nano in hex
 func (c *ClockT) GetNanoTimeInHex() string {
-	return strconv.FormatInt(c.GetUTCNow().UnixNano(), BaseHex)
+	return strconv.FormatInt(atomic.LoadInt64(&c.now), BaseHex)
 }
 
 // Interval get current interval
 func (c *ClockT) Interval() time.Duration {
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.interval
+	return time.Duration(atomic.LoadInt64((*int64)(&c.interval)))
 }
 
 var (
