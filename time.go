@@ -3,7 +3,6 @@ package utils
 import (
 	"context"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -138,20 +137,19 @@ var (
 
 // ClockT high performance ClockT with lazy refreshing
 type ClockT struct {
-	sync.RWMutex
 	stopChan chan struct{}
 
-	interval time.Duration
-	now      int64
+	interval atomic.Int64
+	now      atomic.Int64
 }
 
 // NewClock create new Clock
 func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockT {
 	c := &ClockT{
-		interval: refreshInterval,
-		now:      UTCNow().UnixNano(),
 		stopChan: make(chan struct{}),
 	}
+	c.interval.Store(int64(refreshInterval))
+	c.now.Store(UTCNow().UnixNano())
 	go c.runRefresh(ctx)
 
 	return c
@@ -163,7 +161,6 @@ func (c *ClockT) Close() {
 }
 
 func (c *ClockT) runRefresh(ctx context.Context) {
-	var interval time.Duration
 	for {
 		select {
 		case <-c.stopChan:
@@ -171,24 +168,21 @@ func (c *ClockT) runRefresh(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			c.RLock()
-			interval = c.interval
-			c.RUnlock()
-			time.Sleep(interval)
+			time.Sleep(time.Duration(c.interval.Load()))
 		}
 
-		atomic.StoreInt64(&c.now, time.Now().UnixNano())
+		c.now.Store(time.Now().UnixNano())
 	}
 }
 
 // GetUTCNow return Clock current time.Time
 func (c *ClockT) GetUTCNow() time.Time {
-	return ParseUnixNano2UTC(atomic.LoadInt64(&c.now))
+	return ParseUnixNano2UTC(c.now.Load())
 }
 
 // GetDate return "yyyy-mm-dd"
 func (c *ClockT) GetDate() (time.Time, error) {
-	return time.Parse(TimeFormatDate, c.GetUTCNow().Format(TimeFormatDate))
+	return c.GetUTCNow().Truncate(24 * time.Hour), nil
 }
 
 // GetTimeInRFC3339Nano return Clock current time in string
@@ -198,10 +192,7 @@ func (c *ClockT) GetTimeInRFC3339Nano() string {
 
 // SetInterval setup update interval
 func (c *ClockT) SetInterval(interval time.Duration) {
-	c.Lock()
-	defer c.Unlock()
-
-	c.interval = interval
+	c.interval.Store(int64(interval))
 }
 
 // GetTimeInHex return current time in hex
@@ -216,10 +207,7 @@ func (c *ClockT) GetNanoTimeInHex() string {
 
 // Interval get current interval
 func (c *ClockT) Interval() time.Duration {
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.interval
+	return time.Duration(c.interval.Load())
 }
 
 var (
