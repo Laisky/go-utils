@@ -152,11 +152,12 @@ func (m *Mutex) ForceRelease() {
 	atomic.StoreUint32(&m.l, 0)
 }
 
-// SpinLock block until succee acquired lock
+// SpinLock blocks until it acquires the lock or the timeout elapses.
+// step controls the sleep duration between attempts, and timeout sets the maximum wait.
 func (m *Mutex) SpinLock(step, timeout time.Duration) {
-	start := time.Now().UTC()
+	start := time.Now()
 	for {
-		if m.TryLock() || time.Now().UTC().Sub(start) > timeout {
+		if m.TryLock() || time.Since(start) > timeout {
 			return
 		}
 		time.Sleep(step)
