@@ -119,3 +119,13 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyHashedPassword_DoS(t *testing.T) {
+	t.Parallel()
+	// This should fail quickly once the limit is implemented.
+	// We use a very large iteration count to simulate a DoS attack.
+	largeIterationHash := "sha256.1000001.73616c74.68617368"
+	err := VerifyHashedPassword([]byte("password"), largeIterationHash)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "exceeds limit")
+}

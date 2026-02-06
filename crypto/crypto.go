@@ -86,6 +86,10 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 		return h, errors.Wrap(err, "parse hash num")
 	}
 
+	if h.hashNum > maxPasswordHashIteration {
+		return h, errors.Errorf("hash iterations %d exceeds limit %d", h.hashNum, maxPasswordHashIteration)
+	}
+
 	h.salt, err = hex.DecodeString(hs[2])
 	if err != nil {
 		return h, errors.Wrap(err, "decode salt")
@@ -99,7 +103,10 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 	return h, nil
 }
 
-const defaultPasswordDelay = 2 * time.Second
+const (
+	defaultPasswordDelay     = 2 * time.Second
+	maxPasswordHashIteration = 1000000
+)
 
 // VerifyHashedPassword verify HashedPassword
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
