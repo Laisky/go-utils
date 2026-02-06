@@ -22,6 +22,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/pgzip v1.2.6
 	github.com/monnand/dhkx v0.0.0-20180522003156-9e5b033f1ac4
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/niclabs/tcrsa v0.0.5
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.10.2
@@ -43,7 +44,6 @@ require (
 	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect

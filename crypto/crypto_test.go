@@ -65,7 +65,7 @@ func TestPasswordHashIterationCount(t *testing.T) {
 	require.NoError(t, err)
 
 	require.GreaterOrEqual(t, hp.hashNum, 10000)
-	require.Less(t, hp.hashNum, 20000)
+	require.Less(t, hp.hashNum, MaxPasswordHashIteration)
 }
 
 func TestRsaEncryptByOAEP(t *testing.T) {
@@ -127,5 +127,5 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 	largeIterationHash := "sha256.1000001.73616c74.68617368"
 	err := VerifyHashedPassword([]byte("password"), largeIterationHash)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "exceeds limit")
+	require.ErrorContains(t, err, "too many iterations")
 }
