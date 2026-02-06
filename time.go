@@ -141,16 +141,16 @@ type ClockT struct {
 	sync.RWMutex
 	stopChan chan struct{}
 
-	interval time.Duration
-	now      int64
+	intervalNanos int64
+	now           int64
 }
 
 // NewClock create new Clock
 func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockT {
 	c := &ClockT{
-		interval: refreshInterval,
-		now:      UTCNow().UnixNano(),
-		stopChan: make(chan struct{}),
+		intervalNanos: int64(refreshInterval),
+		now:           UTCNow().UnixNano(),
+		stopChan:      make(chan struct{}),
 	}
 	go c.runRefresh(ctx)
 
@@ -170,7 +170,7 @@ func (c *ClockT) runRefresh(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			time.Sleep(time.Duration(atomic.LoadInt64((*int64)(&c.interval))))
+			time.Sleep(time.Duration(atomic.LoadInt64(&c.intervalNanos)))
 		}
 
 		atomic.StoreInt64(&c.now, time.Now().UnixNano())
@@ -194,7 +194,7 @@ func (c *ClockT) GetTimeInRFC3339Nano() string {
 
 // SetInterval setup update interval
 func (c *ClockT) SetInterval(interval time.Duration) {
-	atomic.StoreInt64((*int64)(&c.interval), int64(interval))
+	atomic.StoreInt64(&c.intervalNanos, int64(interval))
 }
 
 // GetTimeInHex return current time in hex
@@ -209,7 +209,7 @@ func (c *ClockT) GetNanoTimeInHex() string {
 
 // Interval get current interval
 func (c *ClockT) Interval() time.Duration {
-	return time.Duration(atomic.LoadInt64((*int64)(&c.interval)))
+	return time.Duration(atomic.LoadInt64(&c.intervalNanos))
 }
 
 var (
