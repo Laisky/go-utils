@@ -100,9 +100,11 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 		return h, errors.Wrap(err, "parse hash num")
 	}
 
-	// limit hashNum to prevent DoS attack
 	if h.hashNum > MaxPasswordHashIteration {
-		return h, errors.Errorf("hash iterations %d exceeds limit %d", h.hashNum, MaxPasswordHashIteration)
+		return h, errors.Errorf("too many iterations %d > %d",
+			h.hashNum, MaxPasswordHashIteration)
+	} else if h.hashNum <= 0 {
+		return h, errors.Errorf("invalid iterations %d", h.hashNum)
 	}
 
 	h.salt, err = hex.DecodeString(hs[2])
@@ -251,7 +253,7 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 
 		cipherChunk, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, chunk[:n])
 		if err != nil {
-			return nil, errors.Wrap(err, "encrypt chunkd")
+			return nil, errors.Wrap(err, "encrypt chunk")
 		}
 
 		cipher = append(cipher, cipherChunk...)
@@ -278,7 +280,7 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 
 		plainChunk, err := rsa.DecryptPKCS1v15(rand.Reader, prikey, chunk[:n])
 		if err != nil {
-			return nil, errors.Wrap(err, "encrypt chunkd")
+			return nil, errors.Wrap(err, "decrypt chunk")
 		}
 
 		plain = append(plain, plainChunk...)

@@ -162,6 +162,7 @@ func TestClock(t *testing.T) {
 	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
 
 	c.SetInterval(100 * time.Millisecond)
+	require.Equal(t, 100*time.Millisecond, c.Interval())
 
 	// test ts
 	time.Sleep(10 * time.Millisecond) // first refresh
