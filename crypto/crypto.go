@@ -32,6 +32,15 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+const (
+	// DefaultPasswordDelay default delay time for password hashing and verifying
+	DefaultPasswordDelay = 2 * time.Second
+	// MaxPasswordHashIteration limit max hash iteration count
+	MaxPasswordHashIteration = 1000000
+	// MinPasswordHashIteration limit min hash iteration count
+	MinPasswordHashIteration = 1000
+)
+
 // HashedPassword salt hashed password
 //
 // generate by PasswordHash, verify by VerifyHashedPassword
@@ -57,6 +66,11 @@ func (p HashedPassword) String() string {
 func newHashedPassword(salt, rawpassword []byte,
 	hasher gutils.HashTypeInterface,
 	hashNum int) (h HashedPassword, err error) {
+	if hashNum < MinPasswordHashIteration || hashNum > MaxPasswordHashIteration {
+		return h, errors.Errorf("hashNum %d out of range [%d,%d]",
+			hashNum, MinPasswordHashIteration, MaxPasswordHashIteration)
+	}
+
 	h.salt = salt
 	h.hasher = hasher
 	h.hashNum = hashNum
@@ -86,8 +100,9 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 		return h, errors.Wrap(err, "parse hash num")
 	}
 
-	if h.hashNum > maxPasswordHashIteration {
-		return h, errors.Errorf("hash iterations %d exceeds limit %d", h.hashNum, maxPasswordHashIteration)
+	// limit hashNum to prevent DoS attack
+	if h.hashNum > MaxPasswordHashIteration {
+		return h, errors.Errorf("hash iterations %d exceeds limit %d", h.hashNum, MaxPasswordHashIteration)
 	}
 
 	h.salt, err = hex.DecodeString(hs[2])
@@ -103,18 +118,13 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 	return h, nil
 }
 
-const (
-	defaultPasswordDelay     = 2 * time.Second
-	maxPasswordHashIteration = 1000000
-)
-
 // VerifyHashedPassword verify HashedPassword
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
 	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
 		return errors.Errorf("rawpassword or hashedPassword is empty")
 	}
 
-	defer gutils.NewDelay(defaultPasswordDelay).Wait()
+	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 	hp, err := parseHashedPassword(hashedPassword)
 	if err != nil {
 		return errors.Wrap(err, "parse hashed password")
@@ -138,7 +148,7 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 		return "", errors.Errorf("password is empty")
 	}
 
-	defer gutils.NewDelay(defaultPasswordDelay).Wait()
+	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 
 	var salt []byte
 	switch hasher {
@@ -154,11 +164,11 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 		return "", errors.Errorf("only supprt sha256,sha512")
 	}
 
-	n, err := rand.Int(rand.Reader, big.NewInt(10000))
+	n, err := rand.Int(rand.Reader, big.NewInt(MaxPasswordHashIteration-MinPasswordHashIteration))
 	if err != nil {
 		return "", errors.Wrap(err, "generate hash count")
 	}
-	hashNum := int(n.Int64()) + 10000
+	hashNum := int(n.Int64()) + MinPasswordHashIteration
 
 	h, err := newHashedPassword(salt, password, hasher, hashNum)
 	if err != nil {

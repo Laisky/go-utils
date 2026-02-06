@@ -378,6 +378,22 @@ func TestSetupClock(t *testing.T) {
 		})
 		require.True(t, ok)
 	}
+
+	t.Run("new clock invalid interval", func(t *testing.T) {
+		require.PanicsWithValue(t, "interval must greater than 1us", func() {
+			_ = NewClock(context.Background(), time.Nanosecond)
+		})
+	})
+
+	t.Run("set interval invalid interval", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		c := NewClock(ctx, time.Millisecond)
+		require.PanicsWithValue(t, "interval must greater than 1us", func() {
+			c.SetInterval(time.Nanosecond)
+		})
+	})
 }
 
 func TestSleepWithContext(t *testing.T) {

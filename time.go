@@ -145,8 +145,13 @@ type ClockT struct {
 	now      int64
 }
 
-// NewClock create new Clock
+// NewClock creates a ClockT and starts its refresh loop.
+// It takes ctx to control the goroutine lifecycle and refreshInterval as the update period, and returns a *ClockT.
 func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockT {
+	if refreshInterval < time.Microsecond {
+		panic("interval must greater than 1us")
+	}
+
 	c := &ClockT{
 		interval: refreshInterval,
 		now:      UTCNow().UnixNano(),
@@ -196,8 +201,13 @@ func (c *ClockT) GetTimeInRFC3339Nano() string {
 	return c.GetUTCNow().Format(time.RFC3339Nano)
 }
 
-// SetInterval setup update interval
+// SetInterval updates the refresh interval used by ClockT.
+// It takes interval as the update period and does not return a value.
 func (c *ClockT) SetInterval(interval time.Duration) {
+	if interval < time.Microsecond {
+		panic("interval must greater than 1us")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
