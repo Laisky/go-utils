@@ -25,6 +25,14 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// CtxKey context key type
+type CtxKey string
+
+// String get string value of context key
+func (k CtxKey) String() string {
+	return string(k)
+}
+
 const (
 	defaultHTTPClientOptTimeout = 30 * time.Second
 	defaultHTTPClientOptMaxConn = 20
@@ -44,7 +52,7 @@ const (
 	// https://www.jaegertracing.io/docs/1.22/client-libraries/#key
 	//
 	//  `{trace-id}:{span-id}:{parent-span-id}:{flags}`
-	TracingKey = "Uber-Trace-Id"
+	TracingKey CtxKey = "Uber-Trace-Id"
 )
 
 var (
