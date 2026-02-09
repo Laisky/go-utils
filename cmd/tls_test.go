@@ -98,6 +98,6 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 	}()
 
 	<-readyCtx.Done()
-	err = showRemoteX509CertInfo("127.0.0.1:39481")
+	err = showRemoteX509CertInfo(context.Background(), "127.0.0.1:39481")
 	require.NoError(t, err)
 }

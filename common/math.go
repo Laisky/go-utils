@@ -217,7 +217,7 @@ func HumanReadableByteCount(bytes int64, si bool) (ret string) {
 // 		v := c.vals[idx]
 // 		if v < c.vals[smallest.idx] {
 // 			smaller.idx = smallest.idx
-// 			smallest.idx = idx
+// 			smallestIdx = idx
 // 		} else if v < c.vals[smaller.idx] {
 // 			smaller.idx = idx
 // 		}

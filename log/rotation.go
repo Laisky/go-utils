@@ -84,16 +84,16 @@ const rotationScheme = "rotate"
 
 var (
 	registerRotationSinkOnce sync.Once
-	rotationSinkErr          error
+	errRotationSink          error
 )
 
 func ensureRotationSinkRegistered() error {
 	registerRotationSinkOnce.Do(func() {
-		rotationSinkErr = zap.RegisterSink(rotationScheme, createRotationSink)
+		errRotationSink = zap.RegisterSink(rotationScheme, createRotationSink)
 	})
 
-	if rotationSinkErr != nil {
-		return errors.Wrap(rotationSinkErr, "register rotation sink")
+	if errRotationSink != nil {
+		return errors.Wrap(errRotationSink, "register rotation sink")
 	}
 
 	return nil
@@ -326,7 +326,7 @@ func (w *rotationWriter) openNewFile(start, next time.Time) error {
 		return err
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return errors.Wrap(err, "open log file")
 	}
@@ -588,7 +588,16 @@ func (rp *rotationPattern) Parse(name string, logger string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 
-	result := time.Date(parts.year, time.Month(parts.month), parts.day, parts.hour, parts.minute, parts.second, 0, time.UTC)
+	result := time.Date(
+		parts.year,
+		time.Month(parts.month),
+		parts.day,
+		parts.hour,
+		parts.minute,
+		parts.second,
+		0,
+		time.UTC,
+	)
 	return result, true
 }
 
@@ -645,12 +654,17 @@ func compileRotationPattern(pattern string) (*rotationPattern, error) {
 			rp.elements = append(rp.elements, patternElement{kind: kind})
 			i += len(token)
 			switch kind {
+			case patternLiteral:
 			case patternYear:
 				rp.hasYear = true
 			case patternMonth:
 				rp.hasMonth = true
 			case patternDay:
 				rp.hasDay = true
+			case patternLogger:
+			case patternHour:
+			case patternMinute:
+			case patternSecond:
 			}
 			continue
 		}

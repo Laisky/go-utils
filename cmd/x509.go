@@ -1,18 +1,20 @@
 package cmd
 
 // =========================================
-// 生成 TLS 自签名证书
+// Generate and inspect TLS/x509 artifacts.
 //
-// 支持 rsa/es
+// Supports RSA and ECDSA workflows.
 // =========================================
 
 import (
+	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -64,15 +66,19 @@ var tlsInfoCMD = &cobra.Command{
 		    gutils certinfo -f ./cert.pem
 	`),
 	Args: NoExtraArgs,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		isRemote := tlsInfoCMDArgs.remote != ""
 		isFile := tlsInfoCMDArgs.filepath != ""
 		var err error
+		ctx := context.Background()
+		if cmd != nil && cmd.Context() != nil {
+			ctx = cmd.Context()
+		}
 		switch {
 		case isRemote && isFile:
 			return errors.Errorf("--remote or --file should not appears at the same time")
 		case isRemote:
-			err = errors.Wrap(showRemoteX509CertInfo(tlsInfoCMDArgs.remote), "show remote cert")
+			err = errors.Wrap(showRemoteX509CertInfo(ctx, tlsInfoCMDArgs.remote), "show remote cert")
 		case isFile:
 			err = errors.Wrap(showFileX509CertInfo(tlsInfoCMDArgs.filepath), "show file cert")
 		}
@@ -85,15 +91,30 @@ var tlsInfoCMD = &cobra.Command{
 	},
 }
 
-func showRemoteX509CertInfo(addr string) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+func showRemoteX509CertInfo(ctx context.Context, addr string) error {
+	serverName := addr
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		serverName = host
+	}
+
+	dialer := &tls.Dialer{
+		Config: &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         serverName,
+		},
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return errors.Wrapf(err, "dial addr %q", addr)
 	}
+	defer gutils.SilentClose(conn)
 
-	return prettyPrintCerts(conn.ConnectionState().PeerCertificates)
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return errors.Errorf("expected tls connection, got %T", conn)
+	}
+
+	return prettyPrintCerts(tlsConn.ConnectionState().PeerCertificates)
 }
 
 func showFileX509CertInfo(fpath string) error {

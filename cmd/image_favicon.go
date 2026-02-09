@@ -147,7 +147,7 @@ func generateFaviconFile(args imageFaviconOptions) (string, error) {
 		if err != nil {
 			return "", errors.Wrapf(err, "encode png size %d", outputSize)
 		}
-		if err = os.WriteFile(outputPath, data, 0644); err != nil {
+		if err = os.WriteFile(outputPath, data, 0o600); err != nil {
 			return "", errors.Wrapf(err, "write output file %q", outputPath)
 		}
 		return outputPath, nil
@@ -156,7 +156,7 @@ func generateFaviconFile(args imageFaviconOptions) (string, error) {
 		if err != nil {
 			return "", errors.Wrap(err, "build ico")
 		}
-		if err = os.WriteFile(outputPath, data, 0644); err != nil {
+		if err = os.WriteFile(outputPath, data, 0o600); err != nil {
 			return "", errors.Wrapf(err, "write output file %q", outputPath)
 		}
 		return outputPath, nil
@@ -302,6 +302,52 @@ func buildFaviconICO(src image.Image, sizes []int) ([]byte, error) {
 	return encodeICO(entries)
 }
 
+// countICOEntries converts entries length into uint16 with overflow protection.
+// The entries parameter is the list of ICO images and the return value is the ICO directory count field.
+func countICOEntries(entries []faviconEntry) (uint16, error) {
+	var count uint16
+	for range entries {
+		if count == ^uint16(0) {
+			return 0, errors.Errorf("too many favicon entries: %d", len(entries))
+		}
+		count++
+	}
+
+	return count, nil
+}
+
+// faviconSizeToICOByte converts favicon size to ICO width and height byte values.
+// The size parameter is in pixels and the returned byte uses 0 to represent 256.
+func faviconSizeToICOByte(size int) (uint8, error) {
+	if size == 256 {
+		return 0, nil
+	}
+	if size <= 0 || size > 255 {
+		return 0, errors.Errorf("invalid favicon size %d", size)
+	}
+
+	var encoded uint8
+	for i := 0; i < size; i++ {
+		encoded++
+	}
+
+	return encoded, nil
+}
+
+// faviconDataSize converts encoded image payload length into uint32 with overflow protection.
+// The data parameter is the PNG payload and the returned value is used by ICO metadata.
+func faviconDataSize(data []byte) (uint32, error) {
+	var size uint32
+	for range data {
+		if size == ^uint32(0) {
+			return 0, errors.Errorf("ico image data too large: %d", len(data))
+		}
+		size++
+	}
+
+	return size, nil
+}
+
 // encodeICO encodes entries into an ICO file binary and returns the ICO bytes or an error.
 func encodeICO(entries []faviconEntry) ([]byte, error) {
 	if len(entries) == 0 {
@@ -315,25 +361,29 @@ func encodeICO(entries []faviconEntry) ([]byte, error) {
 	if err := binary.Write(&dir, binary.LittleEndian, uint16(1)); err != nil {
 		return nil, errors.Wrap(err, "write ico type")
 	}
-	if err := binary.Write(&dir, binary.LittleEndian, uint16(len(entries))); err != nil {
+
+	entryCount, err := countICOEntries(entries)
+	if err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&dir, binary.LittleEndian, entryCount); err != nil {
 		return nil, errors.Wrap(err, "write ico count")
 	}
 
-	offset := uint32(6 + 16*len(entries))
+	offset := uint32(6) + uint32(entryCount)*16
 	for _, entry := range entries {
 		if entry.size <= 0 {
 			return nil, errors.Errorf("invalid favicon size %d", entry.size)
 		}
-		width := uint8(entry.size)
-		height := uint8(entry.size)
-		if entry.size >= 256 {
-			width = 0
-			height = 0
+
+		sizeByte, err := faviconSizeToICOByte(entry.size)
+		if err != nil {
+			return nil, err
 		}
-		if err := dir.WriteByte(width); err != nil {
+		if err := dir.WriteByte(sizeByte); err != nil {
 			return nil, errors.Wrap(err, "write ico width")
 		}
-		if err := dir.WriteByte(height); err != nil {
+		if err := dir.WriteByte(sizeByte); err != nil {
 			return nil, errors.Wrap(err, "write ico height")
 		}
 		if err := dir.WriteByte(0); err != nil {
@@ -348,13 +398,21 @@ func encodeICO(entries []faviconEntry) ([]byte, error) {
 		if err := binary.Write(&dir, binary.LittleEndian, uint16(32)); err != nil {
 			return nil, errors.Wrap(err, "write ico bit count")
 		}
-		if err := binary.Write(&dir, binary.LittleEndian, uint32(len(entry.data))); err != nil {
+
+		dataSize, err := faviconDataSize(entry.data)
+		if err != nil {
+			return nil, err
+		}
+		if err := binary.Write(&dir, binary.LittleEndian, dataSize); err != nil {
 			return nil, errors.Wrap(err, "write ico data size")
 		}
 		if err := binary.Write(&dir, binary.LittleEndian, offset); err != nil {
 			return nil, errors.Wrap(err, "write ico offset")
 		}
-		offset += uint32(len(entry.data))
+		if offset > ^uint32(0)-dataSize {
+			return nil, errors.Errorf("ico offset overflow: %d + %d", offset, dataSize)
+		}
+		offset += dataSize
 	}
 
 	var out bytes.Buffer

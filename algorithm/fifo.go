@@ -9,7 +9,7 @@ import (
 var fifoPool = sync.Pool{
 	New: func() any {
 		return &fifoNode{
-			next: unsafe.Pointer(emptyNode),
+			next: unsafe.Pointer(emptyNode), // #nosec G103 -- lock-free queue relies on atomic pointer sentinel.
 		}
 	},
 }
@@ -60,12 +60,12 @@ func NewFIFO() *FIFO {
 	//nolint: forcetypeassert
 	var dummyNode = fifoPool.Get().(*fifoNode)
 	dummyNode.d = "dummy"
-	dummyNode.next = unsafe.Pointer(emptyNode)
+	dummyNode.next = unsafe.Pointer(emptyNode) // #nosec G103 -- lock-free queue relies on atomic pointer sentinel.
 
 	return &FIFO{
-		head:  unsafe.Pointer(dummyNode),
-		tail:  unsafe.Pointer(dummyNode),
-		dummy: unsafe.Pointer(dummyNode),
+		head:  unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
+		tail:  unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
+		dummy: unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
 	}
 }
 
@@ -84,13 +84,14 @@ func (f *FIFO) Put(d any) {
 	// }
 
 	newNode.d = d
-	newNode.next = unsafe.Pointer(emptyNode)
-	newAddr := unsafe.Pointer(newNode)
+	newNode.next = unsafe.Pointer(emptyNode) // #nosec G103 -- lock-free queue relies on atomic pointer sentinel.
+	newAddr := unsafe.Pointer(newNode)       // #nosec G103 -- lock-free queue uses atomic CAS on unsafe pointers.
 
 	var tailAddr unsafe.Pointer
 	for {
 		tailAddr = atomic.LoadPointer(&f.tail)
 		tailNode := (*fifoNode)(tailAddr)
+		// #nosec G103 -- lock-free queue relies on sentinel comparison.
 		if atomic.CompareAndSwapPointer(&tailNode.next, unsafe.Pointer(emptyNode), newAddr) {
 			atomic.AddInt64(&f.len, 1)
 			break
@@ -115,6 +116,7 @@ func (f *FIFO) Get() any {
 		// }
 
 		nextAddr := atomic.LoadPointer(&headNode.next)
+		// #nosec G103 -- lock-free queue relies on sentinel comparison.
 		if nextAddr == unsafe.Pointer(emptyNode) {
 			// queue is empty
 			return nil

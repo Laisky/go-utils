@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/go-utils/v6/log"
 	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 // ThrottleCfg Throttle's configuration
@@ -94,9 +95,13 @@ type RateLimiter struct {
 // NewRateLimiter create new Throttle
 //
 // 90x faster than `rate.NewLimiter`
-func NewRateLimiter(ctx context.Context, args RateLimiterArgs, opts ...RateLimiterOption) (ratelimiter *RateLimiter, err error) {
+func NewRateLimiter(
+	ctx context.Context,
+	args RateLimiterArgs,
+	opts ...RateLimiterOption,
+) (ratelimiter *RateLimiter, err error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.Errorf("ctx should not be nil")
 	}
 	if args.NPerSec <= 0 {
 		return nil, errors.Errorf("npersec should greater than 0")
@@ -289,7 +294,7 @@ func (t *RateLimiter) runWithCtx(ctx context.Context) {
 
 		pending -= float64(tokensToAdd)
 
-		if _, err := t.stateManager.AddTokens(t.stateCtx, tokensToAdd); err != nil {
+		if _, err := t.stateManager.AddTokens(ctx, tokensToAdd); err != nil {
 			log.Shared.Warn("ratelimiter add tokens", zap.Int("tokens", tokensToAdd), zap.Error(err))
 		}
 	}
@@ -322,7 +327,11 @@ func (t *RateLimiter) setupStateManager() (bool, error) {
 }
 
 // Setup implements synchronization for the in-memory state manager.
-func (m *MemoryRateLimiterStateManager) Setup(ctx context.Context, args RateLimiterArgs, initialTokens int) (bool, error) {
+func (m *MemoryRateLimiterStateManager) Setup(
+	ctx context.Context,
+	args RateLimiterArgs,
+	initialTokens int,
+) (bool, error) {
 	select {
 	case <-ctx.Done():
 		return false, errors.Wrap(ctx.Err(), "context done")

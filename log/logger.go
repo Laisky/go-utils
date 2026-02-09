@@ -120,7 +120,7 @@ type zapLoggerItf interface {
 type LoggerT struct {
 	*zap.Logger
 
-	// level level of current logger
+	// level is the current logger level.
 	//
 	// zap logger do not expose api to change log's level,
 	// so we have to save the pointer of zap.AtomicLevel.

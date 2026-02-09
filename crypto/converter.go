@@ -375,8 +375,8 @@ func Pem2Ders(pemBytes []byte) (dersBytes [][]byte, err error) {
 			return nil, errors.Errorf("pem format invalid")
 		}
 
-		d := []byte{}
-		d = append(d, blk.Bytes...)
+		d := make([]byte, len(blk.Bytes))
+		copy(d, blk.Bytes)
 
 		dersBytes = append(dersBytes, d)
 		if len(data) == 0 {

@@ -30,12 +30,17 @@ func init() {
 	rootCmd.AddCommand(jsonCmd)
 	jsonCmd.AddCommand(jsonSortCmd)
 
-	jsonSortCmd.Flags().BoolVarP(&jsonArg.Recursive, "recursive", "r", false, "recursively find json files")
-	jsonSortCmd.Flags().StringVar(&jsonArg.Exts, "ext", ".json", "supported file name suffixes as a list, split by comma")
-	jsonSortCmd.Flags().BoolVar(&jsonArg.Dry, "dry", false, "only list files, do not perform sorting")
-	jsonSortCmd.Flags().StringVar(&jsonArg.Sort, "sort", "asc", "ascending or descending order (asc|desc)")
+	jsonSortCmd.Flags().BoolVarP(&jsonArg.Recursive,
+		"recursive", "r", false, "recursively find json files")
+	jsonSortCmd.Flags().StringVar(&jsonArg.Exts, "ext",
+		".json", "supported file name suffixes as a list, split by comma")
+	jsonSortCmd.Flags().BoolVar(&jsonArg.Dry, "dry", false,
+		"only list files, do not perform sorting")
+	jsonSortCmd.Flags().StringVar(&jsonArg.Sort, "sort", "asc",
+		"ascending or descending order (asc|desc)")
 	jsonSortCmd.Flags().IntVar(&jsonArg.Indent, "indent", 2, "indent blanks")
-	jsonSortCmd.Flags().BoolVarP(&jsonArg.Insensitive, "insensitive", "i", true, "case-insensitive sorting")
+	jsonSortCmd.Flags().BoolVarP(&jsonArg.Insensitive,
+		"insensitive", "i", true, "case-insensitive sorting")
 }
 
 // jsonCmd json tools
@@ -68,7 +73,15 @@ var jsonSortCmd = &cobra.Command{
 		}
 
 		for _, path := range args {
-			if err := sortJSONPath(path, exts, jsonArg.Recursive, jsonArg.Dry, jsonArg.Sort == "desc", jsonArg.Indent, jsonArg.Insensitive); err != nil {
+			if err := sortJSONPath(
+				path,
+				exts,
+				jsonArg.Recursive,
+				jsonArg.Dry,
+				jsonArg.Sort == "desc",
+				jsonArg.Indent,
+				jsonArg.Insensitive,
+			); err != nil {
 				glog.Shared.Panic("sort json", zap.String("path", path), zap.Error(err))
 			}
 		}
@@ -181,7 +194,14 @@ func sortJSONFile(fpath string, dry, desc bool, indent int, insensitive bool) er
 	}
 	out = append(out, '\n')
 
-	if err = os.WriteFile(fpath, out, 0644); err != nil {
+	// Open existing file without O_CREATE so file mode is preserved.
+	fp, err := os.OpenFile(fpath, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return errors.Wrapf(err, "open file %q for rewrite", fpath)
+	}
+	defer gutils.SilentClose(fp)
+
+	if _, err = fp.Write(out); err != nil {
 		return errors.Wrapf(err, "write file %q", fpath)
 	}
 
@@ -235,7 +255,10 @@ func (m sortedMap) MarshalJSON() ([]byte, error) {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
-		keyByte, _ := json.Marshal(k)
+		keyByte, err := json.Marshal(k)
+		if err != nil {
+			return nil, errors.Wrapf(err, "marshal key %q", k)
+		}
 		buf.Write(keyByte)
 		buf.WriteByte(':')
 		valByte, err := json.Marshal(m.data[k])

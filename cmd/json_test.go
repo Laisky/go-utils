@@ -116,7 +116,8 @@ func TestSortJSONFile(t *testing.T) {
 }
 `
 		require.Equal(t, expected, string(got))
-	})}
+	})
+}
 
 func TestSortRecursive(t *testing.T) {
 	t.Run("ordered keys", func(t *testing.T) {

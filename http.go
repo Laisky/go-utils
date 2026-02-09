@@ -482,10 +482,6 @@ func isWSL(ctx context.Context) bool {
 //
 // Reference: https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/net/http/request.go;l=924
 func NewReusableRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	switch body.(type) {
 	case *bytes.Buffer, *bytes.Reader, *strings.Reader:
 		// These types are automatically handled by http.NewRequestWithContext

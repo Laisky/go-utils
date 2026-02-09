@@ -2,6 +2,8 @@ module github.com/Laisky/go-utils/v6
 
 go 1.25.0
 
+toolchain go1.25.7
+
 require (
 	github.com/Laisky/errors/v2 v2.0.1
 	github.com/Laisky/fast-skiplist/v2 v2.0.1
@@ -41,7 +43,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.3 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

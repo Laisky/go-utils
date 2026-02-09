@@ -41,7 +41,7 @@ type KeyExchange interface {
 //
 //	aliceKey == bobKey
 //
-// Note: recommoend to use ECDH instead of DHKX
+// Recommend using ECDH instead of DHKX.
 type DHKX struct {
 	g    *dhkx.DHGroup
 	priv *dhkx.DHKey

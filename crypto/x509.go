@@ -484,8 +484,7 @@ func (o *signCSROption) applyOpts(
 		}
 	}
 
-	switch {
-	case o.serialNumber == nil:
+	if o.serialNumber == nil {
 		// generate serial number by internal generator if not set
 		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
 	}
@@ -1107,7 +1106,7 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 		return nil, errors.Wrap(err, "sign csr option")
 	}
 
-	o.x509CSROption.fillDefault()
+	o.fillDefault()
 
 	// apply options
 	if o.err != nil {

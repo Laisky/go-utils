@@ -212,7 +212,7 @@ func (a *Alert) runSender(ctx context.Context) {
 		}
 
 		// check ratelimiter
-		if a.alertOption.ratelimiter != nil && !a.alertOption.ratelimiter.Allow() {
+		if a.ratelimiter != nil && !a.ratelimiter.Allow() {
 			Shared.Debug("exceed rate limit, skip alert",
 				zap.String("alert", payload.alertType),
 				zap.String("msg", payload.msg))

@@ -25,7 +25,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -1144,6 +1143,10 @@ type uuid7 struct {
 // Timestamp get timestamp of uuid7
 func (u *uuid7) Timestamp() uint64 {
 	sec, _ := u.UUID.Time().UnixTime()
+	if sec < 0 {
+		return 0
+	}
+
 	return uint64(sec)
 }
 
@@ -1370,17 +1373,17 @@ func NewHasPrefixWithMagic(prefix []byte) func(s []byte) bool {
 	case 8:
 		prefixMagicNumber := binary.NativeEndian.Uint64(prefix)
 		return func(s []byte) bool {
-			return len(s) >= l && *(*uint64)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+			return len(s) >= l && binary.NativeEndian.Uint64(s[:8]) == prefixMagicNumber
 		}
 	case 4:
 		prefixMagicNumber := binary.NativeEndian.Uint32(prefix)
 		return func(s []byte) bool {
-			return len(s) >= l && *(*uint32)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+			return len(s) >= l && binary.NativeEndian.Uint32(s[:4]) == prefixMagicNumber
 		}
 	case 2:
 		prefixMagicNumber := binary.NativeEndian.Uint16(prefix)
 		return func(s []byte) bool {
-			return len(s) >= l && *(*uint16)(unsafe.Pointer(&s[0])) == prefixMagicNumber
+			return len(s) >= l && binary.NativeEndian.Uint16(s[:2]) == prefixMagicNumber
 		}
 	case 0:
 		return func(_ []byte) bool {

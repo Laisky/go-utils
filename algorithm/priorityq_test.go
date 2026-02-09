@@ -4,8 +4,9 @@ import (
 	"container/heap"
 	"testing"
 
-	"github.com/Laisky/go-utils/v6/common"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Laisky/go-utils/v6/common"
 )
 
 // helper function to create items
