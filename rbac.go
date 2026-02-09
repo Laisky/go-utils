@@ -5,13 +5,17 @@ import (
 	"strings"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/zap"
 
 	"github.com/Laisky/go-utils/v6/json"
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (
 	// rbacPermKeyDelimiter delimiter for full key
 	rbacPermKeyDelimiter = "."
+	// rbacPermWildcardSuffix is the wildcard suffix for all descendant nodes.
+	rbacPermWildcardSuffix = rbacPermKeyDelimiter + "*"
 
 	rbacPermissionElemKeyRoot RBACPermKey = "root"
 )
@@ -56,7 +60,51 @@ func (p RBACPermFullKey) Append(key RBACPermKey) RBACPermFullKey {
 
 // Contains is contains acquire permission
 func (p RBACPermFullKey) Contains(acquire RBACPermFullKey) bool {
-	return strings.Index(p.String(), acquire.String()) == 0
+	permission := p.String()
+	required := acquire.String()
+	if required == "" {
+		return true
+	}
+
+	if permission == required {
+		return true
+	}
+
+	if strings.HasSuffix(permission, rbacPermWildcardSuffix) {
+		// `root.sys.*` matches descendants only.
+		parentPermission := strings.TrimSuffix(permission, rbacPermWildcardSuffix)
+		if required == parentPermission {
+			return false
+		}
+
+		return hasRBACHierarchicalPrefix(required, parentPermission)
+	}
+
+	return hasRBACHierarchicalPrefix(permission, required)
+}
+
+// hasRBACHierarchicalPrefix checks whether childKey is a direct descendant path of parentKey.
+//
+// Params:
+//   - childKey: full key of child path.
+//   - parentKey: full key of parent path.
+//
+// Returns:
+//   - true if childKey is under parentKey in RBAC hierarchy with a delimiter boundary.
+func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
+	if parentKey == "" {
+		return true
+	}
+
+	if !strings.HasPrefix(childKey, parentKey) {
+		return false
+	}
+
+	if len(childKey) <= len(parentKey) {
+		return false
+	}
+
+	return childKey[len(parentKey)] == rbacPermKeyDelimiter[0]
 }
 
 // RBACPermissionElem element node of permission tree
@@ -269,10 +317,15 @@ func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 
 	var filteredChildren []*RBACPermissionElem
 	for i := range p.Children {
-		if !key.Contains(p.Children[i].FullKey) {
-			filteredChildren = append(filteredChildren, p.Children[i])
-			p.Children[i].Cut(key)
+		if key.Contains(p.Children[i].FullKey) {
+			log.Shared.Debug("cut RBAC permission node",
+				zap.String("target_key", key.String()),
+				zap.String("removed_key", p.Children[i].FullKey.String()))
+			continue
 		}
+
+		filteredChildren = append(filteredChildren, p.Children[i])
+		p.Children[i].Cut(key)
 	}
 
 	p.Children = filteredChildren

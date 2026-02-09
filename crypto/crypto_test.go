@@ -64,8 +64,43 @@ func TestPasswordHashIterationCount(t *testing.T) {
 	hp, err := parseHashedPassword(h)
 	require.NoError(t, err)
 
-	require.GreaterOrEqual(t, hp.hashNum, 10000)
+	require.GreaterOrEqual(t, hp.hashNum, MinPasswordHashIteration)
 	require.Less(t, hp.hashNum, MaxPasswordHashIteration)
+}
+
+func TestVerifyHashedPassword_LegacyIterationCompatibility(t *testing.T) {
+	t.Parallel()
+	rawPassword := []byte("legacy-password")
+	salt := []byte("legacy-salt")
+	legacyIteration := MinPasswordHashIteration - 1
+
+	hp, err := newHashedPasswordWithMinIteration(
+		salt,
+		rawPassword,
+		gutils.HashTypeSha256,
+		legacyIteration,
+		legacyMinPasswordHashIteration,
+	)
+	require.NoError(t, err)
+	require.Less(t, legacyIteration, MinPasswordHashIteration)
+
+	err = VerifyHashedPassword(rawPassword, hp.String())
+	require.NoError(t, err)
+
+	err = VerifyHashedPassword([]byte("wrong-password"), hp.String())
+	require.ErrorContains(t, err, "password not match")
+}
+
+func TestNewHashedPassword_RejectWeakIterationForNewHashes(t *testing.T) {
+	t.Parallel()
+
+	_, err := newHashedPassword(
+		[]byte("salt"),
+		[]byte("password"),
+		gutils.HashTypeSha256,
+		MinPasswordHashIteration-1,
+	)
+	require.ErrorContains(t, err, "out of range")
 }
 
 func TestRsaEncryptByOAEP(t *testing.T) {
@@ -105,6 +140,7 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 
 				_, err = RSADecryptByOAEP(newPrikey, cipher)
 				require.Error(t, err)
+				require.ErrorContains(t, err, "decrypt chunk")
 			})
 
 			t.Run("cipher should be different", func(t *testing.T) {

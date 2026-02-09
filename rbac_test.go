@@ -58,16 +58,63 @@ func TestRBACPermissionElemFullKey_Contains(t *testing.T) {
 		args args
 		want bool
 	}{
-		{"0", RBACPermFullKey("a.b"), args{RBACPermFullKey("a")}, true},
-		{"1", RBACPermFullKey("a.b"), args{RBACPermFullKey("b")}, false},
+		{"prefix_with_delimiter", RBACPermFullKey("a.b"), args{RBACPermFullKey("a")}, true},
+		{"exact_match", RBACPermFullKey("a.b"), args{RBACPermFullKey("a.b")}, true},
+		{"invalid_prefix", RBACPermFullKey("a.b"), args{RBACPermFullKey("b")}, false},
+		{"empty_required_key", RBACPermFullKey("a.b"), args{RBACPermFullKey("")}, true},
+		{"segment_boundary_mismatch", RBACPermFullKey("root.sysadmin"), args{RBACPermFullKey("root.sys")}, false},
+		{"segment_boundary_match", RBACPermFullKey("root.sys.audit"), args{RBACPermFullKey("root.sys")}, true},
+		{"wildcard_match_descendant", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sys.read")}, true},
+		{"wildcard_not_match_parent", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sys")}, false},
+		{"wildcard_not_match_segment_mismatch", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sysadmin")}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.p.Contains(tt.args.acquire); got != tt.want {
-				t.Errorf("RBACPermissionElemFullKey.Contains() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, tt.want, tt.p.Contains(tt.args.acquire))
 		})
 	}
+}
+
+func TestRBACPermissionElem_CutAvoidSegmentMismatch(t *testing.T) {
+	p := &RBACPermissionElem{
+		Key: "root",
+		Children: []*RBACPermissionElem{
+			{
+				Key: "sys",
+				Children: []*RBACPermissionElem{
+					{Key: "read"},
+					{Key: "write"},
+				},
+			},
+			{
+				Key: "sysadmin",
+				Children: []*RBACPermissionElem{
+					{Key: "audit"},
+				},
+			},
+		},
+	}
+	require.NoError(t, p.FillDefault(""))
+
+	t.Run("cut_exact_should_not_cut_partial_segment_match", func(t *testing.T) {
+		clone := p.Clone()
+		clone.Cut(RBACPermFullKey("root.sysadmin"))
+
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sys")))
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.read")))
+		require.Nil(t, clone.GetElemByKey(RBACPermFullKey("root.sysadmin")))
+	})
+
+	t.Run("cut_wildcard_should_only_remove_descendants", func(t *testing.T) {
+		clone := p.Clone()
+		clone.Cut(RBACPermFullKey("root.sys.*"))
+
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sys")))
+		require.Nil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.read")))
+		require.Nil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.write")))
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sysadmin")))
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sysadmin.audit")))
+	})
 }
 
 func TestRBACPermissionElem_Clone(t *testing.T) {

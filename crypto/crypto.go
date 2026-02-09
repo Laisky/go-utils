@@ -27,9 +27,11 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/zap"
 	"golang.org/x/crypto/bcrypt"
 
 	gutils "github.com/Laisky/go-utils/v6"
+	glog "github.com/Laisky/go-utils/v6/log"
 )
 
 const (
@@ -38,7 +40,9 @@ const (
 	// MaxPasswordHashIteration limit max hash iteration count
 	MaxPasswordHashIteration = 1000000
 	// MinPasswordHashIteration limit min hash iteration count
-	MinPasswordHashIteration = 1000
+	MinPasswordHashIteration = 10000
+	// legacyMinPasswordHashIteration keeps compatibility for already stored hashes.
+	legacyMinPasswordHashIteration = 1
 )
 
 // HashedPassword salt hashed password
@@ -66,9 +70,27 @@ func (p HashedPassword) String() string {
 func newHashedPassword(salt, rawpassword []byte,
 	hasher gutils.HashTypeInterface,
 	hashNum int) (h HashedPassword, err error) {
-	if hashNum < MinPasswordHashIteration || hashNum > MaxPasswordHashIteration {
+	return newHashedPasswordWithMinIteration(salt, rawpassword, hasher, hashNum, MinPasswordHashIteration)
+}
+
+// newHashedPasswordWithMinIteration builds a hashed password and validates the iteration range.
+//
+// Params:
+//   - salt: random salt bytes appended to rawpassword.
+//   - rawpassword: plaintext password bytes.
+//   - hasher: hash implementation used to iteratively hash.
+//   - hashNum: iteration count for hashing.
+//   - minHashNum: minimum accepted iteration count.
+//
+// Returns:
+//   - h: hashed password payload for serialization and verification.
+//   - err: wrapped error when iterations are out of range or hashing fails.
+func newHashedPasswordWithMinIteration(salt, rawpassword []byte,
+	hasher gutils.HashTypeInterface,
+	hashNum, minHashNum int) (h HashedPassword, err error) {
+	if hashNum < minHashNum || hashNum > MaxPasswordHashIteration {
 		return h, errors.Errorf("hashNum %d out of range [%d,%d]",
-			hashNum, MinPasswordHashIteration, MaxPasswordHashIteration)
+			hashNum, minHashNum, MaxPasswordHashIteration)
 	}
 
 	h.salt = salt
@@ -132,7 +154,19 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 		return errors.Wrap(err, "parse hashed password")
 	}
 
-	rawH, err := newHashedPassword(hp.salt, rawpassword, hp.hasher, hp.hashNum)
+	if hp.hashNum < MinPasswordHashIteration {
+		glog.Shared.Debug("verify legacy password hash with weak iteration count",
+			zap.Int("hash_num", hp.hashNum),
+			zap.Int("min_required", MinPasswordHashIteration))
+	}
+
+	rawH, err := newHashedPasswordWithMinIteration(
+		hp.salt,
+		rawpassword,
+		hp.hasher,
+		hp.hashNum,
+		legacyMinPasswordHashIteration,
+	)
 	if err != nil {
 		return errors.Wrap(err, "build hashed password by raw password")
 	}
@@ -334,7 +368,7 @@ func RSADecryptByOAEP(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err 
 
 		plainChunk, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, prikey, chunk[:n], nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "encrypt chunk")
+			return nil, errors.Wrap(err, "decrypt chunk")
 		}
 
 		plain = append(plain, plainChunk...)
