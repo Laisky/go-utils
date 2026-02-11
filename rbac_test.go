@@ -48,28 +48,34 @@ func TestRBACPermissionElemFullKey_Append(t *testing.T) {
 	}
 }
 
+
+
 func TestRBACPermissionElemFullKey_Contains(t *testing.T) {
-	type args struct {
-		acquire RBACPermFullKey
-	}
 	tests := []struct {
-		name string
-		p    RBACPermFullKey
-		args args
-		want bool
+		name    string
+		p       RBACPermFullKey
+		acquire RBACPermFullKey
+		want    bool
 	}{
-		{"0", RBACPermFullKey("a.b"), args{RBACPermFullKey("a")}, true},
-		{"1", RBACPermFullKey("a.b"), args{RBACPermFullKey("b")}, false},
+		{"exact match", RBACPermFullKey("a.b"), RBACPermFullKey("a.b"), true},
+		{"hierarchical match", RBACPermFullKey("a"), RBACPermFullKey("a.b"), true},
+		{"hierarchical match deep", RBACPermFullKey("a"), RBACPermFullKey("a.b.c"), true},
+		{"partial match blocked", RBACPermFullKey("a.b"), RBACPermFullKey("a.badmin"), false},
+		{"wrong prefix", RBACPermFullKey("a.b"), RBACPermFullKey("b"), false},
+		{"parent not contained by child", RBACPermFullKey("a.b"), RBACPermFullKey("a"), false},
+		{"wildcard match", RBACPermFullKey("a.*"), RBACPermFullKey("a.b"), true},
+		{"wildcard match deep", RBACPermFullKey("a.*"), RBACPermFullKey("a.b.c"), true},
+		{"wildcard match partial blocked", RBACPermFullKey("a.b.*"), RBACPermFullKey("a.badmin"), false},
+		{"wildcard does not match parent", RBACPermFullKey("a.*"), RBACPermFullKey("a"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.p.Contains(tt.args.acquire); got != tt.want {
+			if got := tt.p.Contains(tt.acquire); got != tt.want {
 				t.Errorf("RBACPermissionElemFullKey.Contains() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
-
 func TestRBACPermissionElem_Clone(t *testing.T) {
 	p := NewPermissionTree()
 	p.Children = append(p.Children, &RBACPermissionElem{

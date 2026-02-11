@@ -56,7 +56,17 @@ func (p RBACPermFullKey) Append(key RBACPermKey) RBACPermFullKey {
 
 // Contains is contains acquire permission
 func (p RBACPermFullKey) Contains(acquire RBACPermFullKey) bool {
-	return strings.Index(p.String(), acquire.String()) == 0
+	ps := p.String()
+	as := acquire.String()
+	if ps == as {
+		return true
+	}
+
+	if strings.HasSuffix(ps, ".*") {
+		return strings.HasPrefix(as, ps[:len(ps)-1])
+	}
+
+	return strings.HasPrefix(as, ps+".")
 }
 
 // RBACPermissionElem element node of permission tree

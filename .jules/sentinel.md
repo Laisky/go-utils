@@ -23,3 +23,9 @@
 **Vulnerability:** The password verification logic allowed the iteration count to be parsed directly from the hash string without any upper bound. An attacker could provide a hash with a very large iteration count (e.g., millions), causing the server to consume excessive CPU resources.
 **Learning:** While password hashing is intended to be slow, allowing the input to arbitrarily increase the work factor leads to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
+
+## 2026-02-11 - RBAC Partial Match and Hierarchical Logic Vulnerability
+
+**Vulnerability:** The RBAC permission containment check used a simple prefix match, allowing "root.sysadmin" to match "root.sys". This could lead to unintended access or revocation. Additionally, it lacked support for hierarchical matching and wildcards.
+**Learning:** Core security logic like RBAC must be precisely implemented with boundary checks to prevent "leaking" permissions between similarly named keys.
+**Prevention:** Always use delimiter-aware prefix checks (e.g., appending a dot to the prefix) and comprehensive test suites covering partial matches and wildcards.
