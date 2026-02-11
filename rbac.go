@@ -58,12 +58,23 @@ func (p RBACPermFullKey) Append(key RBACPermKey) RBACPermFullKey {
 	return RBACPermFullKey(strings.Join([]string{p.String(), key.String()}, rbacPermKeyDelimiter))
 }
 
-// Contains is contains acquire permission
-func (p RBACPermFullKey) Contains(acquire RBACPermFullKey) bool {
-	permission := p.String()
-	required := acquire.String()
+// rbacPermissionGrantsRequired checks whether the permission key grants the required key.
+//
+// Params:
+//   - permissionKey: granted permission key.
+//   - requiredKey: required permission key.
+//
+// Returns:
+//   - true if permissionKey grants requiredKey under current RBAC matching rules.
+func rbacPermissionGrantsRequired(permissionKey, requiredKey RBACPermFullKey) bool {
+	permission := permissionKey.String()
+	required := requiredKey.String()
 	if required == "" {
 		return true
+	}
+
+	if permission == "" {
+		return false
 	}
 
 	if permission == required {
@@ -80,7 +91,38 @@ func (p RBACPermFullKey) Contains(acquire RBACPermFullKey) bool {
 		return hasRBACHierarchicalPrefix(required, parentPermission)
 	}
 
-	return hasRBACHierarchicalPrefix(permission, required)
+	return hasRBACHierarchicalPrefix(required, permission)
+}
+
+// rbacCutTargetMatchesNode checks whether a tree node should be removed by Cut target key.
+//
+// Params:
+//   - targetKey: Cut target key, supports exact key and wildcard suffix `.*`.
+//   - nodeKey: current tree node key.
+//
+// Returns:
+//   - true if the node should be removed.
+func rbacCutTargetMatchesNode(targetKey, nodeKey RBACPermFullKey) bool {
+	target := targetKey.String()
+	node := nodeKey.String()
+	if target == "" || node == "" {
+		return false
+	}
+
+	if target == node {
+		return true
+	}
+
+	if strings.HasSuffix(target, rbacPermWildcardSuffix) {
+		parentTarget := strings.TrimSuffix(target, rbacPermWildcardSuffix)
+		if node == parentTarget {
+			return false
+		}
+
+		return hasRBACHierarchicalPrefix(node, parentTarget)
+	}
+
+	return false
 }
 
 // hasRBACHierarchicalPrefix checks whether childKey is a direct descendant path of parentKey.
@@ -170,28 +212,83 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 
 // HasPerm check whether has specified key
 //
-//	| user perms   | acquired key | match  |
+//	| user perms   | required key | match  |
 //	| :----------: | :----------: | :---:  |
 //	|   `"root"`   |   `"root"`   |   ✅   |
 //	|     `""`     |   `"root"`   |   ❌   |
 //	|   `"root"`   |     `""`     |   ✅   |
 //	| `"root.sys"` |   `"root"`   |   ✅   |
 //	|   `"root"`   | `"root.sys"` |   ❌   |
-func (p *RBACPermissionElem) HasPerm(acquiredKey RBACPermFullKey) bool {
-	if acquiredKey.String() == "" { // do not acquire any perm
+//
+// Deprecated: HasPerm uses legacy matching semantics where child permission implies parent permission.
+// Use HasPerm2 for the newer matching behavior.
+func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
+	if requiredKey.String() == "" { // do not require any perm
 		return true
 	}
 
-	if p.FullKey == acquiredKey {
+	if p.FullKey == requiredKey {
 		return true
 	}
 
-	if len(acquiredKey) <= len(p.FullKey) {
+	if len(requiredKey) <= len(p.FullKey) {
 		return false
 	}
 
 	for i := range p.Children {
-		if p.Children[i].HasPerm(acquiredKey) {
+		if p.Children[i].HasPerm(requiredKey) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasPerm2 checks whether the tree grants the required key by leaf permission nodes.
+//
+// Params:
+//   - requiredKey: required permission key.
+//
+// Returns:
+//   - true if any leaf permission in this tree grants requiredKey.
+//
+// Matching rules:
+//   - An empty required key is always allowed.
+//   - An empty granted permission means no permission.
+//   - A permission grants itself and all descendants.
+//   - A wildcard permission like `root.sys.*` grants descendants only, not `root.sys` itself.
+func (p *RBACPermissionElem) HasPerm2(requiredKey RBACPermFullKey) bool {
+	if requiredKey == "" {
+		return true
+	}
+
+	return p.hasPerm2WithParent(requiredKey, "")
+}
+
+// hasPerm2WithParent checks HasPerm2 recursively and computes FullKey when it is missing.
+//
+// Params:
+//   - requiredKey: required permission key.
+//   - parentFullKey: parent full key of current node.
+//
+// Returns:
+//   - true if current subtree grants requiredKey.
+func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACPermFullKey) bool {
+	if p == nil || p.Key == "" {
+		return false
+	}
+
+	currentFullKey := p.FullKey
+	if currentFullKey == "" {
+		currentFullKey = parentFullKey.Append(p.Key)
+	}
+
+	if len(p.Children) == 0 {
+		return rbacPermissionGrantsRequired(currentFullKey, requiredKey)
+	}
+
+	for i := range p.Children {
+		if p.Children[i].hasPerm2WithParent(requiredKey, currentFullKey) {
 			return true
 		}
 	}
@@ -317,7 +414,7 @@ func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 
 	var filteredChildren []*RBACPermissionElem
 	for i := range p.Children {
-		if key.Contains(p.Children[i].FullKey) {
+		if rbacCutTargetMatchesNode(key, p.Children[i].FullKey) {
 			log.Shared.Debug("cut RBAC permission node",
 				zap.String("target_key", key.String()),
 				zap.String("removed_key", p.Children[i].FullKey.String()))

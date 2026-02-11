@@ -48,29 +48,26 @@ func TestRBACPermissionElemFullKey_Append(t *testing.T) {
 	}
 }
 
-func TestRBACPermissionElemFullKey_Contains(t *testing.T) {
-	type args struct {
-		acquire RBACPermFullKey
-	}
+func TestRBACPermissionGrantsRequired(t *testing.T) {
 	tests := []struct {
-		name string
-		p    RBACPermFullKey
-		args args
-		want bool
+		name       string
+		permission RBACPermFullKey
+		required   RBACPermFullKey
+		want       bool
 	}{
-		{"prefix_with_delimiter", RBACPermFullKey("a.b"), args{RBACPermFullKey("a")}, true},
-		{"exact_match", RBACPermFullKey("a.b"), args{RBACPermFullKey("a.b")}, true},
-		{"invalid_prefix", RBACPermFullKey("a.b"), args{RBACPermFullKey("b")}, false},
-		{"empty_required_key", RBACPermFullKey("a.b"), args{RBACPermFullKey("")}, true},
-		{"segment_boundary_mismatch", RBACPermFullKey("root.sysadmin"), args{RBACPermFullKey("root.sys")}, false},
-		{"segment_boundary_match", RBACPermFullKey("root.sys.audit"), args{RBACPermFullKey("root.sys")}, true},
-		{"wildcard_match_descendant", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sys.read")}, true},
-		{"wildcard_not_match_parent", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sys")}, false},
-		{"wildcard_not_match_segment_mismatch", RBACPermFullKey("root.sys.*"), args{RBACPermFullKey("root.sysadmin")}, false},
+		{"exact_match", RBACPermFullKey("a.b"), RBACPermFullKey("a.b"), true},
+		{"empty_required", RBACPermFullKey("a.b"), RBACPermFullKey(""), true},
+		{"ancestor_grants_descendant", RBACPermFullKey("a"), RBACPermFullKey("a.b"), true},
+		{"descendant_not_grant_ancestor", RBACPermFullKey("a.b"), RBACPermFullKey("a"), false},
+		{"segment_boundary_mismatch", RBACPermFullKey("root.sys"), RBACPermFullKey("root.sysadmin"), false},
+		{"wildcard_grants_descendant", RBACPermFullKey("root.sys.*"), RBACPermFullKey("root.sys.read"), true},
+		{"wildcard_not_grant_parent", RBACPermFullKey("root.sys.*"), RBACPermFullKey("root.sys"), false},
+		{"wildcard_not_grant_sibling_segment", RBACPermFullKey("root.sys.*"), RBACPermFullKey("root.sysadmin"), false},
+		{"empty_permission_not_grant_nonempty", RBACPermFullKey(""), RBACPermFullKey("root"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, tt.p.Contains(tt.args.acquire))
+			require.Equal(t, tt.want, rbacPermissionGrantsRequired(tt.permission, tt.required))
 		})
 	}
 }
@@ -114,6 +111,15 @@ func TestRBACPermissionElem_CutAvoidSegmentMismatch(t *testing.T) {
 		require.Nil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.write")))
 		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sysadmin")))
 		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sysadmin.audit")))
+	})
+
+	t.Run("cut_exact_deep_path_should_not_remove_ancestor", func(t *testing.T) {
+		clone := p.Clone()
+		clone.Cut(RBACPermFullKey("root.sys.read"))
+
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sys")))
+		require.Nil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.read")))
+		require.NotNil(t, clone.GetElemByKey(RBACPermFullKey("root.sys.write")))
 	})
 }
 
@@ -166,6 +172,75 @@ func TestRBACPermissionElem_HasPerm(t *testing.T) {
 		p.Children = append(p.Children, &RBACPermissionElem{})
 		require.Error(t, p.Valid())
 	})
+}
+
+func TestRBACPermissionElem_HasPerm2(t *testing.T) {
+	rootPerm := &RBACPermissionElem{Key: "root"}
+	require.NoError(t, rootPerm.FillDefault(""))
+
+	rootSysPerm := &RBACPermissionElem{
+		Key: "root",
+		Children: []*RBACPermissionElem{
+			{Key: "sys"},
+		},
+	}
+	require.NoError(t, rootSysPerm.FillDefault(""))
+
+	wildcardPerm := &RBACPermissionElem{
+		Key: "root",
+		Children: []*RBACPermissionElem{
+			{
+				Key: "sys",
+				Children: []*RBACPermissionElem{
+					{Key: "*"},
+				},
+			},
+		},
+	}
+	require.NoError(t, wildcardPerm.FillDefault(""))
+
+	leafOnlyPerm := &RBACPermissionElem{
+		Key: "root",
+		Children: []*RBACPermissionElem{
+			{Key: "a"},
+			{
+				Key: "b",
+				Children: []*RBACPermissionElem{
+					{Key: "c"},
+				},
+			},
+		},
+	}
+	require.NoError(t, leafOnlyPerm.FillDefault(""))
+
+	var nilPerm *RBACPermissionElem
+
+	tests := []struct {
+		name     string
+		p        *RBACPermissionElem
+		required RBACPermFullKey
+		want     bool
+	}{
+		{"root_require_root", rootPerm, RBACPermFullKey("root"), true},
+		{"empty_require_root", &RBACPermissionElem{}, RBACPermFullKey("root"), false},
+		{"root_require_empty", rootPerm, RBACPermFullKey(""), true},
+		{"empty_require_empty", &RBACPermissionElem{}, RBACPermFullKey(""), true},
+		{"root_sys_require_root", rootSysPerm, RBACPermFullKey("root"), false},
+		{"root_require_root_sys", rootPerm, RBACPermFullKey("root.sys"), true},
+		{"root_sys_require_root_sys", rootSysPerm, RBACPermFullKey("root.sys"), true},
+		{"root_sys_require_descendant", rootSysPerm, RBACPermFullKey("root.sys.read"), true},
+		{"wildcard_require_descendant", wildcardPerm, RBACPermFullKey("root.sys.read"), true},
+		{"wildcard_require_parent", wildcardPerm, RBACPermFullKey("root.sys"), false},
+		{"non_leaf_node_not_granted", leafOnlyPerm, RBACPermFullKey("root.b"), false},
+		{"leaf_still_grants_descendant", leafOnlyPerm, RBACPermFullKey("root.b.c.d"), true},
+		{"nil_require_non_empty", nilPerm, RBACPermFullKey("root"), false},
+		{"nil_require_empty", nilPerm, RBACPermFullKey(""), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.p.HasPerm2(tt.required))
+		})
+	}
 }
 
 func TestRBACPermissionElem_UnionAndOverwriteBy(t *testing.T) {
