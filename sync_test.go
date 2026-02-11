@@ -423,3 +423,40 @@ func TestWaitComplete(t *testing.T) {
 		require.Less(t, cost, time.Second)
 	})
 }
+
+// cpu: AMD Ryzen 7 5700G with Radeon Graphics
+// BenchmarkRWManager_RLock
+// BenchmarkRWManager_RLock/LoadOrStore
+// BenchmarkRWManager_RLock/LoadOrStore-16         	 4319887	       264.9 ns/op	      24 B/op	       1 allocs/op
+// BenchmarkRWManager_RLock/LoadThenLoadOrStore
+// BenchmarkRWManager_RLock/LoadThenLoadOrStore-16 	 5195000	       237.7 ns/op	       0 B/op	       0 allocs/op
+// PASS
+func BenchmarkRWManager_RLock(b *testing.B) {
+	m := &RWManager{}
+	name := "test"
+	// Initialize the map to simulate a hot cache
+	m.m.Store(name, &sync.RWMutex{})
+
+	b.Run("LoadOrStore", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
+				mu.(*sync.RWMutex).RLock()
+				mu.(*sync.RWMutex).RUnlock()
+			}
+		})
+	})
+
+	b.Run("LoadThenLoadOrStore", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				mu, ok := m.m.Load(name)
+				if !ok {
+					mu, _ = m.m.LoadOrStore(name, &sync.RWMutex{})
+				}
+				mu.(*sync.RWMutex).RLock()
+				mu.(*sync.RWMutex).RUnlock()
+			}
+		})
+	})
+}

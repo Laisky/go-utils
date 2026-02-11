@@ -385,13 +385,21 @@ type RWManager struct {
 
 // RLock rlock lock by name
 func (m *RWManager) RLock(name string) {
-	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
+	mu, ok := m.m.Load(name)
+	if !ok {
+		mu, _ = m.m.LoadOrStore(name, &sync.RWMutex{})
+	}
+
 	mu.(*sync.RWMutex).RLock() //nolint:forcetypeassert
 }
 
 // Lock lock by name
 func (m *RWManager) Lock(name string) {
-	mu, _ := m.m.LoadOrStore(name, &sync.RWMutex{})
+	mu, ok := m.m.Load(name)
+	if !ok {
+		mu, _ = m.m.LoadOrStore(name, &sync.RWMutex{})
+	}
+
 	mu.(*sync.RWMutex).Lock() //nolint:forcetypeassert
 }
 
