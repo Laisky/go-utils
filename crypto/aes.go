@@ -185,7 +185,10 @@ func AEADDecryptBasic(key, ciphertext, iv, tag, additionalData []byte) (plaintex
 		return nil, errors.Errorf("iv size not match")
 	}
 
-	plaintext, err = gcm.Open(nil, iv, append(ciphertext, tag...), additionalData)
+	sealed := make([]byte, 0, len(ciphertext)+len(tag))
+	sealed = append(sealed, ciphertext...)
+	sealed = append(sealed, tag...)
+	plaintext, err = gcm.Open(nil, iv, sealed, additionalData)
 	if err != nil {
 		return nil, errors.Wrap(err, "gcm decrypt")
 	}

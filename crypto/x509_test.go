@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -316,6 +317,22 @@ func TestNewX509CSR(t *testing.T) {
 			require.NoError(t, err)
 		})
 	})
+}
+
+func TestX509CertSubjectKeyID(t *testing.T) {
+	t.Parallel()
+
+	prikey, err := NewRSAPrikey(RSAPrikeyBits2048)
+	require.NoError(t, err)
+
+	pubkeyDer, err := Pubkey2Der(&prikey.PublicKey)
+	require.NoError(t, err)
+
+	expected := sha1.Sum(pubkeyDer)
+
+	got, err := X509CertSubjectKeyID(&prikey.PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, expected[:], got)
 }
 
 func newTestSeriaNo(t *testing.T) *big.Int {

@@ -1580,7 +1580,10 @@ func X509CertSubjectKeyID(pubkey crypto.PublicKey) ([]byte, error) {
 	}
 
 	hasher := sha1.New()
-	hasher.Sum(keyBytes)
+	if _, err := hasher.Write(keyBytes); err != nil {
+		return nil, errors.Wrap(err, "hash pubkey")
+	}
+
 	return hasher.Sum(nil), nil
 }
 

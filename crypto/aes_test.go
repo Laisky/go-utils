@@ -228,6 +228,32 @@ func TestAEADBasic(t *testing.T) {
 	}
 }
 
+func TestAEADDecryptBasicNoMutation(t *testing.T) {
+	t.Parallel()
+
+	key := []byte(gutils.RandomStringWithLength(16))
+	iv := []byte(gutils.RandomStringWithLength(12))
+	plaintext := []byte("no-mutation-check")
+
+	ciphertext, tag, err := AEADEncryptBasic(key, plaintext, iv, nil)
+	require.NoError(t, err)
+
+	buf := make([]byte, len(ciphertext)+len(tag))
+	copy(buf, ciphertext)
+
+	pad := buf[len(ciphertext):]
+	for i := range pad {
+		pad[i] = 0xAA
+	}
+
+	_, err = AEADDecryptBasic(key, buf[:len(ciphertext)], iv, tag, nil)
+	require.NoError(t, err)
+
+	for i := range pad {
+		require.Equal(t, byte(0xAA), pad[i])
+	}
+}
+
 func TestGcmIvLength(t *testing.T) {
 	for _, keyLength := range []int{16, 24, 32} {
 		key := []byte(gutils.RandomStringWithLength(keyLength))
