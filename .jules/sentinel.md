@@ -23,3 +23,12 @@
 **Vulnerability:** The password verification logic allowed the iteration count to be parsed directly from the hash string without any upper bound. An attacker could provide a hash with a very large iteration count (e.g., millions), causing the server to consume excessive CPU resources.
 **Learning:** While password hashing is intended to be slow, allowing the input to arbitrarily increase the work factor leads to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
+## 2025-05-22 - [Incorrect use of Hash.Sum]
+**Vulnerability:** X509CertSubjectKeyID was incorrectly calculating the Subject Key Identifier (SKID) by hashing an empty string instead of the public key.
+**Learning:** Go's `hash.Hash.Sum(b []byte)` appends the current hash to `b` and returns the resulting slice. It does NOT hash `b`. To hash data, one must use `hasher.Write(data)`.
+**Prevention:** Always use `hasher.Write(data)` before calling `hasher.Sum(nil)`.
+
+## 2025-05-22 - [Side effects of append on input slices]
+**Vulnerability:** `AEADDecryptBasic` was using `append(ciphertext, tag...)` which could modify the underlying array of the input `ciphertext` slice if it had extra capacity.
+**Learning:** In Go, `append` can be in-place if there is enough capacity. This can lead to unexpected side effects on the caller's data.
+**Prevention:** Concatenate into a new slice or use a local copy when modifying input slices that shouldn't be changed.

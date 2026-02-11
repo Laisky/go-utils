@@ -1576,11 +1576,11 @@ func ReadableOIDs(oids []asn1.ObjectIdentifier) (names []string) {
 func X509CertSubjectKeyID(pubkey crypto.PublicKey) ([]byte, error) {
 	keyBytes, err := Pubkey2Der(pubkey)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal pubkeu")
+		return nil, errors.Wrap(err, "marshal pubkey")
 	}
 
 	hasher := sha1.New()
-	hasher.Sum(keyBytes)
+	hasher.Write(keyBytes)
 	return hasher.Sum(nil), nil
 }
 
