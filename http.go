@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"slices"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -14,6 +13,7 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -445,13 +445,13 @@ func OpenURLInDefaultBrowser(ctx context.Context, targetURL string) error {
 			args = []string{targetURL}
 		}
 	}
-	if len(args) > 1 {
-		// args[0] is used for 'start' command argument, to prevent issues with URLs starting with a quote
-		args = append(args[:1], append([]string{""}, args[1:]...)...)
-	}
 
 	//nolint:gosec //G204: Subprocess launched with variable
-	return exec.CommandContext(ctx, cmd, args...).Start()
+	if err = exec.CommandContext(ctx, cmd, args...).Run(); err != nil {
+		return errors.Wrapf(err, "run command `%s`", cmd)
+	}
+
+	return nil
 }
 
 // isWSL checks if the Go program is running inside Windows Subsystem for Linux

@@ -8,7 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -259,25 +260,72 @@ func TestOpenURLInDefaultBrowser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Skip test if the required command is not available based on the OS
-	// This mirrors the logic in OpenURLInDefaultBrowser function
-	switch runtime.GOOS {
-	case "windows":
-		if _, err := exec.LookPath("cmd"); err != nil {
-			t.Skip("cmd not found in PATH, skipping browser test")
-		}
-	case "darwin":
-		if _, err := exec.LookPath("open"); err != nil {
-			t.Skip("open not found in PATH, skipping browser test")
-		}
-	default: // Linux and other Unix-like systems
-		if _, err := exec.LookPath("xdg-open"); err != nil {
-			t.Skip("xdg-open not found in PATH, skipping browser test")
-		}
+	createExecutable := func(t *testing.T, dir, name, content string) {
+		t.Helper()
+
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o700))
 	}
 
-	err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
-	require.NoError(t, err)
+	// Validate exact command invocations via test doubles in PATH rather than opening real browsers.
+	switch runtime.GOOS {
+	case "windows":
+		tmpDir := t.TempDir()
+		t.Setenv("PATH", tmpDir)
+		createExecutable(t, tmpDir, "cmd.bat", `@echo off
+if "%1"=="/c" if "%2"=="start" if "%3"=="" if "%4"=="https://www.example.com" exit /b 0
+exit /b 23
+`)
+
+		err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
+		require.NoError(t, err)
+	case "darwin":
+		tmpDir := t.TempDir()
+		t.Setenv("PATH", tmpDir)
+		createExecutable(t, tmpDir, "open", `#!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = "https://www.example.com" ]; then
+	exit 0
+fi
+exit 23
+`)
+
+		err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
+		require.NoError(t, err)
+	default: // Linux and other Unix-like systems
+		t.Run("native unix", func(t *testing.T) {
+			tmpDir := t.TempDir()
+			t.Setenv("PATH", tmpDir)
+			createExecutable(t, tmpDir, "uname", `#!/bin/sh
+echo "6.8.0-generic"
+`)
+			createExecutable(t, tmpDir, "xdg-open", `#!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = "https://www.example.com" ]; then
+	exit 0
+fi
+exit 23
+`)
+
+			err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
+			require.NoError(t, err)
+		})
+
+		t.Run("wsl", func(t *testing.T) {
+			tmpDir := t.TempDir()
+			t.Setenv("PATH", tmpDir)
+			createExecutable(t, tmpDir, "uname", `#!/bin/sh
+echo "6.1.0-microsoft-standard-WSL2"
+`)
+			createExecutable(t, tmpDir, "cmd.exe", `#!/bin/sh
+if [ "$#" -eq 4 ] && [ "$1" = "/c" ] && [ "$2" = "start" ] && [ "$3" = "" ] && [ "$4" = "https://www.example.com" ]; then
+	exit 0
+fi
+exit 23
+`)
+
+			err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestNewReusableRequest(t *testing.T) {

@@ -149,7 +149,7 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
 		return errors.Errorf("rawpassword or hashedPassword is empty")
 	} else if len(rawpassword) > MaxPasswordLength {
-		return errors.Errorf("password is too long")
+		return errors.Errorf("password is too long, should less than %d", MaxPasswordLength)
 	}
 
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
@@ -187,7 +187,7 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 	if len(password) == 0 {
 		return "", errors.Errorf("password is empty")
 	} else if len(password) > MaxPasswordLength {
-		return "", errors.Errorf("password is too long")
+		return "", errors.Errorf("password is too long, should less than %d", MaxPasswordLength)
 	}
 
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
