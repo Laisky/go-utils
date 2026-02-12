@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"slices"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -412,26 +413,36 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 // Inspired by https://gist.github.com/sevkin/9798d67b2cb9d07cb05f89f14ba682f8?permalink_comment_id=5019685#gistcomment-5019685
 //
 //nolint:lll
-func OpenURLInDefaultBrowser(ctx context.Context, url string) error {
+func OpenURLInDefaultBrowser(ctx context.Context, targetURL string) error {
 	var cmd string
 	var args []string
+
+	// Validate URL to prevent command injection
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		return errors.Wrap(err, "parse url")
+	}
+	if !slices.Contains([]string{"http", "https"}, parsedURL.Scheme) {
+		return errors.Errorf("unsupported scheme %q", parsedURL.Scheme)
+	}
 
 	switch runtime.GOOS {
 	case "windows":
 		cmd = "cmd"
-		args = []string{"/c", "start"}
+		args = []string{"/c", "start", "", targetURL}
 	case "darwin":
 		cmd = "open"
+		args = []string{targetURL}
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		// Check if running under WSL
 		if isWSL(ctx) {
 			// Use 'cmd.exe /c start' to open the URL in the default Windows browser
 			cmd = "cmd.exe"
-			args = []string{"/c", "start", url}
+			args = []string{"/c", "start", "", targetURL}
 		} else {
 			// Use xdg-open on native Linux environments
 			cmd = "xdg-open"
-			args = []string{url}
+			args = []string{targetURL}
 		}
 	}
 	if len(args) > 1 {

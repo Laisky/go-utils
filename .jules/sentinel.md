@@ -23,3 +23,8 @@
 **Vulnerability:** The password verification logic allowed the iteration count to be parsed directly from the hash string without any upper bound. An attacker could provide a hash with a very large iteration count (e.g., millions), causing the server to consume excessive CPU resources.
 **Learning:** While password hashing is intended to be slow, allowing the input to arbitrarily increase the work factor leads to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
+
+## 2025-05-16 - Password Length DoS and Command Injection Prevention
+**Vulnerability:** Lack of limit on password length allowed for CPU-exhaustion DoS attacks. Also, OpenURLInDefaultBrowser had a bug missing the URL argument and was vulnerable to command injection.
+**Learning:** Even if iteration counts are limited, very long inputs to iterative hash functions can still cause significant CPU load. External command execution must always validate inputs even if passed as separate arguments, especially when using shell wrappers like 'cmd /c'.
+**Prevention:** Enforce a reasonable maximum length (e.g., 1024 bytes) for all passwords before hashing. Always validate and sanitize URLs before passing them to OS commands.

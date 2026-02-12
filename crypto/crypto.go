@@ -39,6 +39,8 @@ const (
 	DefaultPasswordDelay = 2 * time.Second
 	// MaxPasswordHashIteration limit max hash iteration count
 	MaxPasswordHashIteration = 1000000
+	// MaxPasswordLength limit max password length to prevent DoS
+	MaxPasswordLength = 1024
 	// MinPasswordHashIteration limit min hash iteration count
 	MinPasswordHashIteration = 10000
 	// legacyMinPasswordHashIteration keeps compatibility for already stored hashes.
@@ -146,6 +148,8 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
 	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
 		return errors.Errorf("rawpassword or hashedPassword is empty")
+	} else if len(rawpassword) > MaxPasswordLength {
+		return errors.Errorf("password is too long")
 	}
 
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
@@ -182,6 +186,8 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword string, err error) {
 	if len(password) == 0 {
 		return "", errors.Errorf("password is empty")
+	} else if len(password) > MaxPasswordLength {
+		return "", errors.Errorf("password is too long")
 	}
 
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()

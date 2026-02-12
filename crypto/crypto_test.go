@@ -165,3 +165,19 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "too many iterations")
 }
+
+func TestPasswordHash_TooLong(t *testing.T) {
+	t.Parallel()
+	longPassword := make([]byte, MaxPasswordLength+1)
+	_, err := PasswordHash(longPassword, gutils.HashTypeSha256)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "password is too long")
+}
+
+func TestVerifyHashedPassword_TooLong(t *testing.T) {
+	t.Parallel()
+	longPassword := make([]byte, MaxPasswordLength+1)
+	err := VerifyHashedPassword(longPassword, "sha256.10000.73616c74.68617368")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "password is too long")
+}
