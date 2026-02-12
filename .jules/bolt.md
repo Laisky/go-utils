@@ -7,3 +7,7 @@
 
 **Learning:** Using `sync.RWMutex` for protecting a single `int64` or `time.Duration` field that is frequently read is significantly slower than using `atomic` operations.
 **Action:** Use `atomic.Int64` or `atomic.LoadInt64` for simple numeric fields in hot paths.
+
+## 2026-02-12 - [Batching Atomic Operations]
+**Learning:** Replacing a loop that calls a function containing atomic operations and locks with a single batched atomic operation and a single lock acquisition provides massive performance gains (~500x in one case).
+**Action:** Always look for opportunities to batch operations that are currently implemented as loops over atomic/locked functions.

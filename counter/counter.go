@@ -346,9 +346,36 @@ func (c *ChildParallelCounter) Count() (r int64) {
 
 // CountN count n
 func (c *ChildParallelCounter) CountN(n int64) (r int64) {
-	for i := int64(0); i < n-1; i++ {
-		c.Count()
+	if n <= 0 {
+		return atomic.LoadInt64(&c.n)
 	}
 
-	return c.Count()
+	c.RLock()
+	r = atomic.AddInt64(&c.n, n)
+	cmax := atomic.LoadInt64(&c.maxN)
+	c.RUnlock()
+
+	if r > cmax {
+		c.Lock()
+		defer c.Unlock()
+
+		// double check
+		r = atomic.AddInt64(&c.n, n)
+		if c.p.rotatePoint > 0 {
+			r %= c.p.rotatePoint
+		}
+		cmax = atomic.LoadInt64(&c.maxN)
+		if r > cmax {
+			step := n
+			if step < c.p.quoteStep {
+				step = c.p.quoteStep
+			}
+			r, cmax = c.p.GetQuote(step)
+			r += n - 1
+		}
+		atomic.StoreInt64(&c.n, r)
+		atomic.StoreInt64(&c.maxN, cmax)
+	}
+
+	return r
 }
