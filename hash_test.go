@@ -59,7 +59,7 @@ func TestHashXxhashString(t *testing.T) {
 	t.Parallel()
 	val := testhashraw
 	got := HashXxhashString(val)
-	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566ef46db3751d8e999" {
+	if got != "cbd2efc89af5217d" {
 		t.Fatalf("got: %v", got)
 	}
 }
