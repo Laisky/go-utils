@@ -399,12 +399,23 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	respB, err := io.ReadAll(resp.Body)
+	const maxHTTPErrorBodyBytes = 8 * 1024
+	respB, err := io.ReadAll(io.LimitReader(resp.Body, maxHTTPErrorBodyBytes+1))
 	if err != nil {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
 	}
 
-	return resp, errors.Wrapf(upErr, "got http body: %v", string(respB[:]))
+	truncated := len(respB) > maxHTTPErrorBodyBytes
+	if truncated {
+		respB = respB[:maxHTTPErrorBodyBytes]
+	}
+
+	suffix := ""
+	if truncated {
+		suffix = " (truncated)"
+	}
+
+	return resp, errors.Wrapf(upErr, "got http body%s: %v", suffix, string(respB))
 }
 
 // OpenURLInDefaultBrowser opens the specified URL in the default browser of the user.

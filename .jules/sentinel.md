@@ -23,3 +23,9 @@
 **Vulnerability:** The password verification logic allowed the iteration count to be parsed directly from the hash string without any upper bound. An attacker could provide a hash with a very large iteration count (e.g., millions), causing the server to consume excessive CPU resources.
 **Learning:** While password hashing is intended to be slow, allowing the input to arbitrarily increase the work factor leads to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
+
+## 2026-02-13 - Bound Remote Error Payload Reads
+
+**Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
+**Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
+**Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
