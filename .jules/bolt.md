@@ -7,3 +7,7 @@
 
 **Learning:** Using `sync.RWMutex` for protecting a single `int64` or `time.Duration` field that is frequently read is significantly slower than using `atomic` operations.
 **Action:** Use `atomic.Int64` or `atomic.LoadInt64` for simple numeric fields in hot paths.
+
+## 2026-02-13 - [Optimize ChildParallelCounter.CountN]
+**Learning:** Atomic operations ('AddInt64') on a shared counter are not sufficient to prevent races when another path performs an overwrite ('StoreInt64') to reset the counter. An 'RLock' is required to ensure 'AddInt64' and 'LoadInt64' (of the boundary) happen consistently against the reset logic.
+**Action:** Always verify if atomic increments need protection against resets when using a quota/pooling pattern.
