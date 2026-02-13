@@ -23,3 +23,8 @@
 **Vulnerability:** The password verification logic allowed the iteration count to be parsed directly from the hash string without any upper bound. An attacker could provide a hash with a very large iteration count (e.g., millions), causing the server to consume excessive CPU resources.
 **Learning:** While password hashing is intended to be slow, allowing the input to arbitrarily increase the work factor leads to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
+
+## 2026-05-22 - Password Hashing Denial of Service (Length)
+**Vulnerability:** Lack of maximum password length limit allowed for CPU-exhaustion Denial of Service (DoS) attacks when combined with iterative hashing.
+**Learning:** Even with iteration count limits, very large input passwords can still consume excessive CPU during the hashing process.
+**Prevention:** Enforce a strict upper limit on password length (e.g., 1024 bytes) before starting any iterative hashing operations.
