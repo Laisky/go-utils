@@ -33,12 +33,13 @@ func HashSHA256String(val string) string {
 	return hex.EncodeToString(b[:])
 }
 
-// HashXxhashString calculate string's hash by sha256
+// HashXxhashString calculate string's hash by xxhash
 //
 // Deprecated: use Hash instead
 func HashXxhashString(val string) string {
-	b := xxhash.New().Sum([]byte(val))
-	return hex.EncodeToString(b)
+	h := xxhash.New()
+	_, _ = h.Write([]byte(val))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // HashTypeInterface hashs

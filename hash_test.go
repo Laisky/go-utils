@@ -2,9 +2,12 @@ package utils
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/Laisky/zap"
+	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v6/log"
@@ -59,7 +62,7 @@ func TestHashXxhashString(t *testing.T) {
 	t.Parallel()
 	val := testhashraw
 	got := HashXxhashString(val)
-	if got != "6466696a3369666a326a6a6c326a656c6b6a646b776566ef46db3751d8e999" {
+	if got != "cbd2efc89af5217d" {
 		t.Fatalf("got: %v", got)
 	}
 }
@@ -68,4 +71,42 @@ func ExampleHashXxhashString() {
 	val := testhashraw
 	got := HashXxhashString(val)
 	log.Shared.Info("hash", zap.String("got", got))
+}
+
+// hashXxhashStringByWrite hashes input by writing data into xxhash hasher.
+//
+// Parameters:
+// - val: the input string that should be hashed.
+//
+// Returns:
+// - string: the hex-encoded xxhash64 digest of input.
+func hashXxhashStringByWrite(val string) string {
+	h := xxhash.New()
+	_, _ = h.Write([]byte(val))
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// TestHashXxhashStringCompareImplementations compares two xxhash coding styles.
+//
+// Parameters:
+// - t: the testing context.
+//
+// Returns:
+// - none.
+func TestHashXxhashStringCompareImplementations(t *testing.T) {
+	t.Parallel()
+	val := testhashraw
+
+	gotCurrent := HashXxhashString(val)
+	gotWrite := hashXxhashStringByWrite(val)
+	expectedLegacy := hex.EncodeToString([]byte(val)) + hex.EncodeToString(xxhash.New().Sum(nil))
+
+	require.Equal(t, gotWrite, gotCurrent)
+	require.NotEqual(t, expectedLegacy, gotCurrent)
+	require.Len(t, gotCurrent, 16)
+
+	gotFromGenericHash, err := Hash(HashTypeXxhash, strings.NewReader(val))
+	require.NoError(t, err)
+	require.Equal(t, gotCurrent, hex.EncodeToString(gotFromGenericHash))
 }

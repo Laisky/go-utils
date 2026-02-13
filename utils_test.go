@@ -1377,11 +1377,11 @@ func Test_Sum(t *testing.T) {
 
 	t.Run("sum", func(t *testing.T) {
 		hasher := sha256.New()
-		hasher.Sum(r1)
-		hasher.Sum(r2)
-		hasher.Sum(r3)
+		hasher.Write(r1)
+		hasher.Write(r2)
+		hasher.Write(r3)
 		got := hasher.Sum(nil)
-		require.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hex.EncodeToString(got))
+		require.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex.EncodeToString(got))
 	})
 
 	t.Run("write", func(t *testing.T) {
@@ -1393,17 +1393,17 @@ func Test_Sum(t *testing.T) {
 		require.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex.EncodeToString(got))
 	})
 
-	// sum will not change the state of the hasher
+	// when feed same bytes twice, digest should match "aabbcc"
 	t.Run("write & sum", func(t *testing.T) {
 		hasher := sha256.New()
 		hasher.Write(r1)
-		hasher.Sum(r1)
+		hasher.Write(r1)
 		hasher.Write(r2)
-		hasher.Sum(r2)
+		hasher.Write(r2)
 		hasher.Write(r3)
-		hasher.Sum(r3)
+		hasher.Write(r3)
 		got := hasher.Sum(nil)
-		require.Equal(t, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex.EncodeToString(got))
+		require.Equal(t, "a5b432ee0307be7fa23aa00461f54eee34ba9d45251b5504567d37a8da339dff", hex.EncodeToString(got))
 	})
 
 }

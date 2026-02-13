@@ -1,20 +1,20 @@
-# Repository Guidelines
+# Agents Guidelines
+
+**No matter what language you receive, Only using English as output for codes, comments, chat, documents and everything else.**
 
 ## This Project
 
 The purpose of the go-utils project is to provide a collection of reusable Go utilities and helper functions that streamline development tasks, enhance code efficiency, and promote best practices across various Go applications.
-
-### Codes
-
-No matter what language you receive, keep using English for all code, comments, thinking/reasoning, planning and documentation.
-
-Every single code file should not exceed 800 lines. If a file exceeds this limit, please split it into smaller files based on functionality. Automatically generated files are exempt from this rule.
 
 ### Debug & Logging
 
 When debugging, add targeted DEBUG logs that include essential details to help developers pinpoint hard‑to‑diagnose issues. After debugging, retain any logs that could be useful for future troubleshooting, but **never** include sensitive data like API keys or passwords in those logs.
 
 ## General
+
+Every single code file should not exceed 800 lines. If a file exceeds this limit, please split it into smaller files based on functionality. Automatically generated files are exempt from this rule.
+
+When debugging, add targeted DEBUG logs that include essential details to help developers pinpoint hard‑to‑diagnose issues. After debugging, retain any logs that could be useful for future troubleshooting, but **never** include sensitive data like API keys or passwords in those logs.
 
 ### Agents
 
