@@ -188,6 +188,18 @@ func TestCheckResp(t *testing.T) {
 	}
 }
 
+func TestCheckRespLargeErrorBodyIsTruncated(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 500,
+		Body:       io.NopCloser(bytes.NewBufferString(strings.Repeat("x", 20*1024))),
+	}
+
+	err := CheckResp(resp)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "got http body (truncated):")
+	require.Less(t, len(err.Error()), 9000)
+}
+
 func TestJaegerTracingID(t *testing.T) {
 	t.Parallel()
 

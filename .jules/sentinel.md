@@ -25,6 +25,13 @@
 **Prevention:** Always enforce a reasonable maximum iteration count (e.g., 1,000,000) when parsing cryptographic parameters from untrusted input.
 
 ## 2026-05-22 - Password Hashing Denial of Service (Length)
+
 **Vulnerability:** Lack of maximum password length limit allowed for CPU-exhaustion Denial of Service (DoS) attacks when combined with iterative hashing.
 **Learning:** Even with iteration count limits, very large input passwords can still consume excessive CPU during the hashing process.
 **Prevention:** Enforce a strict upper limit on password length (e.g., 1024 bytes) before starting any iterative hashing operations.
+
+## 2026-02-13 - Bound Remote Error Payload Reads
+
+**Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
+**Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
+**Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
