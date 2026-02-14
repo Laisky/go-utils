@@ -345,11 +345,23 @@ func RequestJSONWithClient(httpClient *http.Client,
 	defer func() { _ = r.Body.Close() }()
 
 	if r.StatusCode/100 != 2 { //nolint:usestdlibvars //"100" can be replaced by http.StatusContinue
-		respBytes, err := io.ReadAll(r.Body)
+		const maxHTTPErrorBodyBytes = 8192
+		respBytes, err := io.ReadAll(io.LimitReader(r.Body, maxHTTPErrorBodyBytes+1))
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")
 		}
-		return errors.New(string(respBytes[:]))
+
+		truncated := len(respBytes) > maxHTTPErrorBodyBytes
+		if truncated {
+			respBytes = respBytes[:maxHTTPErrorBodyBytes]
+		}
+
+		msg := string(respBytes)
+		if truncated {
+			msg += " (truncated)"
+		}
+
+		return errors.New(msg)
 	}
 
 	if err = json.NewDecoder(r.Body).Decode(resp); err != nil {

@@ -254,7 +254,8 @@ func (client *MCPClient) doRPC(ctx context.Context, sessionID string, reqBody rp
 		_ = httpResp.Body.Close()
 	}()
 
-	respBody, err := io.ReadAll(httpResp.Body)
+	const maxRespBodyBytes = 4 * 1024 * 1024 // 4MB
+	respBody, err := io.ReadAll(io.LimitReader(httpResp.Body, maxRespBodyBytes))
 	if err != nil {
 		return errors.Wrap(err, "read response body")
 	}
