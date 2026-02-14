@@ -6,6 +6,8 @@
 
 The purpose of the go-utils project is to provide a collection of reusable Go utilities and helper functions that streamline development tasks, enhance code efficiency, and promote best practices across various Go applications.
 
+Local tools and debugging related sensitive information is saved in .github/instructions/laisky.instructions.md.
+
 ### Debug & Logging
 
 When debugging, add targeted DEBUG logs that include essential details to help developers pinpoint hard‑to‑diagnose issues. After debugging, retain any logs that could be useful for future troubleshooting, but **never** include sensitive data like API keys or passwords in those logs.
