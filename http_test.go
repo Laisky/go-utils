@@ -170,6 +170,25 @@ func TestRequestJSONWithClientNilHTTPClient(t *testing.T) {
 	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 
+func TestRequestJSONWithClientLargeErrorBodyIsTruncated(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(strings.Repeat("x", 20*1024)))
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(5 * time.Second))
+	require.NoError(t, err)
+
+	var resp map[string]any
+	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "(truncated)")
+	require.Less(t, len(err.Error()), 8300)
+}
+
 func TestCheckResp(t *testing.T) {
 	var (
 		resp *http.Response

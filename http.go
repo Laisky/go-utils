@@ -36,6 +36,7 @@ func (k CtxKey) String() string {
 const (
 	defaultHTTPClientOptTimeout = 30 * time.Second
 	defaultHTTPClientOptMaxConn = 20
+	maxRequestJSONErrorBodyBytes = 8 * 1024
 
 	// HTTPHeaderHost HTTP header name
 	HTTPHeaderHost = "Host"
@@ -345,10 +346,21 @@ func RequestJSONWithClient(httpClient *http.Client,
 	defer func() { _ = r.Body.Close() }()
 
 	if r.StatusCode/100 != 2 { //nolint:usestdlibvars //"100" can be replaced by http.StatusContinue
-		respBytes, err := io.ReadAll(r.Body)
+		respBytes, truncated, err := readHTTPBodyWithLimit(r.Body, maxRequestJSONErrorBodyBytes)
 		if err != nil {
 			return errors.Wrap(err, "try to read response data error")
 		}
+
+		if truncated {
+			log.Shared.Debug("http error response body truncated",
+				zap.Int("status_code", r.StatusCode),
+				zap.Int("max_body_bytes", maxRequestJSONErrorBodyBytes),
+				zap.Int("body_bytes", len(respBytes)),
+			)
+
+			return errors.New(string(respBytes[:]) + " (truncated)")
+		}
+
 		return errors.New(string(respBytes[:]))
 	}
 
@@ -357,6 +369,29 @@ func RequestJSONWithClient(httpClient *http.Client,
 	}
 
 	return nil
+}
+
+// readHTTPBodyWithLimit reads body up to maxBytes and reports whether truncation happened.
+//
+// Args:
+//   - body: HTTP response body reader.
+//   - maxBytes: Maximum bytes to keep in memory.
+//
+// Returns:
+//   - []byte: Response bytes, capped at maxBytes.
+//   - bool: Whether body exceeded the limit.
+//   - error: Read failure.
+func readHTTPBodyWithLimit(body io.Reader, maxBytes int64) ([]byte, bool, error) {
+	respB, err := io.ReadAll(io.LimitReader(body, maxBytes+1))
+	if err != nil {
+		return nil, false, errors.Wrap(err, "read response body with limit")
+	}
+
+	if int64(len(respB)) > maxBytes {
+		return respB[:maxBytes], true, nil
+	}
+
+	return respB, false, nil
 }
 
 // CheckResp check HTTP response's status code and return the error with body message
@@ -399,15 +434,14 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	const maxHTTPErrorBodyBytes = 8 * 1024
-	respB, err := io.ReadAll(io.LimitReader(resp.Body, maxHTTPErrorBodyBytes+1))
+	respB, err := io.ReadAll(io.LimitReader(resp.Body, maxRequestJSONErrorBodyBytes+1))
 	if err != nil {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
 	}
 
-	truncated := len(respB) > maxHTTPErrorBodyBytes
+	truncated := len(respB) > maxRequestJSONErrorBodyBytes
 	if truncated {
-		respB = respB[:maxHTTPErrorBodyBytes]
+		respB = respB[:maxRequestJSONErrorBodyBytes]
 	}
 
 	suffix := ""

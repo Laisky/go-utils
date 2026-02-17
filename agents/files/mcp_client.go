@@ -10,10 +10,14 @@ import (
 	"sync"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (
 	jsonrpcVersion = "2.0"
+	maxMCPRPCResponseBodyBytes = 8 * 1024 * 1024
 )
 
 // ErrorCode is the normalized MCP tool error code.
@@ -254,9 +258,18 @@ func (client *MCPClient) doRPC(ctx context.Context, sessionID string, reqBody rp
 		_ = httpResp.Body.Close()
 	}()
 
-	respBody, err := io.ReadAll(httpResp.Body)
+	respBody, truncated, err := readMCPBodyWithLimit(httpResp.Body, maxMCPRPCResponseBodyBytes)
 	if err != nil {
 		return errors.Wrap(err, "read response body")
+	}
+	if truncated {
+		log.Shared.Debug("mcp rpc response body truncated",
+			zap.Int("http_status", httpResp.StatusCode),
+			zap.Int("max_body_bytes", maxMCPRPCResponseBodyBytes),
+			zap.Int("body_bytes", len(respBody)),
+		)
+
+		return errors.Errorf("rpc response body exceeds limit %d bytes (truncated)", maxMCPRPCResponseBodyBytes)
 	}
 
 	if err = json.Unmarshal(respBody, out); err != nil {
@@ -276,6 +289,29 @@ func (client *MCPClient) doRPC(ctx context.Context, sessionID string, reqBody rp
 	}
 
 	return nil
+}
+
+// readMCPBodyWithLimit reads body up to maxBytes and reports truncation.
+//
+// Args:
+//   - body: HTTP response body reader.
+//   - maxBytes: Maximum bytes to keep in memory.
+//
+// Returns:
+//   - []byte: Response bytes, capped at maxBytes.
+//   - bool: Whether body exceeded limit.
+//   - error: Read failure.
+func readMCPBodyWithLimit(body io.Reader, maxBytes int64) ([]byte, bool, error) {
+	respB, err := io.ReadAll(io.LimitReader(body, maxBytes+1))
+	if err != nil {
+		return nil, false, errors.Wrap(err, "read mcp response body with limit")
+	}
+
+	if int64(len(respB)) > maxBytes {
+		return respB[:maxBytes], true, nil
+	}
+
+	return respB, false, nil
 }
 
 // extractResultText converts MCP content payload into a JSON string.
