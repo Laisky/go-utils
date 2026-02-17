@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	jsonrpcVersion = "2.0"
+	jsonrpcVersion             = "2.0"
 	maxMCPRPCResponseBodyBytes = 8 * 1024 * 1024
 )
 
