@@ -19,9 +19,20 @@ var (
 )
 
 const (
-	defaultListDepth   = 8
-	defaultListLimit   = 1000
+	// defaultListDepth is the fallback traversal depth when callers pass non-positive depth.
+	defaultListDepth = 8
+	// defaultListLimit is the fallback maximum entry count when callers pass non-positive limit.
+	defaultListLimit = 1000
+	// defaultSearchLimit is the fallback maximum chunk count when callers pass non-positive limit.
 	defaultSearchLimit = 5
+	// maxListDepth is the hard upper bound for list traversal depth.
+	maxListDepth = 32
+	// maxListLimit is the hard upper bound for list result count.
+	maxListLimit = 5000
+	// maxSearchLimit is the hard upper bound for search result count.
+	maxSearchLimit = 50
+	// maxSearchFileBytes is the maximum file size allowed for content-based search scanning.
+	maxSearchFileBytes = 4 * 1024 * 1024
 )
 
 // Config controls Local storage engine initialization.
@@ -294,8 +305,14 @@ func (engine *Engine) List(
 	if depth <= 0 {
 		depth = defaultListDepth
 	}
+	if depth > maxListDepth {
+		depth = maxListDepth
+	}
 	if limit <= 0 {
 		limit = defaultListLimit
+	}
+	if limit > maxListLimit {
+		limit = maxListLimit
 	}
 
 	projectRoot, err := engine.openProjectRoot(project, false)
@@ -321,10 +338,7 @@ func (engine *Engine) List(
 
 	walkErr := fs.WalkDir(projectRoot.FS(), startRelPath, func(currentPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			if os.IsNotExist(walkErr) {
-				return nil
-			}
-			return errors.Wrapf(walkErr, "walk path `%s`", currentPath)
+			return wrapTraversalError("listing", currentPath, walkErr)
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -342,9 +356,13 @@ func (engine *Engine) List(
 			return nil
 		}
 
+		if isSymlinkEntry(entry) {
+			return nil
+		}
+
 		fileInfo, err := entry.Info()
 		if err != nil {
-			return errors.Wrapf(err, "load entry info `%s`", currentPath)
+			return wrapEntryInfoError(currentPath, err)
 		}
 
 		entries = append(entries, memorystorage.FileInfo{
@@ -409,6 +427,9 @@ func (engine *Engine) Search(
 	if limit <= 0 {
 		limit = defaultSearchLimit
 	}
+	if limit > maxSearchLimit {
+		limit = maxSearchLimit
+	}
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
@@ -433,10 +454,7 @@ func (engine *Engine) Search(
 
 	walkErr := fs.WalkDir(projectRoot.FS(), prefixRelPath, func(currentPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			if os.IsNotExist(walkErr) {
-				return nil
-			}
-			return errors.Wrapf(walkErr, "walk path `%s`", currentPath)
+			return wrapTraversalError("searching", currentPath, walkErr)
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -446,13 +464,24 @@ func (engine *Engine) Search(
 		if entry.IsDir() {
 			return nil
 		}
+		if isSymlinkEntry(entry) {
+			return nil
+		}
+
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return wrapEntryInfoError(currentPath, err)
+		}
+		if !fileInfo.Mode().IsRegular() {
+			return nil
+		}
+		if fileInfo.Size() > maxSearchFileBytes {
+			return nil
+		}
 
 		body, err := projectRoot.ReadFile(currentPath)
 		if err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			return errors.Wrapf(err, "read file `%s` for search", currentPath)
+			return wrapSearchReadError(currentPath, err)
 		}
 
 		idx := strings.Index(strings.ToLower(string(body)), queryLower)

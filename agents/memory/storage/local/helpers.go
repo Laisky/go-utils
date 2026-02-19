@@ -211,6 +211,75 @@ func fileTypeFromMode(mode fs.FileMode) memorystorage.FileType {
 	return memorystorage.FileTypeUnknown
 }
 
+// isSymlinkEntry reports whether one directory entry is a symbolic link.
+//
+// Parameters:
+//   - entry: Directory entry discovered during traversal.
+//
+// Returns:
+//   - bool: True when entry type indicates a symbolic link.
+func isSymlinkEntry(entry fs.DirEntry) bool {
+	return entry.Type()&fs.ModeSymlink != 0
+}
+
+// wrapTraversalError normalizes traversal-time errors for list/search operations.
+//
+// Parameters:
+//   - operation: Human-readable operation name, such as listing or searching.
+//   - currentPath: The current traversal path.
+//   - err: The original traversal error.
+//
+// Returns:
+//   - error: Nil for not-exist races, otherwise a wrapped actionable error.
+func wrapTraversalError(operation, currentPath string, err error) error {
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		return errors.Wrapf(err, "permission denied while %s `%s`", operation, currentPath)
+	}
+
+	return errors.Wrapf(err, "walk path `%s`", currentPath)
+}
+
+// wrapEntryInfoError normalizes errors raised while loading one dir-entry metadata.
+//
+// Parameters:
+//   - currentPath: The current traversal path.
+//   - err: The original metadata error.
+//
+// Returns:
+//   - error: Nil for not-exist races, otherwise a wrapped actionable error.
+func wrapEntryInfoError(currentPath string, err error) error {
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		return errors.Wrapf(err, "permission denied while loading info `%s`", currentPath)
+	}
+
+	return errors.Wrapf(err, "load entry info `%s`", currentPath)
+}
+
+// wrapSearchReadError normalizes errors raised while reading one file body in search.
+//
+// Parameters:
+//   - currentPath: The file path being read.
+//   - err: The original read error.
+//
+// Returns:
+//   - error: Nil for not-exist races, otherwise a wrapped actionable error.
+func wrapSearchReadError(currentPath string, err error) error {
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		return errors.Wrapf(err, "permission denied while reading `%s` for search", currentPath)
+	}
+
+	return errors.Wrapf(err, "read file `%s` for search", currentPath)
+}
+
 // minInt returns the smaller integer value.
 //
 // Parameters:
