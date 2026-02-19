@@ -34,8 +34,8 @@ func (k CtxKey) String() string {
 }
 
 const (
-	defaultHTTPClientOptTimeout = 30 * time.Second
-	defaultHTTPClientOptMaxConn = 20
+	defaultHTTPClientOptTimeout  = 30 * time.Second
+	defaultHTTPClientOptMaxConn  = 20
 	maxRequestJSONErrorBodyBytes = 8 * 1024
 
 	// HTTPHeaderHost HTTP header name
@@ -457,31 +457,40 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 // Inspired by https://gist.github.com/sevkin/9798d67b2cb9d07cb05f89f14ba682f8?permalink_comment_id=5019685#gistcomment-5019685
 //
 //nolint:lll
-func OpenURLInDefaultBrowser(ctx context.Context, url string) error {
+func OpenURLInDefaultBrowser(ctx context.Context, urlStr string) error {
+	u, err := url.ParseRequestURI(urlStr)
+	if err != nil {
+		return errors.Wrap(err, "invalid url")
+	}
+
+	switch u.Scheme {
+	case "http", "https", "mailto":
+		// allowed
+	default:
+		return errors.Errorf("unsupported scheme %q", u.Scheme)
+	}
+
 	var cmd string
 	var args []string
 
 	switch runtime.GOOS {
 	case "windows":
 		cmd = "cmd"
-		args = []string{"/c", "start"}
+		args = []string{"/c", "start", "", urlStr}
 	case "darwin":
 		cmd = "open"
+		args = []string{urlStr}
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		// Check if running under WSL
 		if isWSL(ctx) {
 			// Use 'cmd.exe /c start' to open the URL in the default Windows browser
 			cmd = "cmd.exe"
-			args = []string{"/c", "start", url}
+			args = []string{"/c", "start", "", urlStr}
 		} else {
 			// Use xdg-open on native Linux environments
 			cmd = "xdg-open"
-			args = []string{url}
+			args = []string{urlStr}
 		}
-	}
-	if len(args) > 1 {
-		// args[0] is used for 'start' command argument, to prevent issues with URLs starting with a quote
-		args = append(args[:1], append([]string{""}, args[1:]...)...)
 	}
 
 	//nolint:gosec //G204: Subprocess launched with variable

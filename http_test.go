@@ -1000,3 +1000,39 @@ func (r *streamReader) Read(p []byte) (n int, err error) {
 	r.pos += n
 	return n, nil
 }
+
+func TestOpenURLInDefaultBrowser_Security(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+	}{
+		{"valid_http", "http://example.com", false},
+		{"valid_https", "https://example.com", false},
+		{"valid_mailto", "mailto:someone@example.com", false},
+		{"invalid_url", "not-a-url", true},
+		{"unsupported_scheme_file", "file:///etc/passwd", true},
+		{"unsupported_scheme_javascript", "javascript:alert(1)", true},
+		{"unsupported_scheme_data", "data:text/plain,hello", true},
+		{"empty_url", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := OpenURLInDefaultBrowser(ctx, tt.url)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				// We don't want to actually run the command in most environments,
+				// but here we just check if it passes the validation phase.
+				// Since we're in Linux and might not have xdg-open, it might fail later.
+				// But we're mostly interested in the validation error.
+				if err != nil && (err.Error() == "invalid url" || strings.Contains(err.Error(), "unsupported scheme")) {
+					t.Errorf("Validation failed unexpectedly: %v", err)
+				}
+			}
+		})
+	}
+}

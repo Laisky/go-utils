@@ -35,3 +35,8 @@
 **Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
 **Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
 **Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
+
+## 2026-06-15 - Unsafe URL Execution in Browser
+**Vulnerability:** `OpenURLInDefaultBrowser` lacked URL validation and scheme restriction, and on Windows/WSL used `cmd /c start` with improper argument order. This allowed for potential command injection via dangerous schemes (e.g., `file://`, `javascript:`) or shell-sensitive characters.
+**Learning:** Functions that invoke external commands with user-supplied strings must always validate and sanitize those strings. For URLs, parsing and whitelisting schemes is essential.
+**Prevention:** Always use `url.ParseRequestURI` to validate URLs and enforce a strict whitelist of allowed schemes (e.g., `http`, `https`, `mailto`). For shell commands like `start`, ensure the argument order is correct (e.g., providing an empty title string `""` to avoid misinterpretation of the URL as a title).

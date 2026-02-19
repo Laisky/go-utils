@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/errors/v2"
+
 	"github.com/Laisky/go-utils/v6/log"
 	"github.com/Laisky/go-utils/v6/mocks"
 )
