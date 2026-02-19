@@ -1,3 +1,6 @@
+//go:build e2e
+// +build e2e
+
 package memory
 
 import (
@@ -35,7 +38,7 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 		t.Skip("skip e2e: set MEMORY_MCP_ENDPOINT/MEMORY_MCP_API_KEY/MEMORY_PROJECT (or MCP_ENDPOINT/MCP_API_KEY)")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	client, err := files.NewMCPClient(files.MCPClientConfig{
@@ -48,7 +51,7 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 	require.NoError(t, err)
 
 	sessionID := fmt.Sprintf("e2e-%d", time.Now().UTC().UnixNano())
-	basePath := "/memory/" + sessionID
+	basePath := sessionBasePath(sessionID)
 	rawFilePath := basePath + "/raw.txt"
 
 	defer func() {
@@ -109,7 +112,7 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 			Role: "user",
 			Content: []ResponseContentPart{{
 				Type: "input_text",
-				Text: "My name is E2EUser and I prefer concise answers",
+				Text: "My name is E2EUser and I prefer concise answers. Today I need finish testing",
 			}},
 		}},
 		MaxInputTok: 120000,
@@ -158,21 +161,32 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 	require.NotEmpty(t, recallOut.InputItems)
 	require.NotEmpty(t, recallOut.RecallFactIDs)
 
-	logInfo, err := storage.Stat(ctx, project, basePath+"/log.jsonl")
+	stateInfo, err := storage.Stat(ctx, project, metaStatePath(sessionID))
 	require.NoError(t, err)
-	require.True(t, logInfo.Exists)
+	require.True(t, stateInfo.Exists)
 
-	ctxInfo, err := storage.Stat(ctx, project, basePath+"/context.jsonl")
+	policyInfo, err := storage.Stat(ctx, project, metaPolicyPath(sessionID))
+	require.NoError(t, err)
+	require.True(t, policyInfo.Exists)
+
+	ctxInfo, err := storage.Stat(ctx, project, runtimeContextPath(sessionID))
 	require.NoError(t, err)
 	require.True(t, ctxInfo.Exists)
 
-	factInfo, err := storage.Stat(ctx, project, basePath+"/memory_facts.jsonl")
+	rawEntries, _, err := storage.List(ctx, project, eventsRawRootPath(sessionID), 8, 100)
 	require.NoError(t, err)
-	require.True(t, factInfo.Exists)
+	require.True(t, containsJSONL(rawEntries))
 
-	metaInfo, err := storage.Stat(ctx, project, basePath+"/meta.json")
+	l0Entries, _, err := storage.List(ctx, project, tierRootPath(sessionID, memoryTierL0), 8, 100)
 	require.NoError(t, err)
-	require.True(t, metaInfo.Exists)
+	require.True(t, containsJSONL(l0Entries))
+
+	err = engine.RunMaintenance(ctx, project, sessionID)
+	require.NoError(t, err)
+
+	dirs, err := engine.ListDirWithAbstract(ctx, project, sessionID, "", 8, 200)
+	require.NoError(t, err)
+	require.NotEmpty(t, dirs)
 }
 
 // firstNonEmptyEnv returns the first non-empty environment variable value.
@@ -191,6 +205,17 @@ func firstNonEmptyEnv(keys ...string) string {
 func containsPath(entries []files.FileInfo, targetPath string) bool {
 	for _, entry := range entries {
 		if entry.Path == targetPath {
+			return true
+		}
+	}
+
+	return false
+}
+
+// containsJSONL reports whether entries include at least one jsonl file.
+func containsJSONL(entries []files.FileInfo) bool {
+	for _, entry := range entries {
+		if entry.Type == files.FileTypeFile && strings.HasSuffix(entry.Path, ".jsonl") {
 			return true
 		}
 	}

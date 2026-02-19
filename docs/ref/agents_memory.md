@@ -1,509 +1,479 @@
-# General-purpose Golang Memory Library Technical Manual (OneAPI Responses API + Laisky MCP FileIO)
+# General-purpose Golang Memory Library Technical Manual (Tiered Memory + MCP FileIO)
 
 ## 1. Document Purpose
 
-This document defines a reusable Memory SDK solution to provide long-term memory capabilities for any chat-type chatbot/agent.
-The goal is to enable an engineering team unfamiliar with the current state to complete design, development, testing, and integration by following this document.
+This document defines the target architecture and implementation plan for the Go memory SDK used by chat agents.
+The design is optimized for these requirements:
 
-This document is based on:
+1. Tiered memory retention (L0/L1/L2 and beyond)
+2. Full interaction logging (input/output/timestamp)
+3. Background compaction and archival to control file growth
+4. Hierarchical storage with per-folder `.abstract` and `.overview`
+
+The design is based on:
 
 1. Golang
-2. OneAPI Responses API (`https://oneapi.laisky.com/v1/responses`) as inference and summarization/extraction model interface
-3. Laisky MCP FileIO (as remote persistent storage)
+2. OneAPI Responses API (`https://oneapi.laisky.com/v1/responses`) as the model interface
+3. Laisky MCP FileIO as the persistent storage backend
 
-## 2. Background and Problems
+## 2. Executive Summary
 
-Most chatbots only retain short conversation context, leading to typical issues:
+A feasible and low-risk implementation path is:
 
-1. User preferences are lost across sessions
-2. Long task context cannot be stably continued after exceeding window size
-3. Intermediate states of multi-tool execution cannot be reliably reused
-4. History is not retrievable or retrieval quality is unstable
+1. Keep the current `BeforeTurn` and `AfterTurn` lifecycle, and extend it incrementally
+2. Treat interaction logs as immutable source of truth, never edited in place
+3. Add a tier classifier to write memory facts into `L0`, `L1`, `L2` shards
+4. Move compaction and folder-summary generation to asynchronous maintenance workers
+5. Add a memory-specific directory listing API that returns folder path plus `.abstract`
 
-A memory layer independent of the business agent is needed, with:
+No blocking technical unknowns were found. The main tradeoff is eventual consistency for `.overview` and compaction outputs, which is acceptable for memory systems.
 
-1. Persistent session history (traceable)
-2. Long-term memory extraction and recall (retrievable)
-3. Automatic context compression (sustainable)
-4. Unified interface for upper layers (embeddable in any chat workflow)
+## 3. Feasibility Assessment Against Current Implementation
 
-## 3. Goals and Non-goals
+Current implementation in `agents/memory/engine.go` already provides:
 
-### 3.1 Goals
+1. Append-only `log.jsonl` and `context.jsonl`
+2. Structured memory facts in `memory_facts.jsonl`
+3. Idempotent turn writes through `meta.processed_turn_ids`
+4. Synchronous context compaction when token threshold is exceeded
 
-1. Provide a Go SDK decoupled from specific agents
-2. Can connect to any LLM provider (OneAPI Responses API reference implementation provided)
-3. Pluggable storage layer (default MCP FileIO Adapter)
-4. Support idempotent writes under at-least-once invocation
-5. Support multi-tenant isolation (project/session/user)
+Gaps relative to the new requirements:
 
-### 3.2 Non-goals
+1. No tiered memory files (`L0/L1/L2`)
+2. Logs are present but not partitioned for long-term operations
+3. Compaction is synchronous and only rewrites active context
+4. No directory-level `.abstract` and `.overview`
+5. `List` does not return folder intent summary
 
-1. Not responsible for business tool execution (tools orchestration is done by the agent itself)
-2. Not bound to any frontend protocol (WebSocket/SSE/Slack/IM)
-3. Strongly consistent distributed transactions not solved in v1
+Conclusion: the requested capabilities are feasible without breaking the existing SDK integration model.
 
-## 4. Overall Architecture
+## 4. Goals and Non-goals
+
+### 4.1 Goals
+
+1. Maintain compatibility with `BeforeTurn` and `AfterTurn`
+2. Introduce tiered memory storage with configurable retention
+3. Store complete interaction logs for all turns
+4. Add asynchronous compact/archive pipeline
+5. Support hierarchical folder summaries (`.abstract` and `.overview`)
+6. Provide `list_dir` results enriched with `.abstract`
+
+### 4.2 Non-goals
+
+1. Changing business tool orchestration logic in the agent
+2. Building a distributed transaction layer
+3. Guaranteeing strict real-time consistency for generated summaries
+
+## 5. Target Architecture
 
 ```mermaid
 flowchart TD
-    A["Chatbot / Agent\n(any workflow)"] -- "before/after turn" --> B["Memory SDK (Go)"]
-    B --> C["Storage Adapter Interface"]
-    C --> D["Laisky MCP FileIO\nfile_read/write/list/search"]
-    D --> E1["log.jsonl\n(complete immutable history)"]
-    D --> E2["context.jsonl\n(LLM active context)"]
-    E1 --> F["memory_facts.jsonl\n(structured long-term memory entries)"]
-    E2 --> F
+    A[Agent Workflow] --> B[Memory Engine\nBeforeTurn/AfterTurn]
+    B --> C[Storage Adapter\nMCP FileIO]
+
+    B --> D[Sync Write Path]
+    D --> E1[/events/raw/.../log-*.jsonl]
+    D --> E2[/memory_tiers/L0|L1|L2/*.jsonl]
+    D --> E3[/runtime/context/current.jsonl]
+    D --> E4[/meta/state.json]
+
+    B --> F[Async Maintenance Workers]
+    F --> G1[Compactor]
+    F --> G2[Retention Sweeper]
+    F --> G3[Folder Summary Builder]
+
+    G1 --> H1[/events/compact/...]
+    G1 --> H2[/events/archive/.../*.zst]
+    G2 --> H3[Delete expired L1/L2 records]
+    G3 --> H4[Write .abstract and .overview]
 ```
 
-## 5. Mapping to Laisky MCP FileIO
+### 5.1 Design Principles
 
-Refer to `docs/ref/fileio.md`, the SDK must comply with the following key constraints:
+1. Keep write path minimal and deterministic
+2. Push heavy tasks (compaction, long summaries) to background workers
+3. Preserve full traceability through immutable logs
+4. Use UTC timestamps only
+5. Keep retention policy configurable via metadata file
 
-1. All paths must be absolute (non-root paths start with `/`)
-2. Content encoding uses `utf-8`
-3. Core tools:
-    1. `file_write`: append/overwrite write
-    2. `file_read`: partial read
-    3. `file_stat`: path existence and metadata
-    4. `file_list`: directory traversal
-    5. `file_search`: retrieval/recall
-    6. `file_delete`: delete
-4. Error code-driven retry strategy (e.g., `RESOURCE_BUSY`, `NOT_FOUND`, `INVALID_PATH`)
+## 6. Directory and Layered Storage Specification
 
-### 5.1 MCP Client Requirements
-
-The SDK requires an internal MCP JSON-RPC client, with minimum capabilities:
-
-1. `initialize` session establishment, cache `Mcp-Session-Id`
-2. `tools/call` generic invocation
-3. Error unpacking into unified error structure `{code, message, retryable}`
-
-## 6. Data Model and Directory Specification
-
-### 6.1 Path Convention
-
-Use `project=<tenant>` as the tenant isolation unit. Recommended single-session path:
+### 6.1 Session Root Layout
 
 ```text
 /memory/{session_id}/
-	├── log.jsonl
-	├── context.jsonl
-	├── memory_facts.jsonl
-	├── checkpoints/
-	│   └── compact-<ts>.json
-	└── meta.json
+  /.abstract
+  /.overview
+  /meta/
+    /.abstract
+    /.overview
+    /state.json
+    /policy.json
+    /watermarks.json
+  /events/
+    /.abstract
+    /.overview
+    /raw/
+      /YYYY/
+        /MM/
+          /DD/
+            log-0001.jsonl
+            log-0002.jsonl
+    /compact/
+      /YYYY/
+        /MM/
+          /DD/
+            compact-<ts>.jsonl
+    /archive/
+      /YYYY/
+        /MM/
+          /DD/
+            log-<range>.jsonl.zst
+  /memory_tiers/
+    /.abstract
+    /.overview
+    /L0/
+      /.abstract
+      /.overview
+      /YYYY/
+        /MM/
+          facts-<date>.jsonl
+    /L1/
+      /.abstract
+      /.overview
+      /YYYY/
+        /MM/
+          facts-<date>.jsonl
+    /L2/
+      /.abstract
+      /.overview
+      /YYYY/
+        /WW/
+          facts-<week>.jsonl
+  /runtime/
+    /.abstract
+    /.overview
+    /context/
+      current.jsonl
+      latest_compact_pointer.json
 ```
 
-### 6.2 File Responsibilities
+### 6.2 Folder Summary Files
 
-1. `log.jsonl`: Source of truth, records user/assistant/tool response items, not pruned
-2. `context.jsonl`: Context mirror sent to LLM, may include compact events
-3. `memory_facts.jsonl`: High-value long-term memory (preferences, identity, constraints, ongoing tasks)
-4. `meta.json`: Session metadata (version, latest compact point, idempotency watermark)
+Each directory managed by memory must contain:
 
-### 6.3 JSONL Event Format (Recommended)
+1. `.abstract`: 100-200 words, concise purpose and what data exists in that folder
+2. `.overview`: up to 2000 words, rolling summary of all major records under that folder
+
+Rules:
+
+1. Summaries are generated in English
+2. Summaries are eventually consistent (not updated on every single write)
+3. On missing files, create placeholders first and schedule async refresh
+4. Never include secrets in summaries
+
+### 6.3 Tier Semantics
+
+1. `L0`: permanent memory, never auto-deleted (except explicit compliance deletion)
+2. `L1`: short-lived memory, daily cleanup
+3. `L2`: medium-lived memory, weekly cleanup
+
+Recommended default mapping:
+
+1. Identity, stable preferences, durable constraints -> `L0`
+2. Daily plans, temporary intent, short tasks -> `L1`
+3. Ongoing weekly tasks, medium-lived context -> `L2`
+
+## 7. Data Model
+
+### 7.1 Common Event Envelope
 
 ```json
-{"id":"evt_001","ts":"2026-02-13T12:00:00Z","type":"user_message","turn_id":"t1","content":"I like concise answers"}
-{"id":"evt_002","ts":"2026-02-13T12:00:02Z","type":"assistant_message","turn_id":"t1","content":"Noted"}
-{"id":"evt_003","ts":"2026-02-13T12:00:03Z","type":"fact_upsert","fact_id":"f_pref_style","key":"reply_style","value":"concise","confidence":0.92}
-{"id":"evt_004","ts":"2026-02-13T12:30:00Z","type":"compact","summary":"...","from_event_id":"evt_001","to_event_id":"evt_200"}
+{"id":"evt_001","ts":"2026-02-19T12:00:00Z","session_id":"s1","turn_id":"t1","kind":"input_item","payload":{}}
 ```
 
-## 7. Go Interface Design (Core)
+Required fields:
 
-### 7.1 Storage Abstraction Interface
+1. `id`: unique event id
+2. `ts`: RFC3339 UTC timestamp
+3. `session_id`: session key
+4. `turn_id`: turn id for idempotency and trace
+5. `kind`: event type
+6. `payload`: event payload
 
-```go
-package memory
+### 7.2 Interaction Log Event Types
 
-import "context"
+1. `input_item`
+2. `output_item`
+3. `tool_call`
+4. `tool_result`
+5. `compact_summary`
+6. `fact_upsert`
+7. `fact_delete`
 
-type WriteMode string
+### 7.3 Tiered Fact Record
 
-const (
-	WriteModeAppend   WriteMode = "APPEND"
-	WriteModeOverwrite WriteMode = "OVERWRITE"
-	WriteModeTruncate WriteMode = "TRUNCATE"
-)
-
-type FileChunk struct {
-	FilePath   string
-	StartBytes int64
-	EndBytes   int64
-	Content    string
-	Score      float64
-}
-
-type FileInfo struct {
-	Path      string
-	Exists    bool
-	Type      string // FILE|DIRECTORY|UNKNOWN
-	SizeBytes int64
-	UpdatedAt string
-}
-
-type Storage interface {
-	Read(ctx context.Context, project, path string, offset, length int64) (string, error)
-	Write(ctx context.Context, project, path, content string, mode WriteMode, offset int64) error
-	Stat(ctx context.Context, project, path string) (FileInfo, error)
-	List(ctx context.Context, project, path string, depth, limit int) ([]FileInfo, bool, error)
-	Search(ctx context.Context, project, query, pathPrefix string, limit int) ([]FileChunk, error)
-	Delete(ctx context.Context, project, path string, recursive bool) error
+```json
+{
+  "id":"fact_evt_01",
+  "ts":"2026-02-19T12:05:00Z",
+  "type":"fact_upsert",
+  "fact_id":"user_style",
+  "key":"reply_style",
+  "value":"concise",
+  "confidence":0.93,
+  "tier":"L0",
+  "expires_at":"",
+  "source_turn_id":"t1"
 }
 ```
 
-### 7.2 Memory Engine Interface
+Tier rules:
+
+1. `tier` must be one of `L0`, `L1`, `L2`
+2. `expires_at` is required for `L1` and `L2`, empty for `L0`
+3. `expires_at` must be computed in UTC
+
+## 8. API and Interface Evolution
+
+### 8.1 Engine Interface
+
+Keep existing interface unchanged for compatibility:
 
 ```go
-package memory
-
-import "context"
-
-type ResponseItem struct {
-	Type     string // message | function_call_output
-	Role     string // for type=message: developer | user | assistant
-	Content  []ResponseContentPart
-	CallID   string // for type=function_call_output
-	Output   string // for type=function_call_output
-	Metadata map[string]string
-}
-
-type ResponseContentPart struct {
-	Type     string // input_text | input_image | input_file | output_text
-	Text     string
-	ImageURL string
-	FileID   string
-	Filename string
-}
-
-type BeforeTurnInput struct {
-	Project          string
-	SessionID        string
-	UserID           string
-	TurnID           string
-	CurrentInput     []ResponseItem // current turn input items in Responses API style
-	BaseInstructions string        // mapped to Responses API `instructions`
-	MaxInputTok      int
-}
-
-type BeforeTurnOutput struct {
-	InputItems        []ResponseItem // final input items to send to Responses API `input`
-	RecallFactIDs     []string
-	ContextTokenCount int
-}
-
-type AfterTurnInput struct {
-	Project     string
-	SessionID   string
-	UserID      string
-	TurnID      string
-	InputItems  []ResponseItem // request input items sent in this turn
-	OutputItems []ResponseItem // response output items returned by Responses API
-}
-
 type Engine interface {
-	BeforeTurn(ctx context.Context, in BeforeTurnInput) (BeforeTurnOutput, error)
-	AfterTurn(ctx context.Context, in AfterTurnInput) error
+    BeforeTurn(ctx context.Context, in BeforeTurnInput) (BeforeTurnOutput, error)
+    AfterTurn(ctx context.Context, in AfterTurnInput) error
 }
 ```
 
-### 7.3 Design Principles
+### 8.2 Optional Management Interface
 
-1. `BeforeTurn/AfterTurn` are symmetric, making it easy to integrate with any agent loop
-2. Input/output uses Responses API-style items (`type`, `role`, `content[]`), avoiding Chat Completions-only structures
-3. Separated from OneAPI/OpenAI-compatible adaptation layer to avoid core logic being locked to a provider
+Add a memory-specific management interface for maintenance and directory discovery:
 
-## 8. Key Process Implementation
+```go
+type DirectorySummary struct {
+    Path       string
+    Abstract   string
+    UpdatedAt  string
+    HasOverview bool
+}
 
-### 8.1 BeforeTurn (Read Path)
+type Management interface {
+    RunMaintenance(ctx context.Context, project, sessionID string) error
+    ListDirWithAbstract(ctx context.Context, project, sessionID, path string, depth, limit int) ([]DirectorySummary, error)
+}
+```
+
+Rationale:
+
+1. Avoid breaking generic storage interfaces
+2. Satisfy `list_dir` requirement by enriching directory entries with `.abstract`
+
+## 9. Runtime Flows
+
+### 9.1 BeforeTurn (Read Path)
 
 Execution order:
 
-1. Read `meta.json` and `context.jsonl`
-2. Write the current user message to `log.jsonl` first (idempotent, deduplicated by `turn_id`)
-3. Recall long-term memory:
-    1. Prefer reading the latest high-confidence entries from `memory_facts.jsonl`
-    2. Call `file_search` to retrieve relevant history under `/memory/{session_id}/`
-4. Build context:
-    1. `instructions` (optional, mapped from `BaseInstructions`)
-    2. `memory block` as Responses API `message` item(s) (facts + retrieved fragments)
-    3. Most recent N `context.jsonl` input items
-    4. Current turn `CurrentInput` items
-5. Estimate tokens, trigger compression if threshold exceeded
+1. Read `meta/state.json` and `runtime/context/current.jsonl`
+2. Load non-expired facts from `L0`, `L1`, `L2`
+3. Search recent compact summaries and relevant raw logs
+4. Build memory block in priority order: `L0` -> `L2` -> `L1` -> retrieved log chunks
+5. Build final model input items: memory block + recent context + current input
+6. If projected tokens exceed threshold, prefer using latest compact snapshot pointer
 
-### 8.2 AfterTurn (Write Path)
+### 9.2 AfterTurn (Write Path)
 
 Execution order:
 
-1. Append current turn request `InputItems` and response `OutputItems` to `log.jsonl`
-2. Append visible/rehydratable items to `context.jsonl`
-3. Trigger fact extraction:
-    1. Rule-based extraction (low cost)
-    2. Optionally call OneAPI Responses API for structured extraction (high quality)
-4. `fact_upsert` write to `memory_facts.jsonl`
-5. Update `meta.json` (latest turn, compact info)
+1. Append all turn interaction records to `/events/raw/YYYY/MM/DD/log-*.jsonl`
+2. Append rehydratable items to `/runtime/context/current.jsonl`
+3. Extract candidate facts from current turn
+4. Classify each fact into `L0/L1/L2` and write to the corresponding tier shard
+5. Update `meta/state.json` watermarks and idempotency fields
+6. Enqueue async jobs for compaction and summary refresh
 
-### 8.3 Compact (Context Compression)
+### 9.3 Tier Classification
 
-Trigger conditions:
+Recommended first version:
 
-1. `context token >= max_input_tokens * 0.8`
-2. Or LLM endpoint returns context overflow error
+1. Rule-based classifier with explicit keyword/intent patterns
+2. Confidence score threshold for `L0` promotions (for example, `>=0.9`)
+3. Fallback to `L2` if uncertain
 
-Algorithm suggestions:
+Future version:
 
-1. Retain the most recent `K` raw response items (e.g., last 30)
-2. Summarize earlier segments as a `compact` event written to `context.jsonl`
-3. `log.jsonl` is not rewritten, ensuring complete traceable history
-4. Record compact boundaries in `meta.json`
+1. Add model-assisted classification as optional path
+2. Keep deterministic fallback when model call fails
 
-## 9. OneAPI Responses API Integration Specification
+## 10. Background Compact and Archive Mechanism
 
-### 9.1 Adaptation Strategy
+### 10.1 Objectives
 
-Memory SDK only outputs standard `[]ResponseItem`.
-The business layer maps this to the Responses API request format and sends it to `https://oneapi.laisky.com/v1/responses`.
+1. Prevent active files from unbounded growth
+2. Preserve full traceability
+3. Keep retrieval latency stable
 
-### 9.2 Minimal HTTP Client (Example)
+### 10.2 Compaction Pipeline
 
-```go
-package oneapiadapter
+1. Select sealed raw shards older than configured age
+2. Deduplicate repeated payload blocks
+3. Generate compact summary records and write to `/events/compact/...`
+4. Compress old raw shards to `.zst` and move to `/events/archive/...`
+5. Keep manifest in `meta/watermarks.json` for traceability
 
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-)
+### 10.3 Retention Sweep
 
-type InputItem struct {
-	Type    string             `json:"type"`
-	Role    string             `json:"role,omitempty"`
-	Content []InputContentPart `json:"content,omitempty"`
-	CallID  string             `json:"call_id,omitempty"`
-	Output  string             `json:"output,omitempty"`
+Run on daily schedule in UTC:
+
+1. Delete `L1` records where `expires_at < now`
+2. Delete `L2` records where `expires_at < now`
+3. Never delete `L0` via sweeper
+4. Process date boundaries as `[start, next_day_start)` to include entire last day
+
+### 10.4 Failure Handling
+
+1. Compaction is retryable and idempotent by shard key
+2. On failure, keep raw shards untouched and retry later
+3. Read path must continue using raw logs and existing context if compact outputs are stale
+
+## 11. `list_dir` with `.abstract` Behavior
+
+### 11.1 Functional Requirement
+
+When listing memory directories, response must include each directory path and the corresponding `.abstract` content.
+
+### 11.2 Execution Strategy
+
+1. Call storage `List` to collect directories
+2. For each directory, read `{dir}/.abstract`
+3. Return `DirectorySummary{Path, Abstract, UpdatedAt, HasOverview}`
+4. If `.abstract` is missing, return an empty abstract and enqueue summary generation
+
+### 11.3 Performance Controls
+
+1. Cache `.abstract` by `path + updated_at`
+2. Limit synchronous reads per request
+3. Truncate oversized abstracts at read time to safe length
+
+## 12. Migration Plan from Current Layout
+
+Current files:
+
+1. `/memory/{session_id}/log.jsonl`
+2. `/memory/{session_id}/context.jsonl`
+3. `/memory/{session_id}/memory_facts.jsonl`
+4. `/memory/{session_id}/meta.json`
+
+Target migration steps:
+
+1. Copy `log.jsonl` into `/events/raw/.../log-legacy.jsonl`
+2. Copy `context.jsonl` into `/runtime/context/current.jsonl`
+3. Reclassify `memory_facts.jsonl` entries into `L0/L1/L2` (default `L2` when unknown)
+4. Convert `meta.json` into `/meta/state.json`
+5. Generate initial `.abstract` and `.overview` for all directories
+6. Enable dual-read compatibility for one release cycle, then remove legacy read path
+
+## 13. Observability and Debugging
+
+Required metrics:
+
+1. `memory_after_turn_write_latency_ms`
+2. `memory_before_turn_read_latency_ms`
+3. `memory_compact_job_latency_ms`
+4. `memory_compact_backlog_size`
+5. `memory_tier_records_total{tier}`
+6. `memory_summary_refresh_failures_total`
+
+Required debug logs:
+
+1. Session id, turn id, shard path, record counts
+2. Compaction input/output size statistics
+3. Tier classification decisions and confidence
+
+Do not log sensitive raw content or secrets.
+
+## 14. Concurrency and Consistency
+
+1. Use single-writer-per-session for synchronous writes
+2. Allow concurrent reads with watermark-based snapshot consistency
+3. Use optimistic version field in `meta/state.json` for maintenance updates
+4. Keep log appends immutable and idempotent by `(session_id, turn_id, event_index)`
+
+## 15. Security and Compliance
+
+1. `project` is strict tenant boundary
+2. All path joins must be normalized to prevent cross-tenant traversal
+3. Support explicit fact deletion and legal erasure workflows
+4. Keep keys in environment variables only
+5. Redact sensitive fields in summaries and logs
+
+## 16. Testing Strategy
+
+### 16.1 Unit Tests
+
+1. Tier classification and `expires_at` calculation
+2. Daily and weekly cleanup boundaries in UTC
+3. JSONL encode/decode for event and fact schemas
+4. `ListDirWithAbstract` fallback behavior
+
+### 16.2 Integration Tests
+
+1. End-to-end turn lifecycle with tiered fact writes
+2. Compaction and archive pipeline on synthetic long sessions
+3. Recovery from compaction failure without read-path breakage
+4. Migration from legacy file layout to new layout
+
+### 16.3 Regression Tests
+
+1. 1k+ turn sessions with stable latency
+2. Retrieval quality before and after compaction
+3. Idempotency under retried `AfterTurn`
+
+## 17. Implementation Milestones
+
+1. M1 (1 week): new directory schema, metadata policy, and dual-write scaffolding
+2. M2 (1 week): tier classifier + writes to `L0/L1/L2`
+3. M3 (1 week): background compactor, archive, and retention sweeper
+4. M4 (1 week): `.abstract` and `.overview` generators + `ListDirWithAbstract`
+5. M5 (1 week): migration tooling, compatibility window, and stress validation
+
+## 18. Acceptance Criteria
+
+The design is accepted when all conditions are met:
+
+1. Every interaction is logged with input/output/timestamp and traceable by turn
+2. Tiered memory files are written and cleaned by policy (`L0` permanent, `L1` daily, `L2` weekly)
+3. Background compaction reduces hot storage footprint without history loss
+4. Every managed directory has `.abstract` and `.overview`
+5. `list_dir` responses include directory path and `.abstract`
+6. Read/write flow remains stable under retries and long sessions
+
+## 19. Recommended Default Policy (`meta/policy.json`)
+
+```json
+{
+  "version": 1,
+  "timezone": "UTC",
+  "tiers": {
+    "L0": {"retention_days": 0, "auto_delete": false},
+    "L1": {"retention_days": 1, "auto_delete": true},
+    "L2": {"retention_days": 7, "auto_delete": true}
+  },
+  "compaction": {
+    "enabled": true,
+    "max_hot_shard_bytes": 8388608,
+    "min_shard_age_hours": 24,
+    "compression": "zstd"
+  },
+  "summary": {
+    "abstract_words_min": 100,
+    "abstract_words_max": 200,
+    "overview_words_max": 2000,
+    "refresh_interval_minutes": 60
+  }
 }
-
-type InputContentPart struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
-	FileID   string `json:"file_id,omitempty"`
-	Filename string `json:"filename,omitempty"`
-}
-
-type ResponseReq struct {
-	Model        string      `json:"model"`
-	Instructions string      `json:"instructions,omitempty"`
-	Input        []InputItem `json:"input"`
-}
-
-func CreateResponse(ctx context.Context, apiKey string, req ResponseReq) ([]byte, error) {
-	b, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://oneapi.laisky.com/v1/responses", bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("responses api status=%d body=%s", resp.StatusCode, string(body))
-	}
-	return body, nil
-}
 ```
 
-When implementing, please complete:
-
-1. Timeout and retry
-2. Response status code handling
-3. Usage token statistics and logging
-
-## 10. Installation and Project Skeleton
-
-### 10.1 Initialization
-
-```bash
-mkdir go-memory-sdk && cd go-memory-sdk
-go mod init your.org/memory
-go get github.com/google/uuid
-```
-
-### 10.2 Recommended Directory
-
-```text
-/memory
-  /cmd/example-agent/main.go
-  /internal/mcp/client.go
-  /internal/storage/fileio_adapter.go
-  /internal/recall/search.go
-  /internal/compact/compact.go
-  /pkg/memory/engine.go
-  /pkg/memory/types.go
-  /pkg/memory/config.go
-```
-
-### 10.3 Environment Variables
-
-```bash
-export ONEAPI_API_KEY="<key>"
-export ONEAPI_BASE_URL="https://oneapi.laisky.com"
-export MEMORY_MCP_ENDPOINT="https://mcp.laisky.com"
-export MEMORY_MCP_API_KEY="<key>"
-export MEMORY_PROJECT="your-tenant"
-```
-
-## 11. Usage (Integrating with Any Chat Agent)
-
-### 11.1 Standard Integration Point
-
-```go
-prepared, err := mem.BeforeTurn(ctx, memory.BeforeTurnInput{
-	Project:   project,
-	SessionID: sessionID,
-	UserID:    userID,
-	TurnID:    turnID,
-	CurrentInput: []memory.ResponseItem{
-		{
-			Type: "message",
-			Role: "user",
-			Content: []memory.ResponseContentPart{
-				{Type: "input_text", Text: userText},
-			},
-		},
-	},
-	BaseInstructions: systemPrompt,
-	MaxInputTok:     120000,
-})
-if err != nil { /* handle */ }
-
-// 业务层将 prepared.InputItems 直接作为 Responses API 的 input 发送到 oneapi.laisky.com
-outputItems, err := runModel(prepared.InputItems)
-if err != nil { /* handle */ }
-
-err = mem.AfterTurn(ctx, memory.AfterTurnInput{
-	Project:     project,
-	SessionID:   sessionID,
-	UserID:      userID,
-	TurnID:      turnID,
-	InputItems:  prepared.InputItems,
-	OutputItems: outputItems,
-})
-if err != nil { /* handle */ }
-```
-
-### 11.2 Minimal Refactoring for Existing Workflows
-
-1. Insert `BeforeTurn` before model invocation
-2. Insert `AfterTurn` after model response
-3. Change the original "only send recent chat messages" logic to "send the SDK-constructed response items"
-
-## 12. Error Handling and Retry Strategy
-
-### 12.1 MCP FileIO Error Levels
-
-1. Retryable:
-    1. `RESOURCE_BUSY`
-    2. Network timeout
-    3. 5xx
-2. Non-retryable:
-    1. `INVALID_PATH`
-    2. `PERMISSION_DENIED`
-    3. `NOT_FOUND` (can be downgraded as per business logic)
-
-### 12.2 Recommended Strategy
-
-1. Exponential backoff: `200ms -> 500ms -> 1s -> 2s`, up to 4 times
-2. Turn-level idempotency key: `(session_id, turn_id)`
-3. Downgrade path:
-    1. If retrieval fails, continue conversation with only recent context
-    2. If fact extraction fails, do not block main response
-
-## 13. Concurrency and Consistency
-
-It is recommended to use a single-writer-per-session model (Session Actor):
-
-1. Write operations for the same `session_id` enter the same queue
-2. Execute `BeforeTurn/AfterTurn` serially
-3. Read operations can be parallel, but when building context, read the committed point of the write sequence
-
-If multi-writer concurrency is required:
-
-1. Use the version number in `meta.json` for optimistic concurrency control
-2. After conflict, re-read and replay uncommitted events
-3. Ensure `log.jsonl` is only appended, not modified in place
-
-## 14. Security and Compliance
-
-1. Sensitive information should be desensitized before writing to `memory_facts.jsonl`
-2. `project` is the tenant boundary; cross-tenant path concatenation is prohibited
-3. OneAPI and MCP keys are injected only via environment variables
-4. Do not print full keys or raw private text in logs
-5. Support fact deletion (Right to be forgotten): append `fact_delete` event and filter during recall
-
-## 15. Testing Strategy
-
-### 15.1 Unit Testing
-
-1. Event serialization/deserialization
-2. Deduplication logic (turn_id idempotency)
-3. Compact boundary calculation
-4. Error code retry branches
-
-### 15.2 Integration Testing
-
-1. Use test `project` for real MCP calls
-2. Cover the full process of writing, reading, retrieval, and compression
-3. Simulate Responses API context overflow and verify automatic compact
-
-### 15.3 Regression Testing
-
-1. Long session (1k+ turns) performance
-2. Retrieval hit rate baseline
-3. Consistency sampling evaluation before and after compact
-
-## 16. Milestone Plan (Recommended)
-
-1. M1 (1 week): MCP client + fileio adapter + log/context persistence
-2. M2 (1 week): BeforeTurn/AfterTurn + basic recall
-3. M3 (1 week): compact + fact extraction + error recovery
-4. M4 (1 week): stress testing, observability, documentation, example agent
-
-## 17. Acceptance Criteria
-
-The SDK can be considered ready for production if and only if it meets:
-
-1. Can be integrated with at least 2 types of chat agents (HTTP API bot + workflow agent)
-2. No history loss in 1000-turn long sessions
-3. Can automatically compact and continue conversation when context overflows
-4. No duplicate write pollution under retry and idempotency mechanisms
-5. Memory recall significantly outperforms the "recent messages only" baseline on evaluation set
-
-## 18. Appendix: Minimal Implementation Checklist
-
-1. `Storage` interface and `FileIOAdapter`
-2. `Engine.BeforeTurn/AfterTurn`
-3. `jsonl` event encoding/decoding
-4. `CompactService`
-5. `RecallService` (`memory_facts + file_search`)
-6. OneAPI Responses request adapter
-7. Runnable example (`cmd/example-agent`)
-8. Unit + integration tests
-
-Completing the above forms a reusable, pluggable, and production-evolvable general-purpose Golang memory library.
+This policy-driven approach is the recommended implementation because it avoids hard-coded retention logic and makes future tier expansion straightforward.

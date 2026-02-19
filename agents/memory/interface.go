@@ -54,19 +54,38 @@ type AfterTurnInput struct {
 	OutputItems []ResponseItem
 }
 
+// DirectorySummary describes one listed directory and its abstract metadata.
+type DirectorySummary struct {
+	Path        string
+	Abstract    string
+	UpdatedAt   string
+	HasOverview bool
+}
+
 // Engine defines standard memory lifecycle hooks for one turn.
 type Engine interface {
 	BeforeTurn(ctx context.Context, in BeforeTurnInput) (BeforeTurnOutput, error)
 	AfterTurn(ctx context.Context, in AfterTurnInput) error
 }
 
+// Management defines optional memory maintenance and directory discovery operations.
+type Management interface {
+	RunMaintenance(ctx context.Context, project, sessionID string) error
+	ListDirWithAbstract(ctx context.Context, project, sessionID, path string, depth, limit int) ([]DirectorySummary, error)
+}
+
 // Config controls behavior of standard memory engine.
 type Config struct {
-	RecentContextItems int
-	RecallFactsLimit   int
-	SearchLimit        int
-	CompactThreshold   float64
-	TimeNow            func() time.Time
+	RecentContextItems     int
+	RecallFactsLimit       int
+	SearchLimit            int
+	CompactThreshold       float64
+	L1RetentionDays        int
+	L2RetentionDays        int
+	CompactionMinAge       time.Duration
+	SummaryRefreshInterval time.Duration
+	MaxProcessedTurns      int
+	TimeNow                func() time.Time
 }
 
 // StandardEngine is a storage-backed implementation of Engine.
