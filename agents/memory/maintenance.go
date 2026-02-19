@@ -10,7 +10,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v6/agents/files"
+	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // RunMaintenance runs compaction, retention sweeping, and summary refresh for one session.
@@ -95,9 +95,9 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	dirSet[rootPath] = struct{}{}
 	for _, entry := range entries {
 		switch entry.Type {
-		case files.FileTypeDirectory:
+		case storageengine.FileTypeDirectory:
 			dirSet[entry.Path] = struct{}{}
-		case files.FileTypeFile, files.FileTypeUnknown:
+		case storageengine.FileTypeFile, storageengine.FileTypeUnknown:
 			engine.addDerivedDirs(dirSet, rootPath, entry.Path)
 		}
 	}
@@ -118,7 +118,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 		if statErr != nil {
 			return nil, errors.Wrapf(statErr, "stat abstract %s", abstractPath)
 		}
-		if abstractInfo.Exists && abstractInfo.Type == files.FileTypeFile {
+		if abstractInfo.Exists && abstractInfo.Type == storageengine.FileTypeFile {
 			body, readErr := engine.storage.Read(ctx, project, abstractPath, 0, -1)
 			if readErr != nil {
 				return nil, errors.Wrapf(readErr, "read abstract %s", abstractPath)
@@ -127,7 +127,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 			updatedAt = abstractInfo.UpdatedAt
 		} else {
 			goAbstract := buildDefaultAbstract(dir)
-			if err = engine.storage.Write(ctx, project, abstractPath, goAbstract, files.WriteModeTruncate, 0); err != nil {
+			if err = engine.storage.Write(ctx, project, abstractPath, goAbstract, storageengine.WriteModeTruncate, 0); err != nil {
 				return nil, errors.Wrapf(err, "create abstract %s", abstractPath)
 			}
 			abstract = goAbstract
@@ -143,7 +143,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 			Path:        dir,
 			Abstract:    abstract,
 			UpdatedAt:   updatedAt,
-			HasOverview: overviewInfo.Exists && overviewInfo.Type == files.FileTypeFile,
+			HasOverview: overviewInfo.Exists && overviewInfo.Type == storageengine.FileTypeFile,
 		})
 	}
 
@@ -205,7 +205,7 @@ func (engine *StandardEngine) archiveRawShards(ctx context.Context, project, ses
 		}
 
 		archivePath := archiveShardPath(sessionID, shardDate, path.Base(info.Path))
-		if writeErr := engine.storage.Write(ctx, project, archivePath, string(compressed), files.WriteModeTruncate, 0); writeErr != nil {
+		if writeErr := engine.storage.Write(ctx, project, archivePath, string(compressed), storageengine.WriteModeTruncate, 0); writeErr != nil {
 			return errors.Wrapf(writeErr, "write archive shard %s", archivePath)
 		}
 		if delErr := engine.storage.Delete(ctx, project, info.Path, false); delErr != nil {
@@ -285,7 +285,7 @@ func (engine *StandardEngine) sweepExpiredTierFacts(ctx context.Context, project
 		if marshalErr != nil {
 			return errors.Wrapf(marshalErr, "marshal active facts for %s", info.Path)
 		}
-		if writeErr := engine.storage.Write(ctx, project, info.Path, body, files.WriteModeTruncate, 0); writeErr != nil {
+		if writeErr := engine.storage.Write(ctx, project, info.Path, body, storageengine.WriteModeTruncate, 0); writeErr != nil {
 			return errors.Wrapf(writeErr, "rewrite tier file %s", info.Path)
 		}
 	}
@@ -326,10 +326,10 @@ func (engine *StandardEngine) refreshDirectorySummary(ctx context.Context, proje
 		overview = strings.Join(parts[:2000], " ")
 	}
 
-	if err = engine.storage.Write(ctx, project, abstractPath, abstract, files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, abstractPath, abstract, storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write abstract")
 	}
-	if err = engine.storage.Write(ctx, project, overviewPath, overview, files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, overviewPath, overview, storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write overview")
 	}
 
@@ -337,7 +337,7 @@ func (engine *StandardEngine) refreshDirectorySummary(ctx context.Context, proje
 }
 
 // buildOverviewFromEntries builds directory overview text from current entries and returns the rendered summary.
-func (engine *StandardEngine) buildOverviewFromEntries(dir string, entries []files.FileInfo) string {
+func (engine *StandardEngine) buildOverviewFromEntries(dir string, entries []storageengine.FileInfo) string {
 	fileCount := 0
 	dirCount := 0
 	unknownCount := 0
@@ -346,10 +346,10 @@ func (engine *StandardEngine) buildOverviewFromEntries(dir string, entries []fil
 
 	for _, entry := range entries {
 		switch entry.Type {
-		case files.FileTypeFile:
+		case storageengine.FileTypeFile:
 			fileCount++
 			totalBytes += entry.SizeBytes
-		case files.FileTypeDirectory:
+		case storageengine.FileTypeDirectory:
 			dirCount++
 		default:
 			unknownCount++

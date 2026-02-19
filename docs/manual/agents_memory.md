@@ -2,7 +2,7 @@
 
 This manual explains how to use:
 
-- `agents/files`: MCP FileIO storage SDK
+- `agents/memory/storage`: standardized storage interface plus plugins
 - `agents/memory`: tiered memory SDK on top of storage
 
 The content matches the current implementation in `agents/memory`.
@@ -23,7 +23,8 @@ This SDK provides:
 flowchart TD
     A[Agent Workflow] --> B[Memory Engine\nBeforeTurn / AfterTurn]
     B --> C[Storage Interface]
-    C --> D[MCP FileIO Adapter]
+    C --> D1[MCP Plugin]
+    C --> D2[Local Plugin]
 
     B --> E1[/events/raw/.../log-*.jsonl]
     B --> E2[/runtime/context/current.jsonl]
@@ -70,35 +71,41 @@ Imports:
 
 ```go
 import (
-    "github.com/Laisky/go-utils/v6/agents/files"
     "github.com/Laisky/go-utils/v6/agents/memory"
+    "github.com/Laisky/go-utils/v6/agents/memory/storage/local"
+    mcpstorage "github.com/Laisky/go-utils/v6/agents/memory/storage/mcp"
 )
 ```
 
-## 5) MCP Storage Quick Start
+## 5) Storage Plugin Quick Start
 
-Create MCP client and storage adapter:
+Create local storage plugin (default for dev/debug):
+
+```go
+storage, err := local.NewEngine(local.Config{
+    RootDir: "/tmp/agent-memory-storage",
+})
+if err != nil {
+    panic(err)
+}
+defer storage.Close()
+```
+
+Create MCP storage plugin:
 
 ```go
 ctx := context.Background()
 
-client, err := files.NewMCPClient(files.MCPClientConfig{
+storage, err := mcpstorage.NewEngine(ctx, mcpstorage.Config{
     Endpoint: "https://mcp.laisky.com",
     APIKey:   os.Getenv("MEMORY_MCP_API_KEY"),
 })
 if err != nil {
     panic(err)
 }
-
-storage, err := files.NewMCPStorage(files.MCPStorageConfig{Caller: client})
-if err != nil {
-    panic(err)
-}
-
-_ = storage
 ```
 
-`files.Storage` methods:
+`agents/memory/storage.Engine` methods:
 
 1. `Read`
 2. `Write`
@@ -325,7 +332,7 @@ Required env for E2E:
 ## 14) Minimal Adoption Checklist
 
 1. Create `files.MCPClient` and `files.MCPStorage`
-2. Create `memory.NewEngine(storage, config)`
+2. Create `memory.NewEngine(storageEngine, config)`
 3. Add `BeforeTurn` before model invocation
 4. Add `AfterTurn` after model response
 5. Periodically run `RunMaintenance`

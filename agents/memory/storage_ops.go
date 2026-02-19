@@ -10,7 +10,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v6/agents/files"
+	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // appendJSONL marshals records into JSONL and appends them to path.
@@ -23,7 +23,7 @@ func (engine *StandardEngine) appendJSONL(ctx context.Context, project, filePath
 		return nil
 	}
 
-	if err = engine.storage.Write(ctx, project, filePath, body, files.WriteModeAppend, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, filePath, body, storageengine.WriteModeAppend, 0); err != nil {
 		return errors.Wrap(err, "append jsonl")
 	}
 
@@ -36,7 +36,7 @@ func (engine *StandardEngine) loadJSONL(ctx context.Context, project, filePath s
 	if err != nil {
 		return nil, errors.Wrap(err, "stat file")
 	}
-	if !info.Exists || info.Type != files.FileTypeFile {
+	if !info.Exists || info.Type != storageengine.FileTypeFile {
 		return nil, nil
 	}
 
@@ -188,15 +188,15 @@ func (engine *StandardEngine) writeTieredFacts(
 }
 
 // listFiles lists files under root, filters by suffix, and returns sorted file infos.
-func (engine *StandardEngine) listFiles(ctx context.Context, project, root, suffix string) ([]files.FileInfo, error) {
+func (engine *StandardEngine) listFiles(ctx context.Context, project, root, suffix string) ([]storageengine.FileInfo, error) {
 	entries, _, err := engine.storage.List(ctx, project, root, 16, 4096)
 	if err != nil {
 		return nil, errors.Wrap(err, "list entries")
 	}
 
-	filtered := make([]files.FileInfo, 0, len(entries))
+	filtered := make([]storageengine.FileInfo, 0, len(entries))
 	for _, entry := range entries {
-		if entry.Type != files.FileTypeFile {
+		if entry.Type != storageengine.FileTypeFile {
 			continue
 		}
 		if suffix != "" && !strings.HasSuffix(entry.Path, suffix) {
@@ -224,7 +224,7 @@ func (engine *StandardEngine) loadMeta(ctx context.Context, project, sessionID s
 	if err != nil {
 		return MemoryMeta{}, errors.Wrap(err, "load state meta")
 	}
-	if stateInfo.Exists && stateInfo.Type == files.FileTypeFile {
+	if stateInfo.Exists && stateInfo.Type == storageengine.FileTypeFile {
 		return meta, nil
 	}
 
@@ -245,7 +245,7 @@ func (engine *StandardEngine) loadMetaFile(ctx context.Context, project, filePat
 	if err != nil {
 		return MemoryMeta{}, errors.Wrap(err, "stat meta file")
 	}
-	if !info.Exists || info.Type != files.FileTypeFile {
+	if !info.Exists || info.Type != storageengine.FileTypeFile {
 		return MemoryMeta{Version: 1}, nil
 	}
 
@@ -289,10 +289,10 @@ func (engine *StandardEngine) writeMeta(ctx context.Context, project, sessionID 
 		return errors.Wrap(err, "marshal meta")
 	}
 
-	if err = engine.storage.Write(ctx, project, metaStatePath(sessionID), string(body), files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, metaStatePath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write state meta")
 	}
-	if err = engine.storage.Write(ctx, project, legacyMetaPath(sessionID), string(body), files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, legacyMetaPath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write legacy meta")
 	}
 
@@ -325,7 +325,7 @@ func (engine *StandardEngine) ensurePolicy(ctx context.Context, project, session
 	if err != nil {
 		return errors.Wrap(err, "stat policy")
 	}
-	if info.Exists && info.Type == files.FileTypeFile {
+	if info.Exists && info.Type == storageengine.FileTypeFile {
 		return nil
 	}
 
@@ -333,7 +333,7 @@ func (engine *StandardEngine) ensurePolicy(ctx context.Context, project, session
 	if err != nil {
 		return errors.Wrap(err, "marshal policy")
 	}
-	if err = engine.storage.Write(ctx, project, policyPath, string(body), files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, policyPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write policy")
 	}
 
@@ -347,7 +347,7 @@ func (engine *StandardEngine) ensureWatermarks(ctx context.Context, project, ses
 	if err != nil {
 		return errors.Wrap(err, "stat watermarks")
 	}
-	if info.Exists && info.Type == files.FileTypeFile {
+	if info.Exists && info.Type == storageengine.FileTypeFile {
 		return nil
 	}
 
@@ -359,7 +359,7 @@ func (engine *StandardEngine) ensureWatermarks(ctx context.Context, project, ses
 		return errors.Wrap(err, "marshal watermarks")
 	}
 
-	if err = engine.storage.Write(ctx, project, watermarkPath, string(body), files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, watermarkPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write watermarks")
 	}
 
@@ -387,11 +387,11 @@ func (engine *StandardEngine) ensureTextFile(ctx context.Context, project, fileP
 	if err != nil {
 		return errors.Wrap(err, "stat text file")
 	}
-	if info.Exists && info.Type == files.FileTypeFile {
+	if info.Exists && info.Type == storageengine.FileTypeFile {
 		return nil
 	}
 
-	if err = engine.storage.Write(ctx, project, filePath, content, files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, filePath, content, storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write text file")
 	}
 

@@ -1,10 +1,10 @@
 package utils
 
 import (
-	"errors"
 	"io"
 	"testing"
 
+	"github.com/Laisky/errors/v2"
 	"github.com/stretchr/testify/require"
 )
 

@@ -9,11 +9,11 @@ import (
 
 	"github.com/Laisky/errors/v2"
 
-	"github.com/Laisky/go-utils/v6/agents/files"
+	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // newStandardEngine validates config and creates a standard engine instance.
-func newStandardEngine(storage files.Storage, conf Config) (*StandardEngine, error) {
+func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngine, error) {
 	if storage == nil {
 		return nil, errors.Errorf("storage is required")
 	}
@@ -69,7 +69,7 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 	}
 
 	query := strings.TrimSpace(extractInputText(in.CurrentInput))
-	var chunks []files.FileChunk
+	var chunks []storageengine.FileChunk
 	if query != "" {
 		chunks, err = engine.storage.Search(ctx, in.Project, query, sessionBasePath(in.SessionID), engine.conf.SearchLimit)
 		if err != nil {
@@ -221,7 +221,7 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 		return errors.Wrap(err, "marshal compacted context")
 	}
 
-	if err = engine.storage.Write(ctx, project, runtimeContextPath(sessionID), body, files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, runtimeContextPath(sessionID), body, storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write compacted runtime context")
 	}
 
@@ -236,7 +236,7 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 	if err != nil {
 		return errors.Wrap(err, "marshal compact pointer")
 	}
-	if err = engine.storage.Write(ctx, project, latestCompactPointerPath(sessionID), string(pointerBody), files.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(ctx, project, latestCompactPointerPath(sessionID), string(pointerBody), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write compact pointer")
 	}
 
@@ -251,7 +251,7 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 }
 
 // buildMemoryBlock builds one developer memory block from recalled facts and search hits.
-func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, chunks []files.FileChunk) (*ResponseItem, []string) {
+func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, chunks []storageengine.FileChunk) (*ResponseItem, []string) {
 	if len(facts) == 0 && len(chunks) == 0 {
 		return nil, nil
 	}

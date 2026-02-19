@@ -1,4 +1,4 @@
-# General-purpose Golang Memory Library Technical Manual (Tiered Memory + MCP FileIO)
+# General-purpose Golang Memory Library Technical Manual (Tiered Memory + Pluggable Storage Engines)
 
 ## 1. Document Purpose
 
@@ -14,7 +14,7 @@ The design is based on:
 
 1. Golang
 2. OneAPI Responses API (`https://oneapi.laisky.com/v1/responses`) as the model interface
-3. Laisky MCP FileIO as the persistent storage backend
+3. Pluggable storage engines (`agents/memory/storage`) with MCP and local plugins
 
 ## 2. Executive Summary
 
@@ -69,7 +69,7 @@ Conclusion: the requested capabilities are feasible without breaking the existin
 ```mermaid
 flowchart TD
     A[Agent Workflow] --> B[Memory Engine\nBeforeTurn/AfterTurn]
-    B --> C[Storage Adapter\nMCP FileIO]
+    B --> C[Storage Adapter\nMCP Plugin / Local Plugin]
 
     B --> D[Sync Write Path]
     D --> E1[/events/raw/.../log-*.jsonl]

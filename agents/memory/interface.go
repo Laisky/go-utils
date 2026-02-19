@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Laisky/go-utils/v6/agents/files"
+	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // ResponseItem is a Responses API style item.
@@ -90,11 +90,11 @@ type Config struct {
 
 // StandardEngine is a storage-backed implementation of Engine.
 type StandardEngine struct {
-	storage files.Storage
+	storage storageengine.Engine
 	conf    Config
 }
 
 // NewEngine creates a standard memory engine with pluggable storage backend.
-func NewEngine(storage files.Storage, conf Config) (*StandardEngine, error) {
+func NewEngine(storage storageengine.Engine, conf Config) (*StandardEngine, error) {
 	return newStandardEngine(storage, conf)
 }
