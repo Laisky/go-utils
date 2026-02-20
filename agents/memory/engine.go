@@ -45,11 +45,35 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 	if conf.MaxProcessedTurns <= 0 {
 		conf.MaxProcessedTurns = defaultMaxProcessedTurns
 	}
+	if strings.TrimSpace(conf.LLMModel) == "" {
+		conf.LLMModel = defaultLLMModel
+	}
+	if conf.LLMTimeout <= 0 {
+		conf.LLMTimeout = defaultLLMTimeout
+	}
+	if conf.LLMMaxOutputTokens <= 0 {
+		conf.LLMMaxOutputTokens = defaultLLMMaxOutputTokens
+	}
 	if conf.TimeNow == nil {
 		conf.TimeNow = time.Now
 	}
 
-	return &StandardEngine{storage: storage, conf: conf}, nil
+	heuristic := conf.HeuristicClient
+	if heuristic == nil && strings.TrimSpace(conf.LLMAPIBase) != "" && strings.TrimSpace(conf.LLMAPIKey) != "" {
+		heuristic, err := newOpenAIResponsesClient(openAIResponsesClientConfig{
+			APIBase:         conf.LLMAPIBase,
+			APIKey:          conf.LLMAPIKey,
+			Model:           conf.LLMModel,
+			Timeout:         conf.LLMTimeout,
+			MaxOutputTokens: conf.LLMMaxOutputTokens,
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "build heuristic client")
+		}
+		conf.HeuristicClient = heuristic
+	}
+
+	return &StandardEngine{storage: storage, heuristic: heuristic, conf: conf}, nil
 }
 
 // BeforeTurn loads context and recalls memory facts to build model input items.
@@ -153,6 +177,20 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	}
 
 	facts := extractFacts(in.TurnID, nowRFC3339, in.InputItems)
+	if engine.heuristic != nil {
+		existingFacts, loadErr := engine.loadRecallFacts(ctx, in.Project, in.SessionID)
+		if loadErr == nil {
+			heuristicFacts, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
+				TurnID:        in.TurnID,
+				NowRFC3339:    nowRFC3339,
+				InputItems:    in.InputItems,
+				ExistingFacts: existingFacts,
+			})
+			if heuristicErr == nil {
+				facts = mergeFactCandidates(facts, heuristicFacts)
+			}
+		}
+	}
 	if len(facts) > 0 {
 		for idx := range facts {
 			facts[idx] = applyTierPolicy(now, engine.conf, facts[idx])
@@ -179,6 +217,45 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	}
 
 	return nil
+}
+
+// mergeFactCandidates merges rule-based and heuristic facts and keeps heuristic facts as preferred candidates.
+func mergeFactCandidates(ruleFacts, heuristicFacts []MemoryFact) []MemoryFact {
+	if len(heuristicFacts) == 0 {
+		return ruleFacts
+	}
+
+	type key struct {
+		factID string
+		field  string
+	}
+
+	merged := make(map[key]MemoryFact, len(ruleFacts)+len(heuristicFacts))
+	ordered := make([]key, 0, len(ruleFacts)+len(heuristicFacts))
+	appendFact := func(fact MemoryFact) {
+		k := key{factID: strings.TrimSpace(fact.FactID), field: strings.TrimSpace(fact.Key)}
+		if k.factID == "" && k.field == "" {
+			return
+		}
+		if _, exists := merged[k]; !exists {
+			ordered = append(ordered, k)
+		}
+		merged[k] = fact
+	}
+
+	for _, fact := range ruleFacts {
+		appendFact(fact)
+	}
+	for _, fact := range heuristicFacts {
+		appendFact(fact)
+	}
+
+	result := make([]MemoryFact, 0, len(merged))
+	for _, k := range ordered {
+		result = append(result, merged[k])
+	}
+
+	return result
 }
 
 // compactRuntimeContext compacts runtime context and writes compact events when context grows too large.

@@ -85,13 +85,41 @@ type Config struct {
 	CompactionMinAge       time.Duration
 	SummaryRefreshInterval time.Duration
 	MaxProcessedTurns      int
+	LLMAPIBase             string
+	LLMAPIKey              string
+	LLMModel               string
+	LLMTimeout             time.Duration
+	LLMMaxOutputTokens     int
+	HeuristicClient        HeuristicClient
 	TimeNow                func() time.Time
 }
 
 // StandardEngine is a storage-backed implementation of Engine.
 type StandardEngine struct {
-	storage storageengine.Engine
-	conf    Config
+	storage   storageengine.Engine
+	heuristic HeuristicClient
+	conf      Config
+}
+
+// HeuristicClient defines model-assisted memory processing for heuristic tasks.
+type HeuristicClient interface {
+	// ExtractAndMergeFacts extracts key facts from current turn and merges against existing facts.
+	// Args:
+	//   - ctx: request context.
+	//   - in: current turn input and existing facts.
+	//
+	// Returns:
+	//   - []MemoryFact: model-suggested upsert facts.
+	//   - error: extraction or merge failure.
+	ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) ([]MemoryFact, error)
+}
+
+// HeuristicFactInput stores payload for model-assisted fact extraction and merge.
+type HeuristicFactInput struct {
+	TurnID        string
+	NowRFC3339    string
+	InputItems    []ResponseItem
+	ExistingFacts []MemoryFact
 }
 
 // NewEngine creates a standard memory engine with pluggable storage backend.

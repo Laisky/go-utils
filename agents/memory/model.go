@@ -25,6 +25,9 @@ const (
 	defaultCompactionMinAge       = 24 * time.Hour
 	defaultSummaryRefreshInterval = time.Hour
 	defaultMaxProcessedTurns      = 1024
+	defaultLLMModel               = "openai/gpt-oss-120b"
+	defaultLLMTimeout             = 12 * time.Second
+	defaultLLMMaxOutputTokens     = 800
 )
 
 // MemoryMeta stores session-level memory bookkeeping.

@@ -296,26 +296,69 @@ Execution order:
 
 ### 9.3 Tier Classification
 
-Recommended first version:
+Tier classification is a heuristic task. It will be handled by the standardized LLM request client (see Section 10) to evaluate the importance of the memory and assign it to the appropriate tier (`L0`, `L1`, or `L2`).
 
-1. Rule-based classifier with explicit keyword/intent patterns
-2. Confidence score threshold for `L0` promotions (for example, `>=0.9`)
-3. Fallback to `L2` if uncertain
+1. Invoke the LLM with the `classify_memory` tool.
+2. Use the LLM's structured output to determine the tier and expiration.
+3. Keep a deterministic rule-based fallback (e.g., default to `L2`) in case the LLM call fails or times out.
 
-Future version:
+## 10. Heuristic Memory Processing via LLM (OpenAI API)
 
-1. Add model-assisted classification as optional path
-2. Keep deterministic fallback when model call fails
+### 10.1 The Need for Heuristic Processing
 
-## 10. Background Compact and Archive Mechanism
+Tasks such as determining the importance of a memory, extracting key information from raw interactions, and merging new key information into existing memory are inherently heuristic. They cannot be effectively implemented using fixed, rule-based code. Instead, they require the cognitive capabilities of an LLM.
 
-### 10.1 Objectives
+### 10.2 Standardized OpenAI Request Client
+
+To facilitate heuristic tasks, the SDK will implement a standardized internal client for the OpenAI Responses API (`https://oneapi.laisky.com/v1/responses`).
+This client will:
+
+1. Handle authentication, retries, and rate limiting.
+2. Support structured outputs via Function Calling / Tools.
+3. Accept dynamic `system_prompt` and `tools` configurations based on the specific heuristic task.
+
+### 10.3 Defined Heuristic Tasks
+
+For each heuristic task, we define a specific system prompt and tool structure:
+
+#### 10.3.1 Memory Importance and Tier Classification
+
+1. **Trigger**: During `AfterTurn` or background processing when new facts are extracted.
+2. **System Prompt**: "You are a memory classification assistant. Analyze the provided interaction and determine its long-term value. Classify it into L0 (permanent, identity/preferences), L1 (short-term, daily tasks), or L2 (medium-term, weekly projects)."
+3. **Tool Structure**: A function `classify_memory` that accepts `tier` (enum: L0, L1, L2), `confidence_score` (float), and `expires_at` (string, RFC3339).
+
+#### 10.3.2 Key Information Extraction
+
+1. **Trigger**: Background compaction or periodic review of raw logs.
+2. **System Prompt**: "You are an information extraction assistant. Review the following raw interaction logs and extract key facts, user preferences, and project states. Ignore transient chatter."
+3. **Tool Structure**: A function `extract_facts` that accepts an array of `facts`, each containing `fact_id`, `key`, `value`, and `context`.
+
+#### 10.3.3 Memory Merging and Consolidation
+
+1. **Trigger**: When new facts conflict with or update existing facts in L0/L1/L2.
+2. **System Prompt**: "You are a memory consolidation assistant. Compare the new extracted facts with the existing memory facts. Resolve conflicts, update outdated information, and merge them into a cohesive state."
+3. **Tool Structure**: A function `merge_memories` that accepts an array of `updated_facts` and `deleted_fact_ids`.
+
+#### 10.3.4 Folder Summary Generation (`.abstract` and `.overview`)
+
+1. **Trigger**: Asynchronous maintenance worker for folder summary builder.
+2. **System Prompt**: "You are a directory summarization assistant. Based on the provided file contents and metadata, generate a concise abstract (100-200 words) and a detailed overview (up to 2000 words) describing the purpose and contents of this directory."
+3. **Tool Structure**: A function `generate_summaries` that accepts `abstract` (string) and `overview` (string).
+
+### 10.4 Execution Timing
+
+1. **Synchronous (Blocking)**: Lightweight tasks like initial tier classification of a single fact during `AfterTurn` (if latency permits, otherwise fallback to rule-based and refine async).
+2. **Asynchronous (Background)**: Heavy tasks like bulk information extraction from raw logs, memory merging, and folder summary generation will be handled by background maintenance workers to avoid blocking the agent's main workflow.
+
+## 11. Background Compact and Archive Mechanism
+
+### 11.1 Objectives
 
 1. Prevent active files from unbounded growth
 2. Preserve full traceability
 3. Keep retrieval latency stable
 
-### 10.2 Compaction Pipeline
+### 11.2 Compaction Pipeline
 
 1. Select sealed raw shards older than configured age
 2. Deduplicate repeated payload blocks
@@ -323,7 +366,7 @@ Future version:
 4. Compress old raw shards to `.zst` and move to `/events/archive/...`
 5. Keep manifest in `meta/watermarks.json` for traceability
 
-### 10.3 Retention Sweep
+### 11.3 Retention Sweep
 
 Run on daily schedule in UTC:
 
@@ -332,32 +375,32 @@ Run on daily schedule in UTC:
 3. Never delete `L0` via sweeper
 4. Process date boundaries as `[start, next_day_start)` to include entire last day
 
-### 10.4 Failure Handling
+### 11.4 Failure Handling
 
 1. Compaction is retryable and idempotent by shard key
 2. On failure, keep raw shards untouched and retry later
 3. Read path must continue using raw logs and existing context if compact outputs are stale
 
-## 11. `list_dir` with `.abstract` Behavior
+## 12. `list_dir` with `.abstract` Behavior
 
-### 11.1 Functional Requirement
+### 12.1 Functional Requirement
 
 When listing memory directories, response must include each directory path and the corresponding `.abstract` content.
 
-### 11.2 Execution Strategy
+### 12.2 Execution Strategy
 
 1. Call storage `List` to collect directories
 2. For each directory, read `{dir}/.abstract`
 3. Return `DirectorySummary{Path, Abstract, UpdatedAt, HasOverview}`
 4. If `.abstract` is missing, return an empty abstract and enqueue summary generation
 
-### 11.3 Performance Controls
+### 12.3 Performance Controls
 
 1. Cache `.abstract` by `path + updated_at`
 2. Limit synchronous reads per request
 3. Truncate oversized abstracts at read time to safe length
 
-## 12. Migration Plan from Current Layout
+## 13. Migration Plan from Current Layout
 
 Current files:
 
@@ -375,7 +418,7 @@ Target migration steps:
 5. Generate initial `.abstract` and `.overview` for all directories
 6. Enable dual-read compatibility for one release cycle, then remove legacy read path
 
-## 13. Observability and Debugging
+## 14. Observability and Debugging
 
 Required metrics:
 
@@ -394,14 +437,14 @@ Required debug logs:
 
 Do not log sensitive raw content or secrets.
 
-## 14. Concurrency and Consistency
+## 15. Concurrency and Consistency
 
 1. Use single-writer-per-session for synchronous writes
 2. Allow concurrent reads with watermark-based snapshot consistency
 3. Use optimistic version field in `meta/state.json` for maintenance updates
 4. Keep log appends immutable and idempotent by `(session_id, turn_id, event_index)`
 
-## 15. Security and Compliance
+## 16. Security and Compliance
 
 1. `project` is strict tenant boundary
 2. All path joins must be normalized to prevent cross-tenant traversal
@@ -409,29 +452,29 @@ Do not log sensitive raw content or secrets.
 4. Keep keys in environment variables only
 5. Redact sensitive fields in summaries and logs
 
-## 16. Testing Strategy
+## 17. Testing Strategy
 
-### 16.1 Unit Tests
+### 17.1 Unit Tests
 
 1. Tier classification and `expires_at` calculation
 2. Daily and weekly cleanup boundaries in UTC
 3. JSONL encode/decode for event and fact schemas
 4. `ListDirWithAbstract` fallback behavior
 
-### 16.2 Integration Tests
+### 17.2 Integration Tests
 
 1. End-to-end turn lifecycle with tiered fact writes
 2. Compaction and archive pipeline on synthetic long sessions
 3. Recovery from compaction failure without read-path breakage
 4. Migration from legacy file layout to new layout
 
-### 16.3 Regression Tests
+### 17.3 Regression Tests
 
 1. 1k+ turn sessions with stable latency
 2. Retrieval quality before and after compaction
 3. Idempotency under retried `AfterTurn`
 
-## 17. Implementation Milestones
+## 18. Implementation Milestones
 
 1. M1 (1 week): new directory schema, metadata policy, and dual-write scaffolding
 2. M2 (1 week): tier classifier + writes to `L0/L1/L2`
@@ -439,7 +482,7 @@ Do not log sensitive raw content or secrets.
 4. M4 (1 week): `.abstract` and `.overview` generators + `ListDirWithAbstract`
 5. M5 (1 week): migration tooling, compatibility window, and stress validation
 
-## 18. Acceptance Criteria
+## 19. Acceptance Criteria
 
 The design is accepted when all conditions are met:
 
@@ -450,7 +493,7 @@ The design is accepted when all conditions are met:
 5. `list_dir` responses include directory path and `.abstract`
 6. Read/write flow remains stable under retries and long sessions
 
-## 19. Recommended Default Policy (`meta/policy.json`)
+## 20. Recommended Default Policy (`meta/policy.json`)
 
 ```json
 {
