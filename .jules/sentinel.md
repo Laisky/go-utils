@@ -35,3 +35,8 @@
 **Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
 **Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
 **Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
+
+## 2026-02-21 - URL Scheme Validation and Argument Handling in OpenURLInDefaultBrowser
+**Vulnerability:** OpenURLInDefaultBrowser lacked scheme validation, allowing potentially dangerous schemes (file://, javascript:). It also failed to append the URL for Windows/Darwin and used incorrect argument ordering for Windows.
+**Learning:** Utility functions that wrap system commands must be meticulously tested across all supported platforms and should enforce strict input validation (like whitelisting schemes) to prevent injection or unexpected behavior.
+**Prevention:** Always use `url.ParseRequestURI` and whitelists for URLs passed to system commands. Ensure cross-platform logic is verified with platform-specific tests or mocks.

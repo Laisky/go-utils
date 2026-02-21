@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -290,25 +288,53 @@ func TestOpenURLInDefaultBrowser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Skip test if the required command is not available based on the OS
-	// This mirrors the logic in OpenURLInDefaultBrowser function
-	switch runtime.GOOS {
-	case "windows":
-		if _, err := exec.LookPath("cmd"); err != nil {
-			t.Skip("cmd not found in PATH, skipping browser test")
+	t.Run("valid_schemes", func(t *testing.T) {
+		validURLs := []string{
+			"http://example.com",
+			"https://example.com",
+			"mailto:user@example.com",
 		}
-	case "darwin":
-		if _, err := exec.LookPath("open"); err != nil {
-			t.Skip("open not found in PATH, skipping browser test")
-		}
-	default: // Linux and other Unix-like systems
-		if _, err := exec.LookPath("xdg-open"); err != nil {
-			t.Skip("xdg-open not found in PATH, skipping browser test")
-		}
-	}
 
-	err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
-	require.NoError(t, err)
+		for _, u := range validURLs {
+			err := OpenURLInDefaultBrowser(ctx, u)
+			// It might fail because the command doesn't exist in the environment,
+			// but it should NOT fail with "unsupported scheme".
+			if err != nil && strings.Contains(err.Error(), "unsupported scheme") {
+				t.Errorf("expected no validation error for %q, got %v", u, err)
+			}
+		}
+	})
+
+	t.Run("invalid_schemes", func(t *testing.T) {
+		invalidURLs := []string{
+			"file:///etc/passwd",
+			"javascript:alert(1)",
+			"ftp://example.com",
+			"data:text/plain,hello",
+		}
+
+		for _, u := range invalidURLs {
+			err := OpenURLInDefaultBrowser(ctx, u)
+			if err == nil {
+				t.Errorf("expected error for %q, got nil", u)
+				continue
+			}
+
+			if !strings.Contains(err.Error(), "unsupported scheme") {
+				t.Errorf("expected 'unsupported scheme' error for %q, got %v", u, err)
+			}
+		}
+	})
+
+	t.Run("malformed_url", func(t *testing.T) {
+		err := OpenURLInDefaultBrowser(ctx, "://malformed")
+		if err == nil {
+			t.Errorf("expected error for malformed URL, got nil")
+		}
+		if !strings.Contains(err.Error(), "parse url") {
+			t.Errorf("expected 'parse url' error, got %v", err)
+		}
+	})
 }
 
 func TestNewReusableRequest(t *testing.T) {
