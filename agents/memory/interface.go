@@ -85,6 +85,12 @@ type Config struct {
 	CompactionMinAge       time.Duration
 	SummaryRefreshInterval time.Duration
 	MaxProcessedTurns      int
+	// LLMAPIBase is the OpenAI-compatible endpoint base.
+	// Supported forms:
+	//   - full endpoint: https://host[/optional-prefix]/v1/responses
+	//   - API base: https://host[/optional-prefix] or https://host[/optional-prefix]/v1
+	//   - host only: host or host:port (HTTPS is assumed automatically)
+	// The engine normalizes all forms to .../v1/responses.
 	LLMAPIBase             string
 	LLMAPIKey              string
 	LLMModel               string

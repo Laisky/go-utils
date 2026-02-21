@@ -93,6 +93,11 @@ func TestNormalizeResponsesURL(t *testing.T) {
 	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local"))
 	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local/"))
 	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local/v1/responses"))
+	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("oneapi.local"))
+	require.Equal(t, "https://oneapi.local:8080/v1/responses", normalizeResponsesURL("oneapi.local:8080"))
+	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai"))
+	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai/v1"))
+	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai/v1/responses"))
 }
 
 // TestMergeFactCandidates verifies heuristic candidates override rule candidates by fact key.

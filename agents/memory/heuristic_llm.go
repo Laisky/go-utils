@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -233,7 +234,48 @@ func buildHeuristicInputText(in HeuristicFactInput) string {
 // normalizeResponsesURL normalizes API base and appends responses path when required.
 func normalizeResponsesURL(apiBase string) string {
 	trimmed := strings.TrimSpace(apiBase)
-	trimmed = strings.TrimSuffix(trimmed, "/")
+	if trimmed == "" {
+		return ""
+	}
+
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "https://" + strings.TrimPrefix(trimmed, "//")
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		trimmed = strings.TrimSuffix(trimmed, "/")
+		if strings.HasSuffix(trimmed, defaultResponsesPath) {
+			return trimmed
+		}
+
+		return trimmed + defaultResponsesPath
+	}
+
+	normalizedPath := strings.TrimSuffix(parsed.Path, "/")
+	switch {
+	case normalizedPath == "":
+		parsed.Path = defaultResponsesPath
+	case strings.HasSuffix(normalizedPath, defaultResponsesPath):
+		parsed.Path = normalizedPath
+	case strings.HasSuffix(normalizedPath, "/v1"):
+		parsed.Path = normalizedPath + "/responses"
+	default:
+		parsed.Path = normalizedPath + defaultResponsesPath
+	}
+
+	parsed.RawPath = ""
+	if parsed.Scheme == "" {
+		parsed.Scheme = "https"
+	}
+
+	if parsed.RawQuery == "" && parsed.Fragment == "" {
+		return parsed.String()
+	}
+
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	trimmed = parsed.String()
 	if strings.HasSuffix(trimmed, defaultResponsesPath) {
 		return trimmed
 	}
