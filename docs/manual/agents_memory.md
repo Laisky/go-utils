@@ -114,6 +114,132 @@ if err != nil {
 5. `Search`
 6. `Delete`
 
+### 5.1 Storage parameter conventions
+
+These conventions are shared by local and MCP storage implementations:
+
+| Parameter                             | Meaning                                 | Required        | Constraints                                                                                                                    |
+| ------------------------------------- | --------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `project`                             | Tenant/project namespace for isolation. | Yes             | Must match `^[A-Za-z0-9_.-]{1,128}$`.                                                                                          |
+| `path` / `storagePath` / `pathPrefix` | Absolute storage path.                  | Usually yes     | Must start with `/`, must be canonical (no `//`, `/./`, `/../`), no trailing `/`, no whitespace/control chars, max length 512. |
+| `offset`                              | Byte offset for read/overwrite.         | Method-specific | Must be `>= 0`.                                                                                                                |
+| `length`                              | Read length in bytes.                   | Optional        | `-1` means read to EOF.                                                                                                        |
+| `depth`                               | Traversal depth for `List`.             | Optional        | Backend-specific defaulting rules apply (see note below).                                                                      |
+| `limit`                               | Result cap for `List`/`Search`.         | Optional        | Non-positive values use backend defaults.                                                                                      |
+
+Depth/limit backend nuance:
+
+1. Local backend: `depth <= 0` and `limit <= 0` use defaults.
+2. MCP backend: `limit <= 0` uses default; `depth < 0` uses default.
+
+Root path usage:
+
+1. `List` and `Stat` allow root (`""` or `"/"` depending on backend rules).
+2. `Read`, `Write`, and `Delete` require a concrete non-root file/directory path.
+
+### 5.2 `storage.Engine` method parameters
+
+#### `Read(ctx, project, path, offset, length) (string, error)`
+
+| Parameter | Required | Description                                            |
+| --------- | -------- | ------------------------------------------------------ |
+| `ctx`     | Yes      | Request context for cancellation/deadline propagation. |
+| `project` | Yes      | Project namespace.                                     |
+| `path`    | Yes      | Absolute file path to read.                            |
+| `offset`  | No       | Start byte offset.                                     |
+| `length`  | No       | Max bytes to read; `-1` for full remaining content.    |
+
+#### `Write(ctx, project, path, content, mode, offset) error`
+
+| Parameter | Required        | Description                                  |
+| --------- | --------------- | -------------------------------------------- |
+| `ctx`     | Yes             | Request context.                             |
+| `project` | Yes             | Project namespace.                           |
+| `path`    | Yes             | Absolute file path to write.                 |
+| `content` | Yes             | UTF-8 content body.                          |
+| `mode`    | Yes             | `APPEND`, `OVERWRITE`, or `TRUNCATE`.        |
+| `offset`  | Method-specific | Used by `OVERWRITE`; ignored by other modes. |
+
+#### `Stat(ctx, project, path) (FileInfo, error)`
+
+| Parameter | Required | Description                            |
+| --------- | -------- | -------------------------------------- |
+| `ctx`     | Yes      | Request context.                       |
+| `project` | Yes      | Project namespace.                     |
+| `path`    | Yes      | Absolute target path; root is allowed. |
+
+#### `List(ctx, project, path, depth, limit) ([]FileInfo, bool, error)`
+
+| Parameter | Required | Description                                    |
+| --------- | -------- | ---------------------------------------------- |
+| `ctx`     | Yes      | Request context.                               |
+| `project` | Yes      | Project namespace.                             |
+| `path`    | Yes      | Absolute traversal root path; root is allowed. |
+| `depth`   | No       | Max descendant depth.                          |
+| `limit`   | No       | Max entries returned.                          |
+
+`bool` return value is `hasMore`.
+
+#### `Search(ctx, project, query, pathPrefix, limit) ([]FileChunk, error)`
+
+| Parameter    | Required | Description                                 |
+| ------------ | -------- | ------------------------------------------- |
+| `ctx`        | Yes      | Request context.                            |
+| `project`    | Yes      | Project namespace.                          |
+| `query`      | Yes      | Search query string.                        |
+| `pathPrefix` | Yes      | Absolute search scope prefix; root allowed. |
+| `limit`      | No       | Max chunks returned.                        |
+
+#### `Delete(ctx, project, path, recursive) error`
+
+| Parameter   | Required | Description                        |
+| ----------- | -------- | ---------------------------------- |
+| `ctx`       | Yes      | Request context.                   |
+| `project`   | Yes      | Project namespace.                 |
+| `path`      | Yes      | Absolute target path.              |
+| `recursive` | No       | If true, remove directory subtree. |
+
+### 5.3 Local plugin config: `local.Config`
+
+| Field      | Required | Default | Description                                       |
+| ---------- | -------- | ------- | ------------------------------------------------- |
+| `RootDir`  | Yes      | None    | Local filesystem root used by the storage engine. |
+| `FilePerm` | No       | `0644`  | File permission for newly created files.          |
+| `DirPerm`  | No       | `0755`  | Directory permission for created directories.     |
+
+### 5.4 MCP plugin config: `mcpstorage.Config`
+
+| Field          | Required    | Default                  | Description                                                                 |
+| -------------- | ----------- | ------------------------ | --------------------------------------------------------------------------- |
+| `Caller`       | Conditional | `nil`                    | Prebuilt MCP tool caller. If set, `Endpoint` and `APIKey` are not required. |
+| `Endpoint`     | Conditional | None                     | MCP endpoint URL. Required when `Caller` is `nil`.                          |
+| `APIKey`       | Conditional | None                     | MCP API key. Required when `Caller` is `nil`.                               |
+| `RetryDelays`  | No          | `[200ms, 500ms, 1s, 2s]` | Retry backoff sequence for retryable MCP errors (caller mode).              |
+| `DefaultDepth` | No          | `1`                      | Default `List` depth for MCP file operations (caller mode).                 |
+| `DefaultLimit` | No          | `50`                     | Default `List` limit for MCP file operations (caller mode).                 |
+
+### 5.5 Storage return model fields
+
+#### `FileInfo`
+
+| Field       | Description                                                        |
+| ----------- | ------------------------------------------------------------------ |
+| `Path`      | Absolute path of the entry.                                        |
+| `Exists`    | Whether the target exists.                                         |
+| `Type`      | `FILE`, `DIRECTORY`, or `UNKNOWN`.                                 |
+| `SizeBytes` | Size in bytes (`0` for unknown/non-file cases as backend-defined). |
+| `UpdatedAt` | Last update time (RFC3339 when backend provides it).               |
+
+#### `FileChunk`
+
+| Field        | Description                                   |
+| ------------ | --------------------------------------------- |
+| `FilePath`   | Absolute path containing the hit.             |
+| `StartBytes` | Inclusive start byte offset for hit range.    |
+| `EndBytes`   | Exclusive end byte offset for hit range.      |
+| `Content`    | Returned chunk/document content from backend. |
+| `Score`      | Backend relevance score.                      |
+
 ## 6) Memory Quick Start
 
 Create engine:
@@ -134,6 +260,15 @@ if err != nil {
     panic(err)
 }
 ```
+
+Constructor parameters:
+
+#### `memory.NewEngine(storage, conf) (*memory.StandardEngine, error)`
+
+| Parameter | Required | Description                                                                               |
+| --------- | -------- | ----------------------------------------------------------------------------------------- |
+| `storage` | Yes      | Storage implementation conforming to `storage.Engine`; must be non-nil.                   |
+| `conf`    | No       | Runtime behavior config; zero/invalid values are normalized to defaults where applicable. |
 
 Standard turn lifecycle:
 
@@ -181,6 +316,113 @@ if err != nil {
 }
 ```
 
+### 6.1 Engine config reference: `memory.Config`
+
+Non-positive numeric values are normalized to defaults.
+
+| Field                    | Required | Default               | Description                                                           |
+| ------------------------ | -------- | --------------------- | --------------------------------------------------------------------- |
+| `RecentContextItems`     | No       | `30`                  | Number of recent context items included in `BeforeTurn` output.       |
+| `RecallFactsLimit`       | No       | `20`                  | Max recalled memory facts injected per turn.                          |
+| `SearchLimit`            | No       | `5`                   | Max storage search chunks used to enrich memory block.                |
+| `CompactThreshold`       | No       | `0.8`                 | Compaction trigger ratio against `MaxInputTok`; valid range `(0, 1)`. |
+| `L1RetentionDays`        | No       | `1`                   | L1 fact retention in days.                                            |
+| `L2RetentionDays`        | No       | `7`                   | L2 fact retention in days.                                            |
+| `CompactionMinAge`       | No       | `24h`                 | Minimum shard age before archive compaction.                          |
+| `SummaryRefreshInterval` | No       | `1h`                  | Summary refresh interval used in policy metadata.                     |
+| `MaxProcessedTurns`      | No       | `1024`                | Max remembered turn IDs for idempotency dedup.                        |
+| `LLMAPIBase`             | No       | Empty                 | OpenAI-compatible API base/endpoint for heuristic fact extraction.    |
+| `LLMAPIKey`              | No       | Empty                 | API key for LLM heuristic extractor.                                  |
+| `LLMModel`               | No       | `openai/gpt-oss-120b` | Model name for heuristic extraction.                                  |
+| `LLMTimeout`             | No       | `12s`                 | Timeout for heuristic LLM requests.                                   |
+| `LLMMaxOutputTokens`     | No       | `800`                 | Max output tokens for heuristic LLM response.                         |
+| `HeuristicClient`        | No       | `nil`                 | Custom heuristic client. If set, it is used directly.                 |
+| `TimeNow`                | No       | `time.Now`            | Time provider hook for deterministic testing/custom clocks.           |
+
+Heuristic client activation rules:
+
+1. If `HeuristicClient` is provided, engine uses it directly.
+2. If `HeuristicClient` is nil and both `LLMAPIBase` and `LLMAPIKey` are non-empty, engine auto-builds an OpenAI-compatible client.
+3. If neither condition is met, only rule-based fact extraction is used.
+
+### 6.2 Turn lifecycle input/output parameters
+
+#### `BeforeTurnInput`
+
+| Field              | Required | Description                                                               |
+| ------------------ | -------- | ------------------------------------------------------------------------- |
+| `Project`          | Yes      | Tenant/project namespace.                                                 |
+| `SessionID`        | Yes      | Session identifier; controls storage root `/memory/{session_id}`.         |
+| `UserID`           | No       | Optional user identifier for caller-level bookkeeping.                    |
+| `TurnID`           | Yes      | Unique turn identifier used in event/fact IDs and dedup logic.            |
+| `CurrentInput`     | Yes      | Current user/tool input items for this turn.                              |
+| `BaseInstructions` | No       | Reserved field (currently not consumed by engine internals).              |
+| `MaxInputTok`      | No       | Token budget hint for compaction trigger. `<=0` disables threshold check. |
+
+#### `BeforeTurnOutput`
+
+| Field               | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `InputItems`        | Prepared model input (memory block + recent context + current input). |
+| `RecallFactIDs`     | Fact IDs included in the memory block for traceability.               |
+| `ContextTokenCount` | Estimated token count for prepared input.                             |
+
+#### `AfterTurnInput`
+
+| Field         | Required | Description                                                             |
+| ------------- | -------- | ----------------------------------------------------------------------- |
+| `Project`     | Yes      | Tenant/project namespace.                                               |
+| `SessionID`   | Yes      | Session identifier.                                                     |
+| `UserID`      | No       | Optional user identifier.                                               |
+| `TurnID`      | Yes      | Turn identifier used for idempotent write dedup (`processed_turn_ids`). |
+| `InputItems`  | No       | Input items to persist as turn events.                                  |
+| `OutputItems` | No       | Model output items to persist as turn events.                           |
+
+Idempotency note: if `TurnID` already exists in `processed_turn_ids`, `AfterTurn` returns success without duplicating writes.
+
+### 6.3 Message schema parameters
+
+#### `ResponseItem`
+
+| Field      | Required | Description                                                           |
+| ---------- | -------- | --------------------------------------------------------------------- |
+| `Type`     | Yes      | Item type such as `message`, `function_call`, or tool-specific types. |
+| `Role`     | No       | Role, typically `system`, `user`, or `assistant` for message items.   |
+| `Content`  | No       | Structured content parts for message payload.                         |
+| `CallID`   | No       | Tool/function call identifier when relevant.                          |
+| `Output`   | No       | Raw textual output for non-message items when needed.                 |
+| `Metadata` | No       | Arbitrary string key-value metadata.                                  |
+
+#### `ResponseContentPart`
+
+| Field      | Required | Description                                                            |
+| ---------- | -------- | ---------------------------------------------------------------------- |
+| `Type`     | Yes      | Part type such as `input_text`, `output_text`, `image_url`, or `file`. |
+| `Text`     | No       | Text body for text part types.                                         |
+| `ImageURL` | No       | Image URL for image parts.                                             |
+| `FileID`   | No       | Referenced file ID.                                                    |
+| `Filename` | No       | Human-readable file name.                                              |
+
+### 6.4 Custom heuristic integration parameters
+
+If you provide `Config.HeuristicClient`, your implementation must satisfy:
+
+#### `ExtractAndMergeFacts(ctx, in) ([]MemoryFact, error)`
+
+| Parameter | Required | Description                         |
+| --------- | -------- | ----------------------------------- |
+| `ctx`     | Yes      | Request context.                    |
+| `in`      | Yes      | Heuristic extraction input payload. |
+
+#### `HeuristicFactInput`
+
+| Field           | Required | Description                                          |
+| --------------- | -------- | ---------------------------------------------------- |
+| `TurnID`        | Yes      | Current turn ID.                                     |
+| `NowRFC3339`    | Yes      | Current timestamp in RFC3339 UTC string.             |
+| `InputItems`    | Yes      | Current turn input items to analyze.                 |
+| `ExistingFacts` | Yes      | Currently recalled facts for merge/upsert decisions. |
+
 ## 7) Maintenance and Directory Summary
 
 Run maintenance:
@@ -212,6 +454,44 @@ for _, s := range summaries {
     fmt.Println(s.Abstract)
 }
 ```
+
+### 7.1 Management API parameter reference
+
+#### `RunMaintenance(ctx, project, sessionID) error`
+
+| Parameter   | Required | Description               |
+| ----------- | -------- | ------------------------- |
+| `ctx`       | Yes      | Request context.          |
+| `project`   | Yes      | Tenant/project namespace. |
+| `sessionID` | Yes      | Target session.           |
+
+Behavior summary:
+
+1. Compacts runtime context when needed.
+2. Archives old raw shards.
+3. Sweeps expired L1/L2 facts.
+4. Refreshes `.abstract` and `.overview` files.
+5. Updates metadata timestamps.
+
+#### `ListDirWithAbstract(ctx, project, sessionID, path, depth, limit) ([]DirectorySummary, error)`
+
+| Parameter   | Required | Default                 | Description                                                 |
+| ----------- | -------- | ----------------------- | ----------------------------------------------------------- |
+| `ctx`       | Yes      | None                    | Request context.                                            |
+| `project`   | Yes      | None                    | Tenant/project namespace.                                   |
+| `sessionID` | Yes      | None                    | Target session.                                             |
+| `path`      | No       | `"/memory/{sessionID}"` | Root listing path. Empty string falls back to session root. |
+| `depth`     | No       | `8`                     | Directory traversal depth.                                  |
+| `limit`     | No       | `200`                   | Max entries returned by underlying storage list call.       |
+
+#### `DirectorySummary`
+
+| Field         | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| `Path`        | Directory path.                                                      |
+| `Abstract`    | Directory abstract content (`.abstract`), auto-generated if missing. |
+| `UpdatedAt`   | Last update timestamp of `.abstract` when available.                 |
+| `HasOverview` | Whether `.overview` exists for the directory.                        |
 
 ## 8) Data Layout (Canonical)
 
