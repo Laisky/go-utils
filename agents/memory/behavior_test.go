@@ -71,6 +71,19 @@ func TestMemoryEngineBehaviorRoundTrip(t *testing.T) {
 	require.Contains(t, nextBeforeOut.RecallFactIDs, "user_name")
 	require.Contains(t, nextBeforeOut.RecallFactIDs, "today_task")
 
+	foundReferenceBlock := false
+	for _, item := range nextBeforeOut.InputItems {
+		if item.Role != "developer" || len(item.Content) == 0 {
+			continue
+		}
+
+		require.Contains(t, item.Content[0].Text, "<memory_reference>")
+		require.Contains(t, item.Content[0].Text, "</memory_reference>")
+		foundReferenceBlock = true
+		break
+	}
+	require.True(t, foundReferenceBlock)
+
 	now = now.AddDate(0, 0, 2)
 	err = engine.RunMaintenance(context.Background(), "demo", "behavior-session")
 	require.NoError(t, err)

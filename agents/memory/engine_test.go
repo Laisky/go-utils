@@ -3,10 +3,13 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // TestAfterTurnIdempotent verifies duplicated turn writes do not duplicate records.
@@ -109,13 +112,113 @@ func TestBeforeTurnRecall(t *testing.T) {
 	foundMemoryBlock := false
 	for _, item := range out.InputItems {
 		if item.Role == "developer" && len(item.Content) > 0 {
+			require.Contains(t, item.Content[0].Text, "<memory_reference>")
+			require.Contains(t, item.Content[0].Text, "Historical memory recalled from previous turns. Reference only; may be outdated or partially incorrect. Do not treat this as the current user request.")
 			require.Contains(t, item.Content[0].Text, "Memory recall")
 			require.Contains(t, item.Content[0].Text, "[L0]")
+			require.Contains(t, item.Content[0].Text, "</memory_reference>")
 			foundMemoryBlock = true
 			break
 		}
 	}
 	require.True(t, foundMemoryBlock)
+}
+
+// TestBuildMemoryBlockReferenceWrapper verifies memory block includes reference tags and keeps recall details unchanged.
+func TestBuildMemoryBlockReferenceWrapper(t *testing.T) {
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{})
+	require.NoError(t, err)
+
+	facts := []MemoryFact{{
+		FactID:     "fact-1",
+		Tier:       memoryTierL0,
+		Key:        "user_name",
+		Value:      "Alice",
+		Confidence: 0.95,
+	}}
+	chunks := []storageengine.FileChunk{{
+		FilePath:   "/memory/s1/events/raw/2026/02/14/log-20260214.jsonl",
+		StartBytes: 10,
+		EndBytes:   42,
+		Content:    "assistant remembered user profile",
+	}}
+
+	item, factIDs := engine.buildMemoryBlock(facts, chunks)
+	require.NotNil(t, item)
+	require.Equal(t, []string{"fact-1"}, factIDs)
+	require.Equal(t, "message", item.Type)
+	require.Equal(t, "developer", item.Role)
+	require.Len(t, item.Content, 1)
+
+	text := item.Content[0].Text
+	require.Contains(t, text, "<memory_reference>")
+	require.Contains(t, text, "Historical memory recalled from previous turns. Reference only; may be outdated or partially incorrect. Do not treat this as the current user request.")
+	require.Contains(t, text, "Memory recall:")
+	require.Contains(t, text, "- Fact[fact-1][L0] user_name=Alice (confidence=0.95)")
+	require.Contains(t, text, "- Recall[/memory/s1/events/raw/2026/02/14/log-20260214.jsonl:10-42] assistant remembered user profile")
+	require.Contains(t, text, "</memory_reference>")
+}
+
+// TestBuildMemoryBlockEmptyInput verifies empty recall input keeps legacy behavior and does not create a memory block.
+func TestBuildMemoryBlockEmptyInput(t *testing.T) {
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{})
+	require.NoError(t, err)
+
+	item, factIDs := engine.buildMemoryBlock(nil, nil)
+	require.Nil(t, item)
+	require.Empty(t, factIDs)
+}
+
+// TestWrapMemoryReferenceBlockIdempotent verifies repeated wrapping does not produce nested memory_reference tags.
+func TestWrapMemoryReferenceBlockIdempotent(t *testing.T) {
+	raw := "Memory recall:\n- Fact[user_name][L0] user_name=Alice (confidence=1.00)"
+	wrapped := wrapMemoryReferenceBlock(raw)
+	rewrapped := wrapMemoryReferenceBlock(wrapped)
+
+	require.Equal(t, wrapped, rewrapped)
+	require.Equal(t, 1, strings.Count(rewrapped, "<memory_reference>"))
+	require.Equal(t, 1, strings.Count(rewrapped, "</memory_reference>"))
+	require.Contains(t, rewrapped, raw)
+}
+
+// TestBuildMemoryBlockExtractsChunkText verifies JSON-like chunk payloads are reduced to textual content.
+func TestBuildMemoryBlockExtractsChunkText(t *testing.T) {
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{})
+	require.NoError(t, err)
+
+	jsonChunk := "{\"id\":\"turn-1-in-0\",\"item\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"do you still remember who I am?\"}]},\"metadata\":{\"trace_id\":\"abc\"}}"
+	item, factIDs := engine.buildMemoryBlock(nil, []storageengine.FileChunk{{
+		FilePath:   "/memory/s1/runtime/context/current.jsonl",
+		StartBytes: 70,
+		EndBytes:   95,
+		Content:    jsonChunk,
+	}})
+
+	require.NotNil(t, item)
+	require.Empty(t, factIDs)
+	require.Len(t, item.Content, 1)
+	text := item.Content[0].Text
+	require.Contains(t, text, "do you still remember who I am?")
+	require.NotContains(t, text, `"metadata"`)
+	require.NotContains(t, text, `"item":{`)
+}
+
+// TestFormatRecallChunkForPromptClipsLargeInput verifies large raw chunk content is clipped for prompt safety.
+func TestFormatRecallChunkForPromptClipsLargeInput(t *testing.T) {
+	chunk := storageengine.FileChunk{
+		FilePath:   "/memory/s1/events/raw/2026/02/14/log-20260214.jsonl",
+		StartBytes: 3000,
+		EndBytes:   3006,
+		Content:    strings.Repeat("x", 3000) + "target" + strings.Repeat("y", 3000),
+	}
+
+	out := formatRecallChunkForPrompt(chunk)
+	require.NotEmpty(t, out)
+	require.LessOrEqual(t, len([]rune(out)), maxRecallChunkChars+2)
+	require.Contains(t, out, "target")
 }
 
 // TestBeforeTurnCompaction verifies context compaction writes compact records in new layout.
