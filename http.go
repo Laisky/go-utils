@@ -25,6 +25,12 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+var allowedBrowserURLSchemes = map[string]struct{}{
+	"http":   {},
+	"https":  {},
+	"mailto": {},
+}
+
 // CtxKey context key type
 type CtxKey string
 
@@ -457,35 +463,100 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 // Inspired by https://gist.github.com/sevkin/9798d67b2cb9d07cb05f89f14ba682f8?permalink_comment_id=5019685#gistcomment-5019685
 //
 //nolint:lll
-func OpenURLInDefaultBrowser(ctx context.Context, url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start"}
-	case "darwin":
-		cmd = "open"
-	default: // "linux", "freebsd", "openbsd", "netbsd"
-		// Check if running under WSL
-		if isWSL(ctx) {
-			// Use 'cmd.exe /c start' to open the URL in the default Windows browser
-			cmd = "cmd.exe"
-			args = []string{"/c", "start", url}
-		} else {
-			// Use xdg-open on native Linux environments
-			cmd = "xdg-open"
-			args = []string{url}
+func OpenURLInDefaultBrowser(ctx context.Context, rawURL string) error {
+	parsedURL, err := validateOpenBrowserURL(rawURL)
+	if err != nil {
+		scheme := ""
+		hasHost := false
+		if parsedURL != nil {
+			scheme = parsedURL.Scheme
+			hasHost = parsedURL.Host != ""
 		}
+
+		log.Shared.Debug("reject url for default browser",
+			zap.String("scheme", scheme),
+			zap.Bool("has_host", hasHost),
+			zap.Error(err),
+		)
+
+		return errors.Wrap(err, "validate url")
 	}
-	if len(args) > 1 {
-		// args[0] is used for 'start' command argument, to prevent issues with URLs starting with a quote
-		args = append(args[:1], append([]string{""}, args[1:]...)...)
+
+	runningInWSL := false
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		runningInWSL = isWSL(ctx)
 	}
+
+	cmd, args := buildOpenURLCommand(runtime.GOOS, runningInWSL, rawURL)
+	log.Shared.Debug("open url in default browser",
+		zap.String("scheme", parsedURL.Scheme),
+		zap.Bool("has_host", parsedURL.Host != ""),
+		zap.String("command", cmd),
+		zap.Int("args_len", len(args)),
+		zap.Bool("is_wsl", runningInWSL),
+	)
 
 	//nolint:gosec //G204: Subprocess launched with variable
 	return exec.CommandContext(ctx, cmd, args...).Start()
+}
+
+// validateOpenBrowserURL validates URL format and enforces scheme allowlist.
+//
+// Args:
+//   - rawURL: Raw URL string provided by caller.
+//
+// Returns:
+//   - *url.URL: Parsed URL.
+//   - error: Validation error when URL is malformed or has disallowed scheme.
+func validateOpenBrowserURL(rawURL string) (*url.URL, error) {
+	parsedURL, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse url")
+	}
+
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if _, ok := allowedBrowserURLSchemes[scheme]; !ok {
+		return parsedURL, errors.Errorf("unsupported url scheme `%s`", parsedURL.Scheme)
+	}
+
+	if parsedURL.Scheme == "mailto" {
+		if parsedURL.Opaque == "" {
+			return parsedURL, errors.Errorf("mailto url should contain recipient")
+		}
+
+		return parsedURL, nil
+	}
+
+	if parsedURL.Host == "" {
+		return parsedURL, errors.Errorf("url host should not be empty")
+	}
+
+	return parsedURL, nil
+}
+
+// buildOpenURLCommand builds the OS-specific command and arguments to open a URL.
+//
+// Args:
+//   - goos: Target operating system name.
+//   - runningInWSL: Whether current Linux environment is WSL.
+//   - targetURL: Validated URL to open.
+//
+// Returns:
+//   - string: Executable command.
+//   - []string: Command arguments.
+func buildOpenURLCommand(goos string, runningInWSL bool, targetURL string) (string, []string) {
+	switch goos {
+	case "windows":
+		return "cmd", []string{"/c", "start", "", targetURL}
+	case "darwin":
+		return "open", []string{targetURL}
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		if runningInWSL {
+			return "cmd.exe", []string{"/c", "start", "", targetURL}
+		}
+
+		return "xdg-open", []string{targetURL}
+	}
 }
 
 // isWSL checks if the Go program is running inside Windows Subsystem for Linux

@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -286,29 +284,118 @@ func TestJaegerTracingID(t *testing.T) {
 	}
 }
 
-func TestOpenURLInDefaultBrowser(t *testing.T) {
+func TestValidateOpenBrowserURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "valid http", input: "http://example.com/path", wantErr: false},
+		{name: "valid https", input: "https://example.com/path?q=1", wantErr: false},
+		{name: "valid mailto", input: "mailto:test@example.com", wantErr: false},
+		{name: "invalid javascript scheme", input: "javascript:alert(1)", wantErr: true},
+		{name: "invalid file scheme", input: "file:///etc/passwd", wantErr: true},
+		{name: "invalid malformed url", input: "http://[::1", wantErr: true},
+		{name: "invalid missing host for https", input: "https:///path", wantErr: true},
+		{name: "invalid mailto without recipient", input: "mailto:", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := validateOpenBrowserURL(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+		})
+	}
+}
+
+func TestBuildOpenURLCommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		goos     string
+		isWSL    bool
+		url      string
+		wantCmd  string
+		wantArgs []string
+	}{
+		{
+			name:     "windows uses cmd start with title placeholder",
+			goos:     "windows",
+			isWSL:    false,
+			url:      "https://example.com",
+			wantCmd:  "cmd",
+			wantArgs: []string{"/c", "start", "", "https://example.com"},
+		},
+		{
+			name:     "darwin uses open with url arg",
+			goos:     "darwin",
+			isWSL:    false,
+			url:      "https://example.com",
+			wantCmd:  "open",
+			wantArgs: []string{"https://example.com"},
+		},
+		{
+			name:     "linux uses xdg-open",
+			goos:     "linux",
+			isWSL:    false,
+			url:      "https://example.com",
+			wantCmd:  "xdg-open",
+			wantArgs: []string{"https://example.com"},
+		},
+		{
+			name:     "wsl uses cmd.exe start with title placeholder",
+			goos:     "linux",
+			isWSL:    true,
+			url:      "https://example.com",
+			wantCmd:  "cmd.exe",
+			wantArgs: []string{"/c", "start", "", "https://example.com"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd, args := buildOpenURLCommand(tt.goos, tt.isWSL, tt.url)
+			require.Equal(t, tt.wantCmd, cmd)
+			require.Equal(t, tt.wantArgs, args)
+		})
+	}
+}
+
+func TestOpenURLInDefaultBrowserRejectsInvalidSchemes(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Skip test if the required command is not available based on the OS
-	// This mirrors the logic in OpenURLInDefaultBrowser function
-	switch runtime.GOOS {
-	case "windows":
-		if _, err := exec.LookPath("cmd"); err != nil {
-			t.Skip("cmd not found in PATH, skipping browser test")
-		}
-	case "darwin":
-		if _, err := exec.LookPath("open"); err != nil {
-			t.Skip("open not found in PATH, skipping browser test")
-		}
-	default: // Linux and other Unix-like systems
-		if _, err := exec.LookPath("xdg-open"); err != nil {
-			t.Skip("xdg-open not found in PATH, skipping browser test")
-		}
-	}
+	err := OpenURLInDefaultBrowser(ctx, "javascript:alert(1)")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported url scheme")
+}
 
-	err := OpenURLInDefaultBrowser(ctx, "https://www.example.com")
-	require.NoError(t, err)
+func TestOpenURLInDefaultBrowserRejectsMalformedURL(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := OpenURLInDefaultBrowser(ctx, "http://[::1")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parse url")
 }
 
 func TestNewReusableRequest(t *testing.T) {

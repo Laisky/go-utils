@@ -510,7 +510,7 @@ Per session canonical layout:
   /memory_tiers/
     /L0/YYYY/MM/facts-YYYYMM.jsonl
     /L1/YYYY/MM/facts-YYYYMMDD.jsonl
-    /L2/YYYY/WW/facts-YYYY-Www.jsonl
+        /L2/YYYY/WW/facts-YYYY-WWW.jsonl  # actual pattern: facts-{ISOYear}-W{ISOWeek(2-digit)}.jsonl
   /runtime/context/
     current.jsonl
     latest_compact_pointer.json
@@ -543,9 +543,20 @@ Compatibility behavior:
 
 1. Load runtime context and recall facts
 2. Search related chunks via storage `Search`
+    - Search retrieval is best-effort; search errors are ignored and request assembly continues.
 3. Build memory block + recent context + current input
 4. Estimate token load
 5. Compact runtime context if threshold exceeded
+
+### 10.1.1 Local storage backend operational limits
+
+From `agents/memory/storage/local` implementation:
+
+1. `List` depth defaults to `8` and is capped at `32`.
+2. `List` limit defaults to `1000` and is capped at `5000`.
+3. `Search` limit defaults to `5` and is capped at `50`.
+4. `Search` skips files larger than `4 MiB`.
+5. Symlinks are skipped in traversal/search to avoid root escape and loop recursion.
 
 ### 10.2 `AfterTurn`
 
