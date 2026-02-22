@@ -187,6 +187,120 @@ func TestRequestJSONWithClientLargeErrorBodyIsTruncated(t *testing.T) {
 	require.Less(t, len(err.Error()), 8300)
 }
 
+func TestRequestJSONWithClientLargeSuccessBodyWithinLimit(t *testing.T) {
+	t.Parallel()
+
+	payloadSize := int(maxRequestJSONSuccessBodyBytes) - 1024
+	payload := strings.Repeat("a", payloadSize)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"payload":%q}`, payload)
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	require.NoError(t, err)
+
+	var resp struct {
+		Payload string `json:"payload"`
+	}
+
+	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
+	require.NoError(t, err)
+	require.Equal(t, payload, resp.Payload)
+}
+
+func TestRequestJSONWithClientLargeSuccessBodyExceedsLimit(t *testing.T) {
+	t.Parallel()
+
+	payloadSize := int(maxRequestJSONSuccessBodyBytes) + 1024
+	payload := strings.Repeat("b", payloadSize)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"payload":%q}`, payload)
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	require.NoError(t, err)
+
+	var resp struct {
+		Payload string `json:"payload"`
+	}
+
+	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "response body too large")
+}
+
+func TestRequestJSONWithClientCustomMaxResponseBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	payload := strings.Repeat("z", 2048)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"payload":%q}`, payload)
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	require.NoError(t, err)
+
+	var resp struct {
+		Payload string `json:"payload"`
+	}
+
+	err = RequestJSONWithClient(
+		httpClient,
+		http.MethodGet,
+		server.URL,
+		nil,
+		&resp,
+		WithRequestJSONMaxResponseBodyBytes(1024),
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "response body too large")
+
+	err = RequestJSONWithClient(
+		httpClient,
+		http.MethodGet,
+		server.URL,
+		nil,
+		&resp,
+		WithRequestJSONMaxResponseBodyBytes(10*1024),
+	)
+	require.NoError(t, err)
+	require.Equal(t, payload, resp.Payload)
+}
+
+func TestRequestJSONWithClientInvalidOption(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	require.NoError(t, err)
+
+	var resp map[string]any
+	err = RequestJSONWithClient(
+		httpClient,
+		http.MethodGet,
+		server.URL,
+		nil,
+		&resp,
+		WithRequestJSONMaxResponseBodyBytes(0),
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max response body bytes should greater than 0")
+}
+
 func TestCheckResp(t *testing.T) {
 	var (
 		resp *http.Response
@@ -215,6 +329,33 @@ func TestCheckRespLargeErrorBodyIsTruncated(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "got http body (truncated):")
 	require.Less(t, len(err.Error()), 9000)
+}
+
+func TestCheckRespWithCustomMaxErrorBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: 500,
+		Body:       io.NopCloser(bytes.NewBufferString(strings.Repeat("y", 2048))),
+	}
+
+	err := CheckResp(resp, WithCheckRespMaxErrorBodyBytes(1024))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "got http body (truncated):")
+	require.Less(t, len(err.Error()), 1300)
+}
+
+func TestCheckRespInvalidOption(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"ok": true}`)),
+	}
+
+	err := CheckResp(resp, WithCheckRespMaxErrorBodyBytes(0))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max check response error body bytes should greater than 0")
 }
 
 func TestJaegerTracingID(t *testing.T) {

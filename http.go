@@ -42,6 +42,7 @@ func (k CtxKey) String() string {
 const (
 	defaultHTTPClientOptTimeout = 30 * time.Second
 	defaultHTTPClientOptMaxConn = 20
+	maxRequestJSONSuccessBodyBytes = 8 * 1024 * 1024
 	maxRequestJSONErrorBodyBytes = 8 * 1024
 
 	// HTTPHeaderHost HTTP header name
@@ -297,9 +298,103 @@ type RequestData struct {
 	Data    any
 }
 
+type requestJSONOption struct {
+	maxRespBodyBytes int64
+}
+
+type checkRespOption struct {
+	maxErrBodyBytes int64
+}
+
+// RequestJSONOptFunc customizes RequestJSON and RequestJSONWithClient behavior.
+type RequestJSONOptFunc func(*requestJSONOption) error
+
+// WithRequestJSONMaxResponseBodyBytes sets the max bytes allowed for successful JSON responses.
+//
+// Args:
+//   - maxBytes: Maximum allowed response bytes for HTTP 2xx JSON bodies.
+//
+// Returns:
+//   - RequestJSONOptFunc: Option function.
+func WithRequestJSONMaxResponseBodyBytes(maxBytes int64) RequestJSONOptFunc {
+	return func(opt *requestJSONOption) error {
+		if maxBytes <= 0 {
+			return errors.Errorf("max response body bytes should greater than 0")
+		}
+
+		opt.maxRespBodyBytes = maxBytes
+		return nil
+	}
+}
+
+// newRequestJSONOption builds request JSON options from variadic opt funcs.
+//
+// Args:
+//   - opts: Option functions.
+//
+// Returns:
+//   - *requestJSONOption: Finalized option values.
+//   - error: Option validation errors.
+func newRequestJSONOption(opts ...RequestJSONOptFunc) (*requestJSONOption, error) {
+	opt := &requestJSONOption{
+		maxRespBodyBytes: maxRequestJSONSuccessBodyBytes,
+	}
+
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return nil, errors.Wrap(err, "set request option")
+		}
+	}
+
+	return opt, nil
+}
+
+// CheckRespOptFunc customizes CheckResp behavior.
+type CheckRespOptFunc func(*checkRespOption) error
+
+// WithCheckRespMaxErrorBodyBytes sets the max bytes captured from non-2xx response bodies.
+//
+// Args:
+//   - maxBytes: Maximum bytes from error response body.
+//
+// Returns:
+//   - CheckRespOptFunc: Option function.
+func WithCheckRespMaxErrorBodyBytes(maxBytes int64) CheckRespOptFunc {
+	return func(opt *checkRespOption) error {
+		if maxBytes <= 0 {
+			return errors.Errorf("max check response error body bytes should greater than 0")
+		}
+
+		opt.maxErrBodyBytes = maxBytes
+		return nil
+	}
+}
+
+// newCheckRespOption builds check response options from variadic opt funcs.
+//
+// Args:
+//   - opts: Option functions.
+//
+// Returns:
+//   - *checkRespOption: Finalized option values.
+//   - error: Option validation errors.
+func newCheckRespOption(opts ...CheckRespOptFunc) (*checkRespOption, error) {
+	opt := &checkRespOption{
+		maxErrBodyBytes: maxRequestJSONErrorBodyBytes,
+	}
+
+	for _, optf := range opts {
+		if err := optf(opt); err != nil {
+			return nil, errors.Wrap(err, "set check response option")
+		}
+	}
+
+	return opt, nil
+}
+
 // RequestJSON request JSON and return JSON by default client
-func RequestJSON(method, url string, request *RequestData, resp any) (err error) {
-	return RequestJSONWithClient(internalHttpCli, method, url, request, resp)
+func RequestJSON(method, url string, request *RequestData, resp any, opts ...RequestJSONOptFunc) (err error) {
+	return RequestJSONWithClient(internalHttpCli, method, url, request, resp, opts...)
 }
 
 // RequestJSONWithClient request JSON and return JSON with specific client
@@ -308,9 +403,15 @@ func RequestJSONWithClient(httpClient *http.Client,
 	url string,
 	request *RequestData,
 	resp any,
+	opts ...RequestJSONOptFunc,
 ) (err error) {
 	if httpClient == nil {
 		httpClient = internalHttpCli
+	}
+
+	requestOpt, err := newRequestJSONOption(opts...)
+	if err != nil {
+		return errors.Wrap(err, "new request options")
 	}
 
 	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
@@ -370,8 +471,40 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.New(string(respBytes[:]))
 	}
 
-	if err = json.NewDecoder(r.Body).Decode(resp); err != nil {
+	if err = decodeJSONBodyWithLimit(r.Body, requestOpt.maxRespBodyBytes, resp); err != nil {
+		log.Shared.Debug("unmarshal response failed",
+			zap.Int("status_code", r.StatusCode),
+			zap.Int64("max_body_bytes", requestOpt.maxRespBodyBytes),
+			zap.Error(err),
+		)
+
 		return errors.Wrapf(err, "unmarshal response")
+	}
+
+	return nil
+}
+
+// decodeJSONBodyWithLimit decodes one JSON value from body with an upper memory bound.
+//
+// Args:
+//   - body: HTTP response body reader.
+//   - maxBytes: Maximum allowed body size.
+//   - resp: Destination object for decoded JSON.
+//
+// Returns:
+//   - error: Decode error or body-too-large error.
+func decodeJSONBodyWithLimit(body io.Reader, maxBytes int64, resp any) error {
+	respB, truncated, err := readHTTPBodyWithLimit(body, maxBytes)
+	if err != nil {
+		return errors.Wrap(err, "read response body")
+	}
+
+	if truncated {
+		return errors.Errorf("response body too large, exceeds %d bytes", maxBytes)
+	}
+
+	if err = json.NewDecoder(bytes.NewReader(respB)).Decode(resp); err != nil {
+		return errors.Wrap(err, "decode response json")
 	}
 
 	return nil
@@ -400,11 +533,16 @@ func readHTTPBodyWithLimit(body io.Reader, maxBytes int64) ([]byte, bool, error)
 	return respB, false, nil
 }
 
-// CheckResp check HTTP response's status code and return the error with body message
-func CheckResp(resp *http.Response) error {
+// CheckResp checks HTTP response status and returns body context when status is non-2xx.
+func CheckResp(resp *http.Response, opts ...CheckRespOptFunc) error {
+	opt, err := newCheckRespOption(opts...)
+	if err != nil {
+		return errors.Wrap(err, "new check response options")
+	}
+
 	c := chaining.Flow(
 		checkRespStatus,
-		checkRespErr,
+		checkRespErr(opt.maxErrBodyBytes),
 	)(resp, nil)
 	return c.GetError()
 }
@@ -428,7 +566,8 @@ func checkRespStatus(c *chaining.Chain) (r any, err error) {
 	return resp, nil
 }
 
-func checkRespErr(c *chaining.Chain) (any, error) {
+func checkRespErr(maxErrBodyBytes int64) func(c *chaining.Chain) (any, error) {
+	return func(c *chaining.Chain) (any, error) {
 	upErr := c.GetError()
 	if upErr == nil {
 		return c.GetVal(), nil
@@ -440,14 +579,9 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	respB, err := io.ReadAll(io.LimitReader(resp.Body, maxRequestJSONErrorBodyBytes+1))
+	respB, truncated, err := readHTTPBodyWithLimit(resp.Body, maxErrBodyBytes)
 	if err != nil {
 		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
-	}
-
-	truncated := len(respB) > maxRequestJSONErrorBodyBytes
-	if truncated {
-		respB = respB[:maxRequestJSONErrorBodyBytes]
 	}
 
 	suffix := ""
@@ -456,6 +590,7 @@ func checkRespErr(c *chaining.Chain) (any, error) {
 	}
 
 	return resp, errors.Wrapf(upErr, "got http body%s: %v", suffix, string(respB))
+	}
 }
 
 // OpenURLInDefaultBrowser opens the specified URL in the default browser of the user.
