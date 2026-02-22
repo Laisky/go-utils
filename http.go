@@ -40,10 +40,10 @@ func (k CtxKey) String() string {
 }
 
 const (
-	defaultHTTPClientOptTimeout = 30 * time.Second
-	defaultHTTPClientOptMaxConn = 20
+	defaultHTTPClientOptTimeout    = 30 * time.Second
+	defaultHTTPClientOptMaxConn    = 20
 	maxRequestJSONSuccessBodyBytes = 8 * 1024 * 1024
-	maxRequestJSONErrorBodyBytes = 8 * 1024
+	maxRequestJSONErrorBodyBytes   = 8 * 1024
 
 	// HTTPHeaderHost HTTP header name
 	HTTPHeaderHost = "Host"
@@ -568,28 +568,28 @@ func checkRespStatus(c *chaining.Chain) (r any, err error) {
 
 func checkRespErr(maxErrBodyBytes int64) func(c *chaining.Chain) (any, error) {
 	return func(c *chaining.Chain) (any, error) {
-	upErr := c.GetError()
-	if upErr == nil {
-		return c.GetVal(), nil
-	}
+		upErr := c.GetError()
+		if upErr == nil {
+			return c.GetVal(), nil
+		}
 
-	resp, ok := c.GetVal().(*http.Response)
-	if !ok {
-		return nil, errors.Join(upErr, errors.Errorf("got invalid response type `%T`", c.GetVal()))
-	}
+		resp, ok := c.GetVal().(*http.Response)
+		if !ok {
+			return nil, errors.Join(upErr, errors.Errorf("got invalid response type `%T`", c.GetVal()))
+		}
 
-	defer func() { _ = resp.Body.Close() }()
-	respB, truncated, err := readHTTPBodyWithLimit(resp.Body, maxErrBodyBytes)
-	if err != nil {
-		return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
-	}
+		defer func() { _ = resp.Body.Close() }()
+		respB, truncated, err := readHTTPBodyWithLimit(resp.Body, maxErrBodyBytes)
+		if err != nil {
+			return resp, errors.Wrapf(upErr, "read body got error: %v", err.Error())
+		}
 
-	suffix := ""
-	if truncated {
-		suffix = " (truncated)"
-	}
+		suffix := ""
+		if truncated {
+			suffix = " (truncated)"
+		}
 
-	return resp, errors.Wrapf(upErr, "got http body%s: %v", suffix, string(respB))
+		return resp, errors.Wrapf(upErr, "got http body%s: %v", suffix, string(respB))
 	}
 }
 

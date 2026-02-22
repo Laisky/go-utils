@@ -35,3 +35,13 @@
 **Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
 **Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
 **Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
+
+## 2026-02-22 - Timing Side-Channel in Password Validation
+**Vulnerability:** Input validation failures (empty/too long password) in authentication functions returned immediately without applying the configured artificial delay, allowing attackers to distinguish validation failures from incorrect credentials via timing.
+**Learning:** Security-critical delays must be initiated at the very entry of a function (via defer) to cover all exit paths, including early returns from basic input validation.
+**Prevention:** Always place `defer NewDelay(...).Wait()` at the top of security-sensitive functions.
+
+## 2026-02-22 - Unbounded String Parsing DoS
+**Vulnerability:** `VerifyHashedPassword` accepted `hashedPassword` strings of arbitrary length, which were processed using `strings.Split`. Extremely large inputs could lead to CPU and memory exhaustion.
+**Learning:** Even stored hashes or supposedly formatted strings must be length-limited if they come from untrusted input before any parsing occurs.
+**Prevention:** Enforce strict length limits (e.g., 4096 bytes) on all string inputs before calling resource-intensive parsing functions.
