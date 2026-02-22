@@ -1087,3 +1087,30 @@ func (r *streamReader) Read(p []byte) (n int, err error) {
 	r.pos += n
 	return n, nil
 }
+
+func TestRequestJSONWithClientLargeSuccessBodyIsLimited(t *testing.T) {
+	t.Parallel()
+
+	// Create a server that returns a very large response
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// Return more than 8MB of data
+		// We'll return a large JSON object
+		_, _ = w.Write([]byte("{\"data\":\""))
+		largeData := strings.Repeat("x", 9*1024*1024) // 9MB
+		_, _ = w.Write([]byte(largeData))
+		_, _ = w.Write([]byte("\"}"))
+	}))
+	defer server.Close()
+
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(5 * time.Second))
+	require.NoError(t, err)
+
+	var resp map[string]any
+	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
+	require.Error(t, err)
+	// The error should be related to hitting the limit
+	// Since json.NewDecoder hits EOF earlier than expected
+	require.Contains(t, err.Error(), "unmarshal response")
+}

@@ -35,3 +35,9 @@
 **Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
 **Learning:** Even non-success paths must enforce strict size limits because attackers can intentionally trigger and enlarge error responses.
 **Prevention:** Always read remote error payloads through `io.LimitReader` with a fixed cap and mark messages as truncated when the limit is exceeded.
+
+## 2026-02-22 - Unbounded HTTP Response Body in JSON Decoding
+
+**Vulnerability:** The HTTP client utility for JSON requests decoded the response body without a size limit, potentially leading to memory exhaustion (DoS) if an attacker returns a very large JSON payload.
+**Learning:** High-level utilities that handle network responses must enforce limits even on "success" paths, as response content is untrusted data.
+**Prevention:** Always wrap response bodies with `io.LimitReader` before decoding or reading, even when the status code is 2xx.

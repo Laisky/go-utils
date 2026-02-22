@@ -91,13 +91,13 @@ type Config struct {
 	//   - API base: https://host[/optional-prefix] or https://host[/optional-prefix]/v1
 	//   - host only: host or host:port (HTTPS is assumed automatically)
 	// The engine normalizes all forms to .../v1/responses.
-	LLMAPIBase             string
-	LLMAPIKey              string
-	LLMModel               string
-	LLMTimeout             time.Duration
-	LLMMaxOutputTokens     int
-	HeuristicClient        HeuristicClient
-	TimeNow                func() time.Time
+	LLMAPIBase         string
+	LLMAPIKey          string
+	LLMModel           string
+	LLMTimeout         time.Duration
+	LLMMaxOutputTokens int
+	HeuristicClient    HeuristicClient
+	TimeNow            func() time.Time
 }
 
 // StandardEngine is a storage-backed implementation of Engine.

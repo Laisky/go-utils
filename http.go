@@ -40,9 +40,10 @@ func (k CtxKey) String() string {
 }
 
 const (
-	defaultHTTPClientOptTimeout = 30 * time.Second
-	defaultHTTPClientOptMaxConn = 20
+	defaultHTTPClientOptTimeout  = 30 * time.Second
+	defaultHTTPClientOptMaxConn  = 20
 	maxRequestJSONErrorBodyBytes = 8 * 1024
+	maxRequestJSONBodyBytes      = 8 * 1024 * 1024
 
 	// HTTPHeaderHost HTTP header name
 	HTTPHeaderHost = "Host"
@@ -370,7 +371,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.New(string(respBytes[:]))
 	}
 
-	if err = json.NewDecoder(r.Body).Decode(resp); err != nil {
+	if err = json.NewDecoder(io.LimitReader(r.Body, maxRequestJSONBodyBytes)).Decode(resp); err != nil {
 		return errors.Wrapf(err, "unmarshal response")
 	}
 
