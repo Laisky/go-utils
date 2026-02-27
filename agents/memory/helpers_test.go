@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -112,20 +113,46 @@ func TestCompressionAndSummaries(t *testing.T) {
 func TestValidationHelpers(t *testing.T) {
 	err := validateBeforeTurnInput(BeforeTurnInput{})
 	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	code, ok := ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeProjectRequired, code)
 
 	err = validateBeforeTurnInput(BeforeTurnInput{Project: "demo"})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDRequired, code)
+
 	err = validateBeforeTurnInput(BeforeTurnInput{Project: "demo", SessionID: "s"})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeTurnIDRequired, code)
+
 	err = validateBeforeTurnInput(BeforeTurnInput{Project: "demo", SessionID: "s", TurnID: "t"})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeCurrentInputRequired, code)
 
 	err = validateAfterTurnInput(AfterTurnInput{})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeProjectRequired, code)
+
 	err = validateAfterTurnInput(AfterTurnInput{Project: "demo"})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDRequired, code)
+
 	err = validateAfterTurnInput(AfterTurnInput{Project: "demo", SessionID: "s"})
 	require.Error(t, err)
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeTurnIDRequired, code)
 
 	err = validateBeforeTurnInput(BeforeTurnInput{
 		Project:      "demo",
@@ -134,6 +161,26 @@ func TestValidationHelpers(t *testing.T) {
 		CurrentInput: []ResponseItem{{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "hi"}}}},
 	})
 	require.NoError(t, err)
+}
+
+// TestValidationErrorCodeFromWrappedError verifies validation error code survives engine-level wrapping.
+func TestValidationErrorCodeFromWrappedError(t *testing.T) {
+	engine, err := NewEngine(newMemoryStorageMock(), Config{})
+	require.NoError(t, err)
+
+	_, err = engine.BeforeTurn(context.Background(), BeforeTurnInput{})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	code, ok := ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeProjectRequired, code)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{Project: "demo", SessionID: "s"})
+	require.Error(t, err)
+	require.True(t, IsValidationError(err))
+	code, ok = ValidationErrorCodeFromError(err)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeTurnIDRequired, code)
 }
 
 // TestMarshalJSONLVariants verifies JSONL marshaling across supported and generic record types.

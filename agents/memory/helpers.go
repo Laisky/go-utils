@@ -15,16 +15,16 @@ import (
 // validateBeforeTurnInput validates required fields for BeforeTurn and returns validation error.
 func validateBeforeTurnInput(in BeforeTurnInput) error {
 	if strings.TrimSpace(in.Project) == "" {
-		return errors.Errorf("project is required")
+		return newValidationError(ValidationErrorCodeProjectRequired, "project", "project is required")
 	}
 	if strings.TrimSpace(in.SessionID) == "" {
-		return errors.Errorf("session_id is required")
+		return newValidationError(ValidationErrorCodeSessionIDRequired, "session_id", "session_id is required")
 	}
 	if strings.TrimSpace(in.TurnID) == "" {
-		return errors.Errorf("turn_id is required")
+		return newValidationError(ValidationErrorCodeTurnIDRequired, "turn_id", "turn_id is required")
 	}
 	if len(in.CurrentInput) == 0 {
-		return errors.Errorf("current_input is required")
+		return newValidationError(ValidationErrorCodeCurrentInputRequired, "current_input", "current_input is required")
 	}
 
 	return nil
@@ -33,13 +33,13 @@ func validateBeforeTurnInput(in BeforeTurnInput) error {
 // validateAfterTurnInput validates required fields for AfterTurn and returns validation error.
 func validateAfterTurnInput(in AfterTurnInput) error {
 	if strings.TrimSpace(in.Project) == "" {
-		return errors.Errorf("project is required")
+		return newValidationError(ValidationErrorCodeProjectRequired, "project", "project is required")
 	}
 	if strings.TrimSpace(in.SessionID) == "" {
-		return errors.Errorf("session_id is required")
+		return newValidationError(ValidationErrorCodeSessionIDRequired, "session_id", "session_id is required")
 	}
 	if strings.TrimSpace(in.TurnID) == "" {
-		return errors.Errorf("turn_id is required")
+		return newValidationError(ValidationErrorCodeTurnIDRequired, "turn_id", "turn_id is required")
 	}
 
 	return nil
