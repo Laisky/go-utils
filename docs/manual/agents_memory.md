@@ -375,7 +375,7 @@ Heuristic client activation rules:
 | `SessionID`   | Yes      | Session identifier.                                                     |
 | `UserID`      | No       | Optional user identifier.                                               |
 | `TurnID`      | Yes      | Turn identifier used for idempotent write dedup (`processed_turn_ids`). |
-| `InputItems`  | No       | Input items to persist as turn events.                                  |
+| `InputItems`  | No       | Input items to persist as turn events. When callers pass `BeforeTurnOutput.InputItems`, engine automatically strips generated `<memory_reference>` blocks and leading recalled-history prefix, then persists only turn-delta input. |
 | `OutputItems` | No       | Model output items to persist as turn events.                           |
 
 Idempotency note: if `TurnID` already exists in `processed_turn_ids`, `AfterTurn` returns success without duplicating writes.
@@ -542,6 +542,8 @@ Compatibility behavior:
 ### 10.1 `BeforeTurn`
 
 1. Load runtime context and recall facts
+    - Fact recall is ranked by query relevance + confidence + recency + tier priority.
+    - Dedup identity is `fact_id + key` before applying `RecallFactsLimit`.
 2. Search related chunks via storage `Search`
     - Search retrieval is best-effort; search errors are ignored and request assembly continues.
 3. Build memory block + recent context + current input
@@ -562,10 +564,15 @@ From `agents/memory/storage/local` implementation:
 
 1. Ensure scaffold files (`policy`, summaries, watermarks)
 2. Enforce idempotency by `processed_turn_ids`
-3. Append turn events into raw shard and runtime context
-4. Extract facts and classify into `L0`, `L1`, `L2`
-5. Write facts to tiered shards
-6. Update metadata
+3. Normalize and persist only turn-delta inputs (skip injected memory reference and recalled-history prefix)
+4. Append turn events into raw shard and runtime context
+5. Extract facts and classify into `L0`, `L1`, `L2`
+6. Perform delta upsert filter:
+    - Identity key: `fact_id + key`
+    - Skip writes when latest active fact has same normalized value and same tier
+    - Write when value/tier changes or previous fact has expired
+7. Write remaining fact deltas to tiered shards
+8. Update metadata
 
 ### 10.3 Fact extraction rules
 

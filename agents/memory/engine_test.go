@@ -311,3 +311,178 @@ func TestAfterTurnUsesLegacyMetaFallback(t *testing.T) {
 func nonEmptyLines(body string) []string {
 	return parseJSONLLines(body)
 }
+
+// TestAfterTurnPersistsOnlyTurnDelta verifies prepared BeforeTurn payload does not get re-persisted as duplicate context.
+func TestAfterTurnPersistsOnlyTurnDelta(t *testing.T) {
+	now := time.Date(2026, 2, 18, 0, 0, 0, 0, time.UTC)
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{TimeNow: func() time.Time { return now }})
+	require.NoError(t, err)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:   "demo",
+		SessionID: "delta-session",
+		TurnID:    "t1",
+		InputItems: []ResponseItem{{
+			Type: "message",
+			Role: "user",
+			Content: []ResponseContentPart{{
+				Type: "input_text",
+				Text: "hello",
+			}},
+		}},
+		OutputItems: []ResponseItem{{
+			Type: "message",
+			Role: "assistant",
+			Content: []ResponseContentPart{{
+				Type: "output_text",
+				Text: "hi",
+			}},
+		}},
+	})
+	require.NoError(t, err)
+
+	prepared, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:      "demo",
+		SessionID:    "delta-session",
+		TurnID:       "t2",
+		CurrentInput: []ResponseItem{{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "second question"}}}},
+		MaxInputTok:  120000,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(prepared.InputItems), 2)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:     "demo",
+		SessionID:   "delta-session",
+		TurnID:      "t2",
+		InputItems:  prepared.InputItems,
+		OutputItems: []ResponseItem{{Type: "message", Role: "assistant", Content: []ResponseContentPart{{Type: "output_text", Text: "answer"}}}},
+	})
+	require.NoError(t, err)
+
+	ctxBody, err := mockStorage.Read(context.Background(), "demo", runtimeContextPath("delta-session"), 0, -1)
+	require.NoError(t, err)
+	// Turn-1: input+output (2), turn-2: current input+output (2).
+	require.Len(t, nonEmptyLines(ctxBody), 4)
+}
+
+// TestAfterTurnSkipsMemoryReferencePersistence verifies engine does not persist generated memory_reference blocks.
+func TestAfterTurnSkipsMemoryReferencePersistence(t *testing.T) {
+	now := time.Date(2026, 2, 18, 1, 0, 0, 0, time.UTC)
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{TimeNow: func() time.Time { return now }})
+	require.NoError(t, err)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:   "demo",
+		SessionID: "memory-ref",
+		TurnID:    "t1",
+		InputItems: []ResponseItem{{
+			Type: "message",
+			Role: "user",
+			Content: []ResponseContentPart{{
+				Type: "input_text",
+				Text: "I prefer concise answers.",
+			}},
+		}},
+	})
+	require.NoError(t, err)
+
+	prepared, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:      "demo",
+		SessionID:    "memory-ref",
+		TurnID:       "t2",
+		CurrentInput: []ResponseItem{{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "continue"}}}},
+		MaxInputTok:  120000,
+	})
+	require.NoError(t, err)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:     "demo",
+		SessionID:   "memory-ref",
+		TurnID:      "t2",
+		InputItems:  prepared.InputItems,
+		OutputItems: []ResponseItem{{Type: "message", Role: "assistant", Content: []ResponseContentPart{{Type: "output_text", Text: "ok"}}}},
+	})
+	require.NoError(t, err)
+
+	rawBody, err := mockStorage.Read(context.Background(), "demo", rawLogShardPath("memory-ref", now), 0, -1)
+	require.NoError(t, err)
+	require.NotContains(t, rawBody, "memory_reference")
+}
+
+// TestAfterTurnDeltaFactUpsert verifies unchanged fact values are not appended repeatedly.
+func TestAfterTurnDeltaFactUpsert(t *testing.T) {
+	now := time.Date(2026, 2, 18, 2, 0, 0, 0, time.UTC)
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{TimeNow: func() time.Time { return now }})
+	require.NoError(t, err)
+
+	for idx := 0; idx < 2; idx++ {
+		err = engine.AfterTurn(context.Background(), AfterTurnInput{
+			Project:   "demo",
+			SessionID: "delta-fact",
+			TurnID:    "t" + string(rune('1'+idx)),
+			InputItems: []ResponseItem{{
+				Type: "message",
+				Role: "user",
+				Content: []ResponseContentPart{{
+					Type: "input_text",
+					Text: "My name is Alice.",
+				}},
+			}},
+		})
+		require.NoError(t, err)
+	}
+
+	l0Body, err := mockStorage.Read(context.Background(), "demo", tierFactsShardPath("delta-fact", memoryTierL0, now), 0, -1)
+	require.NoError(t, err)
+	require.Len(t, nonEmptyLines(l0Body), 1)
+}
+
+// TestBeforeTurnRecallPrefersRelevantFacts verifies relevance ranking can beat pure recency under tight recall limits.
+func TestBeforeTurnRecallPrefersRelevantFacts(t *testing.T) {
+	now := time.Date(2026, 2, 18, 3, 0, 0, 0, time.UTC)
+	mockStorage := newMemoryStorageMock()
+	engine, err := NewEngine(mockStorage, Config{
+		RecallFactsLimit: 1,
+		TimeNow:          func() time.Time { return now },
+	})
+	require.NoError(t, err)
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:   "demo",
+		SessionID: "ranked-recall",
+		TurnID:    "t1",
+		InputItems: []ResponseItem{{
+			Type: "message",
+			Role: "user",
+			Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice."}},
+		}},
+	})
+	require.NoError(t, err)
+
+	now = now.Add(2 * time.Hour)
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:   "demo",
+		SessionID: "ranked-recall",
+		TurnID:    "t2",
+		InputItems: []ResponseItem{{
+			Type: "message",
+			Role: "user",
+			Content: []ResponseContentPart{{Type: "input_text", Text: "I prefer long detailed explanations."}},
+		}},
+	})
+	require.NoError(t, err)
+
+	out, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:      "demo",
+		SessionID:    "ranked-recall",
+		TurnID:       "t3",
+		CurrentInput: []ResponseItem{{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "What is my name?"}}}},
+		MaxInputTok:  120000,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"user_name"}, out.RecallFactIDs)
+}

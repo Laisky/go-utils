@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -97,12 +98,13 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		return BeforeTurnOutput{}, errors.Wrap(err, "load context events")
 	}
 
-	facts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID)
+	query := strings.TrimSpace(extractInputText(in.CurrentInput))
+
+	facts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID, query)
 	if err != nil {
 		return BeforeTurnOutput{}, errors.Wrap(err, "load recall facts")
 	}
 
-	query := strings.TrimSpace(extractInputText(in.CurrentInput))
 	var chunks []storageengine.FileChunk
 	if query != "" {
 		chunks, err = engine.storage.Search(ctx, in.Project, query, sessionBasePath(in.SessionID), engine.conf.SearchLimit)
@@ -167,8 +169,12 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 
 	now := engine.conf.TimeNow().UTC()
 	nowRFC3339 := now.Format(time.RFC3339)
+	persistInputItems, err := engine.prepareTurnInputForPersist(ctx, in.Project, in.SessionID, in.InputItems)
+	if err != nil {
+		return errors.Wrap(err, "prepare turn input for persistence")
+	}
 
-	events := buildTurnEvents(in.TurnID, nowRFC3339, in.InputItems, in.OutputItems)
+	events := buildTurnEvents(in.TurnID, nowRFC3339, persistInputItems, in.OutputItems)
 	if len(events) > 0 {
 		if err = engine.appendJSONL(ctx, in.Project, rawLogShardPath(in.SessionID, now), events); err != nil {
 			return errors.Wrap(err, "append raw log events")
@@ -186,25 +192,31 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 		}
 	}
 
-	facts := extractFacts(in.TurnID, nowRFC3339, in.InputItems)
+	existingFacts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID, extractInputText(persistInputItems))
+	if err != nil {
+		existingFacts = nil
+	}
+
+	facts := extractFacts(in.TurnID, nowRFC3339, persistInputItems)
 	if engine.heuristic != nil {
-		existingFacts, loadErr := engine.loadRecallFacts(ctx, in.Project, in.SessionID)
-		if loadErr == nil {
-			heuristicFacts, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
-				TurnID:        in.TurnID,
-				NowRFC3339:    nowRFC3339,
-				InputItems:    in.InputItems,
-				ExistingFacts: existingFacts,
-			})
-			if heuristicErr == nil {
-				facts = mergeFactCandidates(facts, heuristicFacts)
-			}
+		heuristicFacts, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
+			TurnID:        in.TurnID,
+			NowRFC3339:    nowRFC3339,
+			InputItems:    persistInputItems,
+			ExistingFacts: existingFacts,
+		})
+		if heuristicErr == nil {
+			facts = mergeFactCandidates(facts, heuristicFacts)
 		}
 	}
 	if len(facts) > 0 {
 		for idx := range facts {
 			facts[idx] = applyTierPolicy(now, engine.conf, facts[idx])
 			facts[idx].SourceTurnID = in.TurnID
+		}
+		facts = selectDeltaUpsertFacts(now, existingFacts, facts)
+		if len(facts) == 0 {
+			goto write_meta
 		}
 		if err = engine.writeTieredFacts(ctx, in.Project, in.SessionID, now, facts); err != nil {
 			return errors.Wrap(err, "write tiered facts")
@@ -214,6 +226,7 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 		}
 	}
 
+write_meta:
 	meta.Version = 1
 	meta.LatestTurnID = in.TurnID
 	meta.ProcessedTurnIDs = append(meta.ProcessedTurnIDs, in.TurnID)
@@ -227,6 +240,75 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	}
 
 	return nil
+}
+
+// prepareTurnInputForPersist removes recalled context items and keeps only turn delta inputs for persistence.
+//
+// Parameters:
+//   - ctx: Request-scoped context.
+//   - project: Project namespace.
+//   - sessionID: Session identifier.
+//   - inputItems: Input items provided to AfterTurn.
+//
+// Returns:
+//   - Input items reduced to current-turn deltas.
+//   - Error when runtime context lookup fails unexpectedly.
+func (engine *StandardEngine) prepareTurnInputForPersist(
+	ctx context.Context,
+	project, sessionID string,
+	inputItems []ResponseItem,
+) ([]ResponseItem, error) {
+	filtered := make([]ResponseItem, 0, len(inputItems))
+	for _, item := range inputItems {
+		if isMemoryReferenceItem(item) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	contextEvents, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
+	if err != nil {
+		return filtered, nil
+	}
+
+	recentItems := engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
+	if len(recentItems) == 0 || len(filtered) <= len(recentItems) {
+		return filtered, nil
+	}
+
+	isPrefix := true
+	for idx := range recentItems {
+		if !reflect.DeepEqual(filtered[idx], recentItems[idx]) {
+			isPrefix = false
+			break
+		}
+	}
+	if !isPrefix {
+		return filtered, nil
+	}
+
+	return filtered[len(recentItems):], nil
+}
+
+// isMemoryReferenceItem reports whether one response item is engine-injected recall reference.
+//
+// Parameters:
+//   - item: One response item.
+//
+// Returns:
+//   - True when the item is a memory reference block injected by BeforeTurn.
+func isMemoryReferenceItem(item ResponseItem) bool {
+	if item.Role != "developer" || len(item.Content) == 0 {
+		return false
+	}
+
+	for _, part := range item.Content {
+		if strings.Contains(part.Text, "<memory_reference>") && strings.Contains(part.Text, "</memory_reference>") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // mergeFactCandidates merges rule-based and heuristic facts and keeps heuristic facts as preferred candidates.

@@ -64,7 +64,7 @@ func TestLoadRecallFactsFallback(t *testing.T) {
 	err = storage.Write(context.Background(), "demo", legacyFactsPath("s-fallback"), legacyFactBody, files.WriteModeTruncate, 0)
 	require.NoError(t, err)
 
-	facts, err := engine.loadRecallFacts(context.Background(), "demo", "s-fallback")
+	facts, err := engine.loadRecallFacts(context.Background(), "demo", "s-fallback", "")
 	require.NoError(t, err)
 	require.Len(t, facts, 1)
 	require.Equal(t, "a", facts[0].FactID)

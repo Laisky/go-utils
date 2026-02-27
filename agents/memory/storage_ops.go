@@ -104,8 +104,8 @@ func (engine *StandardEngine) loadFactsFromFile(ctx context.Context, project, fi
 	return facts, nil
 }
 
-// loadRecallFacts loads active facts from tiered files and falls back to legacy facts when needed.
-func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sessionID string) ([]MemoryFact, error) {
+// loadRecallFacts loads active facts from tiered files, ranks them for query relevance, and falls back to legacy facts when needed.
+func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sessionID, query string) ([]MemoryFact, error) {
 	now := engine.conf.TimeNow().UTC()
 	facts := make([]MemoryFact, 0, engine.conf.RecallFactsLimit)
 
@@ -127,10 +127,15 @@ func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sess
 		if err != nil {
 			return nil, errors.Wrap(err, "load legacy facts")
 		}
-		facts = append(facts, legacyFacts...)
+		for _, fact := range legacyFacts {
+			if isFactExpired(now, fact) {
+				continue
+			}
+			facts = append(facts, fact)
+		}
 	}
 
-	sortFactsForRecall(facts)
+	facts = rankFactsForRecall(now, facts, query)
 	facts = deduplicateFacts(facts)
 	if len(facts) > engine.conf.RecallFactsLimit {
 		facts = facts[:engine.conf.RecallFactsLimit]
