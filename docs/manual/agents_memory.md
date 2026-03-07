@@ -369,14 +369,14 @@ Heuristic client activation rules:
 
 #### `AfterTurnInput`
 
-| Field         | Required | Description                                                             |
-| ------------- | -------- | ----------------------------------------------------------------------- |
-| `Project`     | Yes      | Tenant/project namespace.                                               |
-| `SessionID`   | Yes      | Session identifier.                                                     |
-| `UserID`      | No       | Optional user identifier.                                               |
-| `TurnID`      | Yes      | Turn identifier used for idempotent write dedup (`processed_turn_ids`). |
+| Field         | Required | Description                                                                                                                                                                                                                         |
+| ------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Project`     | Yes      | Tenant/project namespace.                                                                                                                                                                                                           |
+| `SessionID`   | Yes      | Session identifier.                                                                                                                                                                                                                 |
+| `UserID`      | No       | Optional user identifier.                                                                                                                                                                                                           |
+| `TurnID`      | Yes      | Turn identifier used for idempotent write dedup (`processed_turn_ids`).                                                                                                                                                             |
 | `InputItems`  | No       | Input items to persist as turn events. When callers pass `BeforeTurnOutput.InputItems`, engine automatically strips generated `<memory_reference>` blocks and leading recalled-history prefix, then persists only turn-delta input. |
-| `OutputItems` | No       | Model output items to persist as turn events.                           |
+| `OutputItems` | No       | Model output items to persist as turn events.                                                                                                                                                                                       |
 
 Idempotency note: if `TurnID` already exists in `processed_turn_ids`, `AfterTurn` returns success without duplicating writes.
 
