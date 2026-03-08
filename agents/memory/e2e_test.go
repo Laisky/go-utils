@@ -104,7 +104,7 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 		SessionID: sessionID,
 		UserID:    "e2e-user",
 		TurnID:    "turn-1",
-		CurrentInput: []ResponseItem{{
+		ConversationItems: []ResponseItem{{
 			Type: "message",
 			Role: "user",
 			Content: []ResponseContentPart{{
@@ -112,17 +112,21 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 				Text: "My name is E2EUser and I prefer concise answers. Today I need finish testing",
 			}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, beforeOut.InputItems)
 
 	afterIn := AfterTurnInput{
-		Project:    project,
-		SessionID:  sessionID,
-		UserID:     "e2e-user",
-		TurnID:     "turn-1",
-		InputItems: beforeOut.InputItems,
+		Project:           project,
+		SessionID:         sessionID,
+		UserID:            "e2e-user",
+		TurnID:            "turn-1",
+		ConversationItems: beforeOut.InputItems,
+		CurrentInputStart: len(beforeOut.InputItems) - 1,
+		CurrentInputCount: 1,
 		OutputItems: []ResponseItem{{
 			Type: "message",
 			Role: "assistant",
@@ -144,7 +148,7 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 		SessionID: sessionID,
 		UserID:    "e2e-user",
 		TurnID:    "turn-2",
-		CurrentInput: []ResponseItem{{
+		ConversationItems: []ResponseItem{{
 			Type: "message",
 			Role: "user",
 			Content: []ResponseContentPart{{
@@ -152,7 +156,9 @@ func TestMemorySDKEndToEndWithMCP(t *testing.T) {
 				Text: "What is my preference?",
 			}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, recallOut.InputItems)

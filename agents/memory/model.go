@@ -16,12 +16,23 @@ const (
 )
 
 const (
+	memoryStateActive       = "active"
+	memoryStateConsolidated = "consolidated"
+	memoryStateSuperseded   = "superseded"
+	memoryStateContradicted = "contradicted"
+	memoryStateExpired      = "expired"
+	memoryStateDeleted      = "deleted"
+)
+
+const (
 	defaultRecentContextItems     = 30
 	defaultRecallFactsLimit       = 20
+	defaultInsightRecallLimit     = 5
 	defaultSearchLimit            = 5
 	defaultCompactThreshold       = 0.8
 	defaultL1RetentionDays        = 1
 	defaultL2RetentionDays        = 7
+	defaultConsolidationMinEvents = 6
 	defaultCompactionMinAge       = 24 * time.Hour
 	defaultSummaryRefreshInterval = time.Hour
 	defaultMaxProcessedTurns      = 1024
@@ -57,6 +68,8 @@ type LogEvent struct {
 	TS      string       `json:"ts"`
 	Type    string       `json:"type"`
 	TurnID  string       `json:"turn_id,omitempty"`
+	UserID  string       `json:"user_id,omitempty"`
+	ItemID  string       `json:"item_id,omitempty"`
 	Item    ResponseItem `json:"item,omitempty"`
 	Summary string       `json:"summary,omitempty"`
 }
@@ -71,8 +84,57 @@ type MemoryFact struct {
 	Value        string  `json:"value"`
 	Confidence   float64 `json:"confidence"`
 	Tier         string  `json:"tier,omitempty"`
+	State        string  `json:"state,omitempty"`
 	ExpiresAt    string  `json:"expires_at,omitempty"`
 	SourceTurnID string  `json:"source_turn_id,omitempty"`
+	SourceUserID string  `json:"source_user_id,omitempty"`
+	SupersededBy string  `json:"superseded_by,omitempty"`
+	DeletedAt    string  `json:"deleted_at,omitempty"`
+}
+
+// ActiveFactsIndex stores the exact current fact state for one session.
+type ActiveFactsIndex struct {
+	UpdatedAt string                `json:"updated_at"`
+	Facts     map[string]MemoryFact `json:"facts"`
+}
+
+// InsightRecord stores one offline-consolidated insight derived from events and fact history.
+type InsightRecord struct {
+	ID             string   `json:"id"`
+	TS             string   `json:"ts"`
+	Type           string   `json:"type"`
+	Status         string   `json:"status,omitempty"`
+	Summary        string   `json:"summary"`
+	Confidence     float64  `json:"confidence"`
+	RelatedFactIDs []string `json:"related_fact_ids,omitempty"`
+	RelatedTurnIDs []string `json:"related_turn_ids,omitempty"`
+}
+
+// MemoryWatermarks stores hot-path and maintenance progress markers.
+type MemoryWatermarks struct {
+	UpdatedAt             string `json:"updated_at"`
+	LastRawEventID        string `json:"last_raw_event_id,omitempty"`
+	LastRawEventTS        string `json:"last_raw_event_ts,omitempty"`
+	LastProcessedTurnID   string `json:"last_processed_turn_id,omitempty"`
+	LastConsolidatedAt    string `json:"last_consolidated_at,omitempty"`
+	LastConsolidatedEvent string `json:"last_consolidated_event_id,omitempty"`
+	RawEventCount         int    `json:"raw_event_count,omitempty"`
+	RuntimeContextCount   int    `json:"runtime_context_count,omitempty"`
+	ActiveFactCount       int    `json:"active_fact_count,omitempty"`
+	InsightCount          int    `json:"insight_count,omitempty"`
+}
+
+// MemoryMetrics stores counters used for V2 observability and quantitative tests.
+type MemoryMetrics struct {
+	UpdatedAt                 string `json:"updated_at"`
+	CompactionCount           int    `json:"compaction_count,omitempty"`
+	RecallCount               int    `json:"recall_count,omitempty"`
+	InsightRecallCount        int    `json:"insight_recall_count,omitempty"`
+	DedupeSkipCount           int    `json:"dedupe_skip_count,omitempty"`
+	PromptDuplicateDropCount  int    `json:"prompt_duplicate_drop_count,omitempty"`
+	PersistedHistoryTrimCount int    `json:"persisted_history_trim_count,omitempty"`
+	ConsolidationRunCount     int    `json:"consolidation_run_count,omitempty"`
+	ConsolidationLagEvents    int    `json:"consolidation_lag_events,omitempty"`
 }
 
 // MemoryPolicy stores persisted retention and maintenance policy.

@@ -96,6 +96,8 @@ func defaultQuantitativeGates() []quantitativeGate {
 		{Name: "compaction_guard_score", Direction: ">=", TargetValue: 1.00},
 		{Name: "exact_dedup_score", Direction: ">=", TargetValue: 0.95},
 		{Name: "duplicate_growth_ratio", Direction: "<=", TargetValue: 1.05},
+		{Name: "prompt_duplicate_rate", Direction: "<=", TargetValue: 0.00},
+		{Name: "persisted_history_echo_rate", Direction: "<=", TargetValue: 0.00},
 	}
 }
 
@@ -111,6 +113,8 @@ func defaultQuantitativeImprovementRules() []quantitativeImprovementRule {
 		{Name: "compaction_guard_score", Direction: ">="},
 		{Name: "exact_dedup_score", Direction: ">="},
 		{Name: "duplicate_growth_ratio", Direction: "<="},
+		{Name: "prompt_duplicate_rate", Direction: "<="},
+		{Name: "persisted_history_echo_rate", Direction: "<="},
 	}
 }
 
@@ -182,10 +186,166 @@ func runQuantitativeEvaluationSuite(t *testing.T, factory evalEngineFactory) qua
 	for key, value := range evaluateDuplicateGrowthScenario(t, factory) {
 		result.Set(key, value)
 	}
+	for key, value := range evaluateCallerHistoryReconciliationScenario(t, factory) {
+		result.Set(key, value)
+	}
+	for key, value := range evaluateHistoryEquivalenceScenario(t, factory) {
+		result.Set(key, value)
+	}
 	result.Set("session_isolation_leak_rate", evaluateSessionIsolationScenario(t, factory))
 	result.Set("compaction_guard_score", evaluateCompactionScenario(t, factory))
 
 	return result
+}
+
+// evaluateCallerHistoryReconciliationScenario measures duplicate-free prompt assembly and persistence trimming.
+func evaluateCallerHistoryReconciliationScenario(t *testing.T, factory evalEngineFactory) map[string]float64 {
+	t.Helper()
+
+	clock := newEvalClock(time.Date(2026, 3, 8, 11, 30, 0, 0, time.UTC))
+	storage := newMemoryStorageMock()
+	engine, err := factory(storage, Config{TimeNow: clock.Now})
+	require.NoError(t, err)
+
+	historyInput := ResponseItem{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice. I prefer concise answers."}}}
+	historyOutput := ResponseItem{Type: "message", Role: "assistant", Content: []ResponseContentPart{{Type: "output_text", Text: "Stored."}}}
+	currentInput := ResponseItem{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "What is my preference?"}}}
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:     "demo",
+		SessionID:   "eval-history-reconcile",
+		TurnID:      "turn-1",
+		InputItems:  []ResponseItem{historyInput},
+		OutputItems: []ResponseItem{historyOutput},
+	})
+	require.NoError(t, err)
+
+	prepared, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:           "demo",
+		SessionID:         "eval-history-reconcile",
+		TurnID:            "turn-2",
+		ConversationItems: []ResponseItem{historyInput, historyOutput, currentInput},
+		CurrentInputStart: 2,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
+	})
+	require.NoError(t, err)
+
+	duplicateCount := 0
+	seen := make(map[string]struct{}, len(prepared.InputItems))
+	for _, item := range prepared.InputItems {
+		if isMemoryReferenceItem(item) {
+			continue
+		}
+		identity := responseItemIdentity(item)
+		if _, exists := seen[identity]; exists {
+			duplicateCount++
+			continue
+		}
+		seen[identity] = struct{}{}
+	}
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:           "demo",
+		SessionID:         "eval-history-reconcile",
+		TurnID:            "turn-2",
+		ConversationItems: []ResponseItem{historyInput, historyOutput, currentInput},
+		CurrentInputStart: 2,
+		CurrentInputCount: 1,
+		OutputItems: []ResponseItem{{
+			Type:    "message",
+			Role:    "assistant",
+			Content: []ResponseContentPart{{Type: "output_text", Text: "You prefer concise answers."}},
+		}},
+	})
+	require.NoError(t, err)
+
+	ctxBody, err := storage.Read(context.Background(), "demo", runtimeContextPath("eval-history-reconcile"), 0, -1)
+	require.NoError(t, err)
+	persistedHistoryEchoRate := 0.0
+	if len(nonEmptyLines(ctxBody)) != 4 {
+		persistedHistoryEchoRate = 1.0
+	}
+
+	promptDuplicateRate := 0.0
+	preparedCount := max(1, len(prepared.InputItems))
+	if duplicateCount > 0 {
+		promptDuplicateRate = float64(duplicateCount) / float64(preparedCount)
+	}
+
+	return map[string]float64{
+		"prompt_duplicate_rate":       promptDuplicateRate,
+		"persisted_history_echo_rate": persistedHistoryEchoRate,
+	}
+}
+
+// evaluateHistoryEquivalenceScenario measures semantic parity between latest-only and full-history requests.
+func evaluateHistoryEquivalenceScenario(t *testing.T, factory evalEngineFactory) map[string]float64 {
+	t.Helper()
+
+	clock := newEvalClock(time.Date(2026, 3, 8, 11, 45, 0, 0, time.UTC))
+	storage := newMemoryStorageMock()
+	engine, err := factory(storage, Config{TimeNow: clock.Now})
+	require.NoError(t, err)
+
+	historyInput := ResponseItem{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice. I prefer concise answers."}}}
+	historyOutput := ResponseItem{Type: "message", Role: "assistant", Content: []ResponseContentPart{{Type: "output_text", Text: "Stored."}}}
+
+	err = engine.AfterTurn(context.Background(), AfterTurnInput{
+		Project:     "demo",
+		SessionID:   "eval-history-equivalence",
+		TurnID:      "turn-1",
+		InputItems:  []ResponseItem{historyInput},
+		OutputItems: []ResponseItem{historyOutput},
+	})
+	require.NoError(t, err)
+
+	latestOnly, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:   "demo",
+		SessionID: "eval-history-equivalence",
+		TurnID:    "turn-2-latest",
+		CurrentInput: []ResponseItem{{
+			Type:    "message",
+			Role:    "user",
+			Content: []ResponseContentPart{{Type: "input_text", Text: "What is my preference?"}},
+		}},
+		MaxInputTok: 120000,
+	})
+	require.NoError(t, err)
+
+	fullHistory, err := engine.BeforeTurn(context.Background(), BeforeTurnInput{
+		Project:           "demo",
+		SessionID:         "eval-history-equivalence",
+		TurnID:            "turn-2-full",
+		ConversationItems: []ResponseItem{historyInput, historyOutput, {Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "What is my preference?"}}}},
+		CurrentInputStart: 2,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
+	})
+	require.NoError(t, err)
+
+	latestSet := make(map[string]struct{}, len(latestOnly.RecallFactIDs))
+	for _, factID := range latestOnly.RecallFactIDs {
+		latestSet[factID] = struct{}{}
+	}
+	fullSet := make(map[string]struct{}, len(fullHistory.RecallFactIDs))
+	for _, factID := range fullHistory.RecallFactIDs {
+		fullSet[factID] = struct{}{}
+	}
+
+	score := 1.0
+	if len(latestSet) != len(fullSet) {
+		score = 0.0
+	} else {
+		for factID := range latestSet {
+			if _, exists := fullSet[factID]; !exists {
+				score = 0.0
+				break
+			}
+		}
+	}
+
+	return map[string]float64{"history_equivalence_score": score}
 }
 
 // evaluateRecallAndRetentionScenario measures targeted recall quality and expiry correctness.
@@ -299,13 +459,13 @@ func evaluateIdempotencyScenario(t *testing.T, factory evalEngineFactory) float6
 		SessionID: "eval-idempotent",
 		TurnID:    "turn-1",
 		InputItems: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice."}},
 		}},
 		OutputItems: []ResponseItem{{
-			Type: "message",
-			Role: "assistant",
+			Type:    "message",
+			Role:    "assistant",
 			Content: []ResponseContentPart{{Type: "output_text", Text: "Noted."}},
 		}},
 	}
@@ -346,8 +506,8 @@ func evaluateDuplicateGrowthScenario(t *testing.T, factory evalEngineFactory) ma
 			SessionID: "eval-duplicate-growth",
 			TurnID:    fmt.Sprintf("turn-%d", idx),
 			InputItems: []ResponseItem{{
-				Type: "message",
-				Role: "user",
+				Type:    "message",
+				Role:    "user",
 				Content: []ResponseContentPart{{Type: "input_text", Text: "memory signal batch"}},
 			}},
 		})
@@ -376,8 +536,8 @@ func evaluateSessionIsolationScenario(t *testing.T, factory evalEngineFactory) f
 		SessionID: "eval-isolation-a",
 		TurnID:    "turn-a1",
 		InputItems: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice."}},
 		}},
 	})
@@ -388,8 +548,8 @@ func evaluateSessionIsolationScenario(t *testing.T, factory evalEngineFactory) f
 		SessionID: "eval-isolation-b",
 		TurnID:    "turn-b1",
 		CurrentInput: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "What is my name?"}},
 		}},
 		MaxInputTok: 120000,
@@ -438,8 +598,8 @@ func evaluateCompactionScenario(t *testing.T, factory evalEngineFactory) float64
 		SessionID: "eval-compaction",
 		TurnID:    "turn-final",
 		CurrentInput: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "continue"}},
 		}},
 		MaxInputTok: 10,
@@ -493,7 +653,7 @@ type scaleHeuristicClient struct {
 }
 
 // ExtractAndMergeFacts returns a stable identity fact plus high-relevance distractors.
-func (client scaleHeuristicClient) ExtractAndMergeFacts(_ context.Context, in HeuristicFactInput) ([]MemoryFact, error) {
+func (client scaleHeuristicClient) ExtractAndMergeFacts(_ context.Context, in HeuristicFactInput) (HeuristicFactResult, error) {
 	facts := []MemoryFact{{
 		ID:         in.TurnID + "-stable",
 		TS:         in.NowRFC3339,
@@ -518,5 +678,5 @@ func (client scaleHeuristicClient) ExtractAndMergeFacts(_ context.Context, in He
 		})
 	}
 
-	return facts, nil
+	return HeuristicFactResult{UpdatedFacts: facts}, nil
 }

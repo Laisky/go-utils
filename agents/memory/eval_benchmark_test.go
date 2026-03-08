@@ -26,7 +26,7 @@ func BenchmarkMemoryEngineBeforeTurn(b *testing.B) {
 			Project:   "bench",
 			SessionID: "before-turn",
 			TurnID:    benchmarkTurnID(idx),
-			InputItems: []ResponseItem{{
+			ConversationItems: []ResponseItem{{
 				Type: "message",
 				Role: "user",
 				Content: []ResponseContentPart{{
@@ -34,6 +34,8 @@ func BenchmarkMemoryEngineBeforeTurn(b *testing.B) {
 					Text: "My name is Alice. I prefer concise answers. Today I need close issue backlog.",
 				}},
 			}},
+			CurrentInputStart: 0,
+			CurrentInputCount: 1,
 		})
 		if err != nil {
 			b.Fatalf("seed after turn: %v", err)
@@ -44,12 +46,14 @@ func BenchmarkMemoryEngineBeforeTurn(b *testing.B) {
 	input := BeforeTurnInput{
 		Project:   "bench",
 		SessionID: "before-turn",
-		CurrentInput: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+		ConversationItems: []ResponseItem{{
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "What is my preference?"}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	}
 
 	b.ReportAllocs()
@@ -83,7 +87,7 @@ func BenchmarkMemoryEngineAfterTurn(b *testing.B) {
 			Project:   "bench",
 			SessionID: "after-turn",
 			TurnID:    benchmarkTurnID(idx),
-			InputItems: []ResponseItem{{
+			ConversationItems: []ResponseItem{{
 				Type: "message",
 				Role: "user",
 				Content: []ResponseContentPart{{
@@ -91,9 +95,11 @@ func BenchmarkMemoryEngineAfterTurn(b *testing.B) {
 					Text: "My name is Alice. I prefer concise answers. Today I need close issue backlog.",
 				}},
 			}},
+			CurrentInputStart: 0,
+			CurrentInputCount: 1,
 			OutputItems: []ResponseItem{{
-				Type: "message",
-				Role: "assistant",
+				Type:    "message",
+				Role:    "assistant",
 				Content: []ResponseContentPart{{Type: "output_text", Text: "Noted."}},
 			}},
 		})

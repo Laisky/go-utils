@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +34,9 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 	if conf.RecallFactsLimit <= 0 {
 		conf.RecallFactsLimit = defaultRecallFactsLimit
 	}
+	if conf.InsightRecallLimit <= 0 {
+		conf.InsightRecallLimit = defaultInsightRecallLimit
+	}
 	if conf.SearchLimit <= 0 {
 		conf.SearchLimit = defaultSearchLimit
 	}
@@ -46,6 +48,9 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 	}
 	if conf.L2RetentionDays <= 0 {
 		conf.L2RetentionDays = defaultL2RetentionDays
+	}
+	if conf.ConsolidationMinEvents <= 0 {
+		conf.ConsolidationMinEvents = defaultConsolidationMinEvents
 	}
 	if conf.CompactionMinAge <= 0 {
 		conf.CompactionMinAge = defaultCompactionMinAge
@@ -93,16 +98,25 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		return BeforeTurnOutput{}, errors.Wrap(err, "validate before-turn input")
 	}
 
+	conversation, err := normalizeBeforeTurnConversation(in)
+	if err != nil {
+		return BeforeTurnOutput{}, errors.Wrap(err, "normalize before-turn conversation")
+	}
+
 	contextEvents, err := engine.loadContextEventsWithFallback(ctx, in.Project, in.SessionID)
 	if err != nil {
 		return BeforeTurnOutput{}, errors.Wrap(err, "load context events")
 	}
 
-	query := strings.TrimSpace(extractInputText(in.CurrentInput))
+	query := strings.TrimSpace(extractInputText(conversation.CurrentItems))
 
 	facts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID, query)
 	if err != nil {
 		return BeforeTurnOutput{}, errors.Wrap(err, "load recall facts")
+	}
+	insights, err := engine.loadRecallInsights(ctx, in.Project, in.SessionID, query)
+	if err != nil {
+		return BeforeTurnOutput{}, errors.Wrap(err, "load recall insights")
 	}
 
 	var chunks []storageengine.FileChunk
@@ -113,15 +127,18 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		}
 	}
 
-	memoryBlock, factIDs := engine.buildMemoryBlock(facts, chunks)
+	memoryBlock, factIDs, insightIDs := engine.buildMemoryBlock(facts, insights, chunks)
 	recentItems := engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
+	excluded := mergeIdentitySets(conversation.HistoryIDs, conversation.CurrentIDs)
+	recentItems, droppedRecent := filterItemsByIdentity(recentItems, excluded)
 
-	items := make([]ResponseItem, 0, len(recentItems)+len(in.CurrentInput)+1)
+	items := make([]ResponseItem, 0, len(conversation.HistoryItems)+len(recentItems)+len(conversation.CurrentItems)+1)
 	if memoryBlock != nil {
 		items = append(items, *memoryBlock)
 	}
+	items = append(items, conversation.HistoryItems...)
 	items = append(items, recentItems...)
-	items = append(items, in.CurrentInput...)
+	items = append(items, conversation.CurrentItems...)
 
 	tokenCount := estimateTokens(items)
 	if in.MaxInputTok > 0 {
@@ -131,20 +148,31 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 			} else {
 				contextEvents, _ = engine.loadContextEventsWithFallback(ctx, in.Project, in.SessionID)
 				recentItems = engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
+				recentItems, _ = filterItemsByIdentity(recentItems, excluded)
 				items = items[:0]
 				if memoryBlock != nil {
 					items = append(items, *memoryBlock)
 				}
+				items = append(items, conversation.HistoryItems...)
 				items = append(items, recentItems...)
-				items = append(items, in.CurrentInput...)
+				items = append(items, conversation.CurrentItems...)
 				tokenCount = estimateTokens(items)
 			}
 		}
 	}
 
+	if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
+		metrics.RecallCount += len(factIDs)
+		metrics.InsightRecallCount += len(insightIDs)
+		metrics.PromptDuplicateDropCount += droppedRecent
+	}); metricsErr != nil {
+		// Metrics must not break the hot path.
+	}
+
 	return BeforeTurnOutput{
 		InputItems:        items,
 		RecallFactIDs:     factIDs,
+		RecallInsightIDs:  insightIDs,
 		ContextTokenCount: tokenCount,
 	}, nil
 }
@@ -153,6 +181,11 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) error {
 	if err := validateAfterTurnInput(in); err != nil {
 		return errors.Wrap(err, "validate after-turn input")
+	}
+
+	conversation, err := normalizeAfterTurnConversation(in)
+	if err != nil {
+		return errors.Wrap(err, "normalize after-turn conversation")
 	}
 
 	if err := engine.ensureSessionScaffold(ctx, in.Project, in.SessionID); err != nil {
@@ -169,12 +202,20 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 
 	now := engine.conf.TimeNow().UTC()
 	nowRFC3339 := now.Format(time.RFC3339)
-	persistInputItems, err := engine.prepareTurnInputForPersist(ctx, in.Project, in.SessionID, in.InputItems)
-	if err != nil {
-		return errors.Wrap(err, "prepare turn input for persistence")
+	persistInputItems := []ResponseItem(nil)
+	persistedTrimCount := 0
+	if len(in.ConversationItems) > 0 {
+		persistInputItems = stripMemoryReferenceItems(conversation.CurrentItems)
+		persistedTrimCount = len(conversation.AllItems) - len(persistInputItems)
+	}
+	if len(persistInputItems) == 0 {
+		persistInputItems, err = engine.prepareTurnInputForPersist(ctx, in.Project, in.SessionID, in.InputItems)
+		if err != nil {
+			return errors.Wrap(err, "prepare turn input for persistence")
+		}
 	}
 
-	events := buildTurnEvents(in.TurnID, nowRFC3339, persistInputItems, in.OutputItems)
+	events := buildTurnEvents(in.TurnID, in.UserID, nowRFC3339, persistInputItems, in.OutputItems)
 	if len(events) > 0 {
 		if err = engine.appendJSONL(ctx, in.Project, rawLogShardPath(in.SessionID, now), events); err != nil {
 			return errors.Wrap(err, "append raw log events")
@@ -192,41 +233,76 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 		}
 	}
 
-	existingFacts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID, extractInputText(persistInputItems))
+	activeIndex, err := engine.loadActiveFactsIndex(ctx, in.Project, in.SessionID)
 	if err != nil {
-		existingFacts = nil
+		return errors.Wrap(err, "load active facts index")
+	}
+	existingFacts := make([]MemoryFact, 0, len(activeIndex.Facts))
+	for _, fact := range activeIndex.Facts {
+		existingFacts = append(existingFacts, fact)
 	}
 
 	facts := extractFacts(in.TurnID, nowRFC3339, persistInputItems)
+	deletedFactIDs := []string(nil)
 	if engine.heuristic != nil {
-		heuristicFacts, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
+		heuristicResult, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
 			TurnID:        in.TurnID,
 			NowRFC3339:    nowRFC3339,
+			UserID:        in.UserID,
 			InputItems:    persistInputItems,
 			ExistingFacts: existingFacts,
 		})
 		if heuristicErr == nil {
-			facts = mergeFactCandidates(facts, heuristicFacts)
+			facts = mergeFactCandidates(facts, heuristicResult.UpdatedFacts)
+			deletedFactIDs = heuristicResult.DeletedFactIDs
 		}
 	}
 	if len(facts) > 0 {
 		for idx := range facts {
 			facts[idx] = applyTierPolicy(now, engine.conf, facts[idx])
 			facts[idx].SourceTurnID = in.TurnID
+			facts[idx].SourceUserID = in.UserID
+			facts[idx].State = memoryStateActive
 		}
-		facts = selectDeltaUpsertFacts(now, existingFacts, facts)
-		if len(facts) == 0 {
-			goto write_meta
+	}
+	if len(facts) > 0 || len(deletedFactIDs) > 0 {
+		mutationPlan := selectExactFactMutations(now, in.TurnID, in.UserID, activeIndex.Facts, facts, deletedFactIDs)
+		if len(mutationPlan.Writes) > 0 {
+			if err = engine.writeTieredFacts(ctx, in.Project, in.SessionID, now, mutationPlan.Writes); err != nil {
+				return errors.Wrap(err, "write tiered facts")
+			}
+			if err = engine.appendJSONL(ctx, in.Project, legacyFactsPath(in.SessionID), mutationPlan.Writes); err != nil {
+				return errors.Wrap(err, "append legacy facts")
+			}
 		}
-		if err = engine.writeTieredFacts(ctx, in.Project, in.SessionID, now, facts); err != nil {
-			return errors.Wrap(err, "write tiered facts")
+		activeIndex.Facts = mutationPlan.NextActiveFacts
+		if err = engine.writeActiveFactsIndex(ctx, in.Project, in.SessionID, activeIndex); err != nil {
+			return errors.Wrap(err, "write active facts index")
 		}
-		if err = engine.appendJSONL(ctx, in.Project, legacyFactsPath(in.SessionID), facts); err != nil {
-			return errors.Wrap(err, "append legacy facts")
+		if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
+			metrics.DedupeSkipCount += mutationPlan.DedupeSkipCount
+		}); metricsErr != nil {
+			// Metrics must not break persistence.
 		}
 	}
 
-write_meta:
+	watermarks, watermarkErr := engine.loadWatermarks(ctx, in.Project, in.SessionID)
+	if watermarkErr == nil {
+		watermarks.LastProcessedTurnID = in.TurnID
+		if len(events) > 0 {
+			watermarks.LastRawEventID = events[len(events)-1].ID
+			watermarks.LastRawEventTS = nowRFC3339
+			watermarks.RawEventCount += len(events)
+			watermarks.RuntimeContextCount += len(events)
+		}
+		watermarks.ActiveFactCount = len(activeIndex.Facts)
+		_ = engine.writeWatermarks(ctx, in.Project, in.SessionID, watermarks)
+	}
+	if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
+		metrics.PersistedHistoryTrimCount += max(0, persistedTrimCount)
+	}); metricsErr != nil {
+		// Metrics must not break persistence.
+	}
 	meta.Version = 1
 	meta.LatestTurnID = in.TurnID
 	meta.ProcessedTurnIDs = append(meta.ProcessedTurnIDs, in.TurnID)
@@ -258,13 +334,7 @@ func (engine *StandardEngine) prepareTurnInputForPersist(
 	project, sessionID string,
 	inputItems []ResponseItem,
 ) ([]ResponseItem, error) {
-	filtered := make([]ResponseItem, 0, len(inputItems))
-	for _, item := range inputItems {
-		if isMemoryReferenceItem(item) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
+	filtered := stripMemoryReferenceItems(inputItems)
 
 	contextEvents, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
 	if err != nil {
@@ -272,22 +342,30 @@ func (engine *StandardEngine) prepareTurnInputForPersist(
 	}
 
 	recentItems := engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
-	if len(recentItems) == 0 || len(filtered) <= len(recentItems) {
+	if len(recentItems) == 0 || len(filtered) == 0 || len(filtered) <= len(recentItems) {
 		return filtered, nil
 	}
 
-	isPrefix := true
 	for idx := range recentItems {
-		if !reflect.DeepEqual(filtered[idx], recentItems[idx]) {
-			isPrefix = false
-			break
+		if responseItemIdentity(filtered[idx]) != responseItemIdentity(recentItems[idx]) {
+			return filtered, nil
 		}
-	}
-	if !isPrefix {
-		return filtered, nil
 	}
 
 	return filtered[len(recentItems):], nil
+}
+
+// stripMemoryReferenceItems removes engine-injected developer recall blocks from a response-item slice.
+func stripMemoryReferenceItems(items []ResponseItem) []ResponseItem {
+	filtered := make([]ResponseItem, 0, len(items))
+	for _, item := range items {
+		if isMemoryReferenceItem(item) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	return filtered
 }
 
 // isMemoryReferenceItem reports whether one response item is engine-injected recall reference.
@@ -419,14 +497,19 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 	return nil
 }
 
-// buildMemoryBlock builds one developer memory block from recalled facts and search hits.
-func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, chunks []storageengine.FileChunk) (*ResponseItem, []string) {
-	if len(facts) == 0 && len(chunks) == 0 {
-		return nil, nil
+// buildMemoryBlock builds one developer memory block from recalled facts, insights, and search hits.
+func (engine *StandardEngine) buildMemoryBlock(
+	facts []MemoryFact,
+	insights []InsightRecord,
+	chunks []storageengine.FileChunk,
+) (*ResponseItem, []string, []string) {
+	if len(facts) == 0 && len(insights) == 0 && len(chunks) == 0 {
+		return nil, nil, nil
 	}
 
 	factIDs := make([]string, 0, len(facts))
-	lines := make([]string, 0, len(facts)+len(chunks)+1)
+	insightIDs := make([]string, 0, len(insights))
+	lines := make([]string, 0, len(facts)+len(insights)+len(chunks)+1)
 	lines = append(lines, "Memory recall:")
 	for _, fact := range facts {
 		factIDs = append(factIDs, fact.FactID)
@@ -449,6 +532,16 @@ func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, chunks []stor
 			fact.Confidence,
 		))
 	}
+	for _, insight := range insights {
+		insightIDs = append(insightIDs, insight.ID)
+		lines = append(lines, fmt.Sprintf(
+			"- Insight[%s][%s] %s (confidence=%.2f)",
+			insight.ID,
+			insight.Type,
+			insight.Summary,
+			insight.Confidence,
+		))
+	}
 	for _, chunk := range chunks {
 		lines = append(lines, fmt.Sprintf(
 			"- Recall[%s:%d-%d] %s",
@@ -468,7 +561,7 @@ func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, chunks []stor
 		}},
 	}
 
-	return &item, factIDs
+	return &item, factIDs, insightIDs
 }
 
 // wrapMemoryReferenceBlock wraps recalled memory text with an explicit reference boundary and disclaimer.

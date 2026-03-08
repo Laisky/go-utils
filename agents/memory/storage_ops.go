@@ -106,9 +106,27 @@ func (engine *StandardEngine) loadFactsFromFile(ctx context.Context, project, fi
 
 // loadRecallFacts loads active facts from tiered files, ranks them for query relevance, and falls back to legacy facts when needed.
 func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sessionID, query string) ([]MemoryFact, error) {
+	activeIndex, err := engine.loadActiveFactsIndex(ctx, project, sessionID)
+	if err == nil && len(activeIndex.Facts) > 0 {
+		facts := make([]MemoryFact, 0, len(activeIndex.Facts))
+		now := engine.conf.TimeNow().UTC()
+		for _, fact := range activeIndex.Facts {
+			if isFactExpired(now, fact) {
+				continue
+			}
+			facts = append(facts, fact)
+		}
+		facts = rankFactsForRecall(now, facts, query)
+		facts = deduplicateFacts(facts)
+		if len(facts) > engine.conf.RecallFactsLimit {
+			facts = facts[:engine.conf.RecallFactsLimit]
+		}
+
+		return facts, nil
+	}
+
 	now := engine.conf.TimeNow().UTC()
 	facts := make([]MemoryFact, 0, engine.conf.RecallFactsLimit)
-
 	for _, tier := range []string{memoryTierL0, memoryTierL2, memoryTierL1} {
 		tierFacts, err := engine.loadTierFacts(ctx, project, sessionID, tier)
 		if err != nil {
@@ -319,6 +337,9 @@ func (engine *StandardEngine) ensureSessionScaffold(ctx context.Context, project
 	if err := engine.ensureWatermarks(ctx, project, sessionID); err != nil {
 		return errors.Wrap(err, "ensure watermarks")
 	}
+	if err := engine.ensureMetrics(ctx, project, sessionID); err != nil {
+		return errors.Wrap(err, "ensure metrics")
+	}
 
 	return nil
 }
@@ -356,16 +377,36 @@ func (engine *StandardEngine) ensureWatermarks(ctx context.Context, project, ses
 		return nil
 	}
 
-	nowRFC3339 := engine.conf.TimeNow().UTC().Format(time.RFC3339)
-	body, err := json.Marshal(map[string]string{
-		"updated_at": nowRFC3339,
-	})
+	body, err := json.Marshal(MemoryWatermarks{UpdatedAt: engine.conf.TimeNow().UTC().Format(time.RFC3339)})
 	if err != nil {
 		return errors.Wrap(err, "marshal watermarks")
 	}
 
 	if err = engine.storage.Write(ctx, project, watermarkPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
 		return errors.Wrap(err, "write watermarks")
+	}
+
+	return nil
+}
+
+// ensureMetrics writes a default metrics file when it does not already exist.
+func (engine *StandardEngine) ensureMetrics(ctx context.Context, project, sessionID string) error {
+	metricsPath := metaMetricsPath(sessionID)
+	info, err := engine.storage.Stat(ctx, project, metricsPath)
+	if err != nil {
+		return errors.Wrap(err, "stat metrics")
+	}
+	if info.Exists && info.Type == storageengine.FileTypeFile {
+		return nil
+	}
+
+	body, err := json.Marshal(MemoryMetrics{UpdatedAt: engine.conf.TimeNow().UTC().Format(time.RFC3339)})
+	if err != nil {
+		return errors.Wrap(err, "marshal metrics")
+	}
+
+	if err = engine.storage.Write(ctx, project, metricsPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
+		return errors.Wrap(err, "write metrics")
 	}
 
 	return nil

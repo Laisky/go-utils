@@ -46,6 +46,11 @@ func metaWatermarksPath(sessionID string) string {
 	return path.Join(sessionBasePath(sessionID), "meta", "watermarks.json")
 }
 
+// metaMetricsPath returns the canonical metrics file path.
+func metaMetricsPath(sessionID string) string {
+	return path.Join(sessionBasePath(sessionID), "meta", "metrics.json")
+}
+
 // runtimeContextPath returns the canonical runtime context path.
 func runtimeContextPath(sessionID string) string {
 	return path.Join(sessionBasePath(sessionID), "runtime", "context", "current.jsonl")
@@ -69,6 +74,21 @@ func eventsCompactRootPath(sessionID string) string {
 // eventsArchiveRootPath returns the root path for archived event shards.
 func eventsArchiveRootPath(sessionID string) string {
 	return path.Join(sessionBasePath(sessionID), "events", "archive")
+}
+
+// insightsRootPath returns the root path for offline-consolidated insights.
+func insightsRootPath(sessionID string) string {
+	return path.Join(sessionBasePath(sessionID), "insights")
+}
+
+// indexesRootPath returns the root path for exact index files.
+func indexesRootPath(sessionID string) string {
+	return path.Join(sessionBasePath(sessionID), "indexes")
+}
+
+// activeFactsIndexPath returns the exact active-facts index path.
+func activeFactsIndexPath(sessionID string) string {
+	return path.Join(indexesRootPath(sessionID), "active_facts.json")
 }
 
 // tierRootPath returns the root path for one memory tier.
@@ -141,6 +161,18 @@ func tierFactsShardPath(sessionID, tier string, now time.Time) string {
 	}
 }
 
+// insightsShardPath returns the daily shard path for insight records.
+func insightsShardPath(sessionID string, now time.Time) string {
+	day := now.UTC()
+	return path.Join(
+		insightsRootPath(sessionID),
+		day.Format("2006"),
+		day.Format("01"),
+		day.Format("02"),
+		fmt.Sprintf("insights-%s.jsonl", day.Format("20060102")),
+	)
+}
+
 // knownSummaryDirs returns all directories that should contain summary files.
 func knownSummaryDirs(sessionID string) []string {
 	base := sessionBasePath(sessionID)
@@ -151,6 +183,8 @@ func knownSummaryDirs(sessionID string) []string {
 		path.Join(base, "events", "raw"),
 		path.Join(base, "events", "compact"),
 		path.Join(base, "events", "archive"),
+		path.Join(base, "indexes"),
+		path.Join(base, "insights"),
 		path.Join(base, "memory_tiers"),
 		tierRootPath(sessionID, memoryTierL0),
 		tierRootPath(sessionID, memoryTierL1),

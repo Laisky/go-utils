@@ -23,7 +23,7 @@ func validateBeforeTurnInput(in BeforeTurnInput) error {
 	if strings.TrimSpace(in.TurnID) == "" {
 		return newValidationError(ValidationErrorCodeTurnIDRequired, "turn_id", "turn_id is required")
 	}
-	if len(in.CurrentInput) == 0 {
+	if len(in.CurrentInput) == 0 && len(in.ConversationItems) == 0 {
 		return newValidationError(ValidationErrorCodeCurrentInputRequired, "current_input", "current_input is required")
 	}
 
@@ -81,7 +81,7 @@ func estimateTokens(items []ResponseItem) int {
 }
 
 // buildTurnEvents builds immutable turn-level log events and returns the appended events.
-func buildTurnEvents(turnID, ts string, inputItems, outputItems []ResponseItem) []LogEvent {
+func buildTurnEvents(turnID, userID, ts string, inputItems, outputItems []ResponseItem) []LogEvent {
 	events := make([]LogEvent, 0, len(inputItems)+len(outputItems))
 	for idx, item := range inputItems {
 		events = append(events, LogEvent{
@@ -89,6 +89,8 @@ func buildTurnEvents(turnID, ts string, inputItems, outputItems []ResponseItem) 
 			TS:     ts,
 			Type:   "input_item",
 			TurnID: turnID,
+			UserID: userID,
+			ItemID: responseItemIdentity(item),
 			Item:   item,
 		})
 	}
@@ -98,6 +100,8 @@ func buildTurnEvents(turnID, ts string, inputItems, outputItems []ResponseItem) 
 			TS:     ts,
 			Type:   "output_item",
 			TurnID: turnID,
+			UserID: userID,
+			ItemID: responseItemIdentity(item),
 			Item:   item,
 		})
 	}

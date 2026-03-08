@@ -36,7 +36,7 @@ func TestOpenAIResponsesClientExtractAndMergeFacts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	facts, err := client.ExtractAndMergeFacts(context.Background(), HeuristicFactInput{
+	result, err := client.ExtractAndMergeFacts(context.Background(), HeuristicFactInput{
 		TurnID:     "turn-1",
 		NowRFC3339: "2026-02-20T00:00:00Z",
 		InputItems: []ResponseItem{{
@@ -49,10 +49,11 @@ func TestOpenAIResponsesClientExtractAndMergeFacts(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	require.Len(t, facts, 2)
-	require.Equal(t, "fact_upsert", facts[0].Type)
-	require.NotEmpty(t, facts[0].ID)
-	require.Equal(t, "2026-02-20T00:00:00Z", facts[0].TS)
+	require.Len(t, result.UpdatedFacts, 2)
+	require.Equal(t, "fact_upsert", result.UpdatedFacts[0].Type)
+	require.NotEmpty(t, result.UpdatedFacts[0].ID)
+	require.Equal(t, "2026-02-20T00:00:00Z", result.UpdatedFacts[0].TS)
+	require.Empty(t, result.DeletedFactIDs)
 }
 
 // TestExtractHeuristicToolOutputNested verifies nested function payload argument extraction.

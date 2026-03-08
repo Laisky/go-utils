@@ -28,30 +28,37 @@ type ResponseContentPart struct {
 
 // BeforeTurnInput defines engine input before model invocation.
 type BeforeTurnInput struct {
-	Project          string
-	SessionID        string
-	UserID           string
-	TurnID           string
-	CurrentInput     []ResponseItem
-	BaseInstructions string
-	MaxInputTok      int
+	Project           string
+	SessionID         string
+	UserID            string
+	TurnID            string
+	ConversationItems []ResponseItem
+	CurrentInputStart int
+	CurrentInputCount int
+	CurrentInput      []ResponseItem
+	BaseInstructions  string
+	MaxInputTok       int
 }
 
 // BeforeTurnOutput is prepared context payload for model request.
 type BeforeTurnOutput struct {
 	InputItems        []ResponseItem
 	RecallFactIDs     []string
+	RecallInsightIDs  []string
 	ContextTokenCount int
 }
 
 // AfterTurnInput defines engine input after model response.
 type AfterTurnInput struct {
-	Project     string
-	SessionID   string
-	UserID      string
-	TurnID      string
-	InputItems  []ResponseItem
-	OutputItems []ResponseItem
+	Project           string
+	SessionID         string
+	UserID            string
+	TurnID            string
+	ConversationItems []ResponseItem
+	CurrentInputStart int
+	CurrentInputCount int
+	InputItems        []ResponseItem
+	OutputItems       []ResponseItem
 }
 
 // DirectorySummary describes one listed directory and its abstract metadata.
@@ -71,6 +78,7 @@ type Engine interface {
 // Management defines optional memory maintenance and directory discovery operations.
 type Management interface {
 	RunMaintenance(ctx context.Context, project, sessionID string) error
+	RunConsolidation(ctx context.Context, project, sessionID string) error
 	ListDirWithAbstract(ctx context.Context, project, sessionID, path string, depth, limit int) ([]DirectorySummary, error)
 }
 
@@ -78,10 +86,12 @@ type Management interface {
 type Config struct {
 	RecentContextItems     int
 	RecallFactsLimit       int
+	InsightRecallLimit     int
 	SearchLimit            int
 	CompactThreshold       float64
 	L1RetentionDays        int
 	L2RetentionDays        int
+	ConsolidationMinEvents int
 	CompactionMinAge       time.Duration
 	SummaryRefreshInterval time.Duration
 	MaxProcessedTurns      int
@@ -91,13 +101,13 @@ type Config struct {
 	//   - API base: https://host[/optional-prefix] or https://host[/optional-prefix]/v1
 	//   - host only: host or host:port (HTTPS is assumed automatically)
 	// The engine normalizes all forms to .../v1/responses.
-	LLMAPIBase             string
-	LLMAPIKey              string
-	LLMModel               string
-	LLMTimeout             time.Duration
-	LLMMaxOutputTokens     int
-	HeuristicClient        HeuristicClient
-	TimeNow                func() time.Time
+	LLMAPIBase         string
+	LLMAPIKey          string
+	LLMModel           string
+	LLMTimeout         time.Duration
+	LLMMaxOutputTokens int
+	HeuristicClient    HeuristicClient
+	TimeNow            func() time.Time
 }
 
 // StandardEngine is a storage-backed implementation of Engine.
@@ -115,17 +125,24 @@ type HeuristicClient interface {
 	//   - in: current turn input and existing facts.
 	//
 	// Returns:
-	//   - []MemoryFact: model-suggested upsert facts.
+	//   - HeuristicFactResult: model-suggested memory mutations.
 	//   - error: extraction or merge failure.
-	ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) ([]MemoryFact, error)
+	ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) (HeuristicFactResult, error)
 }
 
 // HeuristicFactInput stores payload for model-assisted fact extraction and merge.
 type HeuristicFactInput struct {
 	TurnID        string
 	NowRFC3339    string
+	UserID        string
 	InputItems    []ResponseItem
 	ExistingFacts []MemoryFact
+}
+
+// HeuristicFactResult stores model-suggested fact writes and deletions.
+type HeuristicFactResult struct {
+	UpdatedFacts   []MemoryFact
+	DeletedFactIDs []string
 }
 
 // NewEngine creates a standard memory engine with pluggable storage backend.

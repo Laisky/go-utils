@@ -144,9 +144,10 @@ func TestBuildMemoryBlockReferenceWrapper(t *testing.T) {
 		Content:    "assistant remembered user profile",
 	}}
 
-	item, factIDs := engine.buildMemoryBlock(facts, chunks)
+	item, factIDs, insightIDs := engine.buildMemoryBlock(facts, nil, chunks)
 	require.NotNil(t, item)
 	require.Equal(t, []string{"fact-1"}, factIDs)
+	require.Empty(t, insightIDs)
 	require.Equal(t, "message", item.Type)
 	require.Equal(t, "developer", item.Role)
 	require.Len(t, item.Content, 1)
@@ -166,9 +167,10 @@ func TestBuildMemoryBlockEmptyInput(t *testing.T) {
 	engine, err := NewEngine(mockStorage, Config{})
 	require.NoError(t, err)
 
-	item, factIDs := engine.buildMemoryBlock(nil, nil)
+	item, factIDs, insightIDs := engine.buildMemoryBlock(nil, nil, nil)
 	require.Nil(t, item)
 	require.Empty(t, factIDs)
+	require.Empty(t, insightIDs)
 }
 
 // TestWrapMemoryReferenceBlockIdempotent verifies repeated wrapping does not produce nested memory_reference tags.
@@ -190,7 +192,7 @@ func TestBuildMemoryBlockExtractsChunkText(t *testing.T) {
 	require.NoError(t, err)
 
 	jsonChunk := "{\"id\":\"turn-1-in-0\",\"item\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"do you still remember who I am?\"}]},\"metadata\":{\"trace_id\":\"abc\"}}"
-	item, factIDs := engine.buildMemoryBlock(nil, []storageengine.FileChunk{{
+	item, factIDs, insightIDs := engine.buildMemoryBlock(nil, nil, []storageengine.FileChunk{{
 		FilePath:   "/memory/s1/runtime/context/current.jsonl",
 		StartBytes: 70,
 		EndBytes:   95,
@@ -199,6 +201,7 @@ func TestBuildMemoryBlockExtractsChunkText(t *testing.T) {
 
 	require.NotNil(t, item)
 	require.Empty(t, factIDs)
+	require.Empty(t, insightIDs)
 	require.Len(t, item.Content, 1)
 	text := item.Content[0].Text
 	require.Contains(t, text, "do you still remember who I am?")
@@ -456,8 +459,8 @@ func TestBeforeTurnRecallPrefersRelevantFacts(t *testing.T) {
 		SessionID: "ranked-recall",
 		TurnID:    "t1",
 		InputItems: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "My name is Alice."}},
 		}},
 	})
@@ -469,8 +472,8 @@ func TestBeforeTurnRecallPrefersRelevantFacts(t *testing.T) {
 		SessionID: "ranked-recall",
 		TurnID:    "t2",
 		InputItems: []ResponseItem{{
-			Type: "message",
-			Role: "user",
+			Type:    "message",
+			Role:    "user",
 			Content: []ResponseContentPart{{Type: "input_text", Text: "I prefer long detailed explanations."}},
 		}},
 	})

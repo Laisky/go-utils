@@ -64,7 +64,7 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 		SessionID: sessionID,
 		UserID:    "storage-e2e-user",
 		TurnID:    "turn-1",
-		CurrentInput: []memory.ResponseItem{{
+		ConversationItems: []memory.ResponseItem{{
 			Type: "message",
 			Role: "user",
 			Content: []memory.ResponseContentPart{{
@@ -72,17 +72,21 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 				Text: "My name is E2EUser. Today I need finish testing. I prefer concise responses.",
 			}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, firstBefore.InputItems)
 
 	err = memoryEngine.AfterTurn(ctx, memory.AfterTurnInput{
-		Project:    project,
-		SessionID:  sessionID,
-		UserID:     "storage-e2e-user",
-		TurnID:     "turn-1",
-		InputItems: firstBefore.InputItems,
+		Project:           project,
+		SessionID:         sessionID,
+		UserID:            "storage-e2e-user",
+		TurnID:            "turn-1",
+		ConversationItems: firstBefore.InputItems,
+		CurrentInputStart: len(firstBefore.InputItems) - 1,
+		CurrentInputCount: 1,
 		OutputItems: []memory.ResponseItem{{
 			Type: "message",
 			Role: "assistant",
@@ -99,7 +103,7 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 		SessionID: sessionID,
 		UserID:    "storage-e2e-user",
 		TurnID:    "turn-2",
-		CurrentInput: []memory.ResponseItem{{
+		ConversationItems: []memory.ResponseItem{{
 			Type: "message",
 			Role: "user",
 			Content: []memory.ResponseContentPart{{
@@ -107,7 +111,9 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 				Text: "What do you remember?",
 			}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	})
 	require.NoError(t, err)
 	require.Contains(t, recallBefore.RecallFactIDs, "user_name")
@@ -123,7 +129,7 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 		SessionID: sessionID,
 		UserID:    "storage-e2e-user",
 		TurnID:    "turn-3",
-		CurrentInput: []memory.ResponseItem{{
+		ConversationItems: []memory.ResponseItem{{
 			Type: "message",
 			Role: "user",
 			Content: []memory.ResponseContentPart{{
@@ -131,7 +137,9 @@ func runStorageE2ESuite(t *testing.T, engine memorystorage.Engine, project, fixt
 				Text: "What is still remembered?",
 			}},
 		}},
-		MaxInputTok: 120000,
+		CurrentInputStart: 0,
+		CurrentInputCount: 1,
+		MaxInputTok:       120000,
 	})
 	require.NoError(t, err)
 	require.Contains(t, afterMaintenance.RecallFactIDs, "user_name")

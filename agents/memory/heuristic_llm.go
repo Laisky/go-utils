@@ -104,11 +104,11 @@ func newOpenAIResponsesClient(conf openAIResponsesClientConfig) (*openAIResponse
 	}, nil
 }
 
-// ExtractAndMergeFacts runs heuristic extraction/classification/merge and returns upsert facts.
-func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) ([]MemoryFact, error) {
+// ExtractAndMergeFacts runs heuristic extraction/classification/merge and returns memory mutations.
+func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) (HeuristicFactResult, error) {
 	inputText := buildHeuristicInputText(in)
 	if strings.TrimSpace(inputText) == "" {
-		return nil, nil
+		return HeuristicFactResult{}, nil
 	}
 
 	reqBody := openAIResponseRequest{
@@ -125,7 +125,7 @@ func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, i
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal responses payload")
+		return HeuristicFactResult{}, errors.Wrap(err, "marshal responses payload")
 	}
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, client.timeout)
@@ -133,14 +133,14 @@ func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, i
 
 	httpReq, err := http.NewRequestWithContext(ctxWithTimeout, http.MethodPost, client.apiURL, bytes.NewReader(payload))
 	if err != nil {
-		return nil, errors.Wrap(err, "new responses request")
+		return HeuristicFactResult{}, errors.Wrap(err, "new responses request")
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+client.apiKey)
 
 	httpResp, err := client.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, errors.Wrap(err, "call responses api")
+		return HeuristicFactResult{}, errors.Wrap(err, "call responses api")
 	}
 	defer func() {
 		_ = httpResp.Body.Close()
@@ -148,27 +148,27 @@ func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, i
 
 	respBody, truncated, err := readHTTPBodyWithLimit(httpResp.Body, maxLLMResponseBytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "read responses body")
+		return HeuristicFactResult{}, errors.Wrap(err, "read responses body")
 	}
 	if truncated {
-		return nil, errors.Errorf("responses body exceeds limit %d bytes", maxLLMResponseBytes)
+		return HeuristicFactResult{}, errors.Errorf("responses body exceeds limit %d bytes", maxLLMResponseBytes)
 	}
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return nil, errors.Errorf("responses api status=%d body=%s", httpResp.StatusCode, string(respBody))
+		return HeuristicFactResult{}, errors.Errorf("responses api status=%d body=%s", httpResp.StatusCode, string(respBody))
 	}
 
 	output, err := extractHeuristicToolOutput(respBody)
 	if err != nil {
-		return nil, errors.Wrap(err, "extract heuristic tool output")
+		return HeuristicFactResult{}, errors.Wrap(err, "extract heuristic tool output")
 	}
 
 	facts := normalizeHeuristicFacts(in.TurnID, in.NowRFC3339, output.UpdatedFacts)
-	if len(facts) == 0 {
-		return nil, nil
+	if len(facts) == 0 && len(output.DeletedFactIDs) == 0 {
+		return HeuristicFactResult{}, nil
 	}
 
-	return facts, nil
+	return HeuristicFactResult{UpdatedFacts: facts, DeletedFactIDs: deduplicateStrings(output.DeletedFactIDs)}, nil
 }
 
 // memoryHeuristicSystemPrompt returns system prompt for extraction/classification/merge tasks.

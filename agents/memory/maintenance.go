@@ -45,6 +45,9 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 	if err = engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2); err != nil {
 		return errors.Wrap(err, "sweep expired L2 facts")
 	}
+	if err = engine.RunConsolidation(ctx, project, sessionID); err != nil {
+		return errors.Wrap(err, "run consolidation")
+	}
 	if err = engine.refreshSummaries(ctx, project, sessionID); err != nil {
 		return errors.Wrap(err, "refresh summaries")
 	}
