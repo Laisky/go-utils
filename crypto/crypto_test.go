@@ -180,3 +180,15 @@ func TestVerifyHashedPassword_PasswordTooLong(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "password is too long")
 }
+
+func TestVerifyHashedPassword_HashTooLong(t *testing.T) {
+	t.Parallel()
+	longHash := make([]byte, MaxHashedPasswordLength+1)
+	for i := range longHash {
+		longHash[i] = 'a'
+	}
+
+	err := VerifyHashedPassword([]byte("password"), string(longHash))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "hashedPassword is too long")
+}

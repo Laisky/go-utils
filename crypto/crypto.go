@@ -1,14 +1,16 @@
-// Package crypto is a collection of cryptographic algorithms and protocols, providing
-// hash functions, block and stream ciphers, public key cryptography and authentication.
-// It also includes a cryptographically secure pseudo-random number generator.
+// Package crypto contains some useful tools to deal with encryption/decryption,
+// it's built on top of standard library and some other packages.
 //
-// x.509
+// it provides:
 //
-// This package provides many useful functions for x.509 certificate.
-// you can build a PKI system with this package.
-// including parsing and verification. it can be used to parse x.509 certificates,
-// create x.509 certificate chains, verify x.509 certificate chains,
-// and parse x.509 certificate revocation lists.
+// 1. x.509/PKI
+// 2. RSA/AES/Ed25519/ECDSA
+// 3. PBKDF2/scrypt/HKDF/Bcrypt
+// 4. GM/SM2/SM3/SM4
+// 5. PRNG/Salt/OTP
+// 6. KMS/Vault
+// 7. Shamir's Secret Sharing
+// 8. Threshold Signature
 package crypto
 
 import (
@@ -41,6 +43,8 @@ const (
 	MaxPasswordHashIteration = 1000000
 	// MaxPasswordLength limit max password length to prevent DoS
 	MaxPasswordLength = 1024
+	// MaxHashedPasswordLength limit max hashed password length to prevent DoS
+	MaxHashedPasswordLength = 4096
 	// MinPasswordHashIteration limit min hash iteration count
 	MinPasswordHashIteration = 10000
 	// legacyMinPasswordHashIteration keeps compatibility for already stored hashes.
@@ -148,6 +152,8 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
 	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
 		return errors.Errorf("rawpassword or hashedPassword is empty")
+	} else if len(hashedPassword) > MaxHashedPasswordLength {
+		return errors.Errorf("hashedPassword is too long")
 	} else if len(rawpassword) > MaxPasswordLength {
 		return errors.Errorf("password is too long")
 	}

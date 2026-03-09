@@ -17,7 +17,7 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-// HashSHA128String calculate string's hash by sha256
+// HashSHA128String calculate string's hash by sha1
 //
 // Deprecated: use Hash instead
 func HashSHA128String(val string) string {
@@ -63,6 +63,7 @@ func (h HashType) Hasher() (hash.Hash, error) {
 		log.Shared.Warn("md5 is not safe or fast, use sha256 instead")
 		return md5.New(), nil
 	case HashTypeSha1:
+		log.Shared.Warn("sha1 is not safe, use sha256 instead")
 		return sha1.New(), nil
 	case HashTypeSha256:
 		return sha256.New(), nil
