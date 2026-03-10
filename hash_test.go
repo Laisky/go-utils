@@ -3,6 +3,8 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -109,4 +111,31 @@ func TestHashXxhashStringCompareImplementations(t *testing.T) {
 	gotFromGenericHash, err := Hash(HashTypeXxhash, strings.NewReader(val))
 	require.NoError(t, err)
 	require.Equal(t, gotCurrent, hex.EncodeToString(gotFromGenericHash))
+}
+
+func TestHashTypeHasherWarnsOnSHA1(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "hash.log")
+
+	logger, err := log.New(
+		log.WithLevel(log.LevelWarn),
+		log.WithEncoding(log.EncodingJSON),
+		log.WithOutputPaths([]string{logFile}),
+	)
+	require.NoError(t, err)
+
+	originalLogger := log.Shared
+	log.Shared = logger
+	defer func() {
+		_ = logger.Sync()
+		log.Shared = originalLogger
+	}()
+
+	_, err = HashTypeSha1.Hasher()
+	require.NoError(t, err)
+	require.NoError(t, logger.Sync())
+
+	raw, err := os.ReadFile(logFile)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "sha1 is not safe, use sha256 instead")
 }

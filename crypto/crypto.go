@@ -39,6 +39,8 @@ const (
 	DefaultPasswordDelay = 2 * time.Second
 	// MaxPasswordHashIteration limit max hash iteration count
 	MaxPasswordHashIteration = 1000000
+	// MaxHashedPasswordLength limits serialized password hash input to prevent parse-time DoS.
+	MaxHashedPasswordLength = 4096
 	// MaxPasswordLength limit max password length to prevent DoS
 	MaxPasswordLength = 1024
 	// MinPasswordHashIteration limit min hash iteration count
@@ -146,13 +148,16 @@ func parseHashedPassword(hashedString string) (h HashedPassword, err error) {
 
 // VerifyHashedPassword verify HashedPassword
 func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error) {
+	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
+
 	if len(rawpassword) == 0 || len(hashedPassword) == 0 {
 		return errors.Errorf("rawpassword or hashedPassword is empty")
 	} else if len(rawpassword) > MaxPasswordLength {
 		return errors.Errorf("password is too long")
+	} else if len(hashedPassword) > MaxHashedPasswordLength {
+		return errors.Errorf("hashedPassword is too long")
 	}
 
-	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 	hp, err := parseHashedPassword(hashedPassword)
 	if err != nil {
 		return errors.Wrap(err, "parse hashed password")
@@ -184,13 +189,13 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 
 // PasswordHash generate salted hash of password, can verify by VerifyHashedPassword
 func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword string, err error) {
+	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
+
 	if len(password) == 0 {
 		return "", errors.Errorf("password is empty")
 	} else if len(password) > MaxPasswordLength {
 		return "", errors.Errorf("password is too long")
 	}
-
-	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 
 	var salt []byte
 	switch hasher {

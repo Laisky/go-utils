@@ -63,6 +63,7 @@ func (h HashType) Hasher() (hash.Hash, error) {
 		log.Shared.Warn("md5 is not safe or fast, use sha256 instead")
 		return md5.New(), nil
 	case HashTypeSha1:
+		log.Shared.Warn("sha1 is not safe, use sha256 instead")
 		return sha1.New(), nil
 	case HashTypeSha256:
 		return sha256.New(), nil

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -166,6 +167,18 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 	require.ErrorContains(t, err, "too many iterations")
 }
 
+func TestVerifyHashedPassword_HashedPasswordTooLong(t *testing.T) {
+	t.Parallel()
+	hashedPassword := make([]byte, MaxHashedPasswordLength+1)
+	for i := range hashedPassword {
+		hashedPassword[i] = 'a'
+	}
+
+	err := VerifyHashedPassword([]byte("password"), string(hashedPassword))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "hashedPassword is too long")
+}
+
 func TestVerifyHashedPassword_PasswordTooLong(t *testing.T) {
 	t.Parallel()
 	longPassword := make([]byte, MaxPasswordLength+1)
@@ -179,4 +192,20 @@ func TestVerifyHashedPassword_PasswordTooLong(t *testing.T) {
 	err = VerifyHashedPassword(longPassword, "some-hash")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "password is too long")
+}
+
+func TestVerifyHashedPassword_EmptyInputHonorsDelay(t *testing.T) {
+	startAt := time.Now()
+	err := VerifyHashedPassword(nil, "")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "rawpassword or hashedPassword is empty")
+	require.GreaterOrEqual(t, time.Since(startAt), DefaultPasswordDelay-200*time.Millisecond)
+}
+
+func TestPasswordHash_EmptyInputHonorsDelay(t *testing.T) {
+	startAt := time.Now()
+	_, err := PasswordHash(nil, gutils.HashTypeSha256)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "password is empty")
+	require.GreaterOrEqual(t, time.Since(startAt), DefaultPasswordDelay-200*time.Millisecond)
 }
