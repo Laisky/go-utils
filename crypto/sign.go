@@ -326,3 +326,25 @@ func HMACSha256(key []byte, data io.Reader) ([]byte, error) {
 
 	return h.Sum(nil), nil
 }
+
+// VerifyHMACSha256 verify HMAC by sha256
+//
+// # Args:
+//   - key: secure key, no limit on length
+//   - data: raw data to verify HMAC
+//   - signature: HMAC signature to verify
+//
+// # Returns:
+//   - err: nil if signature match
+func VerifyHMACSha256(key, signature []byte, data io.Reader) error {
+	h, err := HMACSha256(key, data)
+	if err != nil {
+		return errors.Wrap(err, "calculate hmac")
+	}
+
+	if !hmac.Equal(h, signature) {
+		return errors.New("signature not match")
+	}
+
+	return nil
+}

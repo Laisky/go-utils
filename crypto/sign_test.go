@@ -700,3 +700,39 @@ func TestHMAC(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyHMACSha256(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("secret-key")
+	content := []byte("hello, world")
+
+	t.Run("valid signature", func(t *testing.T) {
+		sig, err := HMACSha256(key, bytes.NewReader(content))
+		require.NoError(t, err)
+
+		err = VerifyHMACSha256(key, sig, bytes.NewReader(content))
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		err := VerifyHMACSha256(key, []byte("invalid-sig"), bytes.NewReader(content))
+		require.ErrorContains(t, err, "signature not match")
+	})
+
+	t.Run("invalid key", func(t *testing.T) {
+		sig, err := HMACSha256(key, bytes.NewReader(content))
+		require.NoError(t, err)
+
+		err = VerifyHMACSha256([]byte("wrong-key"), sig, bytes.NewReader(content))
+		require.ErrorContains(t, err, "signature not match")
+	})
+
+	t.Run("invalid content", func(t *testing.T) {
+		sig, err := HMACSha256(key, bytes.NewReader(content))
+		require.NoError(t, err)
+
+		err = VerifyHMACSha256(key, sig, bytes.NewReader([]byte("wrong-content")))
+		require.ErrorContains(t, err, "signature not match")
+	})
+}
