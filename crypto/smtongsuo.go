@@ -66,6 +66,15 @@ func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
 
 func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 	output []byte, err error) {
+	return t.runCMDWithEnv(ctx, args, stdin, nil)
+}
+
+// runCMDWithEnv runs a tongsuo command with optional extra environment variables.
+//
+// Use extraEnv to pass sensitive values (keys, passwords) via process environment
+// instead of command-line arguments, which would be visible in the process list.
+func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
+	output []byte, err error) {
 	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
 		return nil, errors.Wrap(err, "sanitize cmd args")
 	}
@@ -73,6 +82,9 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 	//nolint: gosec
 	// G204: Subprocess launched with a potential tainted input or cmd arguments
 	cmd := exec.CommandContext(ctx, t.exePath, args...)
+	if len(extraEnv) != 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 	if len(stdin) != 0 {
 		var stdinBuf bytes.Buffer
 		stdinBuf.Write(stdin)
@@ -417,10 +429,12 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
 		return nil, errors.Wrap(err, "generate new private key")
 	}
 
-	encryptedPrikeyPem, err = t.runCMD(ctx, []string{
+	// Pass password via environment variable instead of command-line argument
+	// to avoid exposing it in the process list (ps aux, /proc/*/cmdline).
+	encryptedPrikeyPem, err = t.runCMDWithEnv(ctx, []string{
 		"ec", "-in", "/dev/stdin", "-out", "/dev/stdout",
-		"-sm4-cbc", "-passout", "pass:" + password,
-	}, prikeyPem)
+		"-sm4-cbc", "-passout", "env:_TONGSUO_PASSOUT",
+	}, prikeyPem, []string{"_TONGSUO_PASSOUT=" + password})
 	if err != nil {
 		return nil, errors.Wrap(err, "encrypt private key")
 	}

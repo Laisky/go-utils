@@ -81,6 +81,20 @@ func TestNewEcdh(t *testing.T) {
 	}
 }
 
+func TestECDH_GenerateKey_EmptyInput(t *testing.T) {
+	t.Parallel()
+
+	alice, err := NewEcdh(ECDSACurveP256)
+	require.NoError(t, err)
+
+	// empty peer public key must return error, not panic
+	_, err = alice.GenerateKey(nil)
+	require.ErrorContains(t, err, "peer public key is empty")
+
+	_, err = alice.GenerateKey([]byte{})
+	require.ErrorContains(t, err, "peer public key is empty")
+}
+
 func ExampleNewEcdh() {
 	alice, _ := NewEcdh(ECDSACurveP256)
 

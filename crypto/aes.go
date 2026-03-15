@@ -196,7 +196,12 @@ func AEADDecryptBasic(key, ciphertext, iv, tag, additionalData []byte) (plaintex
 	return plaintext, nil
 }
 
-// AesCtrStreamEncrypt encrypts the input stream using AES in CTR mode
+// AesCtrStreamEncrypt encrypts the input stream using AES in CTR mode.
+//
+// WARNING: CTR mode provides confidentiality only, NOT integrity or authenticity.
+// An attacker can flip bits in the ciphertext to make predictable changes to the plaintext
+// without detection. If you need authenticated encryption, use AEADEncrypt (AES-GCM) instead.
+// Only use CTR mode when you provide your own authentication layer (e.g. HMAC over the ciphertext).
 func AesCtrStreamEncrypt(key []byte, reader io.Reader) (io.Reader, error) {
 	// Create AES cipher
 	block, err := aes.NewCipher(key)
@@ -224,7 +229,12 @@ func AesCtrStreamEncrypt(key []byte, reader io.Reader) (io.Reader, error) {
 	), nil
 }
 
-// AesCtrStreamDecrypt decrypts the input stream using AES in CTR mode
+// AesCtrStreamDecrypt decrypts the input stream using AES in CTR mode.
+//
+// WARNING: CTR mode provides confidentiality only, NOT integrity or authenticity.
+// The ciphertext is malleable -- bit flips in the ciphertext cause corresponding bit flips
+// in the plaintext without any detectable error. You must verify integrity separately
+// (e.g. HMAC over the ciphertext) before trusting the decrypted output.
 func AesCtrStreamDecrypt(key []byte, reader io.Reader) (io.Reader, error) {
 	// Create AES cipher
 	block, err := aes.NewCipher(key)

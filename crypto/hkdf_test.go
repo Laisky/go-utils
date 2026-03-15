@@ -39,6 +39,16 @@ func TestHKDFWithSHA256(t *testing.T) {
 	require.Equal(t, results1[2], results2[2])
 }
 
+func TestSalt_InvalidLength(t *testing.T) {
+	t.Parallel()
+
+	_, err := Salt(0)
+	require.ErrorContains(t, err, "salt length must be positive")
+
+	_, err = Salt(-1)
+	require.ErrorContains(t, err, "salt length must be positive")
+}
+
 func TestDeriveKey(t *testing.T) {
 	t.Parallel()
 

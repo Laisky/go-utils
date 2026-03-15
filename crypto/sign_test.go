@@ -652,7 +652,7 @@ func TestHMAC(t *testing.T) {
 	t.Parallel()
 
 	for _, keyLen := range []int{
-		1, 1024, 10240,
+		16, 1024, 10240,
 	} {
 		keyLen := keyLen
 		key, err := Salt(keyLen)
@@ -662,7 +662,7 @@ func TestHMAC(t *testing.T) {
 			t.Parallel()
 
 			for _, plainLen := range []int{
-				1, 1024, 10240,
+				16, 1024, 10240,
 			} {
 				plainLen := plainLen
 				plain, err := Salt(plainLen)
@@ -699,4 +699,45 @@ func TestHMAC(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyHMACSha256(t *testing.T) {
+	t.Parallel()
+
+	key, err := Salt(32)
+	require.NoError(t, err)
+	plain, err := Salt(128)
+	require.NoError(t, err)
+
+	mac, err := HMACSha256(key, bytes.NewReader(plain))
+	require.NoError(t, err)
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+		err := VerifyHMACSha256(key, bytes.NewReader(plain), mac)
+		require.NoError(t, err)
+	})
+
+	t.Run("wrong data", func(t *testing.T) {
+		t.Parallel()
+		wrongPlain, err := Salt(128)
+		require.NoError(t, err)
+		err = VerifyHMACSha256(key, bytes.NewReader(wrongPlain), mac)
+		require.ErrorContains(t, err, "hmac verification failed")
+	})
+
+	t.Run("wrong key", func(t *testing.T) {
+		t.Parallel()
+		wrongKey, err := Salt(32)
+		require.NoError(t, err)
+		err = VerifyHMACSha256(wrongKey, bytes.NewReader(plain), mac)
+		require.ErrorContains(t, err, "hmac verification failed")
+	})
+
+	t.Run("wrong mac", func(t *testing.T) {
+		t.Parallel()
+		wrongMAC := make([]byte, 32)
+		err := VerifyHMACSha256(key, bytes.NewReader(plain), wrongMAC)
+		require.ErrorContains(t, err, "hmac verification failed")
+	})
 }

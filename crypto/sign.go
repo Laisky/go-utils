@@ -326,3 +326,26 @@ func HMACSha256(key []byte, data io.Reader) ([]byte, error) {
 
 	return h.Sum(nil), nil
 }
+
+// VerifyHMACSha256 verifies data against an expected HMAC-SHA256 signature
+// using constant-time comparison to prevent timing attacks.
+//
+// # Args:
+//   - key: secure key used to compute the HMAC
+//   - data: raw data to verify
+//   - expectedMAC: the expected HMAC signature to compare against (32 bytes)
+//
+// # Returns:
+//   - error if the HMAC does not match or computation fails
+func VerifyHMACSha256(key []byte, data io.Reader, expectedMAC []byte) error {
+	actual, err := HMACSha256(key, data)
+	if err != nil {
+		return errors.Wrap(err, "compute hmac")
+	}
+
+	if !hmac.Equal(actual, expectedMAC) {
+		return errors.Errorf("hmac verification failed")
+	}
+
+	return nil
+}

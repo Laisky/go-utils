@@ -168,6 +168,10 @@ func (e *ECDH) PublicKey() ([]byte, error) {
 
 // GenerateKey generate new key by peer's public key
 func (e *ECDH) GenerateKey(peerPubKey []byte) (sharekey []byte, err error) {
+	if len(peerPubKey) == 0 {
+		return nil, errors.Errorf("peer public key is empty")
+	}
+
 	var pubkey *ecdh.PublicKey
 	switch peerPubKey[0] {
 	case 1:

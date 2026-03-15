@@ -36,6 +36,10 @@ func HKDFWithSHA256(secret, salt, info []byte, results [][]byte) error {
 
 // Salt generate random salt with specifiec length
 func Salt(length int) ([]byte, error) {
+	if length <= 0 {
+		return nil, errors.Errorf("salt length must be positive, got %d", length)
+	}
+
 	salt := make([]byte, length)
 	_, err := rand.Read(salt)
 	if err != nil {
