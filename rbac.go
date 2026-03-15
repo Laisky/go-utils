@@ -3,6 +3,7 @@ package utils
 import (
 	"database/sql/driver"
 	"strings"
+	"sync"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -18,6 +19,10 @@ const (
 	rbacPermWildcardSuffix = rbacPermKeyDelimiter + "*"
 
 	rbacPermissionElemKeyRoot RBACPermKey = "root"
+
+	// rbacMaxDepth is the maximum allowed tree depth to prevent stack overflow
+	// from maliciously or accidentally deep trees.
+	rbacMaxDepth = 128
 )
 
 // RBACPermKey permission identity keyword
@@ -151,8 +156,13 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 
 // RBACPermissionElem element node of permission tree
 //
-// the whole permission tree can represented by the head node
+// the whole permission tree can represented by the head node.
+//
+// All exported methods on this type are concurrency-safe. The caller must
+// use the exported methods (or manually hold the lock) when accessing the
+// tree from multiple goroutines.
 type RBACPermissionElem struct {
+	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
 	Title string `json:"title" binding:"min=1"`
 	// Key element's identity
@@ -173,21 +183,43 @@ func NewPermissionTree() *RBACPermissionElem {
 
 // Clone clone permission tree
 func (p *RBACPermissionElem) Clone() *RBACPermissionElem {
-	newP := *p
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
-	// clone children
-	newP.Children = make([]*RBACPermissionElem, len(p.Children))
-	for k, c := range p.Children {
-		newP.Children[k] = c.Clone()
+	return p.cloneUnlocked()
+}
+
+// cloneUnlocked is the lock-free inner implementation of Clone.
+func (p *RBACPermissionElem) cloneUnlocked() *RBACPermissionElem {
+	newP := &RBACPermissionElem{
+		Title:   p.Title,
+		Key:     p.Key,
+		FullKey: p.FullKey,
 	}
 
-	return &newP
+	newP.Children = make([]*RBACPermissionElem, len(p.Children))
+	for k, c := range p.Children {
+		newP.Children[k] = c.cloneUnlocked()
+	}
+
+	return newP
 }
 
 // FillDefault auto filling some default valus
 //
 // it is best to call this function immediately after initialization
 func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.fillDefaultUnlocked(ancesterKey, 0)
+}
+
+func (p *RBACPermissionElem) fillDefaultUnlocked(ancesterKey RBACPermFullKey, depth int) error {
+	if depth > rbacMaxDepth {
+		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
+	}
+
 	if p.Key == "" {
 		return errors.Errorf("key is empty")
 	}
@@ -202,7 +234,7 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 	}
 
 	for i := range p.Children {
-		if err := p.Children[i].FillDefault(p.FullKey); err != nil {
+		if err := p.Children[i].fillDefaultUnlocked(p.FullKey, depth+1); err != nil {
 			return errors.Wrapf(err, "fill default for `%s`", p.Children[i].FullKey.String())
 		}
 	}
@@ -223,6 +255,17 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 // Deprecated: HasPerm uses legacy matching semantics where child permission implies parent permission.
 // Use HasPerm2 for the newer matching behavior.
 func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.hasPermUnlocked(requiredKey, 0)
+}
+
+func (p *RBACPermissionElem) hasPermUnlocked(requiredKey RBACPermFullKey, depth int) bool {
+	if depth > rbacMaxDepth {
+		return false
+	}
+
 	if requiredKey.String() == "" { // do not require any perm
 		return true
 	}
@@ -236,7 +279,7 @@ func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
 	}
 
 	for i := range p.Children {
-		if p.Children[i].HasPerm(requiredKey) {
+		if p.Children[i].hasPermUnlocked(requiredKey, depth+1) {
 			return true
 		}
 	}
@@ -262,7 +305,14 @@ func (p *RBACPermissionElem) HasPerm2(requiredKey RBACPermFullKey) bool {
 		return true
 	}
 
-	return p.hasPerm2WithParent(requiredKey, "")
+	if p == nil {
+		return false
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.hasPerm2WithParent(requiredKey, "", 0)
 }
 
 // hasPerm2WithParent checks HasPerm2 recursively and computes FullKey when it is missing.
@@ -273,7 +323,11 @@ func (p *RBACPermissionElem) HasPerm2(requiredKey RBACPermFullKey) bool {
 //
 // Returns:
 //   - true if current subtree grants requiredKey.
-func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACPermFullKey) bool {
+func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACPermFullKey, depth int) bool {
+	if depth > rbacMaxDepth {
+		return false
+	}
+
 	if p == nil || p.Key == "" {
 		return false
 	}
@@ -288,7 +342,7 @@ func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACP
 	}
 
 	for i := range p.Children {
-		if p.Children[i].hasPerm2WithParent(requiredKey, currentFullKey) {
+		if p.Children[i].hasPerm2WithParent(requiredKey, currentFullKey, depth+1) {
 			return true
 		}
 	}
@@ -296,18 +350,25 @@ func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACP
 	return false
 }
 
-// Valid valid permission tree
+// Valid validates the permission tree without modifying it.
 func (p *RBACPermissionElem) Valid() error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.validUnlocked(0)
+}
+
+func (p *RBACPermissionElem) validUnlocked(depth int) error {
+	if depth > rbacMaxDepth {
+		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
+	}
+
 	if p.Key == "" {
 		return errors.Errorf("key is empty")
 	}
 
-	if p.Children == nil {
-		p.Children = []*RBACPermissionElem{}
-	}
-
 	for _, v := range p.Children {
-		if err := v.Valid(); err != nil {
+		if err := v.validUnlocked(depth + 1); err != nil {
 			return errors.Wrapf(err, "`%s`", v.FullKey.String())
 		}
 	}
@@ -317,37 +378,67 @@ func (p *RBACPermissionElem) Valid() error {
 
 // UnionAndOverwriteBy merge(union) another tree into this tree by key comparison
 func (p *RBACPermissionElem) UnionAndOverwriteBy(other *RBACPermissionElem) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	other.mu.RLock()
+	defer other.mu.RUnlock()
+
+	p.unionAndOverwriteByUnlocked(other, 0)
+}
+
+func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionElem, depth int) {
+	if depth > rbacMaxDepth {
+		return
+	}
+
 	if p.Key == "" || other.Key == "" || p.Key != other.Key {
 		return
 	}
 
 	// replace element's content by another tree
 	c := p.Children
-	*p = *other
+	p.Title = other.Title
+	p.Key = other.Key
+	p.FullKey = other.FullKey
 	p.Children = c
 
-	var replacedEle *RBACPermissionElem
 	for _, oe := range other.Children {
+		var replacedEle *RBACPermissionElem
 		for i := range p.Children {
 			if p.Children[i].Key == oe.Key {
 				replacedEle = p.Children[i]
+				break
 			}
 		}
 
-		// do not has same key element, create new
+		// do not has same key element, create new (clone to avoid sharing)
 		if replacedEle == nil {
-			p.Children = append(p.Children, oe)
+			p.Children = append(p.Children, oe.cloneUnlocked())
 			continue
 		}
 
 		// replace element
-		replacedEle.UnionAndOverwriteBy(oe)
-		replacedEle = nil
+		replacedEle.unionAndOverwriteByUnlocked(oe, depth+1)
 	}
 }
 
 // Intersection intersect with other permission tree
 func (p *RBACPermissionElem) Intersection(other *RBACPermissionElem) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	other.mu.RLock()
+	defer other.mu.RUnlock()
+
+	p.intersectionUnlocked(other, 0)
+}
+
+func (p *RBACPermissionElem) intersectionUnlocked(other *RBACPermissionElem, depth int) {
+	if depth > rbacMaxDepth {
+		return
+	}
+
 	if p.Key == "" || other.Key == "" || p.Key != other.Key {
 		return
 	}
@@ -357,7 +448,7 @@ func (p *RBACPermissionElem) Intersection(other *RBACPermissionElem) {
 		for j := range other.Children {
 			if other.Children[j].Key == p.Children[i].Key {
 				// found, recur
-				p.Children[i].Intersection(other.Children[j])
+				p.Children[i].intersectionUnlocked(other.Children[j], depth+1)
 				filteredChildren = append(filteredChildren, p.Children[i])
 				break
 			}
@@ -373,19 +464,35 @@ func (p *RBACPermissionElem) Intersection(other *RBACPermissionElem) {
 // Args:
 //   - intersection: if set to true, will intersect by another tree
 func (p *RBACPermissionElem) OverwriteBy(another *RBACPermissionElem, intersection bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	another.mu.RLock()
+	defer another.mu.RUnlock()
+
+	p.overwriteByUnlocked(another, intersection, 0)
+}
+
+func (p *RBACPermissionElem) overwriteByUnlocked(another *RBACPermissionElem, intersection bool, depth int) {
+	if depth > rbacMaxDepth {
+		return
+	}
+
 	if p.Key == "" || another.Key == "" || p.Key != another.Key {
 		return
 	}
 
 	c := p.Children
-	*p = *another
+	p.Title = another.Title
+	p.Key = another.Key
+	p.FullKey = another.FullKey
 	p.Children = c
 
 	var filteredChildren []*RBACPermissionElem
 	for i := range p.Children {
 		for j := range another.Children {
 			if another.Children[j].Key == p.Children[i].Key {
-				p.Children[i].OverwriteBy(another.Children[j], intersection)
+				p.Children[i].overwriteByUnlocked(another.Children[j], intersection, depth+1)
 				if intersection {
 					filteredChildren = append(filteredChildren, p.Children[i])
 				}
@@ -408,6 +515,17 @@ func (p *RBACPermissionElem) OverwriteBy(another *RBACPermissionElem, intersecti
 // The root node cannot be removed.
 // You can use `*` as a wildcard to represent removing all child nodes.
 func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.cutUnlocked(key, 0)
+}
+
+func (p *RBACPermissionElem) cutUnlocked(key RBACPermFullKey, depth int) {
+	if depth > rbacMaxDepth {
+		return
+	}
+
 	if p.Key == "" || key == "" || p.Key.String() == key.String() {
 		return
 	}
@@ -422,7 +540,7 @@ func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 		}
 
 		filteredChildren = append(filteredChildren, p.Children[i])
-		p.Children[i].Cut(key)
+		p.Children[i].cutUnlocked(key, depth+1)
 	}
 
 	p.Children = filteredChildren
@@ -433,6 +551,17 @@ func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
 // Args:
 //   - key: permission tree path, like `root.sys`
 func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionElem {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.getElemByKeyUnlocked(key, 0)
+}
+
+func (p *RBACPermissionElem) getElemByKeyUnlocked(key RBACPermFullKey, depth int) *RBACPermissionElem {
+	if depth > rbacMaxDepth {
+		return nil
+	}
+
 	if p.Key == "" || key == "" {
 		return nil
 	}
@@ -446,7 +575,7 @@ func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionEl
 	}
 
 	for i := range p.Children {
-		if ele := p.Children[i].GetElemByKey(key); ele != nil {
+		if ele := p.Children[i].getElemByKeyUnlocked(key, depth+1); ele != nil {
 			return ele
 		}
 	}
@@ -465,5 +594,16 @@ func (p RBACPermissionElem) Value() (driver.Value, error) {
 
 // Scan implement GORM interface
 func (p *RBACPermissionElem) Scan(input any) error {
-	return json.Unmarshal(input.([]byte), p) //nolint:forcetypeassert
+	if input == nil {
+		return errors.Errorf("scan RBACPermissionElem: input is nil")
+	}
+
+	switch v := input.(type) {
+	case []byte:
+		return json.Unmarshal(v, p)
+	case string:
+		return json.Unmarshal([]byte(v), p)
+	default:
+		return errors.Errorf("scan RBACPermissionElem: unsupported type %T", input)
+	}
 }
