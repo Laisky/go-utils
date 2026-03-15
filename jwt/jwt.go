@@ -169,6 +169,10 @@ func (e *Type) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, err
 		}
 	}
 
+	if len(opt.secret) == 0 {
+		return "", errors.New("HS256 secret must not be empty")
+	}
+
 	token := jwt.NewWithClaims(SignMethodHS256, claims)
 	return token.SignedString(opt.secret)
 }
@@ -219,6 +223,10 @@ func (e *Type) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...Di
 		if err := optf(opt); err != nil {
 			return errors.Wrap(err, "apply optf")
 		}
+	}
+
+	if len(opt.secret) == 0 {
+		return errors.New("HS256 secret must not be empty")
 	}
 
 	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {

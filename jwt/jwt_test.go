@@ -409,6 +409,7 @@ func TestParseWithoutKeysFailsGracefully(t *testing.T) {
 	parsedClaims := &testJWTClaims{}
 	err = j2.ParseClaimsByHS256(token, parsedClaims)
 	require.Error(t, err) // Should fail because no secret is provided
+	require.Contains(t, err.Error(), "HS256 secret must not be empty")
 }
 
 func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
@@ -730,6 +731,32 @@ func TestDivideOptionsWithGeneratedKeys(t *testing.T) {
 	err = j.ParseClaimsByRS256("dummy.token", claims, WithDividePubKey([]byte("")))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "divide public key cannot be empty")
+}
+
+func TestHS256RejectsNilSecret(t *testing.T) {
+	t.Parallel()
+
+	// A JWT instance created without a secret must not silently sign/verify
+	// with an empty HMAC key, as that would produce trivially forgeable tokens.
+	j, err := New(WithSignMethod(SignMethodHS256))
+	require.NoError(t, err)
+
+	claims := &testJWTClaims{
+		jwt.RegisteredClaims{
+			Subject:   "test",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	// Signing with nil secret must fail
+	_, err = j.SignByHS256(claims)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "HS256 secret must not be empty")
+
+	// Signing via Sign() dispatcher must also fail
+	_, err = j.Sign(claims)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "HS256 secret must not be empty")
 }
 
 func TestKeyValidationWithDifferentKeySizes(t *testing.T) {
