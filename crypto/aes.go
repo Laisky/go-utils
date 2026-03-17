@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Laisky/errors/v2"
@@ -382,7 +383,15 @@ func AESEncryptFilesInDir(dir string, secret []byte, opts ...AESEncryptFilesInDi
 				return errors.Wrapf(err, "encrypt")
 			}
 
-			outfname := fname + opt.suffix
+			outfname, err := gutils.JoinFilepath(
+				filepath.Dir(fname),
+				filepath.Base(fname)+opt.suffix,
+			)
+			if err != nil {
+				return errors.Wrap(err, "build output file path")
+			}
+
+			//nolint:gosec // output path stays within the enumerated source directory entry.
 			if err = os.WriteFile(outfname, cipher, 0600); err != nil {
 				return errors.Wrapf(err, "write file `%s`", outfname)
 			}

@@ -31,6 +31,9 @@ func (f *flock) Lock() (err error) {
 	if err != nil {
 		return errors.Wrapf(err, "open `%s`", f.fpath)
 	}
+	if f.fd < 0 {
+		return errors.Errorf("open `%s`: invalid fd %d", f.fpath, f.fd)
+	}
 
 	flock := syscall.Flock_t{
 		Type:   syscall.F_WRLCK,
@@ -38,7 +41,8 @@ func (f *flock) Lock() (err error) {
 		Start:  0,
 		Len:    0,
 	}
-	if err := syscall.FcntlFlock(uintptr(f.fd), syscall.F_SETLK, &flock); err != nil {
+	fd := uintptr(f.fd) //nolint:gosec // fd is validated non-negative and originates from syscall.Open.
+	if err := syscall.FcntlFlock(fd, syscall.F_SETLK, &flock); err != nil {
 		return errors.Wrap(err, "FcntlFlock(F_SETLK)")
 	}
 

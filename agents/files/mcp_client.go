@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -18,6 +19,7 @@ import (
 const (
 	jsonrpcVersion             = "2.0"
 	maxMCPRPCResponseBodyBytes = 8 * 1024 * 1024
+	defaultMCPClientTimeout    = 30 * time.Second
 )
 
 // ErrorCode is the normalized MCP tool error code.
@@ -120,7 +122,8 @@ func NewMCPClient(conf MCPClientConfig) (*MCPClient, error) {
 
 	httpCli := conf.Client
 	if httpCli == nil {
-		httpCli = http.DefaultClient
+		// Use a bounded default client so misconfigured callers cannot hang forever on remote MCP calls.
+		httpCli = &http.Client{Timeout: defaultMCPClientTimeout}
 	}
 
 	return &MCPClient{

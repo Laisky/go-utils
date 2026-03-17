@@ -405,7 +405,7 @@ func TestOpenProjectRootDirectBranches(t *testing.T) {
 	require.Error(t, err)
 
 	missingRoot, err := engine.openProjectRoot("missing-project", false)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, errProjectRootNotFound)
 	require.Nil(t, missingRoot)
 
 	_, err = engine.openProjectRoot("project-as-file", true)

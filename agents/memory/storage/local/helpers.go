@@ -30,7 +30,9 @@ func writeAppend(root *os.Root, relPath, content string, perm os.FileMode) error
 	if err != nil {
 		return errors.Wrap(err, "open append file")
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if _, err = io.WriteString(file, content); err != nil {
 		return errors.Wrap(err, "append file content")
@@ -55,7 +57,9 @@ func writeOverwrite(root *os.Root, relPath, content string, offset int64, perm o
 	if err != nil {
 		return errors.Wrap(err, "open overwrite file")
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	fileInfo, err := file.Stat()
 	if err != nil {

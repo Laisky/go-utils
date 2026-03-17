@@ -16,7 +16,7 @@ require (
 	github.com/corvus-ch/shamir v1.0.1
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/gammazero/deque v1.2.0
+	github.com/gammazero/deque v1.2.1
 	github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
@@ -30,13 +30,13 @@ require (
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a
+	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	github.com/xlzd/gotp v0.1.0
 	go.dedis.ch/kyber/v3 v3.1.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.47.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/term v0.39.0
+	golang.org/x/crypto v0.49.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/term v0.41.0
 	golang.org/x/time v0.3.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
@@ -52,7 +52,7 @@ require (
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

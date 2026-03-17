@@ -68,3 +68,18 @@ func TestMCPClientDoRPCWithinLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), out.ID)
 }
+
+// TestNewMCPClientSetsDefaultTimeout verifies the fallback HTTP client enforces a timeout.
+func TestNewMCPClientSetsDefaultTimeout(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewMCPClient(MCPClientConfig{
+		Endpoint: "https://example.com/mcp",
+		APIKey:   "test-key",
+	})
+	require.NoError(t, err)
+
+	httpCli, ok := client.httpCli.(*http.Client)
+	require.True(t, ok)
+	require.Equal(t, defaultMCPClientTimeout, httpCli.Timeout)
+}

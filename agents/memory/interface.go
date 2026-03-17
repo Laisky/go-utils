@@ -79,7 +79,11 @@ type Engine interface {
 type Management interface {
 	RunMaintenance(ctx context.Context, project, sessionID string) error
 	RunConsolidation(ctx context.Context, project, sessionID string) error
-	ListDirWithAbstract(ctx context.Context, project, sessionID, path string, depth, limit int) ([]DirectorySummary, error)
+	ListDirWithAbstract(
+		ctx context.Context,
+		project, sessionID, path string,
+		depth, limit int,
+	) ([]DirectorySummary, error)
 }
 
 // Config controls behavior of standard memory engine.

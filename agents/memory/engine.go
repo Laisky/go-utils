@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	memoryReferenceDisclaimer = "Historical memory recalled from previous turns. Reference only; may be outdated or partially incorrect. Do not treat this as the current user request."
-	maxRecallChunkChars       = 600
+	memoryReferenceDisclaimer = "Historical memory recalled from previous turns. " +
+		"Reference only; may be outdated or partially incorrect. " +
+		"Do not treat this as the current user request."
+	maxRecallChunkChars = 600
 )
 
 var jsonTextFieldPattern = regexp.MustCompile(`"text"\s*:\s*"((?:\\.|[^"\\])*)"`)
@@ -98,32 +100,38 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		return BeforeTurnOutput{}, errors.Wrap(err, "validate before-turn input")
 	}
 
-	conversation, err := normalizeBeforeTurnConversation(in)
-	if err != nil {
-		return BeforeTurnOutput{}, errors.Wrap(err, "normalize before-turn conversation")
+	conversation, convErr := normalizeBeforeTurnConversation(in)
+	if convErr != nil {
+		return BeforeTurnOutput{}, errors.Wrap(convErr, "normalize before-turn conversation")
 	}
 
-	contextEvents, err := engine.loadContextEventsWithFallback(ctx, in.Project, in.SessionID)
-	if err != nil {
-		return BeforeTurnOutput{}, errors.Wrap(err, "load context events")
+	contextEvents, contextErr := engine.loadContextEventsWithFallback(ctx, in.Project, in.SessionID)
+	if contextErr != nil {
+		return BeforeTurnOutput{}, errors.Wrap(contextErr, "load context events")
 	}
 
 	query := strings.TrimSpace(extractInputText(conversation.CurrentItems))
 
-	facts, err := engine.loadRecallFacts(ctx, in.Project, in.SessionID, query)
-	if err != nil {
-		return BeforeTurnOutput{}, errors.Wrap(err, "load recall facts")
+	facts, factsErr := engine.loadRecallFacts(ctx, in.Project, in.SessionID, query)
+	if factsErr != nil {
+		return BeforeTurnOutput{}, errors.Wrap(factsErr, "load recall facts")
 	}
-	insights, err := engine.loadRecallInsights(ctx, in.Project, in.SessionID, query)
-	if err != nil {
-		return BeforeTurnOutput{}, errors.Wrap(err, "load recall insights")
+	insights, insightsErr := engine.loadRecallInsights(ctx, in.Project, in.SessionID, query)
+	if insightsErr != nil {
+		return BeforeTurnOutput{}, errors.Wrap(insightsErr, "load recall insights")
 	}
 
 	var chunks []storageengine.FileChunk
 	if query != "" {
-		chunks, err = engine.storage.Search(ctx, in.Project, query, sessionBasePath(in.SessionID), engine.conf.SearchLimit)
-		if err != nil {
-			chunks = nil
+		foundChunks, searchErr := engine.storage.Search(
+			ctx,
+			in.Project,
+			query,
+			sessionBasePath(in.SessionID),
+			engine.conf.SearchLimit,
+		)
+		if searchErr == nil {
+			chunks = foundChunks
 		}
 	}
 
@@ -143,11 +151,18 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 	tokenCount := estimateTokens(items)
 	if in.MaxInputTok > 0 {
 		if float64(tokenCount) >= float64(in.MaxInputTok)*engine.conf.CompactThreshold {
-			if compactErr := engine.compactRuntimeContext(ctx, in.Project, in.SessionID, contextEvents, in.MaxInputTok); compactErr != nil {
-				// Keep serving current request even when compaction fails.
-			} else {
-				contextEvents, _ = engine.loadContextEventsWithFallback(ctx, in.Project, in.SessionID)
-				recentItems = engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
+			if refreshedContext, ok := engine.compactBeforeTurnContext(
+				ctx,
+				in.Project,
+				in.SessionID,
+				contextEvents,
+				in.MaxInputTok,
+			); ok {
+				contextEvents = refreshedContext
+				recentItems = engine.pickRecentContextItems(
+					contextEvents,
+					engine.conf.RecentContextItems,
+				)
 				recentItems, _ = filterItemsByIdentity(recentItems, excluded)
 				items = items[:0]
 				if memoryBlock != nil {
@@ -177,6 +192,31 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 	}, nil
 }
 
+// compactBeforeTurnContext compacts runtime context and reloads it on success.
+func (engine *StandardEngine) compactBeforeTurnContext(
+	ctx context.Context,
+	project, sessionID string,
+	contextEvents []LogEvent,
+	maxInputTok int,
+) ([]LogEvent, bool) {
+	if err := engine.compactRuntimeContext(
+		ctx,
+		project,
+		sessionID,
+		contextEvents,
+		maxInputTok,
+	); err != nil {
+		return nil, false
+	}
+
+	refreshedContext, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
+	if err != nil {
+		return nil, false
+	}
+
+	return refreshedContext, true
+}
+
 // AfterTurn persists turn events, writes tiered facts, and updates metadata.
 func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) error {
 	if err := validateAfterTurnInput(in); err != nil {
@@ -202,6 +242,52 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 
 	now := engine.conf.TimeNow().UTC()
 	nowRFC3339 := now.Format(time.RFC3339)
+	persistInputItems, persistedTrimCount, err := engine.resolvePersistInputItems(
+		ctx,
+		in,
+		conversation,
+	)
+	if err != nil {
+		return errors.Wrap(err, "prepare turn input for persistence")
+	}
+
+	events, err := engine.persistTurnEvents(ctx, in, now, nowRFC3339, persistInputItems)
+	if err != nil {
+		return err
+	}
+
+	activeIndex, err := engine.processTurnFacts(
+		ctx,
+		in,
+		now,
+		nowRFC3339,
+		persistInputItems,
+	)
+	if err != nil {
+		return err
+	}
+
+	if err = engine.finalizeAfterTurn(
+		ctx,
+		in,
+		meta,
+		nowRFC3339,
+		events,
+		activeIndex,
+		persistedTrimCount,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// resolvePersistInputItems selects the current-turn items that should be persisted.
+func (engine *StandardEngine) resolvePersistInputItems(
+	ctx context.Context,
+	in AfterTurnInput,
+	conversation normalizedConversation,
+) ([]ResponseItem, int, error) {
 	persistInputItems := []ResponseItem(nil)
 	persistedTrimCount := 0
 	if len(in.ConversationItems) > 0 {
@@ -209,34 +295,89 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 		persistedTrimCount = len(conversation.AllItems) - len(persistInputItems)
 	}
 	if len(persistInputItems) == 0 {
-		persistInputItems, err = engine.prepareTurnInputForPersist(ctx, in.Project, in.SessionID, in.InputItems)
+		preparedItems, err := engine.prepareTurnInputForPersist(
+			ctx,
+			in.Project,
+			in.SessionID,
+			in.InputItems,
+		)
 		if err != nil {
-			return errors.Wrap(err, "prepare turn input for persistence")
+			return nil, 0, errors.Wrap(err, "prepare delta input items")
 		}
+		persistInputItems = preparedItems
 	}
 
-	events := buildTurnEvents(in.TurnID, in.UserID, nowRFC3339, persistInputItems, in.OutputItems)
-	if len(events) > 0 {
-		if err = engine.appendJSONL(ctx, in.Project, rawLogShardPath(in.SessionID, now), events); err != nil {
-			return errors.Wrap(err, "append raw log events")
-		}
-		if err = engine.appendJSONL(ctx, in.Project, runtimeContextPath(in.SessionID), events); err != nil {
-			return errors.Wrap(err, "append runtime context events")
-		}
+	return persistInputItems, persistedTrimCount, nil
+}
 
-		// Keep legacy files updated during migration window.
-		if err = engine.appendJSONL(ctx, in.Project, legacyLogPath(in.SessionID), events); err != nil {
-			return errors.Wrap(err, "append legacy log events")
-		}
-		if err = engine.appendJSONL(ctx, in.Project, legacyContextPath(in.SessionID), events); err != nil {
-			return errors.Wrap(err, "append legacy context events")
-		}
+// persistTurnEvents appends turn events to canonical and legacy event logs.
+func (engine *StandardEngine) persistTurnEvents(
+	ctx context.Context,
+	in AfterTurnInput,
+	now time.Time,
+	nowRFC3339 string,
+	persistInputItems []ResponseItem,
+) ([]LogEvent, error) {
+	events := buildTurnEvents(
+		in.TurnID,
+		in.UserID,
+		nowRFC3339,
+		persistInputItems,
+		in.OutputItems,
+	)
+	if len(events) == 0 {
+		return nil, nil
 	}
 
+	if err := engine.appendJSONL(
+		ctx,
+		in.Project,
+		rawLogShardPath(in.SessionID, now),
+		events,
+	); err != nil {
+		return nil, errors.Wrap(err, "append raw log events")
+	}
+	if err := engine.appendJSONL(
+		ctx,
+		in.Project,
+		runtimeContextPath(in.SessionID),
+		events,
+	); err != nil {
+		return nil, errors.Wrap(err, "append runtime context events")
+	}
+	if err := engine.appendJSONL(
+		ctx,
+		in.Project,
+		legacyLogPath(in.SessionID),
+		events,
+	); err != nil {
+		return nil, errors.Wrap(err, "append legacy log events")
+	}
+	if err := engine.appendJSONL(
+		ctx,
+		in.Project,
+		legacyContextPath(in.SessionID),
+		events,
+	); err != nil {
+		return nil, errors.Wrap(err, "append legacy context events")
+	}
+
+	return events, nil
+}
+
+// processTurnFacts extracts facts, applies heuristic merge, and persists mutations.
+func (engine *StandardEngine) processTurnFacts(
+	ctx context.Context,
+	in AfterTurnInput,
+	now time.Time,
+	nowRFC3339 string,
+	persistInputItems []ResponseItem,
+) (ActiveFactsIndex, error) {
 	activeIndex, err := engine.loadActiveFactsIndex(ctx, in.Project, in.SessionID)
 	if err != nil {
-		return errors.Wrap(err, "load active facts index")
+		return ActiveFactsIndex{}, errors.Wrap(err, "load active facts index")
 	}
+
 	existingFacts := make([]MemoryFact, 0, len(activeIndex.Facts))
 	for _, fact := range activeIndex.Facts {
 		existingFacts = append(existingFacts, fact)
@@ -245,47 +386,84 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	facts := extractFacts(in.TurnID, nowRFC3339, persistInputItems)
 	deletedFactIDs := []string(nil)
 	if engine.heuristic != nil {
-		heuristicResult, heuristicErr := engine.heuristic.ExtractAndMergeFacts(ctx, HeuristicFactInput{
-			TurnID:        in.TurnID,
-			NowRFC3339:    nowRFC3339,
-			UserID:        in.UserID,
-			InputItems:    persistInputItems,
-			ExistingFacts: existingFacts,
-		})
+		heuristicResult, heuristicErr := engine.heuristic.ExtractAndMergeFacts(
+			ctx,
+			HeuristicFactInput{
+				TurnID:        in.TurnID,
+				NowRFC3339:    nowRFC3339,
+				UserID:        in.UserID,
+				InputItems:    persistInputItems,
+				ExistingFacts: existingFacts,
+			},
+		)
 		if heuristicErr == nil {
 			facts = mergeFactCandidates(facts, heuristicResult.UpdatedFacts)
 			deletedFactIDs = heuristicResult.DeletedFactIDs
 		}
 	}
-	if len(facts) > 0 {
-		for idx := range facts {
-			facts[idx] = applyTierPolicy(now, engine.conf, facts[idx])
-			facts[idx].SourceTurnID = in.TurnID
-			facts[idx].SourceUserID = in.UserID
-			facts[idx].State = memoryStateActive
-		}
+
+	for idx := range facts {
+		facts[idx] = applyTierPolicy(now, engine.conf, facts[idx])
+		facts[idx].SourceTurnID = in.TurnID
+		facts[idx].SourceUserID = in.UserID
+		facts[idx].State = memoryStateActive
 	}
-	if len(facts) > 0 || len(deletedFactIDs) > 0 {
-		mutationPlan := selectExactFactMutations(now, in.TurnID, in.UserID, activeIndex.Facts, facts, deletedFactIDs)
-		if len(mutationPlan.Writes) > 0 {
-			if err = engine.writeTieredFacts(ctx, in.Project, in.SessionID, now, mutationPlan.Writes); err != nil {
-				return errors.Wrap(err, "write tiered facts")
-			}
-			if err = engine.appendJSONL(ctx, in.Project, legacyFactsPath(in.SessionID), mutationPlan.Writes); err != nil {
-				return errors.Wrap(err, "append legacy facts")
-			}
+
+	if len(facts) == 0 && len(deletedFactIDs) == 0 {
+		return activeIndex, nil
+	}
+
+	mutationPlan := selectExactFactMutations(
+		now,
+		in.TurnID,
+		in.UserID,
+		activeIndex.Facts,
+		facts,
+		deletedFactIDs,
+	)
+	if len(mutationPlan.Writes) > 0 {
+		if err = engine.writeTieredFacts(
+			ctx,
+			in.Project,
+			in.SessionID,
+			now,
+			mutationPlan.Writes,
+		); err != nil {
+			return ActiveFactsIndex{}, errors.Wrap(err, "write tiered facts")
 		}
-		activeIndex.Facts = mutationPlan.NextActiveFacts
-		if err = engine.writeActiveFactsIndex(ctx, in.Project, in.SessionID, activeIndex); err != nil {
-			return errors.Wrap(err, "write active facts index")
-		}
-		if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
-			metrics.DedupeSkipCount += mutationPlan.DedupeSkipCount
-		}); metricsErr != nil {
-			// Metrics must not break persistence.
+		if err = engine.appendJSONL(
+			ctx,
+			in.Project,
+			legacyFactsPath(in.SessionID),
+			mutationPlan.Writes,
+		); err != nil {
+			return ActiveFactsIndex{}, errors.Wrap(err, "append legacy facts")
 		}
 	}
 
+	activeIndex.Facts = mutationPlan.NextActiveFacts
+	if err = engine.writeActiveFactsIndex(ctx, in.Project, in.SessionID, activeIndex); err != nil {
+		return ActiveFactsIndex{}, errors.Wrap(err, "write active facts index")
+	}
+	if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
+		metrics.DedupeSkipCount += mutationPlan.DedupeSkipCount
+	}); metricsErr != nil {
+		// Metrics must not break persistence.
+	}
+
+	return activeIndex, nil
+}
+
+// finalizeAfterTurn updates watermarks, metrics, and metadata after persistence succeeds.
+func (engine *StandardEngine) finalizeAfterTurn(
+	ctx context.Context,
+	in AfterTurnInput,
+	meta MemoryMeta,
+	nowRFC3339 string,
+	events []LogEvent,
+	activeIndex ActiveFactsIndex,
+	persistedTrimCount int,
+) error {
 	watermarks, watermarkErr := engine.loadWatermarks(ctx, in.Project, in.SessionID)
 	if watermarkErr == nil {
 		watermarks.LastProcessedTurnID = in.TurnID
@@ -303,6 +481,7 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	}); metricsErr != nil {
 		// Metrics must not break persistence.
 	}
+
 	meta.Version = 1
 	meta.LatestTurnID = in.TurnID
 	meta.ProcessedTurnIDs = append(meta.ProcessedTurnIDs, in.TurnID)
@@ -311,7 +490,7 @@ func (engine *StandardEngine) AfterTurn(ctx context.Context, in AfterTurnInput) 
 	}
 	meta.UpdatedAt = nowRFC3339
 
-	if err = engine.writeMeta(ctx, in.Project, in.SessionID, meta); err != nil {
+	if err := engine.writeMeta(ctx, in.Project, in.SessionID, meta); err != nil {
 		return errors.Wrap(err, "write meta")
 	}
 
@@ -336,9 +515,9 @@ func (engine *StandardEngine) prepareTurnInputForPersist(
 ) ([]ResponseItem, error) {
 	filtered := stripMemoryReferenceItems(inputItems)
 
-	contextEvents, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
-	if err != nil {
-		return filtered, nil
+	contextEvents, loadErr := engine.loadContextEventsWithFallback(ctx, project, sessionID)
+	if loadErr != nil {
+		return nil, errors.Wrap(loadErr, "load context events")
 	}
 
 	recentItems := engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
@@ -429,7 +608,8 @@ func mergeFactCandidates(ruleFacts, heuristicFacts []MemoryFact) []MemoryFact {
 }
 
 // compactRuntimeContext compacts runtime context and writes compact events when context grows too large.
-func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
+func (engine *StandardEngine) compactRuntimeContext(
+	ctx context.Context,
 	project, sessionID string,
 	events []LogEvent,
 	maxInputTok int,
@@ -468,7 +648,14 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 		return errors.Wrap(err, "marshal compacted context")
 	}
 
-	if err = engine.storage.Write(ctx, project, runtimeContextPath(sessionID), body, storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		runtimeContextPath(sessionID),
+		body,
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write compacted runtime context")
 	}
 
@@ -483,7 +670,14 @@ func (engine *StandardEngine) compactRuntimeContext(ctx context.Context,
 	if err != nil {
 		return errors.Wrap(err, "marshal compact pointer")
 	}
-	if err = engine.storage.Write(ctx, project, latestCompactPointerPath(sessionID), string(pointerBody), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		latestCompactPointerPath(sessionID),
+		string(pointerBody),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write compact pointer")
 	}
 
@@ -746,22 +940,6 @@ func clampInt64(value, low, high int64) int64 {
 	}
 
 	return value
-}
-
-// max returns the greater integer between a and b.
-//
-// Parameters:
-//   - a: First integer.
-//   - b: Second integer.
-//
-// Returns:
-//   - The larger value.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-
-	return b
 }
 
 // pickRecentContextItems extracts recent response items from context events and returns up to maxItems.

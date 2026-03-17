@@ -67,8 +67,11 @@ func (engine *StandardEngine) loadContextEvents(ctx context.Context, project, fi
 	return events, nil
 }
 
-// loadContextEventsWithFallback loads canonical runtime context first and falls back to legacy context.
-func (engine *StandardEngine) loadContextEventsWithFallback(ctx context.Context, project, sessionID string) ([]LogEvent, error) {
+// loadContextEventsWithFallback loads canonical runtime context first.
+func (engine *StandardEngine) loadContextEventsWithFallback(
+	ctx context.Context,
+	project, sessionID string,
+) ([]LogEvent, error) {
 	events, err := engine.loadContextEvents(ctx, project, runtimeContextPath(sessionID))
 	if err != nil {
 		return nil, errors.Wrap(err, "load runtime context")
@@ -104,8 +107,11 @@ func (engine *StandardEngine) loadFactsFromFile(ctx context.Context, project, fi
 	return facts, nil
 }
 
-// loadRecallFacts loads active facts from tiered files, ranks them for query relevance, and falls back to legacy facts when needed.
-func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sessionID, query string) ([]MemoryFact, error) {
+// loadRecallFacts loads active facts and ranks them for recall relevance.
+func (engine *StandardEngine) loadRecallFacts(
+	ctx context.Context,
+	project, sessionID, query string,
+) ([]MemoryFact, error) {
 	activeIndex, err := engine.loadActiveFactsIndex(ctx, project, sessionID)
 	if err == nil && len(activeIndex.Facts) > 0 {
 		facts := make([]MemoryFact, 0, len(activeIndex.Facts))
@@ -163,7 +169,10 @@ func (engine *StandardEngine) loadRecallFacts(ctx context.Context, project, sess
 }
 
 // loadTierFacts loads all facts in one tier and returns decoded records across shards.
-func (engine *StandardEngine) loadTierFacts(ctx context.Context, project, sessionID, tier string) ([]MemoryFact, error) {
+func (engine *StandardEngine) loadTierFacts(
+	ctx context.Context,
+	project, sessionID, tier string,
+) ([]MemoryFact, error) {
 	root := tierRootPath(sessionID, tier)
 	fileInfos, err := engine.listFiles(ctx, project, root, ".jsonl")
 	if err != nil {
@@ -211,7 +220,10 @@ func (engine *StandardEngine) writeTieredFacts(
 }
 
 // listFiles lists files under root, filters by suffix, and returns sorted file infos.
-func (engine *StandardEngine) listFiles(ctx context.Context, project, root, suffix string) ([]storageengine.FileInfo, error) {
+func (engine *StandardEngine) listFiles(
+	ctx context.Context,
+	project, root, suffix string,
+) ([]storageengine.FileInfo, error) {
 	entries, _, err := engine.storage.List(ctx, project, root, 16, 4096)
 	if err != nil {
 		return nil, errors.Wrap(err, "list entries")
@@ -312,10 +324,24 @@ func (engine *StandardEngine) writeMeta(ctx context.Context, project, sessionID 
 		return errors.Wrap(err, "marshal meta")
 	}
 
-	if err = engine.storage.Write(ctx, project, metaStatePath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		metaStatePath(sessionID),
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write state meta")
 	}
-	if err = engine.storage.Write(ctx, project, legacyMetaPath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		legacyMetaPath(sessionID),
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write legacy meta")
 	}
 
@@ -359,7 +385,14 @@ func (engine *StandardEngine) ensurePolicy(ctx context.Context, project, session
 	if err != nil {
 		return errors.Wrap(err, "marshal policy")
 	}
-	if err = engine.storage.Write(ctx, project, policyPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		policyPath,
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write policy")
 	}
 
@@ -382,7 +415,14 @@ func (engine *StandardEngine) ensureWatermarks(ctx context.Context, project, ses
 		return errors.Wrap(err, "marshal watermarks")
 	}
 
-	if err = engine.storage.Write(ctx, project, watermarkPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		watermarkPath,
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write watermarks")
 	}
 
@@ -405,7 +445,14 @@ func (engine *StandardEngine) ensureMetrics(ctx context.Context, project, sessio
 		return errors.Wrap(err, "marshal metrics")
 	}
 
-	if err = engine.storage.Write(ctx, project, metricsPath, string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		metricsPath,
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write metrics")
 	}
 
@@ -449,15 +496,19 @@ func buildDefaultAbstract(dir string) string {
 	text := strings.Join([]string{
 		"This folder is part of the memory storage hierarchy for one agent session.",
 		"It stores structured data that supports recall, retention, and historical traceability.",
-		"Writers append immutable records whenever possible, and maintenance jobs compact or archive old data without losing essential meaning.",
-		"Files under this path can include event logs, tiered memory facts, runtime context snapshots, and metadata state documents.",
-		"The primary goal is predictable retrieval quality with bounded storage growth and clear operational observability.",
+		"Writers append immutable records whenever possible, and maintenance jobs compact or archive old data",
+		"without losing essential meaning.",
+		"Files under this path can include event logs, tiered memory facts, runtime context snapshots,",
+		"and metadata state documents.",
+		"The primary goal is predictable retrieval quality with bounded storage growth and clear",
+		"operational observability.",
 		"Readers should treat this directory as a managed area and avoid manual mutation unless performing recovery.",
 		"Path: " + dir + ".",
 	}, " ")
 
 	if wordCount(text) < 100 {
-		text += " This abstract intentionally includes enough context so listing calls can quickly explain folder intent without loading all underlying records."
+		text += " This abstract intentionally includes enough context so listing calls can quickly " +
+			"explain folder intent without loading all underlying records."
 	}
 
 	return text
@@ -467,11 +518,14 @@ func buildDefaultAbstract(dir string) string {
 func buildDefaultOverview(dir string) string {
 	return strings.Join([]string{
 		"Overview for", dir + ".",
-		"This folder belongs to the managed memory layout and can contain session metadata, raw immutable event shards, compact summaries, tiered fact records, and runtime context files.",
+		"This folder belongs to the managed memory layout and can contain session metadata,",
+		"raw immutable event shards, compact summaries, tiered fact records, and runtime",
+		"context files.",
 		"Retention and cleanup are policy driven.",
 		"L0 facts are durable unless explicitly removed for compliance.",
 		"L1 and L2 facts can expire automatically based on UTC retention windows.",
-		"Background maintenance can archive old raw shards, refresh summary files, and remove expired data while preserving read-path continuity.",
+		"Background maintenance can archive old raw shards, refresh summary files, and remove",
+		"expired data while preserving read-path continuity.",
 		"Consumers should prefer SDK APIs for reads and writes to maintain consistency guarantees.",
 	}, " ")
 }

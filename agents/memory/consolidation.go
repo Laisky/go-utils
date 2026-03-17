@@ -177,16 +177,26 @@ func deriveInsightsFromFacts(now time.Time, facts []MemoryFact, observedTurns ma
 			}
 		}
 
-		summary := ""
 		insightType := "fact_stability"
 		status := memoryStateConsolidated
 		confidence := 0.78
+		var summary string
 		if len(group.DistinctVals) > 1 {
 			insightType = "fact_evolution"
-			summary = fmt.Sprintf("Memory for %s evolved across turns and currently resolves to %s=%s.", identity, group.Latest.Key, group.Latest.Value)
+			summary = fmt.Sprintf(
+				"Memory for %s evolved across turns and currently resolves to %s=%s.",
+				identity,
+				group.Latest.Key,
+				group.Latest.Value,
+			)
 			confidence = 0.84
 		} else if len(group.Facts) >= 2 {
-			summary = fmt.Sprintf("Memory for %s remained stable across multiple turns: %s=%s.", identity, group.Latest.Key, group.Latest.Value)
+			summary = fmt.Sprintf(
+				"Memory for %s remained stable across multiple turns: %s=%s.",
+				identity,
+				group.Latest.Key,
+				group.Latest.Value,
+			)
 		} else {
 			continue
 		}
@@ -220,12 +230,15 @@ func deriveInsightsFromFacts(now time.Time, facts []MemoryFact, observedTurns ma
 
 // buildInsightID builds one deterministic insight identifier.
 func buildInsightID(identity, insightType, ts, summary string) string {
-	payload, _ := json.Marshal(map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"identity": identity,
 		"type":     insightType,
 		"ts":       ts,
 		"summary":  summary,
 	})
+	if err != nil {
+		payload = []byte(identity + ":" + insightType + ":" + ts + ":" + summary)
+	}
 	sum := sha1.Sum(payload)
 	return fmt.Sprintf("insight-%x", sum[:8])
 }

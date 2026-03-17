@@ -19,8 +19,8 @@ func NewLruCache[K comparable, V any](size int, ttl time.Duration) *sieve.Sieve[
 
 // TtlCache cache with ttl
 type TtlCache[T any] struct {
-	ctx    context.Context
-	cancel func()
+	done   chan struct{}
+	closed atomic.Bool
 	sk     algorithm.SkipList[int64]
 	kv     sync.Map
 }
@@ -28,17 +28,23 @@ type TtlCache[T any] struct {
 // NewTtlCache new cache with ttl
 func NewTtlCache[T any]() *TtlCache[T] {
 	c := &TtlCache[T]{
-		sk: algorithm.NewSkiplist[int64](),
+		done: make(chan struct{}),
+		sk:   algorithm.NewSkiplist[int64](),
 	}
 
-	c.ctx, c.cancel = context.WithCancel(context.Background())
 	go c.clean()
 	return c
 }
 
 // Close close cache
 func (c *TtlCache[T]) Close() {
-	c.cancel()
+	if c == nil {
+		return
+	}
+
+	if c.closed.CompareAndSwap(false, true) {
+		close(c.done)
+	}
 }
 
 func (c *TtlCache[T]) clean() {
@@ -46,7 +52,7 @@ func (c *TtlCache[T]) clean() {
 
 	for {
 		select {
-		case <-c.ctx.Done():
+		case <-c.done:
 			return
 		default:
 		}
@@ -72,7 +78,7 @@ func (c *TtlCache[T]) clean() {
 // Set set data with ttl
 func (c *TtlCache[T]) Set(key string, val T, ttl time.Duration) {
 	select {
-	case <-c.ctx.Done():
+	case <-c.done:
 		log.Shared.Panic("this cache already closed")
 	default:
 	}
@@ -85,7 +91,7 @@ func (c *TtlCache[T]) Set(key string, val T, ttl time.Duration) {
 // Get get data
 func (c *TtlCache[T]) Get(key string) (val T, ok bool) {
 	select {
-	case <-c.ctx.Done():
+	case <-c.done:
 		log.Shared.Panic("this cache already closed")
 	default:
 	}
@@ -108,7 +114,7 @@ func (c *TtlCache[T]) Get(key string) (val T, ok bool) {
 // Delete remove key
 func (c *TtlCache[T]) Delete(key string) {
 	select {
-	case <-c.ctx.Done():
+	case <-c.done:
 		log.Shared.Panic("this cache already closed")
 	default:
 	}

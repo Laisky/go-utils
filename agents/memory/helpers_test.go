@@ -64,7 +64,11 @@ func TestMarshalParseAndSortFacts(t *testing.T) {
 		decoded = append(decoded, fact)
 	}
 
-	sortFactsForRecall(decoded)
+	decoded = rankFactsForRecall(
+		time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+		decoded,
+		"",
+	)
 	unique := deduplicateFacts(decoded)
 	require.Len(t, unique, 2)
 	require.Equal(t, "a", unique[0].FactID)

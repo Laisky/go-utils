@@ -498,17 +498,17 @@ func (rp *rotationPattern) format(logger string, start time.Time) string {
 		case patternLogger:
 			b.WriteString(logger)
 		case patternYear:
-			b.WriteString(fmt.Sprintf("%04d", start.Year()))
+			_, _ = fmt.Fprintf(&b, "%04d", start.Year())
 		case patternMonth:
-			b.WriteString(fmt.Sprintf("%02d", int(start.Month())))
+			_, _ = fmt.Fprintf(&b, "%02d", int(start.Month()))
 		case patternDay:
-			b.WriteString(fmt.Sprintf("%02d", start.Day()))
+			_, _ = fmt.Fprintf(&b, "%02d", start.Day())
 		case patternHour:
-			b.WriteString(fmt.Sprintf("%02d", start.Hour()))
+			_, _ = fmt.Fprintf(&b, "%02d", start.Hour())
 		case patternMinute:
-			b.WriteString(fmt.Sprintf("%02d", start.Minute()))
+			_, _ = fmt.Fprintf(&b, "%02d", start.Minute())
 		case patternSecond:
-			b.WriteString(fmt.Sprintf("%02d", start.Second()))
+			_, _ = fmt.Fprintf(&b, "%02d", start.Second())
 		}
 	}
 

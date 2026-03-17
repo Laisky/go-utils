@@ -12,8 +12,11 @@ import (
 	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
-// loadActiveFactsIndex loads the exact active-facts index or rebuilds it from fact shards when missing.
-func (engine *StandardEngine) loadActiveFactsIndex(ctx context.Context, project, sessionID string) (ActiveFactsIndex, error) {
+// loadActiveFactsIndex loads the exact active-facts index or rebuilds it.
+func (engine *StandardEngine) loadActiveFactsIndex(
+	ctx context.Context,
+	project, sessionID string,
+) (ActiveFactsIndex, error) {
 	info, err := engine.storage.Stat(ctx, project, activeFactsIndexPath(sessionID))
 	if err != nil {
 		return ActiveFactsIndex{}, errors.Wrap(err, "stat active facts index")
@@ -42,8 +45,11 @@ func (engine *StandardEngine) loadActiveFactsIndex(ctx context.Context, project,
 	return index, nil
 }
 
-// rebuildActiveFactsIndex rebuilds the exact active-facts index from all known fact records.
-func (engine *StandardEngine) rebuildActiveFactsIndex(ctx context.Context, project, sessionID string) (ActiveFactsIndex, error) {
+// rebuildActiveFactsIndex rebuilds the exact active-facts index.
+func (engine *StandardEngine) rebuildActiveFactsIndex(
+	ctx context.Context,
+	project, sessionID string,
+) (ActiveFactsIndex, error) {
 	facts, err := engine.loadAllFacts(ctx, project, sessionID)
 	if err != nil {
 		return ActiveFactsIndex{}, errors.Wrap(err, "load all facts")
@@ -87,7 +93,11 @@ func (engine *StandardEngine) rebuildActiveFactsIndex(ctx context.Context, proje
 }
 
 // writeActiveFactsIndex persists the exact active-facts index.
-func (engine *StandardEngine) writeActiveFactsIndex(ctx context.Context, project, sessionID string, index ActiveFactsIndex) error {
+func (engine *StandardEngine) writeActiveFactsIndex(
+	ctx context.Context,
+	project, sessionID string,
+	index ActiveFactsIndex,
+) error {
 	if index.Facts == nil {
 		index.Facts = make(map[string]MemoryFact)
 	}
@@ -97,7 +107,14 @@ func (engine *StandardEngine) writeActiveFactsIndex(ctx context.Context, project
 		return errors.Wrap(err, "marshal active facts index")
 	}
 
-	if err = engine.storage.Write(ctx, project, activeFactsIndexPath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		activeFactsIndexPath(sessionID),
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write active facts index")
 	}
 
@@ -151,14 +168,25 @@ func (engine *StandardEngine) loadWatermarks(ctx context.Context, project, sessi
 }
 
 // writeWatermarks persists maintenance watermarks.
-func (engine *StandardEngine) writeWatermarks(ctx context.Context, project, sessionID string, watermarks MemoryWatermarks) error {
+func (engine *StandardEngine) writeWatermarks(
+	ctx context.Context,
+	project, sessionID string,
+	watermarks MemoryWatermarks,
+) error {
 	watermarks.UpdatedAt = engine.conf.TimeNow().UTC().Format(time.RFC3339)
 	body, err := json.Marshal(watermarks)
 	if err != nil {
 		return errors.Wrap(err, "marshal watermarks")
 	}
 
-	if err = engine.storage.Write(ctx, project, metaWatermarksPath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		metaWatermarksPath(sessionID),
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write watermarks")
 	}
 
@@ -192,14 +220,25 @@ func (engine *StandardEngine) loadMetrics(ctx context.Context, project, sessionI
 }
 
 // writeMetrics persists V2 memory metrics.
-func (engine *StandardEngine) writeMetrics(ctx context.Context, project, sessionID string, metrics MemoryMetrics) error {
+func (engine *StandardEngine) writeMetrics(
+	ctx context.Context,
+	project, sessionID string,
+	metrics MemoryMetrics,
+) error {
 	metrics.UpdatedAt = engine.conf.TimeNow().UTC().Format(time.RFC3339)
 	body, err := json.Marshal(metrics)
 	if err != nil {
 		return errors.Wrap(err, "marshal metrics")
 	}
 
-	if err = engine.storage.Write(ctx, project, metaMetricsPath(sessionID), string(body), storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		metaMetricsPath(sessionID),
+		string(body),
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write metrics")
 	}
 
@@ -207,7 +246,11 @@ func (engine *StandardEngine) writeMetrics(ctx context.Context, project, session
 }
 
 // mutateMetrics loads, updates, and rewrites metrics in one helper.
-func (engine *StandardEngine) mutateMetrics(ctx context.Context, project, sessionID string, mutate func(*MemoryMetrics)) error {
+func (engine *StandardEngine) mutateMetrics(
+	ctx context.Context,
+	project, sessionID string,
+	mutate func(*MemoryMetrics),
+) error {
 	metrics, err := engine.loadMetrics(ctx, project, sessionID)
 	if err != nil {
 		return errors.Wrap(err, "load metrics")
@@ -246,7 +289,10 @@ func (engine *StandardEngine) loadInsights(ctx context.Context, project, session
 }
 
 // loadRecallInsights ranks and bounds insight recall for the current query.
-func (engine *StandardEngine) loadRecallInsights(ctx context.Context, project, sessionID, query string) ([]InsightRecord, error) {
+func (engine *StandardEngine) loadRecallInsights(
+	ctx context.Context,
+	project, sessionID, query string,
+) ([]InsightRecord, error) {
 	insights, err := engine.loadInsights(ctx, project, sessionID)
 	if err != nil {
 		return nil, errors.Wrap(err, "load insights")
@@ -263,7 +309,9 @@ func (engine *StandardEngine) loadRecallInsights(ctx context.Context, project, s
 	ranked := make([]rankedInsight, 0, len(insights))
 	for _, insight := range insights {
 		score := insight.Confidence
-		haystack := strings.ToLower(strings.TrimSpace(insight.Type + " " + insight.Summary + " " + strings.Join(insight.RelatedFactIDs, " ")))
+		haystack := strings.ToLower(strings.TrimSpace(
+			insight.Type + " " + insight.Summary + " " + strings.Join(insight.RelatedFactIDs, " "),
+		))
 		for _, term := range terms {
 			if strings.Contains(haystack, term) {
 				score += 0.3
@@ -296,7 +344,12 @@ func (engine *StandardEngine) loadRecallInsights(ctx context.Context, project, s
 }
 
 // appendInsights appends insight records to the daily insight shard.
-func (engine *StandardEngine) appendInsights(ctx context.Context, project, sessionID string, now time.Time, insights []InsightRecord) error {
+func (engine *StandardEngine) appendInsights(
+	ctx context.Context,
+	project, sessionID string,
+	now time.Time,
+	insights []InsightRecord,
+) error {
 	if len(insights) == 0 {
 		return nil
 	}
@@ -311,7 +364,14 @@ func (engine *StandardEngine) appendInsights(ctx context.Context, project, sessi
 	}
 
 	body := strings.Join(lines, "\n") + "\n"
-	if err := engine.storage.Write(ctx, project, insightsShardPath(sessionID, now), body, storageengine.WriteModeAppend, 0); err != nil {
+	if err := engine.storage.Write(
+		ctx,
+		project,
+		insightsShardPath(sessionID, now),
+		body,
+		storageengine.WriteModeAppend,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "append insights")
 	}
 

@@ -37,7 +37,15 @@ func selectExactFactMutations(
 		}
 		for _, existing := range matches {
 			delete(plan.NextActiveFacts, factIdentity(existing))
-			plan.Writes = append(plan.Writes, buildFactStateRecord(existing, nowRFC3339, turnID, userID, "fact_delete", memoryStateDeleted, ""))
+			plan.Writes = append(plan.Writes, buildFactStateRecord(
+				existing,
+				nowRFC3339,
+				turnID,
+				userID,
+				"fact_delete",
+				memoryStateDeleted,
+				"",
+			))
 			plan.DeletedFactCount++
 		}
 	}
@@ -50,7 +58,10 @@ func selectExactFactMutations(
 		}
 
 		existing, ok := plan.NextActiveFacts[identity]
-		if ok && !isFactExpired(now, existing) && normalizeFactValue(existing.Value) == normalizeFactValue(candidate.Value) && existing.Tier == candidate.Tier {
+		if ok &&
+			!isFactExpired(now, existing) &&
+			normalizeFactValue(existing.Value) == normalizeFactValue(candidate.Value) &&
+			existing.Tier == candidate.Tier {
 			plan.DedupeSkipCount++
 			continue
 		}
@@ -61,7 +72,15 @@ func selectExactFactMutations(
 		candidate.TS = nowRFC3339
 
 		if ok && !isFactExpired(now, existing) {
-			plan.Writes = append(plan.Writes, buildFactStateRecord(existing, nowRFC3339, turnID, userID, "fact_supersede", memoryStateSuperseded, candidate.ID))
+			plan.Writes = append(plan.Writes, buildFactStateRecord(
+				existing,
+				nowRFC3339,
+				turnID,
+				userID,
+				"fact_supersede",
+				memoryStateSuperseded,
+				candidate.ID,
+			))
 			plan.SupersededFactCount++
 		}
 

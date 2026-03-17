@@ -114,7 +114,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	result := make([]DirectorySummary, 0, len(dirs))
 	for _, dir := range dirs {
 		abstractPath := path.Join(dir, ".abstract")
-		abstract := ""
+		var abstract string
 		updatedAt := ""
 
 		abstractInfo, statErr := engine.storage.Stat(ctx, project, abstractPath)
@@ -130,7 +130,14 @@ func (engine *StandardEngine) ListDirWithAbstract(
 			updatedAt = abstractInfo.UpdatedAt
 		} else {
 			goAbstract := buildDefaultAbstract(dir)
-			if err = engine.storage.Write(ctx, project, abstractPath, goAbstract, storageengine.WriteModeTruncate, 0); err != nil {
+			if err = engine.storage.Write(
+				ctx,
+				project,
+				abstractPath,
+				goAbstract,
+				storageengine.WriteModeTruncate,
+				0,
+			); err != nil {
 				return nil, errors.Wrapf(err, "create abstract %s", abstractPath)
 			}
 			abstract = goAbstract
@@ -208,7 +215,14 @@ func (engine *StandardEngine) archiveRawShards(ctx context.Context, project, ses
 		}
 
 		archivePath := archiveShardPath(sessionID, shardDate, path.Base(info.Path))
-		if writeErr := engine.storage.Write(ctx, project, archivePath, string(compressed), storageengine.WriteModeTruncate, 0); writeErr != nil {
+		if writeErr := engine.storage.Write(
+			ctx,
+			project,
+			archivePath,
+			string(compressed),
+			storageengine.WriteModeTruncate,
+			0,
+		); writeErr != nil {
 			return errors.Wrapf(writeErr, "write archive shard %s", archivePath)
 		}
 		if delErr := engine.storage.Delete(ctx, project, info.Path, false); delErr != nil {
@@ -221,7 +235,12 @@ func (engine *StandardEngine) archiveRawShards(ctx context.Context, project, ses
 			Type:    "compact_summary",
 			Summary: "archived raw shard " + info.Path,
 		}
-		if appendErr := engine.appendJSONL(ctx, project, compactShardPath(sessionID, now), []LogEvent{summaryEvent}); appendErr != nil {
+		if appendErr := engine.appendJSONL(
+			ctx,
+			project,
+			compactShardPath(sessionID, now),
+			[]LogEvent{summaryEvent},
+		); appendErr != nil {
 			return errors.Wrap(appendErr, "append archive compact summary")
 		}
 	}
@@ -288,7 +307,14 @@ func (engine *StandardEngine) sweepExpiredTierFacts(ctx context.Context, project
 		if marshalErr != nil {
 			return errors.Wrapf(marshalErr, "marshal active facts for %s", info.Path)
 		}
-		if writeErr := engine.storage.Write(ctx, project, info.Path, body, storageengine.WriteModeTruncate, 0); writeErr != nil {
+		if writeErr := engine.storage.Write(
+			ctx,
+			project,
+			info.Path,
+			body,
+			storageengine.WriteModeTruncate,
+			0,
+		); writeErr != nil {
 			return errors.Wrapf(writeErr, "rewrite tier file %s", info.Path)
 		}
 	}
@@ -329,10 +355,24 @@ func (engine *StandardEngine) refreshDirectorySummary(ctx context.Context, proje
 		overview = strings.Join(parts[:2000], " ")
 	}
 
-	if err = engine.storage.Write(ctx, project, abstractPath, abstract, storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		abstractPath,
+		abstract,
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write abstract")
 	}
-	if err = engine.storage.Write(ctx, project, overviewPath, overview, storageengine.WriteModeTruncate, 0); err != nil {
+	if err = engine.storage.Write(
+		ctx,
+		project,
+		overviewPath,
+		overview,
+		storageengine.WriteModeTruncate,
+		0,
+	); err != nil {
 		return errors.Wrap(err, "write overview")
 	}
 

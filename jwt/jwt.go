@@ -19,6 +19,12 @@ var (
 	defaultSignMethod = SignMethodHS256
 )
 
+const (
+	// MinHS256SecretLen is the minimum secret length for HS256 signing.
+	// Per RFC 7518 Section 3.2, the key MUST be at least 256 bits (32 bytes).
+	MinHS256SecretLen = 32
+)
+
 // JWT jwt tool to sign & parse(with/without verify) token
 type JWT interface {
 	Sign(claims jwt.Claims, opts ...DivideOption) (string, error)

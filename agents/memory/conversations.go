@@ -22,9 +22,18 @@ type normalizedConversation struct {
 
 // normalizeBeforeTurnConversation resolves legacy and V2 conversation input fields into one normalized shape.
 func normalizeBeforeTurnConversation(in BeforeTurnInput) (normalizedConversation, error) {
-	items, start, count := resolveConversationItems(in.ConversationItems, in.CurrentInput, in.CurrentInputStart, in.CurrentInputCount)
+	items, start, count := resolveConversationItems(
+		in.ConversationItems,
+		in.CurrentInput,
+		in.CurrentInputStart,
+		in.CurrentInputCount,
+	)
 	if count == 0 {
-		return normalizedConversation{}, newValidationError(ValidationErrorCodeCurrentInputRequired, "current_input", "current input items are required")
+		return normalizedConversation{}, newValidationError(
+			ValidationErrorCodeCurrentInputRequired,
+			"current_input",
+			"current input items are required",
+		)
 	}
 
 	return buildNormalizedConversation(items, start, count)
@@ -32,7 +41,12 @@ func normalizeBeforeTurnConversation(in BeforeTurnInput) (normalizedConversation
 
 // normalizeAfterTurnConversation resolves legacy and V2 after-turn fields into one normalized shape.
 func normalizeAfterTurnConversation(in AfterTurnInput) (normalizedConversation, error) {
-	items, start, count := resolveConversationItems(in.ConversationItems, in.InputItems, in.CurrentInputStart, in.CurrentInputCount)
+	items, start, count := resolveConversationItems(
+		in.ConversationItems,
+		in.InputItems,
+		in.CurrentInputStart,
+		in.CurrentInputCount,
+	)
 	if len(items) == 0 {
 		return buildNormalizedConversation(nil, 0, 0)
 	}
@@ -41,7 +55,10 @@ func normalizeAfterTurnConversation(in AfterTurnInput) (normalizedConversation, 
 }
 
 // resolveConversationItems picks the effective conversation slice and current-turn boundary.
-func resolveConversationItems(conversationItems, fallbackCurrent []ResponseItem, start, count int) ([]ResponseItem, int, int) {
+func resolveConversationItems(
+	conversationItems, fallbackCurrent []ResponseItem,
+	start, count int,
+) ([]ResponseItem, int, int) {
 	if len(conversationItems) == 0 {
 		items := cloneResponseItems(fallbackCurrent)
 		return items, 0, len(items)

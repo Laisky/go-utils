@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	errWalkStop = errors.New("walk stopped because result limit was reached")
+	errWalkStop            = errors.New("walk stopped because result limit was reached")
+	errProjectRootNotFound = errors.New("project root not found")
 )
 
 const (
@@ -135,12 +136,17 @@ func (engine *Engine) Read(ctx context.Context, project, storagePath string, off
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
+		if errors.Is(err, errProjectRootNotFound) {
+			return "", nil
+		}
 		return "", errors.Wrap(err, "open project root")
 	}
 	if projectRoot == nil {
 		return "", nil
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	body, err := projectRoot.ReadFile(relPath)
 	if err != nil {
@@ -197,10 +203,15 @@ func (engine *Engine) Write(
 	if err != nil {
 		return errors.Wrap(err, "open project root")
 	}
+	if errors.Is(err, errProjectRootNotFound) {
+		return errors.Errorf("project root is nil")
+	}
 	if projectRoot == nil {
 		return errors.Errorf("project root is nil")
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	parentDir := path.Dir(relPath)
 	if parentDir != "." {
@@ -251,12 +262,21 @@ func (engine *Engine) Stat(ctx context.Context, project, storagePath string) (me
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
+		if errors.Is(err, errProjectRootNotFound) {
+			return memorystorage.FileInfo{
+				Path:   normalizedPath,
+				Exists: false,
+				Type:   memorystorage.FileTypeUnknown,
+			}, nil
+		}
 		return memorystorage.FileInfo{}, errors.Wrap(err, "open project root")
 	}
 	if projectRoot == nil {
 		return memorystorage.FileInfo{Path: normalizedPath, Exists: false, Type: memorystorage.FileTypeUnknown}, nil
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	fileInfo, err := projectRoot.Stat(relPath)
 	if err != nil {
@@ -317,12 +337,17 @@ func (engine *Engine) List(
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
+		if errors.Is(err, errProjectRootNotFound) {
+			return nil, false, nil
+		}
 		return nil, false, errors.Wrap(err, "open project root")
 	}
 	if projectRoot == nil {
 		return nil, false, nil
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	if startRelPath != "." {
 		if _, err = projectRoot.Stat(startRelPath); err != nil {
@@ -336,50 +361,23 @@ func (engine *Engine) List(
 	entries := make([]memorystorage.FileInfo, 0, minInt(limit, 256))
 	hasMore := false
 
-	walkErr := fs.WalkDir(projectRoot.FS(), startRelPath, func(currentPath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return wrapTraversalError("listing", currentPath, walkErr)
-		}
-
-		if err := ctx.Err(); err != nil {
-			return errors.Wrap(err, "context done while listing")
-		}
-
-		relativeDepth := calculateRelativeDepth(startRelPath, currentPath)
-		if relativeDepth == 0 {
-			return nil
-		}
-		if relativeDepth > depth {
-			if entry.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-
-		if isSymlinkEntry(entry) {
-			return nil
-		}
-
-		fileInfo, err := entry.Info()
-		if err != nil {
-			return wrapEntryInfoError(currentPath, err)
-		}
-
-		entries = append(entries, memorystorage.FileInfo{
-			Path:      toStoragePath(currentPath),
-			Exists:    true,
-			Type:      fileTypeFromMode(fileInfo.Mode()),
-			SizeBytes: fileInfo.Size(),
-			UpdatedAt: fileInfo.ModTime().UTC().Format(time.RFC3339),
-		})
-
-		if len(entries) >= limit {
-			hasMore = true
-			return errWalkStop
-		}
-
-		return nil
-	})
+	walkErr := fs.WalkDir(
+		projectRoot.FS(),
+		startRelPath,
+		func(currentPath string, entry fs.DirEntry, walkErr error) error {
+			return engine.handleListWalkEntry(
+				ctx,
+				startRelPath,
+				currentPath,
+				entry,
+				walkErr,
+				depth,
+				limit,
+				&entries,
+				&hasMore,
+			)
+		},
+	)
 	if walkErr != nil && !errors.Is(walkErr, errWalkStop) {
 		return nil, false, errors.Wrap(walkErr, "walk list root")
 	}
@@ -433,12 +431,17 @@ func (engine *Engine) Search(
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
+		if errors.Is(err, errProjectRootNotFound) {
+			return nil, nil
+		}
 		return nil, errors.Wrap(err, "open project root")
 	}
 	if projectRoot == nil {
 		return nil, nil
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	if prefixRelPath != "." {
 		if _, err = projectRoot.Stat(prefixRelPath); err != nil {
@@ -452,57 +455,23 @@ func (engine *Engine) Search(
 	queryLower := strings.ToLower(query)
 	chunks := make([]memorystorage.FileChunk, 0, minInt(limit, 32))
 
-	walkErr := fs.WalkDir(projectRoot.FS(), prefixRelPath, func(currentPath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return wrapTraversalError("searching", currentPath, walkErr)
-		}
-
-		if err := ctx.Err(); err != nil {
-			return errors.Wrap(err, "context done while searching")
-		}
-
-		if entry.IsDir() {
-			return nil
-		}
-		if isSymlinkEntry(entry) {
-			return nil
-		}
-
-		fileInfo, err := entry.Info()
-		if err != nil {
-			return wrapEntryInfoError(currentPath, err)
-		}
-		if !fileInfo.Mode().IsRegular() {
-			return nil
-		}
-		if fileInfo.Size() > maxSearchFileBytes {
-			return nil
-		}
-
-		body, err := projectRoot.ReadFile(currentPath)
-		if err != nil {
-			return wrapSearchReadError(currentPath, err)
-		}
-
-		idx := strings.Index(strings.ToLower(string(body)), queryLower)
-		if idx < 0 {
-			return nil
-		}
-
-		chunks = append(chunks, memorystorage.FileChunk{
-			FilePath:   toStoragePath(currentPath),
-			StartBytes: int64(idx),
-			EndBytes:   int64(idx + len(query)),
-			Content:    string(body),
-			Score:      0.9,
-		})
-
-		if len(chunks) >= limit {
-			return errWalkStop
-		}
-
-		return nil
-	})
+	walkErr := fs.WalkDir(
+		projectRoot.FS(),
+		prefixRelPath,
+		func(currentPath string, entry fs.DirEntry, walkErr error) error {
+			return engine.handleSearchWalkEntry(
+				ctx,
+				currentPath,
+				entry,
+				walkErr,
+				projectRoot,
+				query,
+				queryLower,
+				limit,
+				&chunks,
+			)
+		},
+	)
 	if walkErr != nil && !errors.Is(walkErr, errWalkStop) {
 		return nil, errors.Wrap(walkErr, "walk search root")
 	}
@@ -512,6 +481,111 @@ func (engine *Engine) Search(
 	})
 
 	return chunks, nil
+}
+
+// handleListWalkEntry processes one WalkDir entry for List.
+func (engine *Engine) handleListWalkEntry(
+	ctx context.Context,
+	startRelPath, currentPath string,
+	entry fs.DirEntry,
+	walkErr error,
+	depth, limit int,
+	entries *[]memorystorage.FileInfo,
+	hasMore *bool,
+) error {
+	if walkErr != nil {
+		return wrapTraversalError("listing", currentPath, walkErr)
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context done while listing")
+	}
+
+	relativeDepth := calculateRelativeDepth(startRelPath, currentPath)
+	if relativeDepth == 0 {
+		return nil
+	}
+	if relativeDepth > depth {
+		if entry.IsDir() {
+			return fs.SkipDir
+		}
+		return nil
+	}
+	if isSymlinkEntry(entry) {
+		return nil
+	}
+
+	fileInfo, err := entry.Info()
+	if err != nil {
+		return wrapEntryInfoError(currentPath, err)
+	}
+
+	*entries = append(*entries, memorystorage.FileInfo{
+		Path:      toStoragePath(currentPath),
+		Exists:    true,
+		Type:      fileTypeFromMode(fileInfo.Mode()),
+		SizeBytes: fileInfo.Size(),
+		UpdatedAt: fileInfo.ModTime().UTC().Format(time.RFC3339),
+	})
+	if len(*entries) >= limit {
+		*hasMore = true
+		return errWalkStop
+	}
+
+	return nil
+}
+
+// handleSearchWalkEntry processes one WalkDir entry for Search.
+func (engine *Engine) handleSearchWalkEntry(
+	ctx context.Context,
+	currentPath string,
+	entry fs.DirEntry,
+	walkErr error,
+	projectRoot *os.Root,
+	query, queryLower string,
+	limit int,
+	chunks *[]memorystorage.FileChunk,
+) error {
+	if walkErr != nil {
+		return wrapTraversalError("searching", currentPath, walkErr)
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context done while searching")
+	}
+	if entry.IsDir() || isSymlinkEntry(entry) {
+		return nil
+	}
+
+	fileInfo, err := entry.Info()
+	if err != nil {
+		return wrapEntryInfoError(currentPath, err)
+	}
+	if !fileInfo.Mode().IsRegular() || fileInfo.Size() > maxSearchFileBytes {
+		return nil
+	}
+
+	body, err := projectRoot.ReadFile(currentPath)
+	if err != nil {
+		return wrapSearchReadError(currentPath, err)
+	}
+
+	content := string(body)
+	idx := strings.Index(strings.ToLower(content), queryLower)
+	if idx < 0 {
+		return nil
+	}
+
+	*chunks = append(*chunks, memorystorage.FileChunk{
+		FilePath:   toStoragePath(currentPath),
+		StartBytes: int64(idx),
+		EndBytes:   int64(idx + len(query)),
+		Content:    content,
+		Score:      0.9,
+	})
+	if len(*chunks) >= limit {
+		return errWalkStop
+	}
+
+	return nil
 }
 
 // Delete deletes one path or recursively removes a directory subtree.
@@ -536,12 +610,17 @@ func (engine *Engine) Delete(ctx context.Context, project, storagePath string, r
 
 	projectRoot, err := engine.openProjectRoot(project, false)
 	if err != nil {
+		if errors.Is(err, errProjectRootNotFound) {
+			return nil
+		}
 		return errors.Wrap(err, "open project root")
 	}
 	if projectRoot == nil {
 		return nil
 	}
-	defer projectRoot.Close()
+	defer func() {
+		_ = projectRoot.Close()
+	}()
 
 	if recursive {
 		if err = projectRoot.RemoveAll(relPath); err != nil && !os.IsNotExist(err) {
@@ -580,7 +659,7 @@ func (engine *Engine) openProjectRoot(project string, create bool) (*os.Root, er
 	projectRoot, err := engine.root.OpenRoot(project)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, errProjectRootNotFound
 		}
 		return nil, errors.Wrap(err, "open project root")
 	}

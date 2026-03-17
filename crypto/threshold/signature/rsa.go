@@ -49,8 +49,8 @@ func NewKeyShares(total, threshold int,
 	if rsaBitsInt == minRSAPublicKeyBits {
 		keyBitsForGeneration++
 	}
-	thresholdUint16 := uint16(threshold)
-	totalUint16 := uint16(total) //nolint:gosec // G115: integer overflow // already checked
+	thresholdUint16 := uint16(threshold) //nolint:gosec // bounded above by 65535 just above.
+	totalUint16 := uint16(total)         //nolint:gosec // G115: integer overflow // already checked
 
 	keyShares, keyMeta, err = tcrsa.NewKey(
 		keyBitsForGeneration, thresholdUint16, totalUint16, nil)

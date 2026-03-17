@@ -8,6 +8,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -128,6 +129,9 @@ func encryptFileByAes() error {
 		return errors.Wrap(err, "encrypt")
 	}
 
+	out = filepath.Clean(out)
+
+	//nolint:gosec // output path is normalized before writing the caller-requested destination file.
 	if err = os.WriteFile(out, cipher, 0600); err != nil {
 		return errors.Wrapf(err, "write file `%s`", out)
 	}

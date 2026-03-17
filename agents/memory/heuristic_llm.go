@@ -104,8 +104,11 @@ func newOpenAIResponsesClient(conf openAIResponsesClientConfig) (*openAIResponse
 	}, nil
 }
 
-// ExtractAndMergeFacts runs heuristic extraction/classification/merge and returns memory mutations.
-func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, in HeuristicFactInput) (HeuristicFactResult, error) {
+// ExtractAndMergeFacts runs heuristic extraction, classification, and merge.
+func (client *openAIResponsesClient) ExtractAndMergeFacts(
+	ctx context.Context,
+	in HeuristicFactInput,
+) (HeuristicFactResult, error) {
 	inputText := buildHeuristicInputText(in)
 	if strings.TrimSpace(inputText) == "" {
 		return HeuristicFactResult{}, nil
@@ -155,7 +158,11 @@ func (client *openAIResponsesClient) ExtractAndMergeFacts(ctx context.Context, i
 	}
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return HeuristicFactResult{}, errors.Errorf("responses api status=%d body=%s", httpResp.StatusCode, string(respBody))
+		return HeuristicFactResult{}, errors.Errorf(
+			"responses api status=%d body=%s",
+			httpResp.StatusCode,
+			string(respBody),
+		)
 	}
 
 	output, err := extractHeuristicToolOutput(respBody)
@@ -177,7 +184,9 @@ func memoryHeuristicSystemPrompt() string {
 		"You are a memory processing assistant for a chat memory engine.",
 		"Your tasks are heuristic and must return structured tool output only.",
 		"Task 1: Extract key durable or actionable facts from the current turn.",
-		"Task 2: Classify each fact into tiers: L0 permanent identity/preferences, L1 short-term daily, L2 medium-term weekly.",
+		"Task 2: Classify each fact into tiers:",
+		"L0 permanent identity/preferences, L1 short-term daily,",
+		"L2 medium-term weekly.",
 		"Task 3: Merge with existing facts by preferring newer or more specific values and avoiding duplicates.",
 		"Only output facts that should be written into memory.",
 		"Keep fact values concise and never include secrets.",
@@ -198,10 +207,13 @@ func memoryHeuristicToolSpec() toolSpec {
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"fact_id":    map[string]any{"type": "string"},
-							"key":        map[string]any{"type": "string"},
-							"value":      map[string]any{"type": "string"},
-							"tier":       map[string]any{"type": "string", "enum": []string{memoryTierL0, memoryTierL1, memoryTierL2}},
+							"fact_id": map[string]any{"type": "string"},
+							"key":     map[string]any{"type": "string"},
+							"value":   map[string]any{"type": "string"},
+							"tier": map[string]any{
+								"type": "string",
+								"enum": []string{memoryTierL0, memoryTierL1, memoryTierL2},
+							},
 							"confidence": map[string]any{"type": "number"},
 						},
 						"required": []string{"fact_id", "key", "value", "tier"},
@@ -222,11 +234,17 @@ func memoryHeuristicToolSpec() toolSpec {
 func buildHeuristicInputText(in HeuristicFactInput) string {
 	var sb strings.Builder
 	sb.WriteString("Current turn input items (JSON):\n")
-	inputJSON, _ := json.Marshal(in.InputItems)
-	sb.WriteString(string(inputJSON))
+	inputJSON, err := json.Marshal(in.InputItems)
+	if err != nil {
+		inputJSON = []byte("[]")
+	}
+	_, _ = sb.Write(inputJSON)
 	sb.WriteString("\n\nExisting facts (JSON):\n")
-	factsJSON, _ := json.Marshal(in.ExistingFacts)
-	sb.WriteString(string(factsJSON))
+	factsJSON, err := json.Marshal(in.ExistingFacts)
+	if err != nil {
+		factsJSON = []byte("[]")
+	}
+	_, _ = sb.Write(factsJSON)
 
 	return sb.String()
 }

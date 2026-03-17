@@ -320,16 +320,6 @@ func parseJSONLLines(body string) []string {
 	return records
 }
 
-// sortFactsForRecall sorts facts by descending timestamp and descending confidence.
-func sortFactsForRecall(facts []MemoryFact) {
-	sort.SliceStable(facts, func(i, j int) bool {
-		if facts[i].TS == facts[j].TS {
-			return facts[i].Confidence > facts[j].Confidence
-		}
-		return facts[i].TS > facts[j].TS
-	})
-}
-
 // deduplicateFacts keeps the first entry per fact identity and returns deduplicated list.
 //
 // Parameters:
@@ -396,72 +386,6 @@ func rankFactsForRecall(now time.Time, facts []MemoryFact, query string) []Memor
 	}
 
 	return result
-}
-
-// selectDeltaUpsertFacts filters candidates and keeps only real upsert deltas.
-//
-// Parameters:
-//   - now: Current UTC time used to detect expired existing facts.
-//   - existingFacts: Existing facts already stored for the session.
-//   - candidates: Newly extracted candidate facts.
-//
-// Returns:
-//   - Facts that should be persisted as new or updated values.
-func selectDeltaUpsertFacts(now time.Time, existingFacts, candidates []MemoryFact) []MemoryFact {
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	existingLatest := make(map[string]MemoryFact, len(existingFacts))
-	for _, fact := range existingFacts {
-		identity := factIdentity(fact)
-		if identity == "" {
-			continue
-		}
-
-		if old, ok := existingLatest[identity]; ok {
-			if old.TS >= fact.TS {
-				continue
-			}
-		}
-		existingLatest[identity] = fact
-	}
-
-	ordered := make([]string, 0, len(candidates))
-	mergedCandidates := make(map[string]MemoryFact, len(candidates))
-	for _, fact := range candidates {
-		identity := factIdentity(fact)
-		if identity == "" {
-			continue
-		}
-		if _, ok := mergedCandidates[identity]; !ok {
-			ordered = append(ordered, identity)
-		}
-		mergedCandidates[identity] = fact
-	}
-
-	deltas := make([]MemoryFact, 0, len(mergedCandidates))
-	for _, identity := range ordered {
-		candidate := mergedCandidates[identity]
-		existing, ok := existingLatest[identity]
-		if !ok {
-			deltas = append(deltas, candidate)
-			continue
-		}
-
-		if isFactExpired(now, existing) {
-			deltas = append(deltas, candidate)
-			continue
-		}
-
-		if normalizeFactValue(existing.Value) == normalizeFactValue(candidate.Value) && existing.Tier == candidate.Tier {
-			continue
-		}
-
-		deltas = append(deltas, candidate)
-	}
-
-	return deltas
 }
 
 // factIdentity builds a stable identity key from one fact.

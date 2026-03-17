@@ -727,6 +727,33 @@ func SanitizeCMDArgs(args []string) (sanitizedArgs []string, err error) {
 	return args, nil
 }
 
+// resolveExecutablePath resolves an executable name or validates an explicit executable path.
+func resolveExecutablePath(app string) (string, error) {
+	app = strings.TrimSpace(app)
+	if app == "" {
+		return "", errors.New("app cannot be empty")
+	}
+	if reInvalidCMDChars.MatchString(app) || strings.Contains(app, "`") {
+		return "", errors.New("invalid characters in app")
+	}
+
+	if strings.Contains(app, string(os.PathSeparator)) {
+		cleaned := filepath.Clean(app)
+		if cleaned == "." || cleaned == string(os.PathSeparator) {
+			return "", errors.New("invalid app path")
+		}
+
+		return cleaned, nil
+	}
+
+	resolved, err := exec.LookPath(app)
+	if err != nil {
+		return "", errors.Wrap(err, "look path")
+	}
+
+	return resolved, nil
+}
+
 // RunCMD run command script
 func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
 	return RunCMDWithEnv(ctx, app, args, nil)
@@ -738,7 +765,16 @@ func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err
 //   - envs: []string{"FOO=BAR"}
 func RunCMDWithEnv(ctx context.Context, app string,
 	args []string, envs []string) (stdout []byte, err error) {
-	cmd := exec.CommandContext(ctx, app, args...)
+	resolvedApp, err := resolveExecutablePath(app)
+	if err != nil {
+		return nil, errors.Wrap(err, "resolve app")
+	}
+	if args, err = SanitizeCMDArgs(args); err != nil {
+		return nil, errors.Wrap(err, "sanitize args")
+	}
+
+	//nolint:gosec // executable path is resolved first and arguments are passed directly without shell expansion.
+	cmd := exec.CommandContext(ctx, resolvedApp, args...)
 
 	if len(envs) != 0 {
 		cmd.Env = append(cmd.Env, envs...)
@@ -746,7 +782,7 @@ func RunCMDWithEnv(ctx context.Context, app string,
 
 	stdout, err = cmd.CombinedOutput()
 	if err != nil {
-		cmd := strings.Join(append([]string{app}, args...), " ")
+		cmd := strings.Join(append([]string{resolvedApp}, args...), " ")
 		return stdout, errors.Wrapf(err, "run %q got %q", cmd, stdout)
 	}
 
@@ -758,7 +794,16 @@ func RunCMD2(ctx context.Context, app string,
 	args []string, envs []string,
 	stdoutHandler, stderrHandler func(string),
 ) (err error) {
-	cmd := exec.CommandContext(ctx, app, args...)
+	resolvedApp, err := resolveExecutablePath(app)
+	if err != nil {
+		return errors.Wrap(err, "resolve app")
+	}
+	if args, err = SanitizeCMDArgs(args); err != nil {
+		return errors.Wrap(err, "sanitize args")
+	}
+
+	//nolint:gosec // executable path is resolved first and arguments are passed directly without shell expansion.
+	cmd := exec.CommandContext(ctx, resolvedApp, args...)
 	cmd.Env = append(cmd.Env, envs...)
 
 	stdout, err := cmd.StdoutPipe()
@@ -773,13 +818,13 @@ func RunCMD2(ctx context.Context, app string,
 
 	if stdoutHandler == nil {
 		stdoutHandler = func(s string) {
-			log.Shared.Debug("run cmd", zap.String("msg", s), zap.String("app", app))
+			log.Shared.Debug("run cmd", zap.String("msg", s), zap.String("app", resolvedApp))
 		}
 	}
 
 	if stderrHandler == nil {
 		stderrHandler = func(s string) {
-			log.Shared.Error("run cmd", zap.String("msg", s), zap.String("app", app))
+			log.Shared.Error("run cmd", zap.String("msg", s), zap.String("app", resolvedApp))
 		}
 	}
 

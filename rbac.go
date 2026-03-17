@@ -205,6 +205,18 @@ func (p *RBACPermissionElem) cloneUnlocked() *RBACPermissionElem {
 	return newP
 }
 
+// valueSnapshot returns a detached copy for database serialization.
+//
+// Returns:
+//   - a clone of the permission tree that does not reuse the live mutex state.
+func (p *RBACPermissionElem) valueSnapshot() *RBACPermissionElem {
+	if p == nil {
+		return nil
+	}
+
+	return p.Clone()
+}
+
 // FillDefault auto filling some default valus
 //
 // it is best to call this function immediately after initialization
@@ -584,8 +596,12 @@ func (p *RBACPermissionElem) getElemByKeyUnlocked(key RBACPermFullKey, depth int
 }
 
 // Value implement GORM interface
-func (p RBACPermissionElem) Value() (driver.Value, error) {
-	b, err := json.Marshal(p)
+func (p *RBACPermissionElem) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, errors.Errorf("marshal RBACPermissionElem: nil receiver")
+	}
+
+	b, err := json.Marshal(p.valueSnapshot())
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal RBACPermissionElem")
 	}

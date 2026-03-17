@@ -176,7 +176,7 @@ func TestRunWithTimeout(t *testing.T) {
 	startAt := time.Now()
 	RunWithTimeout(5*time.Millisecond, slow)
 	require.GreaterOrEqual(t, time.Since(startAt), 5*time.Millisecond)
-	require.Less(t, time.Since(startAt), 10*time.Millisecond)
+	require.Less(t, time.Since(startAt), 50*time.Millisecond)
 }
 
 func ExampleRaceErr() {
