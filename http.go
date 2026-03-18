@@ -426,7 +426,9 @@ func RequestJSONWithClient(httpClient *http.Client,
 		if err != nil {
 			return errors.Wrap(err, "marshal request data error")
 		}
-		log.Shared.Debug("request json", zap.String("body", string(jsonBytes)))
+		// Only log truncated body length to avoid leaking sensitive data
+		// (e.g. credentials, tokens, PII) into log output.
+		log.Shared.Debug("request json", zap.Int("body_bytes", len(jsonBytes)))
 		body = bytes.NewReader(jsonBytes)
 	}
 
