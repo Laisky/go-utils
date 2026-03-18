@@ -110,6 +110,64 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	// t.Error()
 }
 
+func TestUnzipWithMaxBytes(t *testing.T) {
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// Create source files with known content
+	srcDir := filepath.Join(dir, "src")
+	require.NoError(t, os.Mkdir(srcDir, 0751))
+
+	// Write a file larger than 32KB to verify the fix
+	// (before the fix, UnzipWithMaxBytes clamped limit to 32KB)
+	largeContent := strings.Repeat("x", 100*1024) // 100KB
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "large.txt"), []byte(largeContent), 0644))
+
+	// Create zip
+	zipPath := filepath.Join(dir, "test.zip")
+	require.NoError(t, ZipFiles(zipPath, []string{srcDir}))
+
+	t.Run("maxBytes larger than chunk size works correctly", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst1")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+
+		// Set maxBytes to 200KB - this should NOT be clamped to 32KB
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxBytes(200*1024))
+		require.NoError(t, err)
+
+		// Verify the full file content was extracted
+		content, err := os.ReadFile(filepath.Join(dstDir, "src", "large.txt"))
+		require.NoError(t, err)
+		require.Equal(t, largeContent, string(content),
+			"file should be fully extracted when maxBytes > file size")
+	})
+
+	t.Run("maxBytes smaller than file truncates", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst2")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+
+		// Set maxBytes to 50KB - file should be truncated
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxBytes(50*1024))
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(filepath.Join(dstDir, "src", "large.txt"))
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(content), 50*1024,
+			"file should be truncated to maxBytes limit")
+	})
+
+	t.Run("invalid maxBytes", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst3")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxBytes(0))
+		require.Error(t, err)
+		_, err = Unzip(zipPath, dstDir, UnzipWithMaxBytes(-1))
+		require.Error(t, err)
+	})
+}
+
 const (
 	testCompressraw = "fj2f32f9jp9wsif0weif20if320fi23if"
 )

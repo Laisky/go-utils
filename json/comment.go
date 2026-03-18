@@ -37,10 +37,11 @@ func UnmarshalComment(raw []byte, v interface{}) (err error) {
 }
 
 // UnmarshalCommentFromString unmarshal json from string, support comment
-//
-// Notice: this func will change the content of raw, all comments will be removed
 func UnmarshalCommentFromString(str string, v interface{}) (err error) {
-	return UnmarshalComment(common.Str2Bytes(str), v)
+	// Use a safe copy instead of common.Str2Bytes, because UnmarshalComment
+	// mutates its input (via hujson.Parse), which would corrupt the
+	// immutable string memory when using unsafe zero-copy conversion.
+	return UnmarshalComment([]byte(str), v)
 }
 
 func standardizeJSON(b []byte) ([]byte, error) {

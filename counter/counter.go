@@ -120,6 +120,7 @@ func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*R
 		n:           n,
 		rotatePoint: rotatePoint,
 		c:           make(chan int64, rotateCounterChanLength),
+		stopChan:    make(chan struct{}, 1),
 	}
 	go c.runRotator(ctx)
 	return c, nil
@@ -135,20 +136,19 @@ func (c *RotateCounter) runRotator(ctx context.Context) {
 	c.rotateRunner.Do(func() {
 		var n int64
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-c.stopChan:
-				return
-			default:
-			}
-
 			n = atomic.AddInt64(&c.n, 1)
 			if n > c.rotatePoint {
 				atomic.StoreInt64(&c.n, 1)
 				n = 1
 			}
-			c.c <- n
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-c.stopChan:
+				return
+			case c.c <- n:
+			}
 		}
 	})
 }

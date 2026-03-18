@@ -345,7 +345,7 @@ func UnzipWithMaxBytes(bytes int64) UnzipOption {
 			return errors.Errorf("max bytes must >= 1")
 		}
 
-		o.maxBytes = gutils.Min(bytes, o.copyChunkBytes)
+		o.maxBytes = bytes
 		return nil
 	}
 }
@@ -405,38 +405,48 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 			continue
 		}
 
-		// Make File
-		if err = os.MkdirAll(filepath.Dir(fpath), 0o751); err != nil {
-			return nil, errors.Wrapf(err, "mkdir: %s", fpath)
-		}
-		log.Shared.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
-
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			return nil, errors.Wrapf(err, "open file to write: %s", fpath)
-		}
-		log.Shared.Debug("create file", zap.String("path", filepath.Dir(fpath)))
-		defer gutils.SilentClose(outFile)
-
-		compressedFp, err := f.Open()
-		if err != nil {
-			return nil, errors.Wrapf(err, "read src file to write: %s", f.Name)
-		}
-		defer gutils.SilentClose(compressedFp)
-
-		if o.maxBytes > 0 {
-			_, err = io.Copy(outFile, io.LimitReader(compressedFp, o.maxBytes))
-		} else {
-			//nolint:gosec // user do not set maxBytes,
-			// so it's user's responsibility to avoid decompression bomb
-			_, err = io.Copy(outFile, compressedFp)
-		}
-		if err != nil {
-			return nil, errors.Wrapf(err, "copy file: %s", f.Name)
+		if err = unzipFile(f, fpath, o.maxBytes); err != nil {
+			return nil, errors.Wrapf(err, "extract file: %s", f.Name)
 		}
 	}
 
 	return filenames, nil
+}
+
+// unzipFile extracts a single file from the zip archive.
+// File descriptors are properly closed when this function returns,
+// avoiding resource leaks when called in a loop.
+func unzipFile(f *zip.File, fpath string, maxBytes int64) error {
+	if err := os.MkdirAll(filepath.Dir(fpath), 0o751); err != nil {
+		return errors.Wrapf(err, "mkdir: %s", fpath)
+	}
+	log.Shared.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
+
+	outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+	if err != nil {
+		return errors.Wrapf(err, "open file to write: %s", fpath)
+	}
+	defer gutils.SilentClose(outFile)
+	log.Shared.Debug("create file", zap.String("path", fpath))
+
+	compressedFp, err := f.Open()
+	if err != nil {
+		return errors.Wrapf(err, "read src file to write: %s", f.Name)
+	}
+	defer gutils.SilentClose(compressedFp)
+
+	if maxBytes > 0 {
+		_, err = io.Copy(outFile, io.LimitReader(compressedFp, maxBytes))
+	} else {
+		//nolint:gosec // user did not set maxBytes,
+		// so it's user's responsibility to avoid decompression bomb
+		_, err = io.Copy(outFile, compressedFp)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "copy file: %s", f.Name)
+	}
+
+	return nil
 }
 
 // ZipFiles compresses one or many files into a single zip archive file.

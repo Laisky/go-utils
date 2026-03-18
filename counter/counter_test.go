@@ -1,11 +1,13 @@
 package counter
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Laisky/zap"
 
@@ -312,6 +314,57 @@ func TestRotateCounterFromN(t *testing.T) {
 	if r = counter.CountN(10); r != 7 {
 		t.Fatalf("want %v, got %v", 7, r)
 	}
+}
+
+func TestRotateCounterClose(t *testing.T) {
+	t.Parallel()
+	counter, err := NewRotateCounter(100)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	// Verify counter works
+	r := counter.Count()
+	if r < 1 {
+		t.Fatalf("expected positive count, got %v", r)
+	}
+
+	// Close should not block (previously it sent on nil channel and blocked forever)
+	done := make(chan struct{})
+	go func() {
+		counter.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// success - Close returned
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() blocked - stopChan may be nil")
+	}
+}
+
+func TestRotateCounterCloseWithCtx(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	counter, err := NewRotateCounterWithCtx(ctx, 100)
+	if err != nil {
+		t.Fatalf("got error: %+v", err)
+	}
+
+	// Verify counter works
+	r := counter.Count()
+	if r < 1 {
+		t.Fatalf("expected positive count, got %v", r)
+	}
+
+	// Cancel context should also stop the rotator
+	cancel()
+
+	// Give time for goroutine to exit
+	time.Sleep(100 * time.Millisecond)
+	_ = counter
 }
 
 // BenchmarkCounter/count_1-8         	 1369930	       920 ns/op	       0 B/op	       0 allocs/op

@@ -50,9 +50,16 @@ func (j *GzText) Scan(value any) error {
 		return errors.Wrap(err, "create gzip reader")
 	}
 	defer gutils.SilentClose(r)
-	b, err := io.ReadAll(r)
+
+	// Limit decompressed size to prevent decompression bomb attacks.
+	// 64 MiB is a reasonable default for database text fields.
+	const maxDecompressedSize = 64 * 1024 * 1024
+	b, err := io.ReadAll(io.LimitReader(r, maxDecompressedSize+1))
 	if err != nil {
 		return errors.Wrap(err, "read from gzip reader")
+	}
+	if len(b) > maxDecompressedSize {
+		return errors.Errorf("decompressed data exceeds maximum size of %d bytes", maxDecompressedSize)
 	}
 
 	*j = GzText(string(b))

@@ -28,6 +28,25 @@ func TestUnmarshalCommentFromString(t *testing.T) {
 		require.NotContains(t, string(raw), "// comment")
 	})
 
+	t.Run("from string does not mutate input", func(t *testing.T) {
+		raw := `// comment
+		{
+			"key": "value" // comment
+		}`
+		originalRaw := raw
+		m := map[string]interface{}{}
+
+		err := UnmarshalCommentFromString(raw, &m)
+		require.NoError(t, err)
+		require.Equal(t, map[string]interface{}{
+			"key": "value",
+		}, m)
+
+		// The original string must not be mutated
+		require.Equal(t, originalRaw, raw,
+			"UnmarshalCommentFromString must not mutate the input string")
+	})
+
 	t.Run("not support comment", func(t *testing.T) {
 		raw := []byte(`// comment
 		{
