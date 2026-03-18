@@ -228,10 +228,17 @@ func TestWithSecretByteValidation(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "secret cannot be empty")
 
+	_, err = New(
+		WithSignMethod(SignMethodHS256),
+		WithSecretByte([]byte("short-secret")),
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "secret must be at least 32 bytes for HS256")
+
 	// Test that valid secret works
 	_, err = New(
 		WithSignMethod(SignMethodHS256),
-		WithSecretByte([]byte("valid-secret")),
+		WithSecretByte([]byte("12345678901234567890123456789012")),
 	)
 	require.NoError(t, err)
 }
@@ -321,6 +328,10 @@ func TestDivideOptionValidation(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "divide secret cannot be empty")
 
+	_, err = j.SignByHS256(claims, WithDivideSecret([]byte("short-secret")))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "divide secret must be at least 32 bytes for HS256")
+
 	// Test WithDividePriKey validation
 	_, err = j.SignByES256(claims, WithDividePriKey([]byte("")))
 	require.Error(t, err)
@@ -340,7 +351,7 @@ func TestDivideOptionValidation(t *testing.T) {
 	require.Contains(t, err.Error(), "divide public key cannot be empty")
 
 	// Test that valid divide options work
-	_, err = j.SignByHS256(claims, WithDivideSecret([]byte("valid-divide-secret")))
+	_, err = j.SignByHS256(claims, WithDivideSecret([]byte("12345678901234567890123456789012")))
 	require.NoError(t, err)
 }
 
@@ -353,7 +364,7 @@ func TestParseWithDivideOptionsOnly(t *testing.T) {
 	// First, create a token with a JWT that has keys
 	j1, err := New(
 		WithSignMethod(SignMethodHS256),
-		WithSecretByte([]byte("test-secret")),
+		WithSecretByte([]byte("12345678901234567890123456789012")),
 	)
 	require.NoError(t, err)
 
@@ -374,7 +385,7 @@ func TestParseWithDivideOptionsOnly(t *testing.T) {
 
 	// Parse using divide options
 	parsedClaims := &testJWTClaims{}
-	err = j2.ParseClaimsByHS256(token, parsedClaims, WithDivideSecret([]byte("test-secret")))
+	err = j2.ParseClaimsByHS256(token, parsedClaims, WithDivideSecret([]byte("12345678901234567890123456789012")))
 	require.NoError(t, err)
 	require.Equal(t, "test-user", parsedClaims.Subject)
 }
@@ -387,7 +398,7 @@ func TestParseWithoutKeysFailsGracefully(t *testing.T) {
 	// Create a token first
 	j1, err := New(
 		WithSignMethod(SignMethodHS256),
-		WithSecretByte([]byte("test-secret")),
+		WithSecretByte([]byte("12345678901234567890123456789012")),
 	)
 	require.NoError(t, err)
 
@@ -420,7 +431,7 @@ func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
 	// Create a token
 	j, err := New(
 		WithSignMethod(SignMethodHS256),
-		WithSecretByte([]byte("test-secret")),
+		WithSecretByte([]byte("12345678901234567890123456789012")),
 	)
 	require.NoError(t, err)
 
@@ -493,7 +504,7 @@ func TestMixedValidationScenarios(t *testing.T) {
 	// Test valid secret with invalid divide secret
 	j, err := New(
 		WithSignMethod(SignMethodHS256),
-		WithSecretByte([]byte("valid-main-secret")),
+		WithSecretByte([]byte("12345678901234567890123456789012")),
 	)
 	require.NoError(t, err)
 
@@ -544,7 +555,7 @@ func TestValidationWithAllSigningMethods(t *testing.T) {
 		{
 			name:           "HS256 with valid secret",
 			signingMethod:  SignMethodHS256,
-			validOptions:   []Option{WithSecretByte([]byte("valid-secret"))},
+			validOptions:   []Option{WithSecretByte([]byte("12345678901234567890123456789012"))},
 			invalidOptions: []Option{WithSecretByte([]byte(""))},
 			expectedError:  "secret cannot be empty",
 		},

@@ -25,6 +25,25 @@ const (
 	MinHS256SecretLen = 32
 )
 
+// validateHS256Secret enforces the RFC 7518 minimum key length for HMAC JWTs.
+//
+// Args:
+//   - secret: Symmetric key used for HS256 signing or verification.
+//
+// Returns:
+//   - error: Validation error when the key is empty or shorter than 32 bytes.
+func validateHS256Secret(secret []byte) error {
+	if len(secret) == 0 {
+		return errors.New("secret cannot be empty")
+	}
+
+	if len(secret) < MinHS256SecretLen {
+		return errors.Errorf("secret must be at least %d bytes for HS256", MinHS256SecretLen)
+	}
+
+	return nil
+}
+
 // JWT jwt tool to sign & parse(with/without verify) token
 type JWT interface {
 	Sign(claims jwt.Claims, opts ...DivideOption) (string, error)
@@ -66,8 +85,8 @@ func WithSignMethod(method jwt.SigningMethod) Option {
 // WithSecretByte set jwt symmetric signning key
 func WithSecretByte(secret []byte) Option {
 	return func(e *Type) error {
-		if len(secret) == 0 {
-			return errors.New("secret cannot be empty")
+		if err := validateHS256Secret(secret); err != nil {
+			return err
 		}
 		e.secret = secret
 		return nil
@@ -107,8 +126,12 @@ type DivideOption func(*divideOpt) error
 // WithDivideSecret set symmetric key for each signning/verify
 func WithDivideSecret(secret []byte) DivideOption {
 	return func(opt *divideOpt) error {
-		if len(secret) == 0 {
-			return errors.New("divide secret cannot be empty")
+		if err := validateHS256Secret(secret); err != nil {
+			if err.Error() == "secret cannot be empty" {
+				return errors.New("divide secret cannot be empty")
+			}
+
+			return errors.Errorf("divide secret must be at least %d bytes for HS256", MinHS256SecretLen)
 		}
 		opt.secret = secret
 		return nil
