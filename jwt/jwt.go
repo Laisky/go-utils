@@ -3,7 +3,7 @@ package jwt
 
 import (
 	"github.com/Laisky/errors/v2"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 
 	gutils "github.com/Laisky/go-utils/v6"
 )
@@ -122,6 +122,16 @@ type divideOpt struct {
 
 // DivideOption options to use separate secret for every user in parsing/signing
 type DivideOption func(*divideOpt) error
+
+// issuedAtValidationOptions preserves the existing package behavior of
+// rejecting tokens whose iat is in the future, even though jwt/v5 no longer
+// validates iat by default.
+func issuedAtValidationOptions(signingMethod jwt.SigningMethod) []jwt.ParserOption {
+	return []jwt.ParserOption{
+		jwt.WithIssuedAt(),
+		jwt.WithValidMethods([]string{signingMethod.Alg()}),
+	}
+}
 
 // WithDivideSecret set symmetric key for each signning/verify
 func WithDivideSecret(secret []byte) DivideOption {
@@ -263,7 +273,7 @@ func (e *Type) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...Di
 			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return opt.secret, nil
-	}); err != nil {
+	}, issuedAtValidationOptions(SignMethodHS256)...); err != nil {
 		return errors.Wrap(err, "parse token by hs256")
 	}
 
@@ -293,7 +303,7 @@ func (e *Type) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...Di
 		}
 
 		return pubKey, nil
-	}); err != nil {
+	}, issuedAtValidationOptions(SignMethodES256)...); err != nil {
 		return errors.Wrap(err, "parse token by es256")
 	}
 
@@ -323,7 +333,7 @@ func (e *Type) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...Di
 		}
 
 		return pubKey, nil
-	}); err != nil {
+	}, issuedAtValidationOptions(SignMethodRS256)...); err != nil {
 		return errors.Wrap(err, "parse token by rs256")
 	}
 

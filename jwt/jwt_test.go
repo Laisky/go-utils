@@ -1,13 +1,13 @@
 package jwt
 
 import (
+	stderrors "errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Laisky/zap"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v6/crypto"
@@ -30,6 +30,19 @@ qLW+xXwTysxo/xiZcW8fwQowCyxcGJv8r7OfHYB/FScm3jgOaNhabM6laQ==
 
 type testJWTClaims struct {
 	jwt.RegisteredClaims
+}
+
+func requireAudienceValidation(t *testing.T, claims jwt.Claims, audience string, wantErr error) {
+	t.Helper()
+
+	err := jwt.NewValidator(jwt.WithAudience(audience)).Validate(claims)
+	if wantErr == nil {
+		require.NoError(t, err)
+		return
+	}
+
+	require.Error(t, err)
+	require.True(t, stderrors.Is(err, wantErr), "unexpected error: %v", err)
 }
 
 func ExampleJWT() {
@@ -120,35 +133,26 @@ func TestJWTSignAndVerify(t *testing.T) {
 				ExpiresAt: &jwt.NumericDate{Time: expired},
 			},
 		}
-		claims.ExpiresAt = &jwt.NumericDate{Time: expired}
 		if token, err = j.Sign(claims); err != nil {
 			require.NoError(t, err, "generate token error %+v", err)
 		}
-		if err = j.ParseClaims(token, claims); err != nil {
-			if !strings.Contains(err.Error(), "token is expired") {
-				require.NoError(t, err, "must expired, got: %s", err.Error())
-			}
-		} else {
-			require.NoError(t, err, "must expired")
-		}
+		err = j.ParseClaims(token, claims)
+		require.Error(t, err)
+		require.True(t, stderrors.Is(err, jwt.ErrTokenExpired), "must expired, got: %v", err)
 
 		// test issuerAt
 		claims = &testJWTClaims{
 			jwt.RegisteredClaims{
-				IssuedAt: &jwt.NumericDate{Time: future},
+				IssuedAt:  &jwt.NumericDate{Time: future},
+				ExpiresAt: &jwt.NumericDate{Time: future.Add(time.Hour)},
 			},
 		}
-		claims.ExpiresAt = &jwt.NumericDate{Time: expired}
 		if token, err = j.Sign(claims); err != nil {
 			require.NoError(t, err, "generate token error %+v", err)
 		}
-		if err = j.ParseClaims(token, claims); err != nil {
-			if !strings.Contains(err.Error(), "used before issued") {
-				require.NoError(t, err, "must invalid, got: %s", err.Error())
-			}
-		} else {
-			require.NoError(t, err, "must invalid")
-		}
+		err = j.ParseClaims(token, claims)
+		require.Error(t, err)
+		require.True(t, stderrors.Is(err, jwt.ErrTokenUsedBeforeIssued), "must be used before issued, got: %v", err)
 	}
 }
 
@@ -182,14 +186,9 @@ func TestJWTAudValunerable(t *testing.T) {
 		err = j.ParseClaims(token, claims)
 		require.NoError(t, err)
 
-		ok := claims.VerifyAudience("laisky", false)
-		require.True(t, ok)
-
-		ok = claims.VerifyAudience("dune", false)
-		require.True(t, ok)
-
-		ok = claims.VerifyAudience("", false)
-		require.False(t, ok)
+		requireAudienceValidation(t, claims, "laisky", nil)
+		requireAudienceValidation(t, claims, "dune", nil)
+		requireAudienceValidation(t, claims, "", jwt.ErrTokenInvalidAudience)
 	}
 
 	// bug: slice aud will bypass verify
@@ -198,14 +197,9 @@ func TestJWTAudValunerable(t *testing.T) {
 		err := ParseTokenWithoutValidate(token, claims)
 		require.NoError(t, err)
 
-		ok := claims.VerifyAudience("laisky", false)
-		require.True(t, ok)
-
-		ok = claims.VerifyAudience("dune", false)
-		require.True(t, ok)
-
-		ok = claims.VerifyAudience("", false)
-		require.False(t, ok)
+		requireAudienceValidation(t, claims, "laisky", nil)
+		requireAudienceValidation(t, claims, "dune", nil)
+		requireAudienceValidation(t, claims, "", jwt.ErrTokenInvalidAudience)
 	}
 }
 

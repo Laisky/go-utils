@@ -19,7 +19,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gammazero/deque v1.2.1
 	github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801
-	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cpy v0.0.0-20211218193943-a9c933c06932
 	github.com/google/uuid v1.6.0
 	github.com/json-iterator/go v1.1.12
