@@ -648,6 +648,14 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 
 // EncryptBySm4CbcBaisc encrypt by sm4
 //
+// # Security Warning
+//
+// The SM4 key and IV are passed as command-line arguments to the tongsuo binary,
+// which makes them visible to other local users via /proc/*/cmdline or `ps aux`.
+// This is a limitation of OpenSSL's `-K`/`-iv` flags which do not support
+// environment variable or file-based input. Use this function only in
+// environments where local process visibility is not a concern.
+//
 // # Args
 //   - key: sm4 key, should be 16 bytes
 //   - plaintext: data to be encrypted
@@ -695,6 +703,12 @@ func (t *Tongsuo) EncryptBySm4CbcBaisc(ctx context.Context,
 }
 
 // DecryptBySm4CbcBaisc decrypt by sm4
+//
+// # Security Warning
+//
+// The SM4 key and IV are passed as command-line arguments to the tongsuo binary,
+// which makes them visible to other local users via /proc/*/cmdline or `ps aux`.
+// See EncryptBySm4CbcBaisc for details.
 //
 // # Args
 //   - key: sm4 key

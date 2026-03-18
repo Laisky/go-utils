@@ -22,7 +22,6 @@ import (
 	"github.com/Laisky/zap"
 
 	gutils "github.com/Laisky/go-utils/v6"
-	gcounter "github.com/Laisky/go-utils/v6/counter"
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
@@ -327,26 +326,28 @@ func init() {
 	}
 }
 
-// DefaultX509CertSerialNumGenerator default cert serial number generator base on epoch time and random int
-type DefaultX509CertSerialNumGenerator struct {
-	counter *gcounter.RotateCounter
-}
+// DefaultX509CertSerialNumGenerator generates cryptographically random
+// certificate serial numbers per RFC 5280 Section 4.1.2.2.
+type DefaultX509CertSerialNumGenerator struct{}
 
 // NewDefaultX509CertSerialNumGenerator new DefaultX509CertSerialNumGenerator
 func NewDefaultX509CertSerialNumGenerator() (*DefaultX509CertSerialNumGenerator, error) {
-	serialCounter, err := gcounter.NewRotateCounter(10000)
-	if err != nil {
-		return nil, errors.Wrap(err, "new counter")
-	}
-
-	return &DefaultX509CertSerialNumGenerator{
-		counter: serialCounter,
-	}, nil
+	return &DefaultX509CertSerialNumGenerator{}, nil
 }
 
-// SerialNum get randon serial number
+// SerialNum generates a cryptographically random positive int64 serial number.
+//
+// Uses crypto/rand to ensure unpredictability as required by RFC 5280.
+// The result is always positive (63 bits of entropy).
 func (g *DefaultX509CertSerialNumGenerator) SerialNum() int64 {
-	return time.Now().UnixMilli()*10000 + g.counter.Count()
+	// Generate 63 bits of randomness (positive int64)
+	max := new(big.Int).SetInt64(1<<63 - 1)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		// Fall back to timestamp-based if crypto/rand fails (extremely unlikely)
+		return time.Now().UnixNano()
+	}
+	return n.Int64()
 }
 
 // NewX509CertTemplate new tls template with common default values

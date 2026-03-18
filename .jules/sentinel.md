@@ -30,6 +30,11 @@
 **Learning:** Even with iteration count limits, very large input passwords can still consume excessive CPU during the hashing process.
 **Prevention:** Enforce a strict upper limit on password length (e.g., 1024 bytes) before starting any iterative hashing operations.
 
+## 2026-03-18 - Predictable X.509 Certificate Serial Numbers
+**Vulnerability:** `DefaultX509CertSerialNumGenerator.SerialNum()` generated serial numbers using `time.Now().UnixMilli()*10000 + counter`, making them predictable and violating RFC 5280 Section 4.1.2.2.
+**Learning:** Time-based serial numbers in certificates enable pre-computation attacks against certificate pinning and may violate CA/Browser Forum Baseline Requirements. Even when a counter provides uniqueness, predictability is the real threat.
+**Prevention:** Always use `crypto/rand` for certificate serial number generation. Ensure at least 63 bits of entropy from a CSPRNG.
+
 ## 2026-02-13 - Bound Remote Error Payload Reads
 
 **Vulnerability:** HTTP error handling read the full remote response body into memory before wrapping the error message, allowing oversized payloads to amplify memory usage.
