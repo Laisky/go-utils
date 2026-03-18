@@ -341,8 +341,8 @@ func NewDefaultX509CertSerialNumGenerator() (*DefaultX509CertSerialNumGenerator,
 // The result is always positive (63 bits of entropy).
 func (g *DefaultX509CertSerialNumGenerator) SerialNum() int64 {
 	// Generate 63 bits of randomness (positive int64)
-	max := new(big.Int).SetInt64(1<<63 - 1)
-	n, err := rand.Int(rand.Reader, max)
+	maxSerial := new(big.Int).SetInt64(1<<63 - 1)
+	n, err := rand.Int(rand.Reader, maxSerial)
 	if err != nil {
 		// Fall back to timestamp-based if crypto/rand fails (extremely unlikely)
 		return time.Now().UnixNano()

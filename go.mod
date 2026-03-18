@@ -11,6 +11,7 @@ require (
 	github.com/Laisky/golang-fifo v1.0.1-0.20240403092208-1d90c6c33e11
 	github.com/Laisky/graphql v1.0.6
 	github.com/Laisky/zap v1.27.1-0.20260318034917-6e5a9fb2b3d1
+	github.com/alexvec/go-bip39 v1.1.0
 	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/cespare/xxhash v1.1.0
 	github.com/corvus-ch/shamir v1.0.1
@@ -42,7 +43,6 @@ require (
 )
 
 require (
-	github.com/alexvec/go-bip39 v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect

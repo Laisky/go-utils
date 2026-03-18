@@ -44,7 +44,7 @@ const (
 	// maxEncodedMnemonicWords is the maximum number of words that can be
 	// produced by the extended mnemonic wire format. Rejecting larger inputs
 	// prevents attacker-controlled allocations during decoding.
-	maxEncodedMnemonicWords = ((3+maxMnemonicDataLen+mnemonicChecksumLen)*8 + 10) / 11
+	maxEncodedMnemonicWords = ((3+int(maxMnemonicDataLen)+mnemonicChecksumLen)*8 + 10) / 11
 )
 
 // mnemonicWordList is a snapshot of the BIP39 English word list
@@ -170,10 +170,15 @@ func BytesToMnemonic(data []byte) (string, error) {
 		return "", errors.Errorf("data too large: %d bytes, max %d", len(data), maxMnemonicDataLen)
 	}
 
+	dataLen, err := checkedUint16(len(data))
+	if err != nil {
+		return "", errors.Wrap(err, "convert data length to uint16")
+	}
+
 	// Build payload: version || length || data
 	payload := make([]byte, 3+len(data))
 	payload[0] = mnemonicVersion
-	binary.BigEndian.PutUint16(payload[1:3], uint16(len(data)))
+	binary.BigEndian.PutUint16(payload[1:3], dataLen)
 	copy(payload[3:], data)
 
 	// Compute and append checksum
@@ -396,10 +401,29 @@ func mnemonicWordsToBytes(words []string) ([]byte, error) {
 		if !ok {
 			return nil, errors.Errorf("word %q not found in BIP39 word list", word)
 		}
-		write11Bits(result, i*11, uint16(idx))
+
+		idx16, err := checkedUint16(idx)
+		if err != nil {
+			return nil, errors.Wrapf(err, "convert mnemonic word index for %q", word)
+		}
+
+		write11Bits(result, i*11, idx16)
 	}
 
 	return result, nil
+}
+
+// checkedUint16 converts a non-negative int to uint16 after validating bounds.
+func checkedUint16(value int) (uint16, error) {
+	if value < 0 {
+		return 0, errors.Errorf("negative value %d", value)
+	}
+
+	if value > int(^uint16(0)) {
+		return 0, errors.Errorf("value %d exceeds uint16", value)
+	}
+
+	return uint16(value), nil
 }
 
 // write11Bits writes an 11-bit big-endian value at the given bit position.
