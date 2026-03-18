@@ -2,8 +2,10 @@ package signature
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"testing"
 
+	"github.com/niclabs/tcrsa"
 	"github.com/stretchr/testify/require"
 
 	gutils "github.com/Laisky/go-utils/v6"
@@ -45,6 +47,35 @@ func TestVerifyBySHA256(t *testing.T) {
 		invalidContent := content + "invalid"
 		err = VerifyBySHA256(bytes.NewReader([]byte(invalidContent)), keyMeta.PublicKey, sig)
 		require.Error(t, err)
+	})
+}
+
+func TestSignVerifyNilInputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SignBySHA256 nil content", func(t *testing.T) {
+		_, err := SignBySHA256(nil, nil, nil)
+		require.ErrorContains(t, err, "content must not be nil")
+	})
+	t.Run("SignBySHA256 empty keyShares", func(t *testing.T) {
+		_, err := SignBySHA256(bytes.NewReader([]byte("test")), nil, nil)
+		require.ErrorContains(t, err, "keyShares must not be empty")
+	})
+	t.Run("SignBySHA256 nil keyMeta", func(t *testing.T) {
+		_, err := SignBySHA256(bytes.NewReader([]byte("test")), make(tcrsa.KeyShareList, 1), nil)
+		require.ErrorContains(t, err, "keyMeta and its PublicKey must not be nil")
+	})
+	t.Run("VerifyBySHA256 nil content", func(t *testing.T) {
+		err := VerifyBySHA256(nil, nil, nil)
+		require.ErrorContains(t, err, "content must not be nil")
+	})
+	t.Run("VerifyBySHA256 nil pubkey", func(t *testing.T) {
+		err := VerifyBySHA256(bytes.NewReader([]byte("test")), nil, nil)
+		require.ErrorContains(t, err, "pubkey must not be nil")
+	})
+	t.Run("VerifyBySHA256 empty signature", func(t *testing.T) {
+		err := VerifyBySHA256(bytes.NewReader([]byte("test")), &rsa.PublicKey{}, nil)
+		require.ErrorContains(t, err, "signature must not be empty")
 	})
 }
 

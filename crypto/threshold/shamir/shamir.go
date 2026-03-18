@@ -29,6 +29,8 @@ import (
 // the key and values of members are both important to combine.
 func Split(secret []byte, total, threshold int) (members map[byte][]byte, err error) {
 	switch {
+	case len(secret) == 0:
+		return nil, errors.Errorf("secret must not be empty")
 	case threshold < 2 || threshold >= 256:
 		return nil, errors.Errorf("threshold shoule be in [2, 256) got %d", threshold)
 	case total < 2 || total >= 256:

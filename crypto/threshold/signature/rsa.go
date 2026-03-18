@@ -72,6 +72,15 @@ func NewKeyShares(total, threshold int,
 func SignBySHA256(content io.Reader,
 	keyShares tcrsa.KeyShareList,
 	keyMeta *tcrsa.KeyMeta) (signature []byte, err error) {
+	switch {
+	case content == nil:
+		return nil, errors.Errorf("content must not be nil")
+	case len(keyShares) == 0:
+		return nil, errors.Errorf("keyShares must not be empty")
+	case keyMeta == nil || keyMeta.PublicKey == nil:
+		return nil, errors.Errorf("keyMeta and its PublicKey must not be nil")
+	}
+
 	sig, err := gutils.Hash(gutils.HashTypeSha256, content)
 	if err != nil {
 		return nil, errors.Wrap(err, "calculate hash of content")
@@ -105,6 +114,15 @@ func SignBySHA256(content io.Reader,
 
 // VerifyBySHA256 verify signature by keyMeta.Pubkey
 func VerifyBySHA256(content io.Reader, pubkey *rsa.PublicKey, signature []byte) error {
+	switch {
+	case content == nil:
+		return errors.Errorf("content must not be nil")
+	case pubkey == nil:
+		return errors.Errorf("pubkey must not be nil")
+	case len(signature) == 0:
+		return errors.Errorf("signature must not be empty")
+	}
+
 	hash, err := gutils.Hash(gutils.HashTypeSha256, content)
 	if err != nil {
 		return errors.Wrap(err, "calculate hash of content")

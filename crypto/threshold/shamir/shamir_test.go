@@ -8,6 +8,16 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+func TestSplitValidation(t *testing.T) {
+	t.Parallel()
+
+	_, err := Split(nil, 5, 3)
+	require.ErrorContains(t, err, "secret must not be empty")
+
+	_, err = Split([]byte{}, 5, 3)
+	require.ErrorContains(t, err, "secret must not be empty")
+}
+
 func TestSplit(t *testing.T) {
 	type args struct {
 		secret    []byte
