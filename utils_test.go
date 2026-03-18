@@ -615,6 +615,9 @@ func TestRunCMD(t *testing.T) {
 	}{
 		{"sleep", args{"sleep", []string{"0.1"}}, []byte{}, false},
 		{"sleep-err", args{"sleep", nil}, []byte("sleep: missing operand"), true},
+		{"reject-cmd-substitution-in-app", args{"$(echo sleep)", nil}, nil, true},
+		{"reject-newline-in-app", args{"sleep\necho", nil}, nil, true},
+		{"reject-null-in-app", args{"sleep\x00evil", nil}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1856,6 +1859,24 @@ func TestSanitizeCMDArgs(t *testing.T) {
 			args:        []string{"  arg1  ", "arg2  ", "  arg3"},
 			expected:    []string{"arg1", "arg2", "arg3"},
 			expectedErr: nil,
+		},
+		{
+			name:        "reject newline",
+			args:        []string{"arg1", "arg2\ninjected"},
+			expected:    nil,
+			expectedErr: errors.New("control characters in args"),
+		},
+		{
+			name:        "reject null byte",
+			args:        []string{"arg1\x00injected"},
+			expected:    nil,
+			expectedErr: errors.New("control characters in args"),
+		},
+		{
+			name:        "reject carriage return",
+			args:        []string{"arg1\rinjected"},
+			expected:    nil,
+			expectedErr: errors.New("control characters in args"),
 		},
 	}
 
