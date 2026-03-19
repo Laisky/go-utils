@@ -27,6 +27,38 @@ func ExampleMail() {
 	}
 }
 
+func TestEmailHeaderInjection(t *testing.T) {
+	t.Parallel()
+
+	m := NewMail("yo", 123)
+	m.Login("username", "password")
+
+	dialer := new(mocks.EmailDialer)
+	dialer.On("DialAndSend", mock.Anything).Return(nil)
+	dialerOpt := WithMailSendDialer(func(host string, port int, username, passwd string) Sender {
+		return dialer
+	})
+
+	// CRLF in toAddr
+	err := m.Send("from@a.com", "to@a.com\r\nBCC: evil@a.com", "fr", "to", "subj", "body", dialerOpt)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "header injection")
+
+	// Newline in subject
+	err = m.Send("from@a.com", "to@a.com", "fr", "to", "subj\nBCC: evil@a.com", "body", dialerOpt)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "header injection")
+
+	// CR in frName
+	err = m.Send("from@a.com", "to@a.com", "fr\rname", "to", "subj", "body", dialerOpt)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "header injection")
+
+	// Clean input should succeed
+	err = m.Send("from@a.com", "to@a.com", "fr", "to", "subj", "body", dialerOpt)
+	require.NoError(t, err)
+}
+
 func TestNewMail(t *testing.T) {
 	m := NewMail("yo", 123)
 	m.Login("username", "password")

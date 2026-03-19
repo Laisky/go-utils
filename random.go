@@ -22,8 +22,16 @@ func NewRand() *rand.Rand {
 	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
+// maxRandomLength is the upper bound for random byte/string generation
+// to prevent accidental resource exhaustion.
+const maxRandomLength = 1 << 20 // 1 MiB
+
 // RandomBytesWithLength generate random bytes
 func RandomBytesWithLength(n int) ([]byte, error) {
+	if n < 0 || n > maxRandomLength {
+		return nil, errors.Errorf("length must be in [0, %d], got %d", maxRandomLength, n)
+	}
+
 	b := make([]byte, n)
 
 	randorMu.Lock()
@@ -39,6 +47,10 @@ func RandomBytesWithLength(n int) ([]byte, error) {
 
 // SecRandomBytesWithLength generate crypto random bytes
 func SecRandomBytesWithLength(n int) ([]byte, error) {
+	if n < 0 || n > maxRandomLength {
+		return nil, errors.Errorf("length must be in [0, %d], got %d", maxRandomLength, n)
+	}
+
 	b := make([]byte, n)
 	_, err := crand.Read(b)
 	if err != nil {
@@ -47,8 +59,15 @@ func SecRandomBytesWithLength(n int) ([]byte, error) {
 	return b, nil
 }
 
-// RandomStringWithLength generate random string with specific length
+// RandomStringWithLength generate random string with specific length.
+//
+// Note: uses math/rand which is NOT cryptographically secure.
+// For security-sensitive tokens, use SecRandomStringWithLength instead.
 func RandomStringWithLength(n int) string {
+	if n < 0 || n > maxRandomLength {
+		return ""
+	}
+
 	b := make([]rune, n)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
@@ -58,6 +77,10 @@ func RandomStringWithLength(n int) string {
 
 // SecRandomStringWithLength generate random string with specific length
 func SecRandomStringWithLength(n int) (string, error) {
+	if n < 0 || n > maxRandomLength {
+		return "", errors.Errorf("length must be in [0, %d], got %d", maxRandomLength, n)
+	}
+
 	b := make([]rune, n)
 	for i := range b {
 		idx, err := SecRandInt(len(letterRunes))
@@ -71,8 +94,13 @@ func SecRandomStringWithLength(n int) (string, error) {
 	return string(b), nil
 }
 
-// SecRandInt generate security int
+// SecRandInt generate security int.
+// n must be positive.
 func SecRandInt(n int) (int, error) {
+	if n <= 0 {
+		return 0, errors.Errorf("upper bound must be positive, got %d", n)
+	}
+
 	bn, err := crand.Int(crand.Reader, big.NewInt(int64(n)))
 	if err != nil {
 		return 0, errors.Wrap(err, "generate secure random int")

@@ -2,12 +2,23 @@
 package email
 
 import (
+	"strings"
+
 	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
 	gomail "gopkg.in/gomail.v2"
 
 	"github.com/Laisky/go-utils/v6/log"
 )
+
+// validateHeaderValue rejects values containing CRLF sequences
+// to prevent email header injection attacks.
+func validateHeaderValue(field, value string) error {
+	if strings.ContainsAny(value, "\r\n") {
+		return errors.Errorf("%s contains invalid characters (possible header injection)", field)
+	}
+	return nil
+}
 
 // Mail is a simple email sender
 type Mail interface {
@@ -81,6 +92,19 @@ func WithMailSendDialer(dialerFact func(host string, port int, username, passwd 
 
 // Send send email
 func (m *MailT) Send(frAddr, toAddr, frName, toName, subject, content string, optfs ...SendOption) (err error) {
+	// Validate all header fields against CRLF injection
+	for field, value := range map[string]string{
+		"frAddr":  frAddr,
+		"toAddr":  toAddr,
+		"frName":  frName,
+		"toName":  toName,
+		"subject": subject,
+	} {
+		if err := validateHeaderValue(field, value); err != nil {
+			return err
+		}
+	}
+
 	opt := new(mailSendOpt).fillDefault().applyOpts(optfs)
 	log.Shared.Info("send email", zap.String("toName", toName))
 	s := gomail.NewMessage()

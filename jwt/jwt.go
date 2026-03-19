@@ -136,11 +136,10 @@ func issuedAtValidationOptions(signingMethod jwt.SigningMethod) []jwt.ParserOpti
 // WithDivideSecret set symmetric key for each signning/verify
 func WithDivideSecret(secret []byte) DivideOption {
 	return func(opt *divideOpt) error {
-		if err := validateHS256Secret(secret); err != nil {
-			if err.Error() == "secret cannot be empty" {
-				return errors.New("divide secret cannot be empty")
-			}
-
+		if len(secret) == 0 {
+			return errors.New("divide secret cannot be empty")
+		}
+		if len(secret) < MinHS256SecretLen {
 			return errors.Errorf("divide secret must be at least %d bytes for HS256", MinHS256SecretLen)
 		}
 		opt.secret = secret
@@ -270,7 +269,7 @@ func (e *Type) ParseClaimsByHS256(token string, claimsPtr jwt.Claims, opts ...Di
 
 	if _, err := jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.New("unexpected signing method")
 		}
 		return opt.secret, nil
 	}, issuedAtValidationOptions(SignMethodHS256)...); err != nil {
@@ -299,7 +298,7 @@ func (e *Type) ParseClaimsByES256(token string, claimsPtr jwt.Claims, opts ...Di
 
 	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.New("unexpected signing method")
 		}
 
 		return pubKey, nil
@@ -329,7 +328,7 @@ func (e *Type) ParseClaimsByRS256(token string, claimsPtr jwt.Claims, opts ...Di
 
 	if _, err = jwt.ParseWithClaims(token, claimsPtr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, errors.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, errors.New("unexpected signing method")
 		}
 
 		return pubKey, nil
