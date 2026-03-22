@@ -20,10 +20,13 @@ func TestTOTP_Key(t *testing.T) {
 	require.NoError(t, err)
 
 	testTOTP := func(t *testing.T, tt TOTPInterface) {
-		key1 := tt.Key()
-		time.Sleep(2 * time.Second)
-		key2 := tt.Key()
-		key3 := tt.KeyAt(time.Now().Add(-2 * time.Second))
+		// Use fixed timestamps to avoid timing flakiness with 1-second period.
+		t1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		t2 := time.Date(2026, 1, 1, 0, 0, 2, 0, time.UTC) // 2 seconds later
+
+		key1 := tt.KeyAt(t1)
+		key2 := tt.KeyAt(t2)
+		key3 := tt.KeyAt(t1) // same time as key1
 
 		require.Len(t, key1, 6)
 		require.Len(t, key2, 6)

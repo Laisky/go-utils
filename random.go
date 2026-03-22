@@ -61,7 +61,7 @@ func SecRandomBytesWithLength(n int) ([]byte, error) {
 
 // RandomStringWithLength generate random string with specific length.
 //
-// Note: uses math/rand which is NOT cryptographically secure.
+// Uses math/rand which is NOT cryptographically secure.
 // For security-sensitive tokens, use SecRandomStringWithLength instead.
 func RandomStringWithLength(n int) string {
 	if n < 0 || n > maxRandomLength {

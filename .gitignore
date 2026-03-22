@@ -123,3 +123,4 @@ go-utils.test
 /demo
 .github/instructions/laisky.instructions.md
 patch
+/crypto.test
