@@ -261,9 +261,6 @@ func (t *RateLimiter) runWithCtx(ctx context.Context) {
 		interval  time.Duration
 	)
 	switch {
-	case t.NPerSec <= 10:
-		nPerBatch = float64(t.NPerSec)
-		interval = time.Second
 	case t.NPerSec <= 10000:
 		nPerBatch = float64(t.NPerSec) / 10
 		interval = 100 * time.Millisecond
