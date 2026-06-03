@@ -723,6 +723,95 @@ func TestX509Csr2OpensslConf(t *testing.T) {
 	require.Equal(t, expectedConf, string(opensslConf))
 }
 
+// TestX509Cert2OpensslConf_ConfigInjection is a regression test for an OpenSSL
+// config-injection vulnerability: a newline embedded in an attacker-influenceable
+// subject/SAN field could inject arbitrary OpenSSL directives (e.g. turning a
+// leaf cert into a CA). The sanitizer must strip the control characters.
+func TestX509Cert2OpensslConf_ConfigInjection(t *testing.T) {
+	t.Parallel()
+
+	const injected = "\n[ v3_ca ]\nbasicConstraints = critical, CA:TRUE"
+
+	cert := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "evil.example.com" + injected,
+		},
+		IsCA: false,
+		DNSNames: []string{
+			"good.example.com",
+			"evil-san" + injected,
+		},
+	}
+
+	conf := string(X509Cert2OpensslConf(cert))
+	t.Logf("got\n%s", conf)
+
+	// the injected CA directive must NOT appear as its own line
+	require.NotContains(t, conf, "\nbasicConstraints = critical, CA:TRUE\n",
+		"injected basicConstraints line must be stripped")
+	// the legitimate (non-CA) basicConstraints line must remain intact
+	require.Contains(t, conf, "basicConstraints = critical, CA:FALSE")
+	// the sanitized values should be flattened onto a single line
+	require.Contains(t, conf, "commonName = evil.example.com[ v3_ca ]basicConstraints = critical, CA:TRUE")
+	require.NotContains(t, conf, "\r")
+}
+
+// TestX509Cert2OpensslConf_BenignStillValid ensures sanitization does not break
+// the conf produced for a normal certificate.
+func TestX509Cert2OpensslConf_BenignStillValid(t *testing.T) {
+	t.Parallel()
+
+	cert := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "example.com",
+		},
+		IsCA:     true,
+		DNSNames: []string{"example.com"},
+	}
+
+	conf := string(X509Cert2OpensslConf(cert))
+	require.Contains(t, conf, "commonName = example.com\n")
+	require.Contains(t, conf, "DNS.1 = example.com\n")
+	require.Contains(t, conf, "basicConstraints = critical, CA:TRUE")
+}
+
+// TestX509Csr2OpensslConf_ConfigInjection is the CSR counterpart of the
+// config-injection regression test.
+func TestX509Csr2OpensslConf_ConfigInjection(t *testing.T) {
+	t.Parallel()
+
+	const injected = "\n[ v3_ca ]\nbasicConstraints = critical, CA:TRUE"
+
+	csr := &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName: "evil.example.com" + injected,
+		},
+		DNSNames: []string{
+			"good.example.com",
+			"evil-san" + injected,
+		},
+	}
+
+	conf := string(X509Csr2OpensslConf(csr))
+	t.Logf("got\n%s", conf)
+
+	// the injected CA directive must NOT appear as its own line
+	require.NotContains(t, conf, "\nbasicConstraints = critical, CA:TRUE\n",
+		"injected basicConstraints line must be stripped")
+	require.NotContains(t, conf, "\n[ v3_ca ]\n",
+		"injected v3_ca section must be stripped")
+	// the sanitized values should be flattened onto a single line
+	require.Contains(t, conf, "commonName = evil.example.com[ v3_ca ]basicConstraints = critical, CA:TRUE")
+	require.NotContains(t, conf, "\r")
+
+	// benign CommonName still produces the expected line
+	benign := &x509.CertificateRequest{
+		Subject:  pkix.Name{CommonName: "example.com"},
+		DNSNames: []string{"example.com"},
+	}
+	require.Contains(t, string(X509Csr2OpensslConf(benign)), "commonName = example.com\n")
+}
+
 func TestSplitCertsPemChain(t *testing.T) {
 	t.Parallel()
 

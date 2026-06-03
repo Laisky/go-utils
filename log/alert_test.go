@@ -34,6 +34,32 @@ func TestAlertHook(t *testing.T) {
 	// time.Sleep(1 * time.Second)
 }
 
+// TestAlert_SendAfterClose verifies that sending after Close returns an error
+// instead of panicking with "send on closed channel", and that Close is
+// idempotent (a second Close must not panic with "close of closed channel").
+func TestAlert_SendAfterClose(t *testing.T) {
+	a, err := NewAlert(
+		context.Background(),
+		"https://gq.laisky.com/query/",
+		WithAlertType("hello"),
+		WithAlertToken("YOUR_ALERT_TOKEN"),
+	)
+	require.NoError(t, err)
+
+	a.Close()
+
+	// Send after Close must return an error and must not panic.
+	err = a.Send("x")
+	require.Error(t, err)
+
+	// SendWithType after Close must also return an error and not panic.
+	err = a.SendWithType("hello", "YOUR_ALERT_TOKEN", "x")
+	require.Error(t, err)
+
+	// A second Close must be a no-op, not a panic.
+	require.NotPanics(t, func() { a.Close() })
+}
+
 func ExampleAlert() {
 	pusher, err := NewAlert(
 		context.Background(),

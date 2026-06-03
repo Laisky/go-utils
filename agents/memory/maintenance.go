@@ -18,8 +18,10 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 	if strings.TrimSpace(project) == "" {
 		return errors.Errorf("project is required")
 	}
-	if strings.TrimSpace(sessionID) == "" {
-		return errors.Errorf("session_id is required")
+	// Security: reject traversal-capable session IDs before any per-session path
+	// is built, preventing cross-session namespace escape under /memory/<session>/.
+	if err := validateSessionID(sessionID); err != nil {
+		return err
 	}
 
 	if err := engine.ensureSessionScaffold(ctx, project, sessionID); err != nil {
@@ -74,8 +76,10 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	if strings.TrimSpace(project) == "" {
 		return nil, errors.Errorf("project is required")
 	}
-	if strings.TrimSpace(sessionID) == "" {
-		return nil, errors.Errorf("session_id is required")
+	// Security: reject traversal-capable session IDs before any per-session path
+	// is built, preventing cross-session namespace escape under /memory/<session>/.
+	if err := validateSessionID(sessionID); err != nil {
+		return nil, err
 	}
 	if depth <= 0 {
 		depth = 8

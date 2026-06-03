@@ -441,6 +441,12 @@ func TestValidateOpenBrowserURL(t *testing.T) {
 		{name: "invalid malformed url", input: "http://[::1", wantErr: true},
 		{name: "invalid missing host for https", input: "https:///path", wantErr: true},
 		{name: "invalid mailto without recipient", input: "mailto:", wantErr: true},
+		// Security: a normal query string with '&' must be accepted (legit URLs use it).
+		{name: "valid https with ampersand query", input: "https://example.com/?a=1&b=2", wantErr: false},
+		// Security: control characters must be rejected (argument-boundary abuse).
+		{name: "invalid url with newline", input: "https://example.com/\npath", wantErr: true},
+		{name: "invalid url with null byte", input: "https://example.com/\x00path", wantErr: true},
+		{name: "invalid url with del char", input: "https://example.com/\x7fpath", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -472,12 +478,22 @@ func TestBuildOpenURLCommand(t *testing.T) {
 		wantArgs []string
 	}{
 		{
-			name:     "windows uses cmd start with title placeholder",
+			// Security: must NOT route through cmd.exe (shell metacharacter injection).
+			name:     "windows uses rundll32 FileProtocolHandler",
 			goos:     "windows",
 			isWSL:    false,
 			url:      "https://example.com",
-			wantCmd:  "cmd",
-			wantArgs: []string{"/c", "start", "", "https://example.com"},
+			wantCmd:  "rundll32",
+			wantArgs: []string{"url.dll,FileProtocolHandler", "https://example.com"},
+		},
+		{
+			// Security: '&' must stay inside a single argv element, never reach a shell.
+			name:     "windows keeps ampersand url as single arg",
+			goos:     "windows",
+			isWSL:    false,
+			url:      "https://x/?a=1&calc.exe",
+			wantCmd:  "rundll32",
+			wantArgs: []string{"url.dll,FileProtocolHandler", "https://x/?a=1&calc.exe"},
 		},
 		{
 			name:     "darwin uses open with url arg",
@@ -496,12 +512,13 @@ func TestBuildOpenURLCommand(t *testing.T) {
 			wantArgs: []string{"https://example.com"},
 		},
 		{
-			name:     "wsl uses cmd.exe start with title placeholder",
+			// Security: WSL must NOT route through cmd.exe either.
+			name:     "wsl uses rundll32.exe FileProtocolHandler",
 			goos:     "linux",
 			isWSL:    true,
 			url:      "https://example.com",
-			wantCmd:  "cmd.exe",
-			wantArgs: []string{"/c", "start", "", "https://example.com"},
+			wantCmd:  "rundll32.exe",
+			wantArgs: []string{"url.dll,FileProtocolHandler", "https://example.com"},
 		},
 	}
 

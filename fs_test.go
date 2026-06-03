@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -543,6 +544,51 @@ func TestReplaceFileStream(t *testing.T) {
 	got, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	require.Equal(t, cnt, got)
+}
+
+// TestReplaceFileAtomicExclSwap is a regression test for the O_EXCL hardening:
+// the swap file is created with O_CREATE|O_EXCL so it refuses to follow a
+// pre-existing file/symlink at the swap path. This verifies legitimate
+// create/replace behavior is unaffected by that change.
+func TestReplaceFileAtomicExclSwap(t *testing.T) {
+	t.Parallel()
+	dir, err := os.MkdirTemp("", "TestReplaceFileAtomicExclSwap-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	t.Run("ReplaceFile creates new file", func(t *testing.T) {
+		fpath := filepath.Join(dir, "create")
+		cnt := []byte("brand-new-content")
+		require.NoError(t, ReplaceFile(fpath, cnt, 0640))
+
+		got, err := os.ReadFile(fpath)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
+
+	t.Run("ReplaceFile replaces existing file", func(t *testing.T) {
+		fpath := filepath.Join(dir, "replace")
+		require.NoError(t, os.WriteFile(fpath, []byte("old"), 0600))
+
+		cnt := []byte("replaced-content")
+		require.NoError(t, ReplaceFile(fpath, cnt, 0640))
+
+		got, err := os.ReadFile(fpath)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
+
+	t.Run("ReplaceFileAtomic creates and replaces", func(t *testing.T) {
+		fpath := filepath.Join(dir, "atomic")
+		require.NoError(t, os.WriteFile(fpath, []byte("old"), 0600))
+
+		cnt := []byte("atomic-replaced-content")
+		require.NoError(t, ReplaceFileAtomic(fpath, io.NopCloser(bytes.NewReader(cnt)), 0640))
+
+		got, err := os.ReadFile(fpath)
+		require.NoError(t, err)
+		require.Equal(t, cnt, got)
+	})
 }
 
 func TestFilepathJoin(t *testing.T) {

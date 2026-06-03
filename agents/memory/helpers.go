@@ -12,6 +12,45 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+// validateSessionID ensures sessionID is safe to use as a single path segment.
+//
+// Security: sessionID flows raw into sessionBasePath ("/memory/"+sessionID) and
+// through path.Join when building per-session storage paths. Without validation a
+// sessionID such as "..", "foo/../victim", or one containing a NUL/CR/LF could
+// escape the intended "/memory/<session>/" namespace and read, overwrite, or
+// delete another session's data within the same project (path traversal /
+// cross-session namespace escape). We forbid path separators and control
+// characters (so the id is always a single segment) and explicitly reject the
+// only traversal-capable single segments "." and "..". A regex like
+// ^[A-Za-z0-9_.-]{1,128}$ would wrongly accept "..", so a char loop is used. This
+// is maximally backward compatible: it only rejects genuinely unsafe ids.
+func validateSessionID(sessionID string) error {
+	if sessionID == "" {
+		return newValidationError(ValidationErrorCodeSessionIDRequired, "session_id", "session_id is required")
+	}
+	if len(sessionID) > 128 {
+		return newValidationError(ValidationErrorCodeSessionIDInvalid, "session_id", "session_id is too long")
+	}
+	for _, r := range sessionID {
+		if r == '/' || r == '\\' || r < 0x20 || r == 0x7f {
+			return newValidationError(
+				ValidationErrorCodeSessionIDInvalid,
+				"session_id",
+				"session_id must not contain path separators or control characters",
+			)
+		}
+	}
+	if sessionID == "." || sessionID == ".." {
+		return newValidationError(
+			ValidationErrorCodeSessionIDInvalid,
+			"session_id",
+			"session_id must not be a path traversal token",
+		)
+	}
+
+	return nil
+}
+
 // validateBeforeTurnInput validates required fields for BeforeTurn and returns validation error.
 func validateBeforeTurnInput(in BeforeTurnInput) error {
 	if strings.TrimSpace(in.Project) == "" {
@@ -19,6 +58,9 @@ func validateBeforeTurnInput(in BeforeTurnInput) error {
 	}
 	if strings.TrimSpace(in.SessionID) == "" {
 		return newValidationError(ValidationErrorCodeSessionIDRequired, "session_id", "session_id is required")
+	}
+	if err := validateSessionID(in.SessionID); err != nil {
+		return err
 	}
 	if strings.TrimSpace(in.TurnID) == "" {
 		return newValidationError(ValidationErrorCodeTurnIDRequired, "turn_id", "turn_id is required")
@@ -37,6 +79,9 @@ func validateAfterTurnInput(in AfterTurnInput) error {
 	}
 	if strings.TrimSpace(in.SessionID) == "" {
 		return newValidationError(ValidationErrorCodeSessionIDRequired, "session_id", "session_id is required")
+	}
+	if err := validateSessionID(in.SessionID); err != nil {
+		return err
 	}
 	if strings.TrimSpace(in.TurnID) == "" {
 		return newValidationError(ValidationErrorCodeTurnIDRequired, "turn_id", "turn_id is required")

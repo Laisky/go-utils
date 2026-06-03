@@ -59,6 +59,47 @@ func TestEmailHeaderInjection(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestMaskUsername(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		username string
+		want     string
+	}{
+		{"empty", "", ""},
+		{"email", "alice@example.com", "***@example.com"},
+		{"email with dots", "first.last@sub.example.com", "***@sub.example.com"},
+		{"plain", "alice", "***"},
+		{"leading at", "@example.com", "***"},
+		{"trailing at", "alice@", "***"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := maskUsername(tc.username)
+			require.Equal(t, tc.want, got)
+			// The raw local part (account holder identifier) must never
+			// survive masking for non-empty inputs.
+			if tc.username != "" {
+				require.NotEqual(t, tc.username, got)
+			}
+		})
+	}
+}
+
+func TestLoginConfiguresAuth(t *testing.T) {
+	t.Parallel()
+
+	m := NewMail("smtp.example.com", 587)
+	m.Login("alice@example.com", "s3cret")
+
+	// Login must still store the raw credentials so Send can authenticate,
+	// even though the logged value is masked.
+	require.Equal(t, "alice@example.com", m.username)
+	require.Equal(t, "s3cret", m.password)
+}
+
 func TestNewMail(t *testing.T) {
 	m := NewMail("yo", 123)
 	m.Login("username", "password")

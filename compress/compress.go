@@ -314,13 +314,21 @@ func (c *PGZip) WriteFooter() (err error) {
 	return nil
 }
 
+// defaultUnzipMaxEntries is the default cap on the number of entries that
+// will be extracted from a zip archive. It guards against archives that pack
+// an excessive number of entries (a zip-bomb / resource-exhaustion vector)
+// while remaining far above any realistic legitimate archive size.
+const defaultUnzipMaxEntries = 100000
+
 type unzipOption struct {
 	maxBytes       int64
 	copyChunkBytes int64
+	maxEntries     int
 }
 
 func (o *unzipOption) fillDefault() *unzipOption {
 	o.copyChunkBytes = 32 * 1024
+	o.maxEntries = defaultUnzipMaxEntries
 	return o
 }
 
@@ -337,8 +345,14 @@ func (o *unzipOption) applyOpts(optfs ...UnzipOption) (*unzipOption, error) {
 // UnzipOption optional arguments for UnZip
 type UnzipOption func(*unzipOption) error
 
-// UnzipWithMaxBytes decompressed bytes will not exceed this limit,
-// default/0 is unlimit.
+// UnzipWithMaxBytes the aggregate decompressed bytes across ALL entries in the
+// archive will not exceed this limit, default/0 is unlimit.
+//
+// Unlike the previous behavior (which applied this limit per-entry and silently
+// truncated oversized entries), the limit is now an aggregate cap over the whole
+// archive and any entry that would exceed the remaining budget makes Unzip return
+// an explicit error. This avoids the decompression-bomb / disk-exhaustion DoS
+// where total extracted bytes = (#entries) x maxBytes.
 func UnzipWithMaxBytes(bytes int64) UnzipOption {
 	return func(o *unzipOption) error {
 		if bytes < 1 {
@@ -362,6 +376,23 @@ func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
 	}
 }
 
+// UnzipWithMaxEntries limits the number of entries (files and directories)
+// that will be extracted from the archive.
+//
+// This guards the r.File loop against archives that pack an excessive number
+// of entries (a resource-exhaustion / zip-bomb vector). default is 100000,
+// set 0 to unlimit.
+func UnzipWithMaxEntries(n int) UnzipOption {
+	return func(o *unzipOption) error {
+		if n < 0 {
+			return errors.Errorf("max entries must >= 0")
+		}
+
+		o.maxEntries = n
+		return nil
+	}
+}
+
 // Unzip will decompress a zip archive, moving all files and folders
 // within the zip file (parameter 1) to an output directory (parameter 2).
 //
@@ -370,9 +401,12 @@ func UnzipWithCopyChunkBytes(bytes int64) UnzipOption {
 // Args:
 //   - src: is the source zip file.
 //   - dest: is the destination directory.
-//   - (opt) UnzipWithMaxBytes: decompressed bytes will not exceed this limit,
-//     default/0 is unlimit. it's better to set this value to avoid decompression bomb.
+//   - (opt) UnzipWithMaxBytes: the aggregate decompressed bytes across all
+//     entries will not exceed this limit, default/0 is unlimit. it's better to
+//     set this value to avoid decompression bomb.
 //   - (opt) UnzipWithCopyChunkBytes: copy chunk by chunk from src to dst
+//   - (opt) UnzipWithMaxEntries: limit the number of entries to extract,
+//     default is 100000, set 0 to unlimit.
 //
 // Returns:
 //   - filenames: all filenames in zip file
@@ -388,6 +422,19 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	}
 	defer gutils.LogErr(r.Close, log.Shared)
 
+	// Reject archives with an excessive number of entries before doing any
+	// extraction. A crafted archive can pack a huge number of entries to
+	// exhaust file descriptors / inodes / disk; cap it explicitly.
+	if o.maxEntries > 0 && len(r.File) > o.maxEntries {
+		return nil, errors.Errorf("zip entries %d exceed max entries limit %d",
+			len(r.File), o.maxEntries)
+	}
+
+	// totalWritten accumulates the decompressed bytes across all entries so
+	// that o.maxBytes is enforced as an aggregate cap over the whole archive
+	// rather than per-entry. This blocks the disk-exhaustion DoS where total
+	// extracted bytes = (#entries) x maxBytes.
+	var totalWritten int64
 	for _, f := range r.File {
 		fpath, err := gutils.JoinFilepath(dest, f.Name)
 		if err != nil {
@@ -405,7 +452,7 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 			continue
 		}
 
-		if err = unzipFile(f, fpath, o.maxBytes); err != nil {
+		if err = unzipFile(f, fpath, o.maxBytes, &totalWritten); err != nil {
 			return nil, errors.Wrapf(err, "extract file: %s", f.Name)
 		}
 	}
@@ -416,13 +463,21 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 // unzipFile extracts a single file from the zip archive.
 // File descriptors are properly closed when this function returns,
 // avoiding resource leaks when called in a loop.
-func unzipFile(f *zip.File, fpath string, maxBytes int64) error {
+//
+// totalWritten is a running counter of the decompressed bytes already written
+// across all previously extracted entries; it is updated in place so that the
+// caller can enforce maxBytes as an aggregate cap over the whole archive.
+func unzipFile(f *zip.File, fpath string, maxBytes int64, totalWritten *int64) error {
 	if err := os.MkdirAll(filepath.Dir(fpath), 0o751); err != nil {
 		return errors.Wrapf(err, "mkdir: %s", fpath)
 	}
 	log.Shared.Debug("create basedir", zap.String("path", filepath.Dir(fpath)))
 
-	outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+	// Clamp the archive-controlled permission bits before creating the file.
+	// A malicious archive could otherwise request setuid/setgid/sticky or
+	// group/other-writable modes; restrict to owner rwx + group/other rx.
+	mode := f.Mode().Perm() & 0o755
+	outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return errors.Wrapf(err, "open file to write: %s", fpath)
 	}
@@ -436,14 +491,36 @@ func unzipFile(f *zip.File, fpath string, maxBytes int64) error {
 	defer gutils.SilentClose(compressedFp)
 
 	if maxBytes > 0 {
-		_, err = io.Copy(outFile, io.LimitReader(compressedFp, maxBytes))
+		// Enforce the aggregate limit explicitly. Copy at most (remaining+1)
+		// bytes so that an entry exceeding the remaining budget is detected and
+		// reported as an error instead of being silently truncated (the old
+		// io.Copy(LimitReader) behavior hid oversized/decompression-bomb data).
+		remaining := maxBytes - *totalWritten
+		if remaining < 0 {
+			remaining = 0
+		}
+
+		var n int64
+		n, err = io.CopyN(outFile, compressedFp, remaining+1)
+		*totalWritten += n
+		if err == nil {
+			// We were able to read remaining+1 bytes, so the aggregate output
+			// exceeds maxBytes.
+			return errors.Errorf("decompressed bytes exceed aggregate limit %d", maxBytes)
+		}
+		if !errors.Is(err, io.EOF) {
+			return errors.Wrapf(err, "copy file: %s", f.Name)
+		}
+		// io.EOF means the entry finished within budget: normal completion.
 	} else {
-		//nolint:gosec // user did not set maxBytes,
-		// so it's user's responsibility to avoid decompression bomb
-		_, err = io.Copy(outFile, compressedFp)
-	}
-	if err != nil {
-		return errors.Wrapf(err, "copy file: %s", f.Name)
+		var n int64
+		// user did not set maxBytes, so it's user's responsibility to avoid
+		// decompression bomb
+		n, err = io.Copy(outFile, compressedFp) //nolint:gosec // see comment above
+		*totalWritten += n
+		if err != nil {
+			return errors.Wrapf(err, "copy file: %s", f.Name)
+		}
 	}
 
 	return nil

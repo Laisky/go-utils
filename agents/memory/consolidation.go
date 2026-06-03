@@ -17,8 +17,10 @@ func (engine *StandardEngine) RunConsolidation(ctx context.Context, project, ses
 	if strings.TrimSpace(project) == "" {
 		return errors.Errorf("project is required")
 	}
-	if strings.TrimSpace(sessionID) == "" {
-		return errors.Errorf("session_id is required")
+	// Security: reject traversal-capable session IDs before any per-session path
+	// is built, preventing cross-session namespace escape under /memory/<session>/.
+	if err := validateSessionID(sessionID); err != nil {
+		return err
 	}
 
 	rawEvents, err := engine.loadRawEvents(ctx, project, sessionID)

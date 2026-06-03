@@ -624,7 +624,9 @@ func OpenURLInDefaultBrowser(ctx context.Context, rawURL string) error {
 		runningInWSL = isWSL(ctx)
 	}
 
-	cmd, args := buildOpenURLCommand(runtime.GOOS, runningInWSL, rawURL)
+	// Security: pass the normalized/parsed URL (not the caller-supplied raw string)
+	// to the launcher so the value handed to the OS matches what we validated.
+	cmd, args := buildOpenURLCommand(runtime.GOOS, runningInWSL, parsedURL.String())
 	log.Shared.Debug("open url in default browser",
 		zap.String("scheme", parsedURL.Scheme),
 		zap.Bool("has_host", parsedURL.Host != ""),
@@ -646,6 +648,16 @@ func OpenURLInDefaultBrowser(ctx context.Context, rawURL string) error {
 //   - *url.URL: Parsed URL.
 //   - error: Validation error when URL is malformed or has disallowed scheme.
 func validateOpenBrowserURL(rawURL string) (*url.URL, error) {
+	// Security (defense-in-depth): reject any control character (rune < 0x20 or
+	// DEL 0x7f). Control bytes such as NUL, CR, LF, or ESC can break argument
+	// boundaries or be abused by downstream launchers; URL-legal characters like
+	// '&' are intentionally allowed (legitimate query strings contain them).
+	for _, r := range rawURL {
+		if r < 0x20 || r == 0x7f {
+			return nil, errors.Errorf("url contains control character `0x%02x`", r)
+		}
+	}
+
 	parsedURL, err := url.ParseRequestURI(rawURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse url")
@@ -684,12 +696,19 @@ func validateOpenBrowserURL(rawURL string) (*url.URL, error) {
 func buildOpenURLCommand(goos string, runningInWSL bool, targetURL string) (string, []string) {
 	switch goos {
 	case "windows":
-		return "cmd", []string{"/c", "start", "", targetURL}
+		// Security: do NOT route through `cmd /c start`. Go's os/exec passes args
+		// to cmd.exe without neutralizing shell metacharacters (& | < > ^), so a URL
+		// containing '&' would let cmd.exe chain an arbitrary command (command
+		// injection). rundll32 url.dll,FileProtocolHandler opens http/https/mailto
+		// and receives the URL as a single argv element, so metacharacters are inert.
+		return "rundll32", []string{"url.dll,FileProtocolHandler", targetURL}
 	case "darwin":
 		return "open", []string{targetURL}
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		if runningInWSL {
-			return "cmd.exe", []string{"/c", "start", "", targetURL}
+			// Security: same cmd.exe metacharacter injection risk as native Windows;
+			// use rundll32.exe FileProtocolHandler so the URL stays a single argv element.
+			return "rundll32.exe", []string{"url.dll,FileProtocolHandler", targetURL}
 		}
 
 		return "xdg-open", []string{targetURL}

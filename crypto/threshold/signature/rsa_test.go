@@ -23,8 +23,10 @@ func TestVerifyBySHA256(t *testing.T) {
 	total := 5
 	threshold := 3
 
-	// Generate key shares once
-	keyShares, keyMeta, err := NewKeyShares(total, threshold, gcrypto.RSAPrikeyBits(1024)) // Using minimum supported key size for tests
+	// Generate key shares once. Use the minimum supported (and secure) key
+	// size for tests; this is gated behind !testing.Short above because
+	// 2048-bit threshold key generation is expensive.
+	keyShares, keyMeta, err := NewKeyShares(total, threshold, gcrypto.RSAPrikeyBits2048)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, keyMeta.PublicKey.N.BitLen(), minRSAPublicKeyBits)
 
@@ -90,32 +92,32 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name:      "valid values",
-			total:     5,
-			threshold: 3,
-			rsaBits:   gcrypto.RSAPrikeyBits(1024),
-			wantErr:   "",
-		},
-		{
+			// Bounds/validation cases only: each returns an error BEFORE the
+			// expensive key-generation step, so this table stays fast. The
+			// successful 2048-bit key-generation path is covered (once) by
+			// TestVerifyBySHA256, which is gated behind !testing.Short.
 			name:      "overflow uint16 max",
 			total:     70000,
 			threshold: 65536,
-			rsaBits:   gcrypto.RSAPrikeyBits(1024),
+			rsaBits:   gcrypto.RSAPrikeyBits2048,
 			wantErr:   "threshold and total must not exceed 65535",
 		},
 		{
-			name:      "large but valid values",
-			total:     1000,
-			threshold: 501,
-			rsaBits:   gcrypto.RSAPrikeyBits(1024),
-			wantErr:   "",
-		},
-		{
-			name:      "rsa bits too small",
+			name:      "rsa bits too small (512)",
 			total:     5,
 			threshold: 3,
 			rsaBits:   gcrypto.RSAPrikeyBits(512),
-			wantErr:   "RSA bits must be at least 1024",
+			wantErr:   "RSA bits must be at least 2048",
+		},
+		{
+			// Security regression: 1024-bit RSA was previously accepted but is
+			// deprecated/insecure and must now be rejected before any key is
+			// generated.
+			name:      "rsa bits 1024 now rejected",
+			total:     5,
+			threshold: 3,
+			rsaBits:   gcrypto.RSAPrikeyBits(1024),
+			wantErr:   "RSA bits must be at least 2048",
 		},
 	}
 
@@ -123,6 +125,12 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Generating 2048-bit threshold keys is expensive; only the
+			// success cases hit key generation, so skip those in short mode.
+			if tt.wantErr == "" && testing.Short() {
+				t.Skip("skipping expensive 2048-bit key generation in short mode")
+			}
 
 			shares, meta, err := NewKeyShares(tt.total, tt.threshold, tt.rsaBits)
 			if tt.wantErr != "" {

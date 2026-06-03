@@ -12,7 +12,14 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
-const minRSAPublicKeyBits = 1024
+// minRSAPublicKeyBits is the minimum accepted RSA modulus size for threshold
+// signatures.
+//
+// Security: 1024-bit RSA is deprecated and considered insecure (NIST disallowed
+// it after 2013); the rest of this library mandates >= 2048 bits (see
+// crypto.RSAPrikeyBits2048/3072/4096). We enforce the same 2048-bit floor here
+// so callers cannot accidentally generate weak threshold keys.
+const minRSAPublicKeyBits = 2048
 
 // NewKeyShares generate total keyshares for threshold signature,
 // any members exceed threshold can generate legal signature.
@@ -42,9 +49,13 @@ func NewKeyShares(total, threshold int,
 	rsaBitsInt := int(rsabits)
 	if rsaBitsInt < minRSAPublicKeyBits {
 		return nil, nil, errors.Errorf(
-			"RSA bits must be at least %d to satisfy crypto/rsa minimum key size", minRSAPublicKeyBits)
+			"RSA bits must be at least %d (1024-bit RSA is deprecated and insecure)", minRSAPublicKeyBits)
 	}
 
+	// When exactly the minimum is requested, generate one extra bit so the
+	// resulting modulus is guaranteed to reach minRSAPublicKeyBits (the product
+	// of two k-bit primes can be 2k-1 bits, which would otherwise fall just short
+	// of the floor and be rejected by the post-generation check below).
 	keyBitsForGeneration := rsaBitsInt
 	if rsaBitsInt == minRSAPublicKeyBits {
 		keyBitsForGeneration++

@@ -185,8 +185,14 @@ func (m *KMS) Kek(_ context.Context) (
 			zap.Uint16("kek_id", kekID))
 	}
 
+	// Security: return a defensive copy so a caller mutating the returned
+	// slice cannot corrupt the internal in-memory KEK material.
 	// nolint: forcetypeassert
-	return kekID, v.([]byte), nil
+	b := v.([]byte)
+	out := make([]byte, len(b))
+	copy(out, b)
+
+	return kekID, out, nil
 }
 
 // keks return all keks
@@ -198,8 +204,13 @@ func (m *KMS) Keks(_ context.Context) (
 
 	keks = make(map[uint16][]byte)
 	m.keks.Range(func(key, value any) bool {
+		// Security: return a defensive copy of each KEK so a caller mutating
+		// the returned slice cannot corrupt the internal in-memory KEK material.
 		// nolint: forcetypeassert
-		keks[key.(uint16)] = value.([]byte)
+		b := value.([]byte)
+		out := make([]byte, len(b))
+		copy(out, b)
+		keks[key.(uint16)] = out
 		return true
 	})
 

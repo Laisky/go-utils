@@ -352,6 +352,16 @@ func validatePath(path string, allowRoot bool) error {
 	if strings.ContainsAny(path, " \t\n\r") {
 		return errors.Errorf("path cannot contain spaces or control chars")
 	}
+	// Security: reject every control character (rune < 0x20) and DEL (0x7f).
+	// The check above only covers a few whitespace runes, leaving NUL and other
+	// control bytes through; a NUL can truncate the path in C-based syscalls and
+	// CR/LF can enable injection in downstream protocols/logs. This guarantees
+	// the path contains only printable characters.
+	for _, r := range path {
+		if r < 0x20 || r == 0x7f {
+			return errors.Errorf("path cannot contain control characters")
+		}
+	}
 	if len(path) > 512 {
 		return errors.Errorf("path too long")
 	}

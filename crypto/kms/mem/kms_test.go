@@ -134,3 +134,50 @@ func TestKMS_Decrypt(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TestKMS_KekDefensiveCopy is a regression test ensuring Kek and Keks return
+// defensive copies. A caller mutating the returned slice must not corrupt the
+// internal in-memory KEK material.
+func TestKMS_KekDefensiveCopy(t *testing.T) {
+	ctx := context.Background()
+
+	mk, err := gcrypto.Salt(128)
+	require.NoError(t, err)
+	original := make([]byte, len(mk))
+	copy(original, mk)
+
+	kms, err := New(map[uint16][]byte{1: mk})
+	require.NoError(t, err)
+
+	t.Run("Kek", func(t *testing.T) {
+		_, kek, err := kms.Kek(ctx)
+		require.NoError(t, err)
+		require.Equal(t, original, kek)
+
+		// mutate the returned slice
+		for i := range kek {
+			kek[i] ^= 0xff
+		}
+
+		// fetch again, internal copy must be unchanged
+		_, kek2, err := kms.Kek(ctx)
+		require.NoError(t, err)
+		require.Equal(t, original, kek2, "internal KEK must not be mutated via returned slice")
+	})
+
+	t.Run("Keks", func(t *testing.T) {
+		keks, err := kms.Keks(ctx)
+		require.NoError(t, err)
+		require.Equal(t, original, keks[1])
+
+		// mutate the returned slice
+		for i := range keks[1] {
+			keks[1][i] ^= 0xff
+		}
+
+		// fetch again, internal copy must be unchanged
+		keks2, err := kms.Keks(ctx)
+		require.NoError(t, err)
+		require.Equal(t, original, keks2[1], "internal KEK must not be mutated via returned map entry")
+	})
+}

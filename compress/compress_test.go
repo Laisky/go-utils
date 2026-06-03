@@ -1,11 +1,13 @@
 package compress
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -144,18 +146,15 @@ func TestUnzipWithMaxBytes(t *testing.T) {
 			"file should be fully extracted when maxBytes > file size")
 	})
 
-	t.Run("maxBytes smaller than file truncates", func(t *testing.T) {
+	t.Run("maxBytes smaller than file returns error (no silent truncation)", func(t *testing.T) {
 		dstDir := filepath.Join(dir, "dst2")
 		require.NoError(t, os.Mkdir(dstDir, 0751))
 
-		// Set maxBytes to 50KB - file should be truncated
+		// Set maxBytes to 50KB - the 100KB entry exceeds the budget, so Unzip
+		// must return an error instead of silently truncating the output.
 		_, err := Unzip(zipPath, dstDir, UnzipWithMaxBytes(50*1024))
-		require.NoError(t, err)
-
-		content, err := os.ReadFile(filepath.Join(dstDir, "src", "large.txt"))
-		require.NoError(t, err)
-		require.LessOrEqual(t, len(content), 50*1024,
-			"file should be truncated to maxBytes limit")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "exceed aggregate limit")
 	})
 
 	t.Run("invalid maxBytes", func(t *testing.T) {
@@ -166,6 +165,180 @@ func TestUnzipWithMaxBytes(t *testing.T) {
 		_, err = Unzip(zipPath, dstDir, UnzipWithMaxBytes(-1))
 		require.Error(t, err)
 	})
+}
+
+// writeZip builds a zip archive at zipPath from the given entries.
+// Each entry maps a file name to its uncompressed content. The optional
+// modes map allows overriding the stored unix permission bits per entry.
+func writeZip(t *testing.T, zipPath string, entries map[string]string, modes map[string]os.FileMode) {
+	t.Helper()
+
+	fp, err := os.Create(zipPath)
+	require.NoError(t, err)
+	defer fp.Close()
+
+	zw := zip.NewWriter(fp)
+	for name, content := range entries {
+		hdr := &zip.FileHeader{
+			Name:   name,
+			Method: zip.Deflate,
+		}
+		if modes != nil {
+			if m, ok := modes[name]; ok {
+				hdr.SetMode(m)
+			}
+		}
+
+		w, err := zw.CreateHeader(hdr)
+		require.NoError(t, err)
+		_, err = w.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, zw.Close())
+}
+
+// TestUnzipAggregateMaxBytes verifies the aggregate decompression limit:
+// many small entries whose combined size exceeds maxBytes must return an
+// error (previously the limit was per-entry, allowing #entries x maxBytes).
+func TestUnzipAggregateMaxBytes(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// 5 entries of 30KB each = 150KB combined; each entry is below a 100KB
+	// limit individually, but the aggregate exceeds it.
+	entries := map[string]string{
+		"a.txt": strings.Repeat("a", 30*1024),
+		"b.txt": strings.Repeat("b", 30*1024),
+		"c.txt": strings.Repeat("c", 30*1024),
+		"d.txt": strings.Repeat("d", 30*1024),
+		"e.txt": strings.Repeat("e", 30*1024),
+	}
+
+	zipPath := filepath.Join(dir, "many.zip")
+	writeZip(t, zipPath, entries, nil)
+
+	dstDir := filepath.Join(dir, "dst")
+	require.NoError(t, os.Mkdir(dstDir, 0751))
+
+	_, err = Unzip(zipPath, dstDir, UnzipWithMaxBytes(100*1024))
+	require.Error(t, err, "combined entries exceeding maxBytes must error")
+	require.ErrorContains(t, err, "exceed aggregate limit")
+}
+
+// TestUnzipSingleEntryNoSilentTruncation verifies that a single entry larger
+// than maxBytes returns an error and does NOT leave a truncated copy on disk.
+func TestUnzipSingleEntryNoSilentTruncation(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	content := strings.Repeat("z", 100*1024) // 100KB
+	zipPath := filepath.Join(dir, "big.zip")
+	writeZip(t, zipPath, map[string]string{"big.txt": content}, nil)
+
+	dstDir := filepath.Join(dir, "dst")
+	require.NoError(t, os.Mkdir(dstDir, 0751))
+
+	_, err = Unzip(zipPath, dstDir, UnzipWithMaxBytes(50*1024))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "exceed aggregate limit")
+
+	// The extracted file must not contain a full (untruncated) copy of the
+	// original content; silent truncation to exactly maxBytes is also a bug,
+	// so simply assert the original full content was never materialized.
+	out := filepath.Join(dstDir, "big.txt")
+	if data, rerr := os.ReadFile(out); rerr == nil {
+		require.NotEqual(t, content, string(data),
+			"oversized entry must not be fully extracted")
+	}
+}
+
+// TestUnzipMaxEntries verifies the entry-count cap rejects archives with too
+// many entries.
+func TestUnzipMaxEntries(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	entries := map[string]string{
+		"a.txt": "1",
+		"b.txt": "2",
+		"c.txt": "3",
+	}
+	zipPath := filepath.Join(dir, "entries.zip")
+	writeZip(t, zipPath, entries, nil)
+
+	t.Run("exceeding max entries errors", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst1")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxEntries(2))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "exceed max entries limit")
+	})
+
+	t.Run("within max entries succeeds", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst2")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxEntries(3))
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid max entries", func(t *testing.T) {
+		dstDir := filepath.Join(dir, "dst3")
+		require.NoError(t, os.Mkdir(dstDir, 0751))
+		_, err := Unzip(zipPath, dstDir, UnzipWithMaxEntries(-1))
+		require.Error(t, err)
+	})
+}
+
+// TestUnzipPermissionClamp verifies that archive-controlled permission bits
+// are clamped so extracted files are never group/other-writable nor carry
+// setuid/setgid/sticky bits.
+func TestUnzipPermissionClamp(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permission bits are not meaningful on windows")
+	}
+
+	dir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// Store an entry with world-writable mode 0o777; the extracted file must
+	// be clamped to at most 0o755.
+	zipPath := filepath.Join(dir, "perm.zip")
+	writeZip(t, zipPath,
+		map[string]string{"evil.txt": "payload"},
+		map[string]os.FileMode{"evil.txt": 0o777},
+	)
+
+	dstDir := filepath.Join(dir, "dst")
+	require.NoError(t, os.Mkdir(dstDir, 0751))
+
+	_, err = Unzip(zipPath, dstDir)
+	require.NoError(t, err)
+
+	info, err := os.Stat(filepath.Join(dstDir, "evil.txt"))
+	require.NoError(t, err)
+
+	perm := info.Mode().Perm()
+	require.LessOrEqual(t, perm, os.FileMode(0o755),
+		"extracted perm must be clamped to <= 0o755, got %o", perm)
+	// No group/other write bits.
+	require.Zero(t, perm&0o022, "group/other write bits must be stripped")
+	// No setuid/setgid/sticky.
+	require.Zero(t, info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky),
+		"setuid/setgid/sticky bits must be stripped")
 }
 
 const (

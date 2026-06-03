@@ -130,3 +130,17 @@ func TestMCPStorageValidateInput(t *testing.T) {
 	err = storage.Delete(context.Background(), "demo", "", false)
 	require.Error(t, err)
 }
+
+// TestValidatePathRejectsControlChars verifies validatePath rejects paths that
+// contain a space, a newline, or a NUL byte while accepting a normal relative
+// path. Control characters (especially NUL/CR/LF) can truncate paths in C-based
+// syscalls or enable injection in downstream protocols and logs.
+func TestValidatePathRejectsControlChars(t *testing.T) {
+	require.Error(t, validatePath("/a b.txt", false), "space must be rejected")
+	require.Error(t, validatePath("/a\nb.txt", false), "newline must be rejected")
+	require.Error(t, validatePath("/a\x00b.txt", false), "NUL must be rejected")
+	require.Error(t, validatePath("/a\rb.txt", false), "CR must be rejected")
+	require.Error(t, validatePath("/a\x7fb.txt", false), "DEL must be rejected")
+
+	require.NoError(t, validatePath("/dir/file.txt", false), "normal relative path must be accepted")
+}

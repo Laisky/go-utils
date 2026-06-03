@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -35,6 +36,13 @@ type Alert struct {
 	stopChan   chan struct{}
 	senderChan chan *alertMsg
 	pushAPI    string
+
+	// closeOnce guards Close so it is idempotent (closing an already
+	// closed channel panics).
+	closeOnce sync.Once
+	// closed is set once Close has been called. SendWithType checks it
+	// before attempting a send to avoid panicking on a closed channel.
+	closed atomic.Bool
 }
 
 // alertOption holds configuration options for the Alert hook.
@@ -166,9 +174,17 @@ func NewAlert(ctx context.Context, pushAPI string,
 }
 
 // Close closes the Alert hook.
+//
+// Close is idempotent and safe to call concurrently. It only closes
+// stopChan (not senderChan): closing senderChan while SendWithType may be
+// racing a send would panic with "send on closed channel", and a double
+// Close would panic with "close of closed channel". The sender goroutine
+// returns on stopChan, and the unsent senderChan is reclaimed by the GC.
 func (a *Alert) Close() {
-	close(a.stopChan) // should close stopChan first
-	close(a.senderChan)
+	a.closeOnce.Do(func() {
+		a.closed.Store(true)
+		close(a.stopChan) // should close stopChan first
+	})
 }
 
 // SendWithType sends an alert with the specified type, token, and message.
@@ -177,12 +193,22 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 		return errors.Errorf("alertType, pushToken and msg should not be empty")
 	}
 
+	// Reject sends after Close to avoid panicking on a closed channel; a log
+	// triggering the alert hook after shutdown must not crash the process.
+	if a.closed.Load() {
+		return errors.Errorf("alert is closed")
+	}
+
 	select {
 	case a.senderChan <- &alertMsg{
 		alertType: alertType,
 		pushToken: pushToken,
 		msg:       msg,
 	}:
+	case <-a.stopChan:
+		// Close raced with this send; abort instead of risking a send on a
+		// channel whose sole reader (runSender) has already returned.
+		return errors.Errorf("alert is closed")
 	default:
 		return errors.Errorf("send channel overflow")
 	}

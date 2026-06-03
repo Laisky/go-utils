@@ -393,9 +393,28 @@ func VerifyCertByPrikey(certPem []byte, prikeyPem []byte) error {
 	return errors.WithStack(err)
 }
 
+// sanitizeOpensslConfValue strips all control characters (runes < 0x20 and
+// 0x7f, including CR and LF) from a value before it is interpolated into the
+// line-oriented OpenSSL config.
+//
+// Security: certificate/CSR subject and SAN fields are attacker-influenceable.
+// A value containing a newline could inject arbitrary OpenSSL config directives
+// (e.g. a fake "[ v3_ca ]" section turning a leaf cert into a CA). Legitimate
+// X.509 subject/SAN fields never contain control characters, so stripping them
+// is safe and blocks this config-injection vector.
+func sanitizeOpensslConfValue(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 // X509Cert2OpensslConf marshal x509
 func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 	// set req & req_distinguished_name
+	// sanitize the attacker-influenceable CommonName to block config injection
 	cnt := fmt.Sprintf(gutils.Dedent(`
 		[ req ]
 		distinguished_name = req_distinguished_name
@@ -404,7 +423,7 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 		x509_extensions = v3_ca
 
 		[ req_distinguished_name ]
-		commonName = %s`), cert.Subject.CommonName)
+		commonName = %s`), sanitizeOpensslConfValue(cert.Subject.CommonName))
 	cnt += "\n"
 
 	subjectMaps := map[string][]string{
@@ -423,7 +442,12 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 		"organizationalUnitName",
 	} {
 		if len(subjectMaps[name]) != 0 {
-			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+			// sanitize each subject element to block config injection
+			vals := make([]string, len(subjectMaps[name]))
+			for i, v := range subjectMaps[name] {
+				vals[i] = sanitizeOpensslConfValue(v)
+			}
+			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(vals, ","))
 		}
 	}
 	cnt += "\n"
@@ -455,18 +479,19 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 	}
 
 	// set req_ext
+	// sanitize each SAN entry to block config injection via embedded newlines
 	var altCnt string
 	for i, v := range cert.DNSNames {
-		altCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, v)
+		altCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
 	}
 	for i, v := range cert.EmailAddresses {
-		altCnt += fmt.Sprintf("email.%d = %s\n", i+1, v)
+		altCnt += fmt.Sprintf("email.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
 	}
 	for i, v := range cert.IPAddresses {
-		altCnt += fmt.Sprintf("IP.%d = %s\n", i+1, v.String())
+		altCnt += fmt.Sprintf("IP.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
 	}
 	for i, v := range cert.URIs {
-		altCnt += fmt.Sprintf("URI.%d = %s\n", i+1, v.String())
+		altCnt += fmt.Sprintf("URI.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
 	}
 	if altCnt != "" {
 		cnt += "\n"
@@ -509,6 +534,7 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 //	DNS.2 = example.com
 func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 	// set req & req_distinguished_name
+	// sanitize the attacker-influenceable CommonName to block config injection
 	cnt := fmt.Sprintf(gutils.Dedent(`
 		[ req ]
 		distinguished_name = req_distinguished_name
@@ -516,7 +542,7 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 		string_mask = utf8only
 
 		[ req_distinguished_name ]
-		commonName = %s`), csr.Subject.CommonName)
+		commonName = %s`), sanitizeOpensslConfValue(csr.Subject.CommonName))
 	cnt += "\n"
 
 	subjectMaps := map[string][]string{
@@ -535,23 +561,29 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 		"organizationalUnitName",
 	} {
 		if len(subjectMaps[name]) != 0 {
-			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(subjectMaps[name], ","))
+			// sanitize each subject element to block config injection
+			vals := make([]string, len(subjectMaps[name]))
+			for i, v := range subjectMaps[name] {
+				vals[i] = sanitizeOpensslConfValue(v)
+			}
+			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(vals, ","))
 		}
 	}
 
 	// set req_ext
+	// sanitize each SAN entry to block config injection via embedded newlines
 	var sansCnt string
 	for i, v := range csr.DNSNames {
-		sansCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, v)
+		sansCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
 	}
 	for i, v := range csr.EmailAddresses {
-		sansCnt += fmt.Sprintf("email.%d = %s\n", i+1, v)
+		sansCnt += fmt.Sprintf("email.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
 	}
 	for i, v := range csr.IPAddresses {
-		sansCnt += fmt.Sprintf("IP.%d = %s\n", i+1, v.String())
+		sansCnt += fmt.Sprintf("IP.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
 	}
 	for i, v := range csr.URIs {
-		sansCnt += fmt.Sprintf("URI.%d = %s\n", i+1, v.String())
+		sansCnt += fmt.Sprintf("URI.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
 	}
 	if sansCnt != "" {
 		cnt += "\n"

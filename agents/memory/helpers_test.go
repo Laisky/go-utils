@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -185,6 +186,72 @@ func TestValidationErrorCodeFromWrappedError(t *testing.T) {
 	code, ok = ValidationErrorCodeFromError(err)
 	require.True(t, ok)
 	require.Equal(t, ValidationErrorCodeTurnIDRequired, code)
+}
+
+// TestValidateSessionID verifies session ID validation rejects path-traversal and
+// control-character ids while accepting legitimate single-segment ids.
+func TestValidateSessionID(t *testing.T) {
+	rejected := []string{
+		"",                      // empty
+		"..",                    // parent traversal token
+		".",                     // current-dir token
+		"foo/bar",               // forward slash separator
+		"foo/../bar",            // embedded traversal
+		"a\\b",                  // backslash separator
+		"a\x00b",                // NUL control char
+		"a\nb",                  // newline control char
+		"a/b",                   // separator
+		string(rune(127)) + "x", // DEL control char
+	}
+	for _, sessionID := range rejected {
+		err := validateSessionID(sessionID)
+		require.Error(t, err, "expected rejection for %q", sessionID)
+		require.True(t, IsValidationError(err), "expected validation error for %q", sessionID)
+	}
+
+	// Empty must map to the required code; other malformed ids to invalid.
+	emptyCode, ok := ValidationErrorCodeFromError(validateSessionID(""))
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDRequired, emptyCode)
+
+	invalidCode, ok := ValidationErrorCodeFromError(validateSessionID(".."))
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDInvalid, invalidCode)
+
+	// Overlong ids are rejected as invalid.
+	longCode, ok := ValidationErrorCodeFromError(validateSessionID(strings.Repeat("a", 129)))
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDInvalid, longCode)
+
+	accepted := []string{"session-123", "abc_DEF.1", "s", "..foo", "foo.."}
+	for _, sessionID := range accepted {
+		require.NoError(t, validateSessionID(sessionID), "expected acceptance for %q", sessionID)
+	}
+}
+
+// TestValidateInputRejectsTraversalSessionID verifies the public validate functions
+// reject a traversal session ID end-to-end so cross-session escape cannot occur.
+func TestValidateInputRejectsTraversalSessionID(t *testing.T) {
+	beforeErr := validateBeforeTurnInput(BeforeTurnInput{
+		Project:      "demo",
+		SessionID:    "foo/../victimSession",
+		TurnID:       "t",
+		CurrentInput: []ResponseItem{{Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: "hi"}}}},
+	})
+	require.Error(t, beforeErr)
+	beforeCode, ok := ValidationErrorCodeFromError(beforeErr)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDInvalid, beforeCode)
+
+	afterErr := validateAfterTurnInput(AfterTurnInput{
+		Project:   "demo",
+		SessionID: "..",
+		TurnID:    "t",
+	})
+	require.Error(t, afterErr)
+	afterCode, ok := ValidationErrorCodeFromError(afterErr)
+	require.True(t, ok)
+	require.Equal(t, ValidationErrorCodeSessionIDInvalid, afterCode)
 }
 
 // TestMarshalJSONLVariants verifies JSONL marshaling across supported and generic record types.

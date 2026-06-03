@@ -10,6 +10,10 @@ const (
 	ValidationErrorCodeProjectRequired ValidationErrorCode = "PROJECT_REQUIRED"
 	// ValidationErrorCodeSessionIDRequired indicates missing session ID value.
 	ValidationErrorCodeSessionIDRequired ValidationErrorCode = "SESSION_ID_REQUIRED"
+	// ValidationErrorCodeSessionIDInvalid indicates a malformed session ID value
+	// that is unsafe for use as a single path segment (e.g. contains path
+	// separators, control characters, or is a traversal token like "." / "..").
+	ValidationErrorCodeSessionIDInvalid ValidationErrorCode = "SESSION_ID_INVALID"
 	// ValidationErrorCodeTurnIDRequired indicates missing turn ID value.
 	ValidationErrorCodeTurnIDRequired ValidationErrorCode = "TURN_ID_REQUIRED"
 	// ValidationErrorCodeCurrentInputRequired indicates missing current input items.

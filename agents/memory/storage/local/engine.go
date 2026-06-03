@@ -63,7 +63,19 @@ func NewEngine(conf Config) (*Engine, error) {
 		return nil, errors.Errorf("root_dir is required")
 	}
 
-	if err := os.MkdirAll(conf.RootDir, 0o755); err != nil {
+	dirPerm := conf.DirPerm
+	if dirPerm == 0 {
+		// Security: default to owner-only (0o700) so the storage tree is not
+		// group/world-readable or traversable. Memory storage can hold sensitive
+		// conversation history and extracted facts; on shared hosts a permissive
+		// 0o755 default would expose it to other local users. Callers may still
+		// override via Config for environments that require wider access.
+		dirPerm = 0o700
+	}
+
+	// Create the root with the (tightened) directory permission rather than a
+	// hard-coded 0o755, so the root itself is not world-traversable by default.
+	if err := os.MkdirAll(conf.RootDir, dirPerm); err != nil {
 		return nil, errors.Wrap(err, "mkdir local storage root")
 	}
 
@@ -74,12 +86,9 @@ func NewEngine(conf Config) (*Engine, error) {
 
 	filePerm := conf.FilePerm
 	if filePerm == 0 {
-		filePerm = 0o644
-	}
-
-	dirPerm := conf.DirPerm
-	if dirPerm == 0 {
-		dirPerm = 0o755
+		// Security: default to owner-only read/write (0o600) so stored files are
+		// not readable by group/other on shared systems.
+		filePerm = 0o600
 	}
 
 	return &Engine{

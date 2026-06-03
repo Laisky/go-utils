@@ -33,7 +33,11 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
 	}
 
-	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
+	// Security: use O_EXCL so open fails if the swap path already exists. This
+	// refuses to follow an attacker-planted symlink or overwrite a pre-created
+	// file at the (randomized) swap path. O_TRUNC is unnecessary because O_EXCL
+	// guarantees a freshly created file.
+	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_EXCL|os.O_RDWR, perm)
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
@@ -102,7 +106,11 @@ func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
 		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
 	}
 
-	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, perm)
+	// Security: use O_EXCL so open fails if the swap path already exists. This
+	// refuses to follow an attacker-planted symlink or overwrite a pre-created
+	// file at the (randomized) swap path. O_TRUNC is unnecessary because O_EXCL
+	// guarantees a freshly created file.
+	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_EXCL|os.O_RDWR, perm)
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}

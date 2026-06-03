@@ -219,6 +219,9 @@ func WithPusherFilter(filter func(ent zapcore.Entry, fs []zapcore.Field) bool) P
 type Pusher struct {
 	opt        *pusherOption
 	senderChan chan []byte
+	// ctx controls the sender goroutine lifetime. GetZapHook watches it so a
+	// send never blocks forever once the sender has returned.
+	ctx context.Context
 }
 
 // NewPusher create new pusher
@@ -233,6 +236,7 @@ func NewPusher(ctx context.Context, opts ...PusherOption) (p *Pusher, err error)
 
 	p = &Pusher{
 		opt: opt,
+		ctx: ctx,
 	}
 	p.senderChan = make(chan []byte, opt.senderChanLen)
 
@@ -272,7 +276,16 @@ func (p *Pusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
 			return nil
 		}
 
-		p.senderChan <- body
+		// Watch ctx so the send cannot block forever: with an unbuffered
+		// senderChan the bare send blocks until the sender goroutine receives,
+		// but after ctx is canceled p.sender() has returned and nothing drains
+		// senderChan, deadlocking the logging goroutine. Dropping the log on
+		// shutdown is preferable to hanging the caller.
+		select {
+		case p.senderChan <- body:
+		case <-p.ctx.Done():
+			p.opt.logger.Debug("pusher closed, drop log")
+		}
 		return nil
 	}
 }
