@@ -23,6 +23,11 @@ const (
 	AesGcmIvLen = 12
 	// AesGcmTagLen is the length of tag for AES GCM
 	AesGcmTagLen = 16
+	// maxGCMPlaintextLen is the maximum plaintext length AES-GCM can process for
+	// a single (key, nonce) pair: (2^32 - 2) blocks of 16 bytes (~64 GiB).
+	// crypto/cipher's Seal panics above this; we validate up front and return a
+	// clean error instead of letting an oversized input crash the process.
+	maxGCMPlaintextLen = ((1 << 32) - 2) * 16
 )
 
 // AesEncrypt encrypt bytes by AES GCM
@@ -77,6 +82,10 @@ func AEADEncrypt(key, plaintext, additionalData []byte) (ciphertext []byte, err 
 func AEADEncryptBasic(key, plaintext, iv, additionalData []byte) (ciphertext, tag []byte, err error) {
 	if len(plaintext) == 0 {
 		return nil, nil, errors.Errorf("content is empty")
+	}
+
+	if uint64(len(plaintext)) > maxGCMPlaintextLen {
+		return nil, nil, errors.Errorf("plaintext too large for AES-GCM: %d bytes", len(plaintext))
 	}
 
 	c, err := aes.NewCipher(key)

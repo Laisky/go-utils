@@ -189,21 +189,24 @@ func TestSignBehavior_DecodeES256SignByBase64_Errors(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	// Note: DecodeES256SignByBase64 does not return an error for format issues
-	// (no delimiter, too many delimiters) due to a nil-wrap bug in the implementation.
-	// Testing that the function does not panic on malformed inputs:
-	t.Run("no delimiter does not panic", func(t *testing.T) {
+	// Regression: DecodeES256SignByBase64 must return a real error (not nil) for
+	// format issues. Previously it wrapped a nil error, silently returning
+	// (nil, nil, nil), which caused a downstream nil-pointer panic in
+	// VerifyByECDSAWithSHA256AndBase64. See fix in sign.go.
+	t.Run("no delimiter returns error", func(t *testing.T) {
 		t.Parallel()
-		require.NotPanics(t, func() {
-			_, _, _ = DecodeES256SignByBase64("dGVzdA==dGVzdA==")
-		})
+		r, s, err := DecodeES256SignByBase64("dGVzdA==dGVzdA==")
+		require.Error(t, err, "malformed signature must produce an error, not nil")
+		require.Nil(t, r)
+		require.Nil(t, s)
 	})
 
-	t.Run("too many delimiters does not panic", func(t *testing.T) {
+	t.Run("too many delimiters returns error", func(t *testing.T) {
 		t.Parallel()
-		require.NotPanics(t, func() {
-			_, _, _ = DecodeES256SignByBase64("dGVzdA==.dGVzdA==.dGVzdA==")
-		})
+		r, s, err := DecodeES256SignByBase64("dGVzdA==.dGVzdA==.dGVzdA==")
+		require.Error(t, err, "malformed signature must produce an error, not nil")
+		require.Nil(t, r)
+		require.Nil(t, s)
 	})
 }
 

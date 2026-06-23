@@ -284,7 +284,19 @@ var (
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
 func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	chunk := make([]byte, pubkey.Size()-11) // will padding 11 bytes
+	if pubkey == nil {
+		return nil, errors.Errorf("public key is nil")
+	}
+
+	// PKCS#1 v1.5 reserves 11 bytes of padding, so the modulus must be able to
+	// hold at least one plaintext byte. Guard before sizing the chunk buffer,
+	// otherwise `make` is called with a negative length and panics on tiny keys.
+	chunkSize := pubkey.Size() - 11
+	if chunkSize <= 0 {
+		return nil, errors.Errorf("rsa public key too small (%d bytes) for PKCS1v15", pubkey.Size())
+	}
+
+	chunk := make([]byte, chunkSize) // will padding 11 bytes
 	reader := bytes.NewReader(plain)
 	for {
 		n, err := reader.Read(chunk)
@@ -340,7 +352,20 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
 func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	chunk := make([]byte, pubkey.Size()-2*sha256.Size-2)
+	if pubkey == nil {
+		return nil, errors.Errorf("public key is nil")
+	}
+
+	// OAEP with SHA-256 reserves 2*hashLen+2 bytes of padding, so the modulus
+	// must hold at least one plaintext byte. Guard before sizing the chunk
+	// buffer, otherwise `make` is called with a negative length and panics on
+	// tiny keys (e.g. a maliciously small RSA public key).
+	chunkSize := pubkey.Size() - 2*sha256.Size - 2
+	if chunkSize <= 0 {
+		return nil, errors.Errorf("rsa public key too small (%d bytes) for OAEP-SHA256", pubkey.Size())
+	}
+
+	chunk := make([]byte, chunkSize)
 	reader := bytes.NewReader(plain)
 	for {
 		n, err := reader.Read(chunk)
