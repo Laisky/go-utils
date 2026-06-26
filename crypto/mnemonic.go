@@ -227,6 +227,15 @@ func MnemonicToBytes(mnemonic string) ([]byte, error) {
 	payload := fullBytes[:3+dataLen]
 	checksum := fullBytes[3+dataLen : requiredLen]
 
+	// This is an unkeyed integrity/typo-detection checksum (BIP-39 style), not
+	// an authentication tag. Both operands are derivable offline by whoever
+	// supplies the mnemonic: checksum is embedded in the input and hash is
+	// recomputed from the attacker-supplied payload, with no secret key
+	// involved. The early-return per-byte comparison is therefore intentional
+	// and carries no timing side-channel (CWE-208) — there is no secret to
+	// recover, and forging a valid checksum only requires recomputing SHA-256.
+	// A constant-time compare is deliberately not used here to avoid implying
+	// this value is security-sensitive. (audited 2026-06)
 	hash := sha256.Sum256(payload)
 	for i := 0; i < mnemonicChecksumLen; i++ {
 		if hash[i] != checksum[i] {

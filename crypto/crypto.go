@@ -412,3 +412,13 @@ func RSADecryptByOAEP(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err 
 
 	return plain, nil
 }
+
+// ConstantTimeStringEqual hashes candidate to a fixed-size digest before
+// comparing it with expectedHash. The candidate parameter is untrusted user
+// input, expectedHash is the SHA-256 digest of the configured secret, and the
+// return value reports equality without leaking candidate length through
+// subtle.ConstantTimeCompare's length check.
+func ConstantTimeStringEqual(candidate string, expectedHash [sha256.Size]byte) bool {
+	candidateHash := sha256.Sum256([]byte(candidate))
+	return subtle.ConstantTimeCompare(candidateHash[:], expectedHash[:]) == 1
+}
