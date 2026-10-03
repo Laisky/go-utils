@@ -535,10 +535,10 @@ func WithX509SignPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) SignCSROption {
 // WithX509SignCSRExtenstions set certificate extensions
 //
 // Extensions contains all requested extensions, in raw form. When parsing
-// CSRs, this can be used to extract extensions that are not parsed by this
-// package.
+// CSRs, this can be used to extract non-critical extensions that are not
+// parsed by this package.
 //
-// Deprecated: this field is ignored by golang built-in x509 library,
+// Deprecated: this field is ignored by golang's built-in x509 library,
 // use WithX509SignCSRExtraExtenstions instead if you want to set extensions.
 func WithX509SignCSRExtenstions(_ ...pkix.Extension) SignCSROption {
 	return func(_ *signCSROption) error {
@@ -687,7 +687,10 @@ func WithX509SignCSRIsCRLCA() SignCSROption {
 	}
 }
 
-// NewX509CertByCSR sign CSR to certificate
+// NewX509CertByCSR verifies csrDer and signs it with the parent CA and prikey.
+// It returns the certificate DER or an error. Signature verification establishes
+// request integrity and proof of possession, not authorization for the requested
+// subject or SANs; callers must enforce their enrollment policy.
 //
 // Depends on RFC-5280 4.2.1.12, empty ext key usage is as same as any key usage.
 // so do not set any default ext key usages.
@@ -709,6 +712,11 @@ func NewX509CertByCSR(
 	csr, err := Der2CSR(csrDer)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse csr")
+	}
+
+	// Parsing alone does not authenticate the request or prove key possession.
+	if err := csr.CheckSignature(); err != nil {
+		return nil, errors.Wrap(err, "verify csr signature")
 	}
 
 	opt, err := new(signCSROption).applyOpts(csr, opts...)
