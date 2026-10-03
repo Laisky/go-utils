@@ -535,10 +535,10 @@ func WithX509SignPublicKeyAlgorithm(_ x509.PublicKeyAlgorithm) SignCSROption {
 // WithX509SignCSRExtenstions set certificate extensions
 //
 // Extensions contains all requested extensions, in raw form. When parsing
-// CSRs, this can be used to extract non-critical extensions that are not
-// parsed by this package.
+// CSRs, this can be used to extract extensions that are not parsed by this
+// package.
 //
-// Deprecated: this field is ignored by golang's built-in x509 library,
+// Deprecated: this field is ignored by golang built-in x509 library,
 // use WithX509SignCSRExtraExtenstions instead if you want to set extensions.
 func WithX509SignCSRExtenstions(_ ...pkix.Extension) SignCSROption {
 	return func(_ *signCSROption) error {
