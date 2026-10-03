@@ -1,0 +1,38 @@
+name: Crypto tests
+
+on:
+  push:
+    branches: [v6]
+  pull_request:
+    branches: [v6]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crypto-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  crypto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check CSR source formatting
+        run: test -z "$(gofmt -l crypto/x509.go crypto/x509_csr_signature_test.go)"
+      - name: CSR signature behavior regressions
+        run: go test -race -count=3 -timeout=5m -v -run 'TestNewX509CertByCSR(RejectsTampering|ValidSignatures|MalformedRequests|UnsupportedSignature)$' ./crypto
+      - name: Vet crypto packages
+        run: go vet ./crypto/...
+      - name: Build all packages
+        run: go build ./...
+      - name: Crypto regression suite with race detection
+        run: go test -race -count=1 -timeout=5m ./crypto/...
