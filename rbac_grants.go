@@ -14,6 +14,8 @@ const (
 	RBACGrantSubtree RBACGrantMode = "subtree"
 )
 
+// validGrantMode reports whether p uses a supported explicit or legacy mode.
+// It does not normalize the mode or mutate the receiver.
 func (p *RBACPermissionElem) validGrantMode() bool {
 	return p.Grant == "" || p.Grant == RBACGrantNone || p.Grant == RBACGrantSubtree
 }
@@ -27,6 +29,8 @@ func (p *RBACPermissionElem) explicitGrantMode() RBACGrantMode {
 	return RBACGrantNone
 }
 
+// rbacFullKey returns p's supplied identity, or derives it from parent and Key.
+// The method is read-only and requires the caller to hold the tree's root lock.
 func (p *RBACPermissionElem) rbacFullKey(parent RBACPermFullKey) RBACPermFullKey {
 	if p.FullKey != "" {
 		return p.FullKey
@@ -47,6 +51,7 @@ type rbacPermissionSnapshot struct {
 	order []RBACPermFullKey
 }
 
+// newRBACSnapshot returns an empty detached permission set and metadata index.
 func newRBACSnapshot() rbacPermissionSnapshot {
 	return rbacPermissionSnapshot{
 		grants: make(map[RBACPermFullKey]struct{}),
@@ -54,6 +59,8 @@ func newRBACSnapshot() rbacPermissionSnapshot {
 	}
 }
 
+// snapshotRBACPermissions returns a detached, bounded snapshot of p under its
+// read lock. A nil tree represents the empty permission set.
 func snapshotRBACPermissions(p *RBACPermissionElem) rbacPermissionSnapshot {
 	s := newRBACSnapshot()
 	if p != nil {
@@ -64,6 +71,9 @@ func snapshotRBACPermissions(p *RBACPermissionElem) rbacPermissionSnapshot {
 	return s
 }
 
+// collect records effective grants and metadata from p into s. Parent resolves
+// omitted full keys and depth bounds recursion. Invalid subtrees are ignored;
+// the caller must hold the live tree's root read or write lock.
 func (s *rbacPermissionSnapshot) collect(p *RBACPermissionElem, parent RBACPermFullKey, depth int) {
 	if p == nil || p.Key == "" || !p.validGrantMode() || depth > rbacMaxDepth {
 		return
@@ -105,6 +115,9 @@ func (s rbacPermissionSnapshot) coversGrant(key RBACPermFullKey) bool {
 	return false
 }
 
+// intersectRBACSnapshot restricts the locked receiver to grants shared with
+// other. Overwrite also adopts matching display titles, never identities.
+// It mutates only the receiver and returns no value.
 func (p *RBACPermissionElem) intersectRBACSnapshot(other rbacPermissionSnapshot, overwrite bool) {
 	before := newRBACSnapshot()
 	before.collect(p, "", 0)
@@ -123,6 +136,9 @@ func (p *RBACPermissionElem) intersectRBACSnapshot(other rbacPermissionSnapshot,
 	}
 }
 
+// retainRBACStructure keeps common metadata nodes while explicitly clearing
+// all grants. Parent and depth locate and bound the traversal; overwrite selects
+// the source titles. Invalid branches are discarded under the receiver lock.
 func (p *RBACPermissionElem) retainRBACStructure(other rbacPermissionSnapshot, parent RBACPermFullKey, depth int, overwrite bool) {
 	current := p.rbacFullKey(parent)
 	invalid := p.Key == "" || !p.validGrantMode() || depth > rbacMaxDepth
@@ -199,6 +215,9 @@ func (p *RBACPermissionElem) insertRBACGrant(key RBACPermFullKey, before, other 
 	node.Grant = RBACGrantSubtree
 }
 
+// overwriteRBACTitles copies titles indexed by other without changing grants
+// or identities. Parent resolves omitted paths and depth bounds the traversal.
+// The caller holds the receiver's root lock; other is a detached snapshot.
 func (p *RBACPermissionElem) overwriteRBACTitles(other rbacPermissionSnapshot, parent RBACPermFullKey, depth int) {
 	if p == nil || p.Key == "" || depth > rbacMaxDepth {
 		return

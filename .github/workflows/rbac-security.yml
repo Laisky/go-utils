@@ -36,6 +36,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -52,3 +54,28 @@ jobs:
         run: >-
           go test -run '^$' -fuzz '^FuzzRBACRestrictionMonotonicity$'
           -fuzztime=30s -parallel=2 -timeout=5m rbac*.go
+  repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Vet all packages
+        run: go vet ./...
+      - name: Build all packages
+        if: ${{ !cancelled() }}
+        run: go build ./...
+      - name: Test all packages with race detection
+        if: ${{ !cancelled() }}
+        run: |
+          set +e
+          go test -race -count=1 -timeout=5m ./... > "$RUNNER_TEMP/full-test.log" 2>&1
+          status=$?
+          grep -E '(^FAIL|--- FAIL:|Error Trace:|Error:|panic:|WARNING: DATA RACE)' "$RUNNER_TEMP/full-test.log" || true
+          tail -n 200 "$RUNNER_TEMP/full-test.log"
+          exit "$status"

@@ -1,7 +1,13 @@
 package utils
 
-import "testing"
+import (
+	"testing"
 
+	"github.com/stretchr/testify/require"
+)
+
+// rbacRegressionTree builds a legacy policy with the supplied sys child keys.
+// Invalid fixture construction panics rather than producing a misleading test.
 func rbacRegressionTree(keys ...string) *RBACPermissionElem {
 	p := &RBACPermissionElem{Key: "root", Children: []*RBACPermissionElem{{Key: "sys"}}}
 	for _, k := range keys {
@@ -13,6 +19,8 @@ func rbacRegressionTree(keys ...string) *RBACPermissionElem {
 	return p
 }
 
+// TestRBACRestrictionRegression reproduces the five original escalation paths.
+// Each case asserts both its precondition and the resulting effective denial.
 func TestRBACRestrictionRegression(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -28,15 +36,11 @@ func TestRBACRestrictionRegression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := rbacRegressionTree("read")
 			for _, key := range []RBACPermFullKey{"root", "root.sys", "root.sys.admin"} {
-				if p.HasPerm2(key) {
-					t.Fatalf("invalid precondition: already grants %s", key)
-				}
+				require.Falsef(t, p.HasPerm2(key), "invalid precondition: already grants %s", key)
 			}
 			tc.apply(p)
 			for _, key := range []RBACPermFullKey{"root", "root.sys", "root.sys.admin", "root.sys.read"} {
-				if p.HasPerm2(key) {
-					t.Errorf("restriction grants %s", key)
-				}
+				require.Falsef(t, p.HasPerm2(key), "restriction grants %s", key)
 			}
 		})
 	}

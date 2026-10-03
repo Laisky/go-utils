@@ -1,15 +1,10 @@
 package utils
 
 import (
-	"database/sql/driver"
 	"strings"
 	"sync"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/zap"
-
-	"github.com/Laisky/go-utils/v6/json"
-	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (
@@ -158,9 +153,10 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 //
 // the whole permission tree can represented by the head node.
 //
-// All exported methods on this type are concurrency-safe. The caller must
-// use the exported methods (or manually hold the lock) when accessing the
-// tree from multiple goroutines.
+// Calls through the same tree root are synchronized. Direct field access and
+// operations through child pointers require external synchronization; a child
+// mutex does not synchronize access through its parent. Use Value for a locked
+// serialization snapshot rather than marshaling a concurrently mutated tree.
 type RBACPermissionElem struct {
 	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
@@ -186,8 +182,12 @@ func NewPermissionTree() *RBACPermissionElem {
 	}
 }
 
-// Clone clone permission tree
+// Clone returns a detached, depth-bounded copy under the root read lock.
+// A nil receiver returns nil; over-depth branches remain non-granting.
 func (p *RBACPermissionElem) Clone() *RBACPermissionElem {
+	if p == nil {
+		return nil
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -196,6 +196,19 @@ func (p *RBACPermissionElem) Clone() *RBACPermissionElem {
 
 // cloneUnlocked is the lock-free inner implementation of Clone.
 func (p *RBACPermissionElem) cloneUnlocked() *RBACPermissionElem {
+	return p.cloneRBACAtDepth(0)
+}
+
+// cloneRBACAtDepth returns a detached copy of p at the supplied tree depth.
+// Nil children remain nil; over-depth or cyclic branches become non-granting
+// sentinels instead of recursing without a bound. The caller holds p's root lock.
+func (p *RBACPermissionElem) cloneRBACAtDepth(depth int) *RBACPermissionElem {
+	if p == nil {
+		return nil
+	}
+	if depth > rbacMaxDepth {
+		return &RBACPermissionElem{Title: p.Title, Key: p.Key, FullKey: p.FullKey, Grant: RBACGrantNone}
+	}
 	newP := &RBACPermissionElem{
 		Title:   p.Title,
 		Key:     p.Key,
@@ -205,7 +218,7 @@ func (p *RBACPermissionElem) cloneUnlocked() *RBACPermissionElem {
 
 	newP.Children = make([]*RBACPermissionElem, len(p.Children))
 	for k, c := range p.Children {
-		newP.Children[k] = c.cloneUnlocked()
+		newP.Children[k] = c.cloneRBACAtDepth(depth + 1)
 	}
 
 	return newP
@@ -233,6 +246,9 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 	return p.fillDefaultUnlocked(ancesterKey, 0)
 }
 
+// fillDefaultUnlocked initializes identities and grant modes under the root lock.
+// AncesterKey supplies the parent path; depth bounds recursion. It returns the
+// first invalid key, grant mode, or excessive-depth error.
 func (p *RBACPermissionElem) fillDefaultUnlocked(ancesterKey RBACPermFullKey, depth int) error {
 	if depth > rbacMaxDepth {
 		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
@@ -283,6 +299,8 @@ func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
 	return p.hasPermUnlocked(requiredKey, 0)
 }
 
+// hasPermUnlocked checks requiredKey with legacy matching at the given depth.
+// The caller holds the root read lock; excess depth returns false.
 func (p *RBACPermissionElem) hasPermUnlocked(requiredKey RBACPermFullKey, depth int) bool {
 	if depth > rbacMaxDepth {
 		return false
@@ -384,6 +402,8 @@ func (p *RBACPermissionElem) Valid() error {
 	return p.validUnlocked(0)
 }
 
+// validUnlocked checks keys and grant modes at the supplied depth without
+// mutating the tree. It returns the first validation or depth-limit error.
 func (p *RBACPermissionElem) validUnlocked(depth int) error {
 	if depth > rbacMaxDepth {
 		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
@@ -406,62 +426,66 @@ func (p *RBACPermissionElem) validUnlocked(depth int) error {
 	return nil
 }
 
-// UnionAndOverwriteBy merge(union) another tree into this tree by key comparison
+// UnionAndOverwriteBy merges grants and titles from other into the receiver.
+// Nodes must have matching keys and resolved authorization identities. Invalid
+// grant modes contribute no grants. The source is snapshotted without holding
+// the receiver lock, so reciprocal calls cannot deadlock. Other is not modified.
 func (p *RBACPermissionElem) UnionAndOverwriteBy(other *RBACPermissionElem) {
 	if p == nil || other == nil || p == other {
 		return
 	}
+	otherSnapshot := other.Clone()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	other.mu.RLock()
-	defer other.mu.RUnlock()
-
-	p.unionAndOverwriteByUnlocked(other, 0)
+	p.unionAndOverwriteByUnlocked(otherSnapshot, "", 0)
 }
 
-func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionElem, depth int) {
-	if depth > rbacMaxDepth {
+// unionAndOverwriteByUnlocked merges a detached source into a locked receiver.
+// Parent and depth identify the current location; neither display metadata nor
+// normalization of an invalid mode may turn a previously denied branch into a
+// grant. Identity mismatches and invalid source nodes are ignored fail-closed.
+func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionElem, parent RBACPermFullKey, depth int) {
+	if p == nil || other == nil || depth > rbacMaxDepth {
 		return
 	}
-
-	if p.Key == "" || other.Key == "" || p.Key != other.Key {
+	if p.Key == "" || other.Key == "" || p.Key != other.Key || !other.validGrantMode() {
 		return
 	}
-
-	// Preserve explicit grants when merging children. A structural node must
-	// not be promoted merely because either input has no children.
+	current := p.rbacFullKey(parent)
+	if current != other.rbacFullKey(parent) {
+		return
+	}
+	if !p.validGrantMode() {
+		// HasPerm2 denies the entire invalid subtree, not just its root.
+		p.Grant = RBACGrantNone
+		p.Children = nil
+	}
 	grant := p.explicitGrantMode() == RBACGrantSubtree ||
 		other.explicitGrantMode() == RBACGrantSubtree
 	p.Grant = RBACGrantNone
 	if grant {
 		p.Grant = RBACGrantSubtree
 	}
-
-	// replace element's content by another tree
-	c := p.Children
 	p.Title = other.Title
-	p.Key = other.Key
-	p.FullKey = other.FullKey
-	p.Children = c
+	p.FullKey = current
 
 	for _, oe := range other.Children {
+		if oe == nil || oe.Key == "" || !oe.validGrantMode() {
+			continue
+		}
 		var replacedEle *RBACPermissionElem
-		for i := range p.Children {
-			if p.Children[i].Key == oe.Key {
-				replacedEle = p.Children[i]
+		for _, child := range p.Children {
+			if child != nil && child.Key == oe.Key {
+				replacedEle = child
 				break
 			}
 		}
-
-		// do not has same key element, create new (clone to avoid sharing)
 		if replacedEle == nil {
-			p.Children = append(p.Children, oe.cloneUnlocked())
+			p.Children = append(p.Children, oe.cloneRBACAtDepth(depth+1))
 			continue
 		}
-
-		// replace element
-		replacedEle.unionAndOverwriteByUnlocked(oe, depth+1)
+		replacedEle.unionAndOverwriteByUnlocked(oe, current, depth+1)
 	}
 }
 
@@ -500,66 +524,6 @@ func (p *RBACPermissionElem) OverwriteBy(another *RBACPermissionElem, intersecti
 	p.overwriteRBACTitles(otherState, "", 0)
 }
 
-// Cut removes a node or wildcard descendants and revokes overlapping grants.
-// The receiver remains as a structural root even when its grants are revoked.
-// A bare "*" removes the receiver's descendants. Missing FullKey values are
-// resolved exactly as in HasPerm2.
-//
-// This positive-grant model cannot represent exclusions from a broad grant.
-// Cutting inside such a grant conservatively revokes that entire grant; it may
-// deny unrelated descendants rather than leave the requested permission active.
-func (p *RBACPermissionElem) Cut(key RBACPermFullKey) {
-	if p == nil || key == "" {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if key == "*" {
-		key = p.rbacFullKey("").Append("*")
-	}
-	p.cutWithParent(key, "", 0)
-}
-
-func (p *RBACPermissionElem) cutWithParent(key, parent RBACPermFullKey, depth int) {
-	if p == nil {
-		return
-	}
-	current := p.rbacFullKey(parent)
-	// Freeze BEFORE any filtering, including depth-limit truncation.
-	invalid := !p.validGrantMode()
-	p.Grant = p.explicitGrantMode()
-	if depth > rbacMaxDepth || p.Key == "" || invalid {
-		p.Grant = RBACGrantNone
-		p.Children = nil
-		return
-	}
-	if p.Grant == RBACGrantSubtree &&
-		(rbacPermissionGrantsRequired(current, key) ||
-			rbacPermissionGrantsRequired(key, current)) {
-		p.Grant = RBACGrantNone
-	}
-	if current == key {
-		p.Children = nil
-		return
-	}
-	var filteredChildren []*RBACPermissionElem
-	for _, child := range p.Children {
-		if child == nil {
-			continue
-		}
-		childKey := child.rbacFullKey(current)
-		if rbacCutTargetMatchesNode(key, childKey) {
-			log.Shared.Debug("cut RBAC permission node",
-				zap.String("target_key", key.String()),
-				zap.String("removed_key", childKey.String()))
-			continue
-		}
-		child.cutWithParent(key, current, depth+1)
-		filteredChildren = append(filteredChildren, child)
-	}
-	p.Children = filteredChildren
-}
-
 // GetElemByKey gets the permission tree node by key
 //
 // Args:
@@ -571,6 +535,8 @@ func (p *RBACPermissionElem) GetElemByKey(key RBACPermFullKey) *RBACPermissionEl
 	return p.getElemByKeyUnlocked(key, 0)
 }
 
+// getElemByKeyUnlocked returns the node matching key, or nil if absent.
+// Depth bounds recursion and the caller holds the tree root read lock.
 func (p *RBACPermissionElem) getElemByKeyUnlocked(key RBACPermFullKey, depth int) *RBACPermissionElem {
 	if depth > rbacMaxDepth {
 		return nil
@@ -594,63 +560,5 @@ func (p *RBACPermissionElem) getElemByKeyUnlocked(key RBACPermFullKey, depth int
 		}
 	}
 
-	return nil
-}
-
-// Value implement GORM interface
-func (p *RBACPermissionElem) Value() (driver.Value, error) {
-	if p == nil {
-		return nil, errors.Errorf("marshal RBACPermissionElem: nil receiver")
-	}
-
-	b, err := json.Marshal(p.valueSnapshot())
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal RBACPermissionElem")
-	}
-	return string(b), nil
-}
-
-// Scan implement GORM interface
-func (p *RBACPermissionElem) Scan(input any) error {
-	if input == nil {
-		return errors.Errorf("scan RBACPermissionElem: input is nil")
-	}
-
-	switch v := input.(type) {
-	case []byte:
-		return json.Unmarshal(v, p)
-	case string:
-		return json.Unmarshal([]byte(v), p)
-	default:
-		return errors.Errorf("scan RBACPermissionElem: unsupported type %T", input)
-	}
-}
-
-// UnmarshalJSON replaces the complete authorization state, including fields
-// omitted by legacy JSON. Decoding into a reused receiver must never retain an
-// earlier broad grant or children. The live state is replaced only on success.
-func (p *RBACPermissionElem) UnmarshalJSON(data []byte) error {
-	if p == nil {
-		return errors.Errorf("unmarshal RBACPermissionElem: nil receiver")
-	}
-	type permissionJSON RBACPermissionElem
-	var decoded permissionJSON
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return errors.Wrap(err, "unmarshal RBACPermissionElem")
-	}
-	grant := decoded.Grant
-	if grant == "" {
-		grant = RBACGrantNone
-		if len(decoded.Children) == 0 {
-			grant = RBACGrantSubtree
-		}
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.Title = decoded.Title
-	p.Key = decoded.Key
-	p.FullKey = decoded.FullKey
-	p.Children = decoded.Children
-	p.Grant = grant
 	return nil
 }

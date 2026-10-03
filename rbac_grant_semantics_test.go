@@ -7,9 +7,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-// The oracle operates on segment arrays and does not call production matchers.
+// rbacOracle reports whether grants cover required using an independent
+// segment-based model; it never calls the production permission matchers.
 func rbacOracle(grants []string, required string) bool {
 	if required == "" {
 		return true
@@ -38,6 +41,8 @@ func rbacOracle(grants []string, required string) bool {
 	return false
 }
 
+// rbacExplicitTree returns a canonical explicit tree for test grant paths.
+// A path outside root or an invalid fixture panics instead of building bad input.
 func rbacExplicitTree(grants ...string) *RBACPermissionElem {
 	p := &RBACPermissionElem{Key: "root", Grant: RBACGrantNone}
 	for _, g := range grants {
@@ -68,18 +73,19 @@ func rbacExplicitTree(grants ...string) *RBACPermissionElem {
 	return p
 }
 
+// rbacAssertPermissions asserts each probe against want using tree p.
+// It reports failures through t and does not change the policy.
 func rbacAssertPermissions(t testing.TB, p *RBACPermissionElem, probes []string, want func(string) bool) {
 	t.Helper()
 	for _, q := range probes {
-		if got := p.HasPerm2(RBACPermFullKey(q)); got != want(q) {
-			t.Fatalf("permission %q: got %v, want %v", q, got, want(q))
-		}
+		require.Equalf(t, want(q), p.HasPerm2(RBACPermFullKey(q)), "permission %q", q)
 	}
 }
 
 var rbacTestGrantKeys = []string{"root", "root.sys", "root.sys.*", "root.sys.read", "root.sys.write", "root.sysadmin.audit"}
 var rbacTestProbes = []string{"", "root", "root.sys", "root.sys.*", "root.sys.read", "root.sys.read.child", "root.sys.write", "root.sys.admin", "root.sys.future.action", "root.sysadmin", "root.sysadmin.audit", "root.sysadmin.audit.child", "root.data", "root.data.audit", "root2", "other.root"}
 
+// rbacMaskGrants returns grant keys selected by the low bits of mask.
 func rbacMaskGrants(mask uint64) []string {
 	var out []string
 	for i, key := range rbacTestGrantKeys {
@@ -90,13 +96,16 @@ func rbacMaskGrants(mask uint64) []string {
 	return out
 }
 
+// TestRBACSemanticIntersectionExhaustive checks both intersection APIs
+// against the independent oracle for every pair of configured grant sets.
 func TestRBACSemanticIntersectionExhaustive(t *testing.T) {
 	for a := uint64(0); a < 64; a++ {
 		for b := uint64(0); b < 64; b++ {
 			left, right := rbacMaskGrants(a), rbacMaskGrants(b)
 			for _, overwrite := range []bool{false, true} {
 				p, q := rbacExplicitTree(left...), rbacExplicitTree(right...)
-				before, _ := json.Marshal(q)
+				before, err := json.Marshal(q)
+				require.NoError(t, err)
 				if overwrite {
 					p.OverwriteBy(q, true)
 				} else {
@@ -104,19 +113,19 @@ func TestRBACSemanticIntersectionExhaustive(t *testing.T) {
 				}
 				for _, probe := range rbacTestProbes {
 					want := rbacOracle(left, probe) && rbacOracle(right, probe)
-					if got := p.HasPerm2(RBACPermFullKey(probe)); got != want {
-						t.Fatalf("a=%d b=%d overwrite=%v query=%q got=%v want=%v", a, b, overwrite, probe, got, want)
-					}
+					require.Equalf(t, want, p.HasPerm2(RBACPermFullKey(probe)),
+						"a=%d b=%d overwrite=%v query=%q", a, b, overwrite, probe)
 				}
-				after, _ := json.Marshal(q)
-				if string(before) != string(after) {
-					t.Fatal("other input was mutated")
-				}
+				after, err := json.Marshal(q)
+				require.NoError(t, err)
+				require.Equal(t, before, after, "other input was mutated")
 			}
 		}
 	}
 }
 
+// TestRBACRestrictionPersistence checks revocation across clone, JSON,
+// SQL serialization, reinitialization, and subsequent metadata operations.
 func TestRBACRestrictionPersistence(t *testing.T) {
 	for _, op := range []string{"cut", "intersection", "overwrite"} {
 		t.Run(op, func(t *testing.T) {
@@ -130,34 +139,20 @@ func TestRBACRestrictionPersistence(t *testing.T) {
 				p.OverwriteBy(rbacRegressionTree("write"), true)
 			}
 			b, err := json.Marshal(p)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(b), `"grant":"none"`) {
-				t.Fatalf("non-grant state not persisted: %s", b)
-			}
+			require.NoError(t, err)
+			require.Contains(t, string(b), `"grant":"none"`, "non-grant state not persisted")
 			var fromJSON RBACPermissionElem
-			if err := json.Unmarshal(b, &fromJSON); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(b, &fromJSON))
 			value, err := p.Value()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			var fromSQL RBACPermissionElem
-			if err := fromSQL.Scan(value); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, fromSQL.Scan(value))
 			for name, copy := range map[string]*RBACPermissionElem{"live": p, "clone": p.Clone(), "json": &fromJSON, "sql": &fromSQL} {
-				if err := copy.FillDefault(""); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, copy.FillDefault(""))
 				rbacAssertPermissions(t, copy, rbacTestProbes, func(q string) bool { return q == "" })
-				if sys := copy.GetElemByKey("root.sys"); sys == nil {
-					t.Fatalf("%s lost common structural node", name)
-				} else if sys.HasPerm2("root.sys.admin") {
-					t.Fatalf("%s subtree regranted admin", name)
-				}
+				sys := copy.GetElemByKey("root.sys")
+				require.NotNilf(t, sys, "%s lost common structural node", name)
+				require.Falsef(t, sys.HasPerm2("root.sys.admin"), "%s subtree regranted admin", name)
 				// Subsequent metadata operations must not resurrect the emptied parent.
 				copy.OverwriteBy(rbacRegressionTree("admin"), false)
 				rbacAssertPermissions(t, copy, rbacTestProbes, func(q string) bool { return q == "" })
@@ -166,6 +161,8 @@ func TestRBACRestrictionPersistence(t *testing.T) {
 	}
 }
 
+// TestRBACCutMonotonicity checks that every configured cut both revokes
+// its target and never grants a permission absent from the original tree.
 func TestRBACCutMonotonicity(t *testing.T) {
 	targets := []string{"root", "root.*", "*", "root.sys", "root.sys.*", "root.sys.read", "root.sys.read.child", "root.sysadmin.audit", "root.data.audit", "other.root"}
 	for mask := uint64(0); mask < 64; mask++ {
@@ -179,51 +176,39 @@ func TestRBACCutMonotonicity(t *testing.T) {
 			}
 			for _, probe := range rbacTestProbes {
 				got := p.HasPerm2(RBACPermFullKey(probe))
-				if got && !rbacOracle(grants, probe) {
-					t.Fatalf("cut %q grants new %q for %v", target, probe, grants)
-				}
-				if probe != "" && got && rbacOracle([]string{effectiveTarget}, probe) {
-					t.Fatalf("cut %q failed to revoke %q for %v", target, probe, grants)
-				}
+				require.Falsef(t, got && !rbacOracle(grants, probe), "cut %q grants new %q for %v", target, probe, grants)
+				require.Falsef(t, probe != "" && got && rbacOracle([]string{effectiveTarget}, probe), "cut %q failed to revoke %q for %v", target, probe, grants)
 			}
 		}
 	}
 }
 
+// TestRBACLegacyAndDefaultState checks explicit denial defaults and
+// backward-compatible interpretation of uninitialized legacy policies.
 func TestRBACLegacyAndDefaultState(t *testing.T) {
-	if NewPermissionTree().HasPerm2("root.admin") {
-		t.Fatal("new empty tree grants admin")
-	}
+	require.False(t, NewPermissionTree().HasPerm2("root.admin"), "new empty tree grants admin")
 	for _, fill := range []bool{false, true} {
 		t.Run(fmt.Sprint(fill), func(t *testing.T) {
 			p := &RBACPermissionElem{Key: "root", Children: []*RBACPermissionElem{{Key: "sys", Children: []*RBACPermissionElem{{Key: "read"}}}}}
 			if fill {
-				if err := p.FillDefault(""); err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, p.FillDefault(""))
 			}
-			if !p.HasPerm2("root.sys.read.child") {
-				t.Fatal("legacy read grant lost")
-			}
+			require.True(t, p.HasPerm2("root.sys.read.child"), "legacy read grant lost")
 			p.Cut("root.sys.read")
 			rbacAssertPermissions(t, p, rbacTestProbes, func(q string) bool { return q == "" })
 		})
 	}
 	legacyBroad := &RBACPermissionElem{Key: "root"}
-	if !legacyBroad.HasPerm2("root.admin") {
-		t.Fatal("legacy broad grant lost")
-	}
+	require.True(t, legacyBroad.HasPerm2("root.admin"), "legacy broad grant lost")
 	legacyBroad.Intersection(rbacExplicitTree("root.sys.read"))
 	rbacAssertPermissions(t, legacyBroad, rbacTestProbes, func(q string) bool { return rbacOracle([]string{"root.sys.read"}, q) })
 	var empty RBACPermissionElem
-	if err := json.Unmarshal([]byte(`{"key":"root","grant":"none"}`), &empty); err != nil {
-		t.Fatal(err)
-	}
-	if empty.HasPerm2("root") {
-		t.Fatal("explicit non-grant ignored")
-	}
+	require.NoError(t, json.Unmarshal([]byte(`{"key":"root","grant":"none"}`), &empty))
+	require.False(t, empty.HasPerm2("root"), "explicit non-grant ignored")
 }
 
+// TestRBACDecodeReplacesExistingState checks successful replacement and
+// atomic failure when decoding into an already populated receiver.
 func TestRBACDecodeReplacesExistingState(t *testing.T) {
 	for _, scan := range []bool{false, true} {
 		t.Run(fmt.Sprint(scan), func(t *testing.T) {
@@ -235,22 +220,20 @@ func TestRBACDecodeReplacesExistingState(t *testing.T) {
 			} else {
 				err = json.Unmarshal(data, p)
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			rbacAssertPermissions(t, p, rbacTestProbes, func(q string) bool { return rbacOracle([]string{"root.sys.read"}, q) })
-			before, _ := json.Marshal(p)
-			if err := json.Unmarshal([]byte(`{"key":123}`), p); err == nil {
-				t.Fatal("expected decode error")
-			}
-			after, _ := json.Marshal(p)
-			if string(before) != string(after) {
-				t.Fatal("failed decode mutated live state")
-			}
+			before, err := json.Marshal(p)
+			require.NoError(t, err)
+			require.Error(t, json.Unmarshal([]byte(`{"key":123}`), p))
+			after, err := json.Marshal(p)
+			require.NoError(t, err)
+			require.Equal(t, before, after, "failed decode mutated live state")
 		})
 	}
 }
 
+// TestRBACIdentityNilAndMetadata checks nil policies, disjoint identities,
+// and display-title changes that must not change authorization identities.
 func TestRBACIdentityNilAndMetadata(t *testing.T) {
 	for _, overwrite := range []bool{false, true} {
 		p := rbacExplicitTree("root.sys.read")
@@ -273,20 +256,18 @@ func TestRBACIdentityNilAndMetadata(t *testing.T) {
 	q := rbacExplicitTree("root.sys.read")
 	q.GetElemByKey("root.sys.read").Title = "Updated Read"
 	p.OverwriteBy(q, true)
-	if p.GetElemByKey("root.sys.read").Title != "Updated Read" {
-		t.Fatal("title not overwritten")
-	}
+	require.Equal(t, "Updated Read", p.GetElemByKey("root.sys.read").Title, "title not overwritten")
 	q.GetElemByKey("root.sys.read").FullKey = "root"
 	p.OverwriteBy(q, false)
-	if p.HasPerm2("root.sys.admin") {
-		t.Fatal("display overwrite changed authority identity")
-	}
+	require.False(t, p.HasPerm2("root.sys.admin"), "display overwrite changed authority identity")
 	var nilTree *RBACPermissionElem
 	nilTree.Intersection(p)
 	nilTree.OverwriteBy(p, true)
 	nilTree.Cut("root")
 }
 
+// TestRBACSelfAndReciprocalIntersections checks self and concurrent
+// opposite-direction operations for termination without deadlocks.
 func TestRBACSelfAndReciprocalIntersections(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
@@ -306,10 +287,12 @@ func TestRBACSelfAndReciprocalIntersections(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("intersection deadlocked")
+		require.FailNow(t, "intersection deadlocked")
 	}
 }
 
+// TestRBACMixedOperationSequence checks that combining mutations never
+// resurrects a grant already revoked from a structural node.
 func TestRBACMixedOperationSequence(t *testing.T) {
 	p := rbacExplicitTree("root.sys.read")
 	p.Cut("root.sys.read")
@@ -319,6 +302,8 @@ func TestRBACMixedOperationSequence(t *testing.T) {
 	rbacAssertPermissions(t, p, rbacTestProbes, func(q string) bool { return rbacOracle([]string{"root.data.audit"}, q) })
 }
 
+// FuzzRBACRestrictionMonotonicity generates policy sets and namespace
+// names to check intersection, persistence, and subsequent revocation.
 func FuzzRBACRestrictionMonotonicity(f *testing.F) {
 	for _, pair := range [][2]uint64{{0, 0}, {1, 8}, {8, 16}, {4, 8}, {63, 17}, {2, 4}} {
 		f.Add(pair[0], pair[1], uint8(0))
@@ -345,25 +330,21 @@ func FuzzRBACRestrictionMonotonicity(f *testing.F) {
 			}
 			rbacAssertPermissions(t, p, probes, func(q string) bool { return rbacOracle(left, q) && rbacOracle(right, q) })
 			wire, err := json.Marshal(p)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			var restored RBACPermissionElem
-			if err := json.Unmarshal(wire, &restored); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(wire, &restored))
 			rbacAssertPermissions(t, &restored, probes, func(q string) bool { return rbacOracle(left, q) && rbacOracle(right, q) })
 			target := targets[int(cut)%len(targets)]
 			restored.Cut(RBACPermFullKey(target))
 			for _, probe := range probes {
-				if restored.HasPerm2(RBACPermFullKey(probe)) && (!rbacOracle(left, probe) || !rbacOracle(right, probe)) {
-					t.Fatalf("sequence gained %q", probe)
-				}
+				require.Falsef(t, restored.HasPerm2(RBACPermFullKey(probe)) && (!rbacOracle(left, probe) || !rbacOracle(right, probe)), "sequence gained %q", probe)
 			}
 		}
 	})
 }
 
+// TestRBACWildcardAndSubtreeBoundaries checks wildcard, Unicode,
+// segment-boundary, and detached-subtree intersection semantics.
 func TestRBACWildcardAndSubtreeBoundaries(t *testing.T) {
 	pairs := [][2][]string{
 		{{"root.*"}, {"root"}},
@@ -396,21 +377,19 @@ func TestRBACWildcardAndSubtreeBoundaries(t *testing.T) {
 	rbacAssertPermissions(t, subtree, probes, func(q string) bool { return rbacOracle([]string{"root.sys.read"}, q) })
 }
 
+// TestRBACInvalidModeFailsClosed checks that validation and revocation
+// never turn an unrecognized grant mode into an effective grant.
 func TestRBACInvalidModeFailsClosed(t *testing.T) {
 	p := rbacExplicitTree("root.sys.read")
 	p.Grant = RBACGrantMode("unrecognized")
-	if p.Valid() == nil {
-		t.Fatal("invalid mode accepted")
-	}
-	if p.HasPerm2("root.sys.read") {
-		t.Fatal("invalid mode authorized")
-	}
+	require.Error(t, p.Valid(), "invalid mode accepted")
+	require.False(t, p.HasPerm2("root.sys.read"), "invalid mode authorized")
 	p.Cut("root.data.audit")
-	if p.HasPerm2("root.sys.read") {
-		t.Fatal("cut reactivated invalid state")
-	}
+	require.False(t, p.HasPerm2("root.sys.read"), "cut reactivated invalid state")
 }
 
+// TestRBACDepthBoundaryDoesNotSynthesizeGrants checks that truncating
+// deep disjoint branches cannot synthesize a new ancestor grant.
 func TestRBACDepthBoundaryDoesNotSynthesizeGrants(t *testing.T) {
 	makeDeep := func(leaf string) *RBACPermissionElem {
 		p := &RBACPermissionElem{Key: "root"}
@@ -434,9 +413,7 @@ func TestRBACDepthBoundaryDoesNotSynthesizeGrants(t *testing.T) {
 		key := "root"
 		for i := 0; i < rbacMaxDepth; i++ {
 			key += ".x"
-			if p.HasPerm2(RBACPermFullKey(key + ".admin")) {
-				t.Fatalf("depth %d became a grant", i)
-			}
+			require.Falsef(t, p.HasPerm2(RBACPermFullKey(key+".admin")), "depth %d became a grant", i)
 		}
 	}
 }
