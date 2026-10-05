@@ -240,9 +240,15 @@ func (p *RBACPermissionElem) valueSnapshot() *RBACPermissionElem {
 //
 // it is best to call this function immediately after initialization
 func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
+	if p == nil {
+		return errors.New("fill default: nil permission node")
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if err := p.validUnlocked(0); err != nil {
+		return errors.Wrap(err, "fill default: invalid permission tree")
+	}
 	return p.fillDefaultUnlocked(ancesterKey, 0)
 }
 
@@ -250,6 +256,9 @@ func (p *RBACPermissionElem) FillDefault(ancesterKey RBACPermFullKey) error {
 // AncesterKey supplies the parent path; depth bounds recursion. It returns the
 // first invalid key, grant mode, or excessive-depth error.
 func (p *RBACPermissionElem) fillDefaultUnlocked(ancesterKey RBACPermFullKey, depth int) error {
+	if p == nil {
+		return errors.New("fill default: nil permission node")
+	}
 	if depth > rbacMaxDepth {
 		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
 	}
@@ -273,7 +282,7 @@ func (p *RBACPermissionElem) fillDefaultUnlocked(ancesterKey RBACPermFullKey, de
 
 	for i := range p.Children {
 		if err := p.Children[i].fillDefaultUnlocked(p.FullKey, depth+1); err != nil {
-			return errors.Wrapf(err, "fill default for `%s`", p.Children[i].FullKey.String())
+			return errors.Wrapf(err, "fill default for child %d", i)
 		}
 	}
 
@@ -293,15 +302,27 @@ func (p *RBACPermissionElem) fillDefaultUnlocked(ancesterKey RBACPermFullKey, de
 // Deprecated: HasPerm uses legacy matching semantics where child permission implies parent permission.
 // Use HasPerm2 for the newer matching behavior.
 func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
+	if requiredKey == "" {
+		return true
+	}
+	if p == nil {
+		return false
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
+	if err := p.validUnlocked(0); err != nil {
+		return false
+	}
 	return p.hasPermUnlocked(requiredKey, 0)
 }
 
 // hasPermUnlocked checks requiredKey with legacy matching at the given depth.
 // The caller holds the root read lock; excess depth returns false.
 func (p *RBACPermissionElem) hasPermUnlocked(requiredKey RBACPermFullKey, depth int) bool {
+	if p == nil {
+		return false
+	}
 	if depth > rbacMaxDepth {
 		return false
 	}
@@ -396,6 +417,9 @@ func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACP
 
 // Valid validates the permission tree without modifying it.
 func (p *RBACPermissionElem) Valid() error {
+	if p == nil {
+		return errors.New("validate: nil permission node")
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -405,6 +429,9 @@ func (p *RBACPermissionElem) Valid() error {
 // validUnlocked checks keys and grant modes at the supplied depth without
 // mutating the tree. It returns the first validation or depth-limit error.
 func (p *RBACPermissionElem) validUnlocked(depth int) error {
+	if p == nil {
+		return errors.New("validate: nil permission node")
+	}
 	if depth > rbacMaxDepth {
 		return errors.Errorf("tree depth exceeds maximum %d", rbacMaxDepth)
 	}
@@ -417,9 +444,9 @@ func (p *RBACPermissionElem) validUnlocked(depth int) error {
 		return errors.Errorf("invalid grant mode %q", p.Grant)
 	}
 
-	for _, v := range p.Children {
+	for i, v := range p.Children {
 		if err := v.validUnlocked(depth + 1); err != nil {
-			return errors.Wrapf(err, "`%s`", v.FullKey.String())
+			return errors.Wrapf(err, "validate child %d", i)
 		}
 	}
 
