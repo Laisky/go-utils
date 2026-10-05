@@ -104,11 +104,23 @@ func newHashedPasswordWithMinIteration(salt, rawpassword []byte,
 	h.hashedPassword = make([]byte, 0, len(rawpassword)+len(h.salt))
 	h.hashedPassword = append(h.hashedPassword, rawpassword...)
 	h.hashedPassword = append(h.hashedPassword, h.salt...)
+	// Reuse one hash state per password operation. In particular, constructing
+	// a legacy SHA1/MD5 hasher may emit a warning; the work factor must not
+	// multiply that diagnostic. HashTypeInterface implementations must return
+	// reusable hash.Hash state with the standard Reset contract.
+	hashState, err := h.hasher.Hasher()
+	if err != nil {
+		return h, errors.Wrap(err, "create password hasher")
+	}
+	if hashState == nil {
+		return h, errors.New("create password hasher: nil hash state")
+	}
 	for i := 0; i < h.hashNum; i++ {
-		h.hashedPassword, err = gutils.Hash(h.hasher, bytes.NewReader(h.hashedPassword))
-		if err != nil {
+		hashState.Reset()
+		if _, err := hashState.Write(h.hashedPassword); err != nil {
 			return h, errors.Wrap(err, "calculate password hash")
 		}
+		h.hashedPassword = hashState.Sum(nil)
 	}
 
 	return h, nil
