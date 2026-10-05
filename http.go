@@ -72,9 +72,7 @@ func init() {
 	// new http client
 	opts := []HTTPClientOptFunc{
 		WithHTTPClientTimeout(30 * time.Second),
-	}
-	if len(GetEnvInsensitive("HTTP_PROXY")) != 0 {
-		opts = append(opts, WithHTTPClientProxy(GetEnvInsensitive("HTTP_PROXY")[0]))
+		WithHTTPClientProxyFromEnvironment(),
 	}
 	if internalHttpCli, err = NewHTTPClient(opts...); err != nil {
 		log.Shared.Panic("new http client got error", zap.Error(err))
@@ -243,7 +241,9 @@ func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	}
 }
 
-// WithHTTPClientProxy set http client proxy
+// WithHTTPClientProxy explicitly selects a trusted fixed proxy for every destination.
+// This option intentionally bypasses environment discovery and NO_PROXY rules.
+// Use WithHTTPClientProxyFromEnvironment for automatic environment policy.
 func WithHTTPClientProxy(proxy string) HTTPClientOptFunc {
 	return func(opt *httpClientOption) (err error) {
 		proxy, err := url.Parse(proxy)
@@ -276,7 +276,8 @@ func WithHTTPTlsConfig(cfg *tls.Config) HTTPClientOptFunc {
 	}
 }
 
-// NewHTTPClient create http client
+// NewHTTPClient creates a direct HTTP client unless a proxy option is supplied.
+// The package's default RequestJSON client separately opts into environment policy.
 func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
 		maxConn: defaultHTTPClientOptMaxConn,
