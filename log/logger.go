@@ -209,12 +209,13 @@ func WithOutputPaths(paths []string) Option {
 	}
 }
 
-// WithErrorOutputPaths set error logs output path
-//
-// like "stderr"
+// WithErrorOutputPaths replaces Zap's internal diagnostic sink list exactly.
+// Application Error-level messages still use OutputPaths. An empty list disables
+// internal diagnostic outputs; stderr is not implicitly added to custom paths.
+// The configured list is defensively copied when this option is applied.
 func WithErrorOutputPaths(paths []string) Option {
 	return func(c *option) error {
-		c.ErrorOutputPaths = append(paths, "stderr")
+		c.ErrorOutputPaths = append([]string{}, paths...)
 		return nil
 	}
 }
