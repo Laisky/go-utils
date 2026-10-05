@@ -153,8 +153,13 @@ func FlushWithLog(ins interface{ Flush() error },
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
 
-// WithReplaceTabBySpaces replace tab to spaces
+// WithReplaceTabBySpaces selects 0..256 spaces per leading tab.
+// Values outside this range use the default width of four spaces.
 func WithReplaceTabBySpaces(spaces int) DedentOptFunc {
+	// Keep invalid options from causing a panic or unbounded tab expansion.
+	if spaces < 0 || spaces > 256 {
+		spaces = 4
+	}
 	return func(opt *dedentOpt) {
 		opt.replaceTabBySpaces = spaces
 	}
@@ -187,7 +192,7 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 		if firstLine {
 			NSpaceTobeTrim = n
 			firstLine = false
-		} else if n != 0 && n < NSpaceTobeTrim {
+		} else if n < NSpaceTobeTrim {
 			// choose the smallest margin
 			NSpaceTobeTrim = n
 		}
@@ -416,19 +421,6 @@ func RegexNamedSubMatch2(r *regexp.Regexp, str string) (subMatchMap map[string]s
 	return subMatchMap, nil
 }
 
-// FlattenMap make embedded map into flatten map
-func FlattenMap(data map[string]any, delimiter string) {
-	for k, vi := range data {
-		if v2i, ok := vi.(map[string]any); ok {
-			FlattenMap(v2i, delimiter)
-			for k3, v3i := range v2i {
-				data[k+delimiter+k3] = v3i
-			}
-			delete(data, k)
-		}
-	}
-}
-
 // ForceGCBlocking force to run blocking manual gc.
 func ForceGCBlocking() {
 	log.Shared.Debug("force gc")
@@ -595,15 +587,6 @@ func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string
 	}
 
 	return tpl
-}
-
-var (
-	urlMaskingRegexp = regexp.MustCompile(`(\S+:)\S+(@\w+)`)
-)
-
-// URLMasking masking password in url
-func URLMasking(url, mask string) string {
-	return urlMaskingRegexp.ReplaceAllString(url, `${1}`+mask+`${2}`)
 }
 
 // SetStructFieldsBySlice set field value of structs slice by values slice
