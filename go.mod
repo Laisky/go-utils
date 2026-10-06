@@ -10,7 +10,7 @@ require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/golang-fifo v1.0.1-0.20240403092208-1d90c6c33e11
 	github.com/Laisky/graphql v1.0.6
-	github.com/Laisky/zap v1.27.1-0.20261006030155-341e151eaecd
+	github.com/Laisky/zap v1.27.1-0.20261006114731-55f41c2b5061
 	github.com/alexvec/go-bip39 v1.1.0
 	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/cespare/xxhash v1.1.0

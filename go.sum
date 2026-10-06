@@ -8,8 +8,8 @@ github.com/Laisky/golang-fifo v1.0.1-0.20240403092208-1d90c6c33e11 h1:floHhmC3CT
 github.com/Laisky/golang-fifo v1.0.1-0.20240403092208-1d90c6c33e11/go.mod h1:j90tUqwBaEncIzpAd6ZGPZHWjclgAyMY8fdOqsewitE=
 github.com/Laisky/graphql v1.0.6 h1:NEULGxfxo+wbsW2OmqBXOMNUGgqo8uFjWNabwuNK10g=
 github.com/Laisky/graphql v1.0.6/go.mod h1:zaKVqXmMQTnTkFJ2AA53oyBWMzlGCnzr3aodKTrtOxI=
-github.com/Laisky/zap v1.27.1-0.20261006030155-341e151eaecd h1:bJ715qXIIcd1sy2RQ0+YRZ8zi3KdUjBSWqx0kq9GB5s=
-github.com/Laisky/zap v1.27.1-0.20261006030155-341e151eaecd/go.mod h1:wgH1p0f+NnmYyrxSDfc5nuQLj2ApQBsGiCMC5l/jxXI=
+github.com/Laisky/zap v1.27.1-0.20261006114731-55f41c2b5061 h1:E8C3fmKMRrmd2ioA1P4RqjOFOEKokAxAE7VpH4d+YAo=
+github.com/Laisky/zap v1.27.1-0.20261006114731-55f41c2b5061/go.mod h1:wgH1p0f+NnmYyrxSDfc5nuQLj2ApQBsGiCMC5l/jxXI=
 github.com/OneOfOne/xxhash v1.2.2 h1:KMrpdQIwFcEqXDklaen+P1axHaj9BSKzvpUUfnHldSE=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/alexvec/go-bip39 v1.1.0 h1:NIIGUK5upunOmun1ud6wuLmgGOlyNJisOvaM+zPoWic=
