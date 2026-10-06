@@ -2,6 +2,8 @@ package crypto
 
 import (
 	"context"
+	"crypto/md5"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -20,7 +22,9 @@ import (
 // TestSecurity42VerificationWarningBudget limits weak-hash warnings independently of the stored work factor.
 func TestSecurity42VerificationWarningBudget(t *testing.T) {
 	if serialized := os.Getenv("GO_UTILS_SECURITY42_HASH"); serialized != "" {
+		start := time.Now()
 		require.Error(t, VerifyHashedPassword([]byte("synthetic password"), serialized))
+		require.GreaterOrEqual(t, time.Since(start), DefaultPasswordDelay)
 		return
 	}
 	exe, err := os.Executable()
@@ -63,8 +67,8 @@ func (h *security42HashFactory) Hasher() (hash.Hash, error) {
 	return sha256.New(), nil
 }
 
-// TestSecurity42ReusesHasher preserves iterative digest results while constructing one hasher per operation.
-func TestSecurity42ReusesHasher(t *testing.T) {
+// TestSecurity42DigestCompatibility preserves digest results, input ownership, and validation failures.
+func TestSecurity42DigestCompatibility(t *testing.T) {
 	for _, n := range []int{1, 3, 31, MinPasswordHashIteration} {
 		factory := new(security42HashFactory)
 		password, salt := []byte("synthetic password"), []byte("salt")
@@ -77,7 +81,7 @@ func TestSecurity42ReusesHasher(t *testing.T) {
 			expected = sum[:]
 		}
 		require.Equal(t, expected, got.hashedPassword)
-		require.Equal(t, 1, factory.calls)
+		require.Equal(t, n, factory.calls)
 		require.Equal(t, beforePassword, string(password))
 		require.Equal(t, beforeSalt, string(salt))
 	}
@@ -92,19 +96,58 @@ func TestSecurity42ReusesHasher(t *testing.T) {
 	}
 }
 
-// TestSecurity42LegacyVerification preserves old SHA1/MD5 records and constant-time mismatch behavior.
+// TestSecurity42LegacyVerification checks matching and changed legacy passwords
+// against independent digest fixtures and retains the minimum verification delay.
 func TestSecurity42LegacyVerification(t *testing.T) {
 	for _, algorithm := range []gutils.HashType{gutils.HashTypeMD5, gutils.HashTypeSha1} {
-		h, err := algorithm.Hasher()
-		require.NoError(t, err)
+		var h hash.Hash
+		if algorithm == gutils.HashTypeMD5 {
+			h = md5.New()
+		} else {
+			h = sha1.New()
+		}
 		value := []byte("synthetic password")
 		for range 3 {
 			h.Reset()
-			_, err = h.Write(value)
+			_, err := h.Write(value)
 			require.NoError(t, err)
 			value = h.Sum(nil)
 		}
 		serialized := fmt.Sprintf("%s.3..%s", algorithm, hex.EncodeToString(value))
+		start := time.Now()
 		require.NoError(t, VerifyHashedPassword([]byte("synthetic password"), serialized))
+		require.GreaterOrEqual(t, time.Since(start), DefaultPasswordDelay)
+		start = time.Now()
+		require.Error(t, VerifyHashedPassword([]byte("changed password"), serialized))
+		require.GreaterOrEqual(t, time.Since(start), DefaultPasswordDelay)
+	}
+}
+
+// TestSecurity42RejectsBeforeWarning exercises parser and size guards in fresh
+// processes so earlier weak-hash uses cannot conceal unexpected diagnostics.
+func TestSecurity42RejectsBeforeWarning(t *testing.T) {
+	if serialized := os.Getenv("GO_UTILS_SECURITY42_INVALID"); serialized != "" {
+		start := time.Now()
+		require.Error(t, VerifyHashedPassword([]byte("synthetic password"), serialized))
+		require.GreaterOrEqual(t, time.Since(start), DefaultPasswordDelay)
+		return
+	}
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	for name, serialized := range map[string]string{
+		"zero": "sha1.0..00", "negative": "sha1.-1..00",
+		"over-limit": fmt.Sprintf("sha1.%d..00", MaxPasswordHashIteration+1),
+		"oversized":  "sha1.3.." + strings.Repeat("0", MaxHashedPasswordLength),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			child := exec.CommandContext(ctx, executable, "-test.run=^TestSecurity42RejectsBeforeWarning$", "-test.timeout=8s")
+			child.Env = append(os.Environ(), "GO_UTILS_SECURITY42_INVALID="+serialized)
+			output, err := child.CombinedOutput()
+			require.NoError(t, ctx.Err())
+			require.NoError(t, err, string(output))
+			require.NotContains(t, string(output), "is not safe")
+		})
 	}
 }

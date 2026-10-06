@@ -104,23 +104,11 @@ func newHashedPasswordWithMinIteration(salt, rawpassword []byte,
 	h.hashedPassword = make([]byte, 0, len(rawpassword)+len(h.salt))
 	h.hashedPassword = append(h.hashedPassword, rawpassword...)
 	h.hashedPassword = append(h.hashedPassword, h.salt...)
-	// Reuse one hash state per password operation. In particular, constructing
-	// a legacy SHA1/MD5 hasher may emit a warning; the work factor must not
-	// multiply that diagnostic. HashTypeInterface implementations must return
-	// reusable hash.Hash state with the standard Reset contract.
-	hashState, err := h.hasher.Hasher()
-	if err != nil {
-		return h, errors.Wrap(err, "create password hasher")
-	}
-	if hashState == nil {
-		return h, errors.New("create password hasher: nil hash state")
-	}
 	for i := 0; i < h.hashNum; i++ {
-		hashState.Reset()
-		if _, err := hashState.Write(h.hashedPassword); err != nil {
+		h.hashedPassword, err = gutils.Hash(h.hasher, bytes.NewReader(h.hashedPassword))
+		if err != nil {
 			return h, errors.Wrap(err, "calculate password hash")
 		}
-		h.hashedPassword = hashState.Sum(nil)
 	}
 
 	return h, nil
@@ -352,26 +340,30 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
 func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	chunk := make([]byte, pubkey.Size()-2*sha256.Size-2)
-	reader := bytes.NewReader(plain)
-	for {
-		n, err := reader.Read(chunk)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
+	if pubkey == nil || pubkey.N == nil || pubkey.N.Sign() <= 0 || pubkey.N.Bit(0) == 0 ||
+		pubkey.E < 3 || pubkey.E > (1<<31)-1 || pubkey.E%2 == 0 {
+		return nil, errors.New("invalid RSA public key")
+	}
+	if pubkey.N.BitLen() < 1024 {
+		return nil, errors.New("RSA-OAEP requires at least a 1024-bit modulus")
+	}
+	chunkSize := pubkey.Size() - 2*sha256.Size - 2
+	if chunkSize <= 0 {
+		return nil, errors.New("RSA key has no positive SHA-256 OAEP payload capacity")
+	}
 
-			return nil, errors.Wrap(err, "read chunk")
-		}
-
-		cipherChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, chunk[:n], nil)
+	// Slice a positive-sized chunk directly, avoiding both a key-sized temporary
+	// allocation and a zero-byte reader loop. Reject weak keys even for empty
+	// plaintext; the standard library also validates each nonempty operation.
+	for len(plain) > 0 {
+		n := min(chunkSize, len(plain))
+		cipherChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, plain[:n], nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "encrypt chunk")
 		}
-
 		cipher = append(cipher, cipherChunk...)
+		plain = plain[n:]
 	}
-
 	return cipher, nil
 }
 
