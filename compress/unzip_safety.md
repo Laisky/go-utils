@@ -25,6 +25,19 @@ is returned, not silently ignored. No durability/fsync guarantee is added.
 
 These budgets constrain output and in-flight copy memory, not elapsed CPU time,
 compressed-input size or memory used by the ZIP reader to parse its directory.
-Parent-directory symlink/race confinement remains a separate issue (#46).
-Applications must use a trusted extraction directory and appropriate outer
-input-size, time and isolation controls for hostile archives.
+Extraction anchors the caller-selected destination with `os.Root`. All member
+paths are canonical, local and have no trailing separator before rooted calls.
+Parent links that resolve outside the root are rejected. A contained relative
+link is allowed; leaf links/hardlinks are replaced rather than written through.
+Each file's parent is pinned during temporary creation, publication and cleanup.
+This addresses the ZIP sink in #46, not that issue's other filesystem/CLI/log sinks.
+
+The caller still selects a trusted root. Mount points and moving an already
+opened directory out of that root require external isolation; an open directory
+handle continues to refer to its original directory. JavaScript targets fail
+closed because their filesystem API cannot provide race-resistant rooting.
+Use a supported, security-patched Go toolchain. In particular GO-2026-4970 affects
+older Go `os.Root` calls with trailing-slash paths (fixed in Go 1.25.12/1.26.5).
+This extractor strips those separators and tests that boundary even on 1.25.7;
+that compatibility test is not a claim that the old toolchain is fully patched.
+Applications must also impose outer input-size, time and isolation controls.

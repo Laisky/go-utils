@@ -2,10 +2,12 @@ package compress
 
 import (
 	"archive/zip"
+	"crypto/rand"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/Laisky/errors/v2"
 	gutils "github.com/Laisky/go-utils/v6"
@@ -109,8 +111,12 @@ func UnzipWithMaxEntries(n int) UnzipOption {
 // defaults. Names and advertised sizes are checked before writes; actual decompressed
 // bytes are limited independently. Each file is published only after complete reading,
 // checksum verification and close. Earlier successful files remain after later failure.
-// Parent-directory symlink confinement is not provided by lexical path validation.
+// Extraction uses directory handles, not re-resolved absolute destination paths.
+// The caller must trust the destination root and control mount points and directory moves.
 func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr error) {
+	if runtime.GOOS == "js" {
+		return nil, errors.New("race-resistant ZIP extraction is unsupported on js")
+	}
 	if dest == "" {
 		return nil, errors.New("trusted unzip destination must not be empty")
 	}
@@ -151,17 +157,41 @@ func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr er
 			advertised += f.UncompressedSize64
 		}
 	}
+	if len(r.File) == 0 {
+		return nil, nil
+	}
+	// Only the caller-controlled root is resolved outside os.Root. No archive
+	// member participates in this mkdir/open, and preflight has already passed.
+	dest = filepath.Clean(dest)
+	if err := os.MkdirAll(dest, 0751); err != nil {
+		return nil, errors.Wrap(err, "create trusted extraction root")
+	}
+	root, err := os.OpenRoot(dest)
+	if err != nil {
+		return nil, errors.Wrap(err, "open trusted extraction root")
+	}
+	defer func() {
+		if err := root.Close(); err != nil {
+			retErr = errors.Join(retErr, errors.Wrap(err, "close extraction root"))
+		}
+	}()
 	var total int64
 	for _, f := range r.File {
 		name, err := gutils.JoinFilepath(dest, f.Name)
 		if err != nil {
 			return nil, errors.Wrap(err, "resolve ZIP member")
 		}
+		// Clean removes a directory entry's trailing slash before any rooted
+		// operation, including OpenRoot; keep this invariant on older Go builds.
+		relative := filepath.Clean(filepath.FromSlash(f.Name))
+		if !filepath.IsLocal(relative) {
+			return nil, errors.New("ZIP member is not local to the extraction root")
+		}
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(name, 0751); err != nil {
+			if err := root.MkdirAll(relative, 0751); err != nil {
 				return nil, errors.Wrap(err, "create ZIP directory")
 			}
-		} else if err := unzipFile(f, name, o, &total); err != nil {
+		} else if err := unzipFile(root, f, relative, o, &total); err != nil {
 			return nil, errors.Wrapf(err, "extract ZIP member %q", f.Name)
 		}
 		filenames = append(filenames, name)
@@ -171,7 +201,7 @@ func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr er
 
 // unzipFile verifies a member into a private temporary file before replacing its target.
 // Failed members never truncate an existing target or publish incomplete output.
-func unzipFile(f *zip.File, name string, o *unzipOption, total *int64) (retErr error) {
+func unzipFile(root *os.Root, f *zip.File, name string, o *unzipOption, total *int64) (retErr error) {
 	if *total < 0 || o.maxBytes > 0 && *total > o.maxBytes {
 		return errors.WithStack(ErrUnzipByteLimit)
 	}
@@ -197,14 +227,25 @@ func unzipFile(f *zip.File, name string, o *unzipOption, total *int64) (retErr e
 		}
 	}()
 	parent := filepath.Dir(name)
-	if err := os.MkdirAll(parent, 0751); err != nil {
+	if err := root.MkdirAll(parent, 0751); err != nil {
 		return errors.Wrap(err, "create extraction directory")
 	}
-	out, err := os.CreateTemp(parent, ".unzip-*")
+	// Pin the validated parent before creating the temporary file. Replacement
+	// of a pathname with a symlink cannot redirect publication or cleanup.
+	directory, err := root.OpenRoot(parent)
+	if err != nil {
+		return errors.Wrap(err, "open extraction directory")
+	}
+	defer func() {
+		if err := directory.Close(); err != nil {
+			retErr = errors.Join(retErr, errors.Wrap(err, "close extraction directory"))
+		}
+	}()
+	temp := ".unzip-" + rand.Text()
+	out, err := directory.OpenFile(temp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return errors.Wrap(err, "create private extraction file")
 	}
-	temp := out.Name()
 	closed, published := false, false
 	defer func() {
 		if !closed {
@@ -213,7 +254,7 @@ func unzipFile(f *zip.File, name string, o *unzipOption, total *int64) (retErr e
 			}
 		}
 		if !published {
-			if err := os.Remove(temp); err != nil && !os.IsNotExist(err) {
+			if err := directory.Remove(temp); err != nil && !os.IsNotExist(err) {
 				retErr = errors.Join(retErr, errors.Wrap(err, "remove incomplete extraction"))
 			}
 		}
@@ -242,7 +283,7 @@ func unzipFile(f *zip.File, name string, o *unzipOption, total *int64) (retErr e
 	if err != nil {
 		return errors.Wrap(err, "close verified extraction")
 	}
-	if err := os.Rename(temp, name); err != nil {
+	if err := directory.Rename(temp, filepath.Base(name)); err != nil {
 		return errors.Wrap(err, "publish verified extraction")
 	}
 	published = true
