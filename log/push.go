@@ -6,6 +6,7 @@ import (
 	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"maps"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -236,6 +237,9 @@ func WithPusherFilter(filter func(ent zapcore.Entry, fs []zapcore.Field) bool) P
 // Custom senders must honor their context; callbacks cannot be forcibly stopped.
 // Close cancels in-flight delivery and abandons pending entries; it does not flush.
 type Pusher struct {
+	// admission serializes the hook's final admission check with Close and
+	// worker exit. User callbacks and network sends never hold this lock.
+	admission  sync.Mutex
 	opt        *pusherOption
 	senderChan chan []byte
 	ctx        context.Context
@@ -262,7 +266,11 @@ func NewPusher(ctx context.Context, opts ...PusherOption) (*Pusher, error) {
 // sender serializes delivery attempts with a deadline and never logs failures
 // through hooks that could point back to the same pusher. Stats exposes outcomes.
 func (p *Pusher) sender(ctx context.Context) {
-	defer close(p.done)
+	defer func() {
+		p.admission.Lock()
+		defer p.admission.Unlock()
+		close(p.done)
+	}()
 	for {
 		if ctx.Err() != nil {
 			return
@@ -310,10 +318,15 @@ func (p *Pusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) error {
 		}
 		// Queue ownership is independent of a formatter's reusable backing buffer.
 		body = bytes.Clone(body)
-		select {
-		case <-p.ctx.Done():
+		p.admission.Lock()
+		defer p.admission.Unlock()
+		// The formatter may have overlapped cancellation. Once Done closes no
+		// admission can still be in flight or become successful afterward.
+		if p.ctx.Err() != nil {
 			p.counters.dropped.Add(1)
 			return errors.WithStack(ErrPusherClosed)
+		}
+		select {
 		case p.senderChan <- body:
 			p.counters.enqueued.Add(1)
 			return nil
