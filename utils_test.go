@@ -651,7 +651,7 @@ func TestRunCMDForHugeFile(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	out, err := RunCMD(ctx, "cat", fpath)
+	out, err := RunCMDWithOptions(ctx, "cat", []string{fpath}, nil, CMDOptions{MaxOutputBytes: 18 * 1024 * 1024})
 	require.NoError(t, err)
 	require.Equal(t, len(out), 18*1024*1024)
 }
