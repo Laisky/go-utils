@@ -3,7 +3,11 @@ package log
 import (
 	"bytes"
 	"context"
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
+	"maps"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -70,19 +74,28 @@ func NewPusherHTTPSender(
 	httpcli *http.Client,
 	remoteEndpoint string,
 	headers map[string]string) *PusherHTTPSender {
+	if httpcli == nil {
+		httpcli = &http.Client{}
+	}
+	client := *httpcli
 	return &PusherHTTPSender{
-		httpcli:        httpcli,
+		httpcli:        &client,
 		remoteEndpoint: remoteEndpoint,
-		headers:        headers,
+		headers:        maps.Clone(headers),
 	}
 }
 
 // Send send log to remote
 func (s *PusherHTTPSender) Send(ctx context.Context, content []byte) (err error) {
+	if ctx == nil {
+		return errors.New("HTTP sender context must not be nil")
+	}
+	ctx, cancel := context.WithTimeout(ctx, defaultPusherSendTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		s.remoteEndpoint, bytes.NewReader(content))
 	if err != nil {
-		return errors.Wrapf(err, "create request to %s", s.remoteEndpoint)
+		return errors.WithStack(netdiag.New("create log request", s.remoteEndpoint, err))
 	}
 	for k, v := range s.headers {
 		req.Header.Set(k, v)
@@ -90,11 +103,11 @@ func (s *PusherHTTPSender) Send(ctx context.Context, content []byte) (err error)
 
 	resp, err := s.httpcli.Do(req)
 	if err != nil {
-		return errors.Wrapf(err, "send request to %s", s.remoteEndpoint)
+		return errors.WithStack(netdiag.New("send log request", s.remoteEndpoint, err))
 	}
 	defer func() {
-		if deferErr := resp.Body.Close(); deferErr != nil {
-			Shared.Error("close response body", zap.Error(deferErr))
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = errors.WithStack(netdiag.New("close log response", s.remoteEndpoint, closeErr))
 		}
 	}()
 
@@ -107,20 +120,23 @@ func (s *PusherHTTPSender) Send(ctx context.Context, content []byte) (err error)
 
 // Format format log to bytes
 func (f *PusherJSONFormatter) Format(ent zapcore.Entry, fields []zapcore.Field) (content []byte, err error) {
-	buf, err := f.encoder.EncodeEntry(ent, fields)
+	buf, err := f.encoder.Clone().EncodeEntry(ent, fields)
 	if err != nil {
 		return nil, errors.Wrap(err, "encode entry")
 	}
 
-	return buf.Bytes(), nil
+	defer buf.Free()
+	return bytes.Clone(buf.Bytes()), nil
 }
 
 type pusherOption struct {
-	logger        Logger
-	formatter     PusherFormatter
-	sender        PusherSender
-	filter        func(ent zapcore.Entry, fs []zapcore.Field) bool
-	senderChanLen int
+	logger          Logger
+	formatter       PusherFormatter
+	sender          PusherSender
+	filter          func(ent zapcore.Entry, fs []zapcore.Field) bool
+	senderChanLen   int
+	sendTimeout     time.Duration
+	maxMessageBytes int
 }
 
 // PusherOption pusher option
@@ -132,7 +148,9 @@ func (o *pusherOption) fillDefault() *pusherOption {
 	o.sender = &defaultPusherSender{
 		logger: o.logger.Named("sender"),
 	}
-	o.senderChanLen = 0
+	o.senderChanLen = 128
+	o.sendTimeout = defaultPusherSendTimeout
+	o.maxMessageBytes = 64 * 1024
 
 	return o
 }
@@ -187,8 +205,8 @@ func WithPusherSender(sender PusherSender) PusherOption {
 
 // WithPusherSenderChanLen set sender chan len
 //
-// default is 0, means no buffer, if you want to send log asynchronously,
-// set this value to a positive number.
+// The default is 128. Zero selects an unbuffered queue. Enqueue is always
+// nonblocking: entries are rejected and counted when no receiver/space is ready.
 func WithPusherSenderChanLen(senderChanLen int) PusherOption {
 	return func(o *pusherOption) error {
 		if senderChanLen < 0 {
@@ -215,77 +233,106 @@ func WithPusherFilter(filter func(ent zapcore.Entry, fs []zapcore.Field) bool) P
 	}
 }
 
-// Pusher push log to remote
+// Pusher delivers log entries through one worker and a bounded, nonblocking queue.
+// Custom senders must honor their context; callbacks cannot be forcibly stopped.
+// Close cancels in-flight delivery and abandons pending entries; it does not flush.
 type Pusher struct {
+	// admission serializes the hook's final admission check with Close and
+	// worker exit. User callbacks and network sends never hold this lock.
+	admission  sync.Mutex
 	opt        *pusherOption
 	senderChan chan []byte
-	// ctx controls the sender goroutine lifetime. GetZapHook watches it so a
-	// send never blocks forever once the sender has returned.
-	ctx context.Context
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	counters   pusherCounters
 }
 
-// NewPusher create new pusher
-//
-// pusher will run a sender goroutine in background, and send log to remote asynchronously,
-// ths ctx argument will be used to control the sender goroutine.
-func NewPusher(ctx context.Context, opts ...PusherOption) (p *Pusher, err error) {
+// NewPusher starts a single sender worker tied to ctx. Nil contexts are rejected.
+func NewPusher(ctx context.Context, opts ...PusherOption) (*Pusher, error) {
+	if ctx == nil {
+		return nil, errors.New("pusher context must not be nil")
+	}
 	opt, err := new(pusherOption).fillDefault().applyOpts(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply opts")
 	}
-
-	p = &Pusher{
-		opt: opt,
-		ctx: ctx,
-	}
-	p.senderChan = make(chan []byte, opt.senderChanLen)
-
+	ctx, cancel := context.WithCancel(ctx)
+	p := &Pusher{opt: opt, ctx: ctx, cancel: cancel, done: make(chan struct{}), senderChan: make(chan []byte, opt.senderChanLen)}
 	go p.sender(ctx)
 	return p, nil
 }
 
+// sender serializes delivery attempts with a deadline and never logs failures
+// through hooks that could point back to the same pusher. Stats exposes outcomes.
 func (p *Pusher) sender(ctx context.Context) {
+	defer func() {
+		p.admission.Lock()
+		defer p.admission.Unlock()
+		close(p.done)
+	}()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		select {
 		case <-ctx.Done():
-			p.opt.logger.Debug("sender goroutine exit")
 			return
 		case content := <-p.senderChan:
-			if err := p.opt.sender.Send(ctx, content); err != nil {
-				p.opt.logger.Error("send log", zap.Error(err))
+			if ctx.Err() != nil {
+				return
+			}
+			attempt, cancel := context.WithTimeout(ctx, p.opt.sendTimeout)
+			err := p.opt.sender.Send(attempt, content)
+			cancel()
+			if err != nil {
+				p.counters.failed.Add(1)
+			} else {
+				p.counters.delivered.Add(1)
 			}
 		}
 	}
 }
 
-// GetZapHook get hook for zap logger
-func (p *Pusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
-	return func(ent zapcore.Entry, fields []zapcore.Field) (err error) {
+// GetZapHook returns a nonblocking best-effort delivery hook. Filtering runs
+// before formatting. Custom filters/formatters must themselves return promptly.
+func (p *Pusher) GetZapHook() func(zapcore.Entry, []zapcore.Field) error {
+	return func(ent zapcore.Entry, fields []zapcore.Field) error {
+		if p.ctx.Err() != nil {
+			p.counters.dropped.Add(1)
+			return errors.WithStack(ErrPusherClosed)
+		}
+		if p.opt.filter != nil && !p.opt.filter(ent, fields) {
+			return nil
+		}
 		body, err := p.opt.formatter.Format(ent, fields)
 		if err != nil {
 			return errors.Wrap(err, "format log")
 		}
-
 		if len(body) == 0 {
-			p.opt.logger.Debug("skip empty log")
 			return nil
 		}
-
-		if p.opt.filter != nil && !p.opt.filter(ent, fields) {
-			p.opt.logger.Debug("skip filtered log")
-			return nil
+		if len(body) > p.opt.maxMessageBytes {
+			p.counters.dropped.Add(1)
+			return errors.WithStack(ErrPusherMessageTooLarge)
 		}
-
-		// Watch ctx so the send cannot block forever: with an unbuffered
-		// senderChan the bare send blocks until the sender goroutine receives,
-		// but after ctx is canceled p.sender() has returned and nothing drains
-		// senderChan, deadlocking the logging goroutine. Dropping the log on
-		// shutdown is preferable to hanging the caller.
+		// Queue ownership is independent of a formatter's reusable backing buffer.
+		body = bytes.Clone(body)
+		p.admission.Lock()
+		defer p.admission.Unlock()
+		// The formatter may have overlapped cancellation. Once Done closes no
+		// admission can still be in flight or become successful afterward.
+		if p.ctx.Err() != nil {
+			p.counters.dropped.Add(1)
+			return errors.WithStack(ErrPusherClosed)
+		}
 		select {
 		case p.senderChan <- body:
-		case <-p.ctx.Done():
-			p.opt.logger.Debug("pusher closed, drop log")
+			p.counters.enqueued.Add(1)
+			return nil
+		default:
+			p.counters.dropped.Add(1)
+			return errors.WithStack(ErrPusherQueueFull)
 		}
-		return nil
 	}
 }
