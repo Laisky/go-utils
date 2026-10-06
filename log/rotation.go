@@ -144,7 +144,9 @@ func WithRotationRetention(days int) Option {
 
 // WithRotationFilenamePattern overrides the default filename pattern used when creating
 // rotated log files. The pattern must include YYYY, MM, and DD tokens and may reference
-// the logger name via {logger}.
+// the logger name via {logger}. The result must be one portable filename: no
+// separators, volume/stream syntax, Windows device names, or trailing dots/spaces.
+// Final filenames are limited to 255 UTF-8 bytes. This does not prevent symlinks.
 func WithRotationFilenamePattern(pattern string) Option {
 	return func(c *option) error {
 		if strings.TrimSpace(pattern) == "" {
@@ -472,21 +474,24 @@ type rotationPattern struct {
 	hasDay   bool
 }
 
+// Path resolves a validated filename beneath baseDir without an absolute-path bypass.
 func (rp *rotationPattern) Path(logger string, start time.Time, baseDir string) (string, error) {
-	relative := rp.format(logger, start)
-	if relative == "" {
-		return "", errors.Errorf("rotation filename pattern produced empty filename")
+	name := rp.format(logger, start)
+	if err := validateRotationFilename(name); err != nil {
+		return "", errors.Wrap(err, "validate formatted rotation filename")
 	}
-
-	if filepath.IsAbs(relative) {
-		return filepath.Clean(relative), nil
+	if baseDir == "" {
+		baseDir = "."
 	}
-
-	if baseDir == "" || baseDir == "." {
-		return filepath.Clean(relative), nil
+	result := filepath.Join(baseDir, name)
+	relative, err := filepath.Rel(baseDir, result)
+	if err != nil {
+		return "", errors.Wrap(err, "resolve rotation filename")
 	}
-
-	return filepath.Clean(filepath.Join(baseDir, relative)), nil
+	if !filepath.IsLocal(relative) {
+		return "", errors.New("rotation filename escaped its base directory")
+	}
+	return result, nil
 }
 
 func (rp *rotationPattern) format(logger string, start time.Time) string {
@@ -680,7 +685,7 @@ func compileRotationPattern(pattern string) (*rotationPattern, error) {
 			j++
 		}
 		literal := pattern[i:j]
-		if strings.ContainsRune(literal, os.PathSeparator) {
+		if strings.ContainsAny(literal, `/\`) {
 			return nil, errors.Errorf("rotation filename pattern must not contain path separators")
 		}
 		rp.elements = append(rp.elements, patternElement{kind: patternLiteral, literal: literal})
@@ -691,6 +696,9 @@ func compileRotationPattern(pattern string) (*rotationPattern, error) {
 		return nil, errors.Errorf("rotation filename pattern must include YYYY, MM, and DD tokens")
 	}
 
+	if err := validateRotationFilename(rp.format("logger", time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC))); err != nil {
+		return nil, errors.Wrap(err, "validate rotation filename pattern")
+	}
 	return rp, nil
 }
 
