@@ -128,7 +128,7 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 	excluded := mergeIdentitySets(conversation.HistoryIDs, conversation.CurrentIDs)
 	recentItems, droppedRecent := filterItemsByIdentity(recentItems, excluded)
 
-	items := make([]ResponseItem, 0, len(conversation.HistoryItems)+len(recentItems)+len(conversation.CurrentItems)+2)
+	items := make([]ResponseItem, 0)
 	if memoryBlock != nil {
 		items = append(items, memoryReferencePolicy(), *memoryBlock)
 	}
