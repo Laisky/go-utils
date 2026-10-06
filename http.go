@@ -20,6 +20,7 @@ import (
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
 
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"github.com/Laisky/go-utils/v6/json"
 	"github.com/Laisky/go-utils/v6/log"
 )
@@ -430,7 +431,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.Wrap(err, "new request options")
 	}
 
-	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
+	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("endpoint", netdiag.Endpoint(url)))
 
 	var (
 		jsonBytes []byte
@@ -454,7 +455,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	req, err := http.NewRequestWithContext(ctx,
 		strings.ToUpper(method), url, body)
 	if err != nil {
-		return errors.Wrap(err, "new request")
+		return errors.WithStack(netdiag.New("create JSON request", url, err))
 	}
 
 	if request != nil {
@@ -466,7 +467,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 
 	r, err := httpClient.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "try to request url error")
+		return errors.WithStack(netdiag.New("send JSON request", url, err))
 	}
 	defer func() { _ = r.Body.Close() }()
 
