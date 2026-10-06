@@ -1,7 +1,9 @@
 package log
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"testing"
@@ -47,7 +49,7 @@ func TestRotationWriterDailyRotation(t *testing.T) {
 
 	writer, err := newRotationWriter(logFile, 0, "", "")
 	require.NoError(t, err)
-	defer require.NoError(t, writer.Close())
+	defer func() { require.NoError(t, writer.Close()) }()
 
 	day1 := time.Date(2025, time.January, 1, 10, 30, 0, 0, time.UTC)
 	writer.now = func() time.Time { return day1 }
@@ -77,18 +79,28 @@ func TestRotationWriterDailyRotation(t *testing.T) {
 	require.Contains(t, string(content), "second entry")
 }
 
+// TestLoggerWithRotationWrites exercises the actual configured sink in a finite child.
+// Zap's Config.Build does not expose the sink closer; child exit releases its
+// handles before the parent verifies output and removes its temporary directory.
 func TestLoggerWithRotationWrites(t *testing.T) {
+	const childDir = "GO_UTILS_ROTATION_TEST_CHILD_DIR"
+	if dir := os.Getenv(childDir); dir != "" {
+		logger, err := New(WithEncoding(EncodingJSON), WithRotation(filepath.Join(dir, "app.log")))
+		require.NoError(t, err)
+		logger.Info("rotation-enabled")
+		require.NoError(t, logger.Sync())
+		return
+	}
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
-
-	logger, err := New(
-		WithEncoding(EncodingJSON),
-		WithRotation(logFile),
-	)
+	executable, err := os.Executable()
 	require.NoError(t, err)
-
-	logger.Info("rotation-enabled")
-	require.NoError(t, logger.Sync())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, "-test.run=^TestLoggerWithRotationWrites$")
+	cmd.Env = append(os.Environ(), childDir+"="+dir, "GORACE=atexit_sleep_ms=0")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
 
 	files, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -115,7 +127,7 @@ func TestRotationRetention(t *testing.T) {
 
 	writer, err := newRotationWriter(logFile, 1, "", "")
 	require.NoError(t, err)
-	defer require.NoError(t, writer.Close())
+	defer func() { require.NoError(t, writer.Close()) }()
 
 	day1 := time.Date(2025, time.January, 1, 1, 0, 0, 0, time.UTC)
 	day2 := day1.AddDate(0, 0, 1)
@@ -150,7 +162,7 @@ func TestRotationWriterCustomPattern(t *testing.T) {
 
 	writer, err := newRotationWriter(logFile, 0, "{logger}-YYYYMMDD-HH.log", "MySvc")
 	require.NoError(t, err)
-	defer require.NoError(t, writer.Close())
+	defer func() { require.NoError(t, writer.Close()) }()
 
 	base := time.Date(2025, time.January, 1, 10, 30, 0, 0, time.UTC)
 	writer.now = func() time.Time { return base }

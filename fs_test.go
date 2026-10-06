@@ -609,12 +609,12 @@ func TestFilepathJoin(t *testing.T) {
 		{"4", args{[]string{"a", "b", "../c"}}, "a/c", ""},
 		{"5", args{[]string{"a", "b", "../../c"}}, "c", "escaped basedir"},
 		{"6", args{[]string{"a", "b", "../../ab"}}, "ab", "escaped basedir"},
-		{"7", args{[]string{"", "b"}}, "b", ""},
-		{"8", args{[]string{"", "b", "../c"}}, "c", "escaped basedir"},
-		{"9", args{[]string{"", "b", "../../c"}}, "../c", "escaped basedir"},
-		{"10", args{[]string{"", "", "b"}}, "b", ""},
-		{"11", args{[]string{"", "", "b", "../c"}}, "c", "escaped basedir"},
-		{"12", args{[]string{"", "", "b", "../../c"}}, "../c", "escaped basedir"},
+		{"7", args{[]string{"", "b"}}, "", "trusted base path must not be empty"},
+		{"8", args{[]string{"", "b", "../c"}}, "", "trusted base path must not be empty"},
+		{"9", args{[]string{"", "b", "../../c"}}, "", "trusted base path must not be empty"},
+		{"10", args{[]string{"", "", "b"}}, "", "trusted base path must not be empty"},
+		{"11", args{[]string{"", "", "b", "../c"}}, "", "trusted base path must not be empty"},
+		{"12", args{[]string{"", "", "b", "../../c"}}, "", "trusted base path must not be empty"},
 		{"13", args{[]string{"/tmp", "285248985", ".fpath.swp-czfNpx"}}, "/tmp/285248985/.fpath.swp-czfNpx", ""},
 	}
 	for _, tt := range tests {
@@ -622,7 +622,7 @@ func TestFilepathJoin(t *testing.T) {
 			gotResult, err := JoinFilepath(tt.args.paths...)
 			if tt.err == "" {
 				require.NoError(t, err, "[%s]", tt.name)
-				require.Equal(t, tt.wantResult, gotResult, "[%s]", tt.name)
+				require.Equal(t, filepath.FromSlash(tt.wantResult), gotResult, "[%s]", tt.name)
 			} else {
 				require.ErrorContains(t, err, tt.err, "[%s] %s", tt.name, gotResult)
 			}

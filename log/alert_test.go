@@ -33,9 +33,10 @@ func TestAlertHook(t *testing.T) {
 	}))
 	defer server.Close()
 	pusher, err := NewAlert(context.Background(), server.URL,
-		WithAlertType("compatibility"), WithAlertToken("test-token"))
+		WithAlertType("compatibility"), WithAlertToken("test-token"),
+		WithAlertFieldAllowlist("bound", "call"))
 	require.NoError(t, err)
-	defer pusher.Close()
+	defer func() { pusher.Close(); <-pusher.Done() }()
 	logger, err := New(WithOutputPaths([]string{}), WithZapOptions(
 		zap.Fields(zap.String("bound", "context")),
 		zap.HooksWithFields(pusher.GetZapHook()),
@@ -54,7 +55,7 @@ func TestAlertHook(t *testing.T) {
 		require.Contains(t, message, "compatibility alert")
 		require.Contains(t, message, `"bound":"context"`)
 		require.Contains(t, message, `"call":"value"`)
-		require.Contains(t, message, `"error":"test error"`)
+		require.NotContains(t, message, "test error", "error fields are not approved scalar context")
 	case <-time.After(5 * time.Second):
 		t.Fatal("local alert was not delivered")
 	}
@@ -74,6 +75,11 @@ func TestAlert_SendAfterClose(t *testing.T) {
 	require.NoError(t, err)
 
 	a.Close()
+	select {
+	case <-a.Done():
+	case <-time.After(time.Second):
+		t.Fatal("alert worker did not exit")
+	}
 
 	// Send after Close must return an error and must not panic.
 	err = a.Send("x")
