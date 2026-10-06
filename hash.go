@@ -10,6 +10,7 @@ import (
 	"hash"
 	"io"
 	"os"
+	"sync/atomic"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/cespare/xxhash"
@@ -56,14 +57,29 @@ func (h HashType) String() string {
 	return string(h)
 }
 
-// Hasher new hasher by hash type
+// Weak-algorithm diagnostics have a fixed per-algorithm, per-process budget.
+// Claim the budget before logging: a logging hook can itself construct a hasher,
+// so holding a sync.Once/mutex across the callback would permit a deadlock.
+var (
+	md5WarningLogged  atomic.Bool
+	sha1WarningLogged atomic.Bool
+)
+
+// Hasher returns a fresh hash state for the selected algorithm.
+// MD5 and SHA1 remain available for compatibility. Each emits at most one warning
+// per process, independent of call count, work factors, and concurrent callers.
+// These diagnostics do not make weak algorithms suitable for password storage.
 func (h HashType) Hasher() (hash.Hash, error) {
 	switch h {
 	case HashTypeMD5:
-		log.Shared.Warn("md5 is not safe or fast, use sha256 instead")
+		if md5WarningLogged.CompareAndSwap(false, true) {
+			log.Shared.Warn("md5 is not safe for cryptographic use; legacy compatibility only (once per process)")
+		}
 		return md5.New(), nil
 	case HashTypeSha1:
-		log.Shared.Warn("sha1 is not safe, use sha256 instead")
+		if sha1WarningLogged.CompareAndSwap(false, true) {
+			log.Shared.Warn("sha1 is not safe for cryptographic use; legacy compatibility only (once per process)")
+		}
 		return sha1.New(), nil
 	case HashTypeSha256:
 		return sha256.New(), nil
