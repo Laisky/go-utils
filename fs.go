@@ -11,7 +11,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 	"time"
 
@@ -26,7 +25,7 @@ import (
 //
 // this function is not goroutine-safe
 func ReplaceFile(path string, content []byte, perm os.FileMode) error {
-	dir, fname := filepath.Split(path)
+	dir, fname := filepath.Dir(path), filepath.Base(path)
 	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
 	swapFpath, err := JoinFilepath(dir, swapFname)
 	if err != nil {
@@ -55,36 +54,42 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 	return nil
 }
 
-// JoinFilepath join paths and check if result is escaped basedir
-//
-// basedir is the first nonempty path in paths.
-// this function could be used to prevent path escaping,
-// make sure the result is under basedir.
-// for example defend zip-slip: https://snyk.io/research/zip-slip-vulnerability#go
-//
-// Notice: cannot deal with symlink
+// JoinFilepath joins local child paths beneath the explicitly supplied first base.
+// An empty trusted base is rejected; use "." explicitly for the current directory.
+// A single nonempty base is returned unchanged. Parent components are allowed
+// only when their combined, cleaned path remains within the base. Absolute or
+// volume-qualified children are rejected rather than reinterpreted as relative.
+// This is lexical containment only, not protection against symlinks or concurrent
+// changes to filesystem objects or the process working directory.
 func JoinFilepath(paths ...string) (result string, err error) {
 	if len(paths) == 0 {
 		return "", errors.New("empty paths")
 	}
-
+	if paths[0] == "" {
+		return "", errors.New("trusted base path must not be empty")
+	}
 	if len(paths) == 1 {
 		return paths[0], nil
 	}
-
-	for i := range paths {
-		if paths[i] != "" {
-			paths = paths[i:]
-			break
+	for _, child := range paths[1:] {
+		if filepath.IsAbs(child) || filepath.VolumeName(child) != "" ||
+			(len(child) > 0 && os.IsPathSeparator(child[0])) {
+			return "", errors.New("child path must be relative to the trusted base")
 		}
 	}
-
-	baseDir := strings.TrimRight(paths[0], string(os.PathSeparator))
-	result = filepath.Clean(filepath.Join(paths...))
-	if !strings.HasPrefix(result+string(os.PathSeparator), baseDir+string(os.PathSeparator)) {
-		return result, errors.Errorf("got result %q, escaped basedir %q", result, baseDir)
+	children := filepath.Join(paths[1:]...)
+	if children != "" && !filepath.IsLocal(children) {
+		return "", errors.New("joined path escaped basedir")
 	}
-
+	baseDir := filepath.Clean(paths[0])
+	result = filepath.Join(baseDir, children)
+	relative, err := filepath.Rel(baseDir, result)
+	if err != nil {
+		return "", errors.Wrap(err, "resolve path relative to trusted base")
+	}
+	if !filepath.IsLocal(relative) {
+		return "", errors.New("joined path escaped basedir")
+	}
 	return result, nil
 }
 
@@ -99,7 +104,7 @@ var ReplaceFileStream = ReplaceFileAtomic
 //
 // Notice: this function is not goroutine-safe
 func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
-	dir, fname := filepath.Split(path)
+	dir, fname := filepath.Dir(path), filepath.Base(path)
 	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
 	swapFpath, err := JoinFilepath(dir, swapFname)
 	if err != nil {

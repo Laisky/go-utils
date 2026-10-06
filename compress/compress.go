@@ -400,7 +400,9 @@ func UnzipWithMaxEntries(n int) UnzipOption {
 //
 // Args:
 //   - src: is the source zip file.
-//   - dest: is the destination directory.
+//   - dest: is a nonempty trusted destination directory; use "." explicitly
+//     for the current directory. Names are preflighted before filesystem writes.
+//     Destination symlink confinement is not provided by lexical validation.
 //   - (opt) UnzipWithMaxBytes: the aggregate decompressed bytes across all
 //     entries will not exceed this limit, default/0 is unlimit. it's better to
 //     set this value to avoid decompression bomb.
@@ -411,6 +413,9 @@ func UnzipWithMaxEntries(n int) UnzipOption {
 // Returns:
 //   - filenames: all filenames in zip file
 func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, err error) {
+	if dest == "" {
+		return nil, errors.New("trusted unzip destination must not be empty")
+	}
 	o, err := new(unzipOption).fillDefault().applyOpts(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply unzip options")
@@ -428,6 +433,17 @@ func Unzip(src string, dest string, opts ...UnzipOption) (filenames []string, er
 	if o.maxEntries > 0 && len(r.File) > o.maxEntries {
 		return nil, errors.Errorf("zip entries %d exceed max entries limit %d",
 			len(r.File), o.maxEntries)
+	}
+
+	// Validate every member before extracting any earlier, otherwise valid member.
+	// Portable ZIP syntax is checked separately from native lexical containment.
+	for _, f := range r.File {
+		if err := validateZIPMemberName(f.Name); err != nil {
+			return nil, errors.Wrap(err, "invalid ZIP member name")
+		}
+		if _, err := gutils.JoinFilepath(dest, f.Name); err != nil {
+			return nil, errors.Wrap(err, "ZIP member escapes trusted destination")
+		}
 	}
 
 	// totalWritten accumulates the decompressed bytes across all entries so
@@ -558,6 +574,10 @@ func ZipFiles(output string, files []string) (err error) {
 //
 // https://golangcode.com/create-zip-files-in-go/
 func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
+	// An empty archive prefix denotes its explicitly trusted virtual root.
+	if basedir == "" {
+		basedir = "."
+	}
 	finfo, err := os.Stat(filename)
 	if err != nil {
 		return errors.Wrapf(err, "get file stat: %s", filename)
@@ -607,6 +627,9 @@ func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
 			return errors.Wrapf(err, "join filepath `%s`", finfo.Name())
 		}
 	}
+
+	// ZIP member separators are always forward slashes, including on Windows.
+	header.Name = filepath.ToSlash(header.Name)
 
 	// Change to deflate to gain better compression
 	// see http://golang.org/pkg/archive/zip/#pkg-constants
