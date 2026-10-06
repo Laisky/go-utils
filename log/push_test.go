@@ -14,7 +14,8 @@ import (
 )
 
 func TestPusherHTTPSender_Send(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// run http server for test
 	var got string
