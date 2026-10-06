@@ -41,12 +41,24 @@ func ReplaceFile(path string, content []byte, perm os.FileMode) error {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
 	defer os.Remove(swapFpath) //nolint: errcheck
-	defer LogErr(fp.Close, log.Shared)
+	closed := false
+	defer func() {
+		if !closed {
+			LogErr(fp.Close, log.Shared)
+		}
+	}()
 
 	if _, err = fp.Write(content); err != nil {
 		return errors.Wrapf(err, "write to file %q", swapFpath)
 	}
 
+	// Windows cannot rename this file while its handle is open. Close before
+	// publishing on every platform and return a close failure without replacing
+	// the destination. Do not defer a second close of the same handle.
+	closed = true
+	if err = fp.Close(); err != nil {
+		return errors.Wrapf(err, "close replacement file %q", swapFpath)
+	}
 	if err = os.Rename(swapFpath, path); err != nil {
 		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
 	}
@@ -119,13 +131,29 @@ func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
 	if err != nil {
 		return errors.Wrapf(err, "create swap file %q", swapFpath)
 	}
-	defer LogErr(func() error { return errors.Wrapf(os.Remove(swapFpath), "remove %q", swapFpath) }, log.Shared)
-	defer LogErr(fp.Close, log.Shared)
+	defer func() {
+		if err := os.Remove(swapFpath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Shared.Error("remove unpublished replacement file", zap.Error(err))
+		}
+	}()
+	closed := false
+	defer func() {
+		if !closed {
+			LogErr(fp.Close, log.Shared)
+		}
+	}()
 
 	if _, err = io.Copy(fp, in); err != nil {
 		return errors.Wrapf(err, "write to file %q", swapFpath)
 	}
 
+	// Windows cannot rename this file while its handle is open. Close before
+	// publishing on every platform and return a close failure without replacing
+	// the destination. Do not defer a second close of the same handle.
+	closed = true
+	if err = fp.Close(); err != nil {
+		return errors.Wrapf(err, "close replacement file %q", swapFpath)
+	}
 	if err = os.Rename(swapFpath, path); err != nil {
 		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
 	}
