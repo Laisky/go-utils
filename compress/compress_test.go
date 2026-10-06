@@ -93,7 +93,7 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	for _, fname := range dstFiles {
 		ok := false
 		for _, expect := range []string{"a.txt", "child/b.txt", "c.txt"} {
-			if strings.HasSuffix(fname, expect) {
+			if strings.HasSuffix(filepath.ToSlash(fname), expect) {
 				ok = true
 			}
 		}
