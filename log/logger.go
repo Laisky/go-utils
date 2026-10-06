@@ -225,9 +225,11 @@ func WithEncoding(format Encoding) Option {
 	return func(c *option) error {
 		switch format {
 		case EncodingConsole:
+			c.Encoding = string(EncodingConsole)
 			c.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		case EncodingJSON:
 			c.Encoding = string(EncodingJSON)
+			c.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 		default:
 			return errors.Errorf("invalid format: %s", format)
 		}
@@ -360,10 +362,21 @@ func (l *LoggerT) ChangeLevel(level Level) (err error) {
 	return
 }
 
+// shouldSample returns whether a log should be emitted at sample/1000, clamping boundary rates.
+func shouldSample(sample int) bool {
+	if sample <= 0 {
+		return false
+	}
+	if sample >= SampleRateDenominator {
+		return true
+	}
+	return rand.Intn(SampleRateDenominator) < sample
+}
+
 // DebugSample emit debug log with propability sample/SampleRateDenominator.
 // sample could be [0, 1000], less than 0 means never, great than 1000 means certainly
 func (l *LoggerT) DebugSample(sample int, msg string, fields ...zapcore.Field) {
-	if rand.Intn(SampleRateDenominator) > sample {
+	if !shouldSample(sample) {
 		return
 	}
 
@@ -372,7 +385,7 @@ func (l *LoggerT) DebugSample(sample int, msg string, fields ...zapcore.Field) {
 
 // InfoSample emit info log with propability sample/SampleRateDenominator
 func (l *LoggerT) InfoSample(sample int, msg string, fields ...zapcore.Field) {
-	if rand.Intn(SampleRateDenominator) > sample {
+	if !shouldSample(sample) {
 		return
 	}
 
@@ -381,7 +394,7 @@ func (l *LoggerT) InfoSample(sample int, msg string, fields ...zapcore.Field) {
 
 // WarnSample emit warn log with propability sample/SampleRateDenominator
 func (l *LoggerT) WarnSample(sample int, msg string, fields ...zapcore.Field) {
-	if rand.Intn(SampleRateDenominator) > sample {
+	if !shouldSample(sample) {
 		return
 	}
 

@@ -10,7 +10,7 @@ require (
 	github.com/Laisky/go-chaining v0.0.0-20180507092046-43dcdc5a21be
 	github.com/Laisky/golang-fifo v1.0.1-0.20240403092208-1d90c6c33e11
 	github.com/Laisky/graphql v1.0.6
-	github.com/Laisky/zap v1.27.1-0.20260318034917-6e5a9fb2b3d1
+	github.com/Laisky/zap v1.27.1-0.20261006030155-341e151eaecd
 	github.com/alexvec/go-bip39 v1.1.0
 	github.com/brianvoe/gofakeit/v6 v6.23.2
 	github.com/cespare/xxhash v1.1.0
@@ -30,7 +30,7 @@ require (
 	github.com/niclabs/tcrsa v0.0.5
 	github.com/rivo/duplo v0.0.0-20220703183130-751e882e6b83
 	github.com/spf13/cobra v1.10.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	github.com/xlzd/gotp v0.1.0
 	go.dedis.ch/kyber/v3 v3.1.0
@@ -43,18 +43,16 @@ require (
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/stretchr/objx v0.5.3 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
