@@ -33,7 +33,8 @@ func TestAlertHook(t *testing.T) {
 	}))
 	defer server.Close()
 	pusher, err := NewAlert(context.Background(), server.URL,
-		WithAlertType("compatibility"), WithAlertToken("test-token"))
+		WithAlertType("compatibility"), WithAlertToken("test-token"),
+		WithAlertFieldAllowlist("bound", "call"))
 	require.NoError(t, err)
 	defer pusher.Close()
 	logger, err := New(WithOutputPaths([]string{}), WithZapOptions(
@@ -54,7 +55,7 @@ func TestAlertHook(t *testing.T) {
 		require.Contains(t, message, "compatibility alert")
 		require.Contains(t, message, `"bound":"context"`)
 		require.Contains(t, message, `"call":"value"`)
-		require.Contains(t, message, `"error":"test error"`)
+		require.NotContains(t, message, "test error", "error fields are not approved scalar context")
 	case <-time.After(5 * time.Second):
 		t.Fatal("local alert was not delivered")
 	}

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
-	"github.com/Laisky/zap/buffer"
 	"github.com/Laisky/zap/zapcore"
 )
 
@@ -36,6 +36,9 @@ type Alert struct {
 	stopChan   chan struct{}
 	senderChan chan *alertMsg
 	pushAPI    string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
 
 	// closeOnce guards Close so it is idempotent (closing an already
 	// closed channel panics).
@@ -47,12 +50,14 @@ type Alert struct {
 
 // alertOption holds configuration options for the Alert hook.
 type alertOption struct {
-	encPool     *sync.Pool
-	level       zapcore.LevelEnabler
-	timeout     time.Duration
-	alertType   string
-	alertToken  string
-	ratelimiter RateLimiter
+	encPool         *sync.Pool
+	level           zapcore.LevelEnabler
+	timeout         time.Duration
+	alertType       string
+	alertToken      string
+	ratelimiter     RateLimiter
+	allowedFields   map[string]struct{}
+	maxMessageBytes int
 }
 
 // applyOpts applies the given AlertOptions to the alertOption.
@@ -65,6 +70,7 @@ func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
 	}
 	o.level = defaultAlertHookLevel
 	o.timeout = defaultAlertPusherTimeout
+	o.maxMessageBytes = defaultAlertMessageBytes
 
 	// apply options
 	for _, opt := range opts {
@@ -97,6 +103,9 @@ func WithAlertHookLevel(level zapcore.Level) AlertOption {
 // WithAlertPushTimeout sets the HTTP timeout for pushing alerts.
 func WithAlertPushTimeout(timeout time.Duration) AlertOption {
 	return func(o *alertOption) error {
+		if timeout <= 0 {
+			return errors.New("alert timeout must be positive")
+		}
 		o.timeout = timeout
 		return nil
 	}
@@ -158,11 +167,13 @@ func NewAlert(ctx context.Context, pushAPI string,
 		return nil, errors.Wrap(err, "apply alert options")
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	a = &Alert{
 		alertOption: opt,
 		stopChan:    make(chan struct{}),
 		senderChan:  make(chan *alertMsg, defaultAlertPusherBufSize),
 		pushAPI:     pushAPI,
+		ctx:         ctx, cancel: cancel, done: make(chan struct{}),
 	}
 
 	a.cli = graphql.NewClient(a.pushAPI, &http.Client{
@@ -176,14 +187,15 @@ func NewAlert(ctx context.Context, pushAPI string,
 // Close closes the Alert hook.
 //
 // Close is idempotent and safe to call concurrently. It only closes
-// stopChan (not senderChan): closing senderChan while SendWithType may be
+// stopChan (not senderChan) and cancels in-flight HTTP requests: closing senderChan while SendWithType may be
 // racing a send would panic with "send on closed channel", and a double
 // Close would panic with "close of closed channel". The sender goroutine
 // returns on stopChan, and the unsent senderChan is reclaimed by the GC.
 func (a *Alert) Close() {
 	a.closeOnce.Do(func() {
 		a.closed.Store(true)
-		close(a.stopChan) // should close stopChan first
+		close(a.stopChan)
+		a.cancel()
 	})
 }
 
@@ -195,11 +207,16 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 
 	// Reject sends after Close to avoid panicking on a closed channel; a log
 	// triggering the alert hook after shutdown must not crash the process.
-	if a.closed.Load() {
+	if a.closed.Load() || a.ctx.Err() != nil {
 		return errors.Errorf("alert is closed")
 	}
 
+	if len(msg) > a.maxMessageBytes {
+		return errors.WithStack(ErrAlertMessageTooLarge)
+	}
 	select {
+	case <-a.ctx.Done():
+		return errors.New("alert is closed")
 	case a.senderChan <- &alertMsg{
 		alertType: alertType,
 		pushToken: pushToken,
@@ -218,6 +235,7 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 
 // runSender runs the alert sender goroutine.
 func (a *Alert) runSender(ctx context.Context) {
+	defer close(a.done)
 	var (
 		ok      bool
 		payload *alertMsg
@@ -239,9 +257,7 @@ func (a *Alert) runSender(ctx context.Context) {
 
 		// check ratelimiter
 		if a.ratelimiter != nil && !a.ratelimiter.Allow() {
-			Shared.Debug("exceed rate limit, skip alert",
-				zap.String("alert", payload.alertType),
-				zap.String("msg", payload.msg))
+			Shared.Debug("alert dropped by rate limit")
 			continue
 		}
 
@@ -249,68 +265,19 @@ func (a *Alert) runSender(ctx context.Context) {
 		vars["token"] = graphql.String(payload.pushToken)
 		vars["msg"] = graphql.String(payload.msg)
 
-		ctxReq, cancel := context.WithTimeout(ctx, time.Second*30)
+		ctxReq, cancel := context.WithTimeout(ctx, a.timeout)
 		if err = a.cli.Mutate(ctxReq, query, vars); err != nil {
-			Shared.Warn("send alert mutation failed",
-				zap.String("api", a.pushAPI),
-				zap.String("type", payload.alertType),
-				zap.Error(err))
+			Shared.Debug("alert delivery failed", zap.String("endpoint", netdiag.Endpoint(a.pushAPI)))
 			cancel()
 			continue
 		}
 		cancel()
 
-		Shared.Debug("send telegram msg",
-			zap.String("alert", payload.alertType),
-			zap.String("msg", payload.msg))
+		Shared.Debug("alert delivered")
 	}
 }
 
 // Send sends an alert with the default alertType and pushToken.
 func (a *Alert) Send(msg string) (err error) {
 	return a.SendWithType(a.alertType, a.alertToken, msg)
-}
-
-// GetZapHook returns a Zap hook that sends alerts for log entries.
-func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) (err error) {
-	return func(e zapcore.Entry, fs []zapcore.Field) (err error) {
-		if !a.level.Enabled(e.Level) {
-			return nil
-		}
-
-		var bb *buffer.Buffer
-		enci := a.encPool.Get()
-		enc, ok := enci.(zapcore.Encoder)
-		if !ok {
-			return errors.Errorf("unknown type for encoder %T", enci)
-		}
-
-		if bb, err = enc.EncodeEntry(e, fs); err != nil {
-			Shared.Debug("zapcore encode fields got error", zap.Error(err))
-			return nil
-		}
-		fsb := bb.String()
-		bb.Reset()
-		a.encPool.Put(enc)
-
-		stacks := strings.Split(e.Stack, "\n")
-		if len(stacks) > 8 {
-			stacks = stacks[:8]
-		}
-
-		msg := "logger: `" + e.LoggerName + "`\n" +
-			"⏰time: `" + e.Time.Format(time.RFC3339Nano) + "`\n" +
-			"⚠️level: `" + e.Level.String() + "`\n" +
-			"🤖caller: `" + e.Caller.FullPath() + "`\n" +
-			"🏠stack: `" + strings.Join(stacks, "\n") + "`\n" +
-			"📒message: `" + e.Message + "`\n" +
-			fsb
-
-		if err = a.Send(msg); err != nil {
-			Shared.Debug("send alert got error", zap.Error(err))
-			return nil
-		}
-
-		return nil
-	}
 }
