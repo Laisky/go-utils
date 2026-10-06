@@ -36,7 +36,7 @@ func TestAlertHook(t *testing.T) {
 		WithAlertType("compatibility"), WithAlertToken("test-token"),
 		WithAlertFieldAllowlist("bound", "call"))
 	require.NoError(t, err)
-	defer pusher.Close()
+	defer func() { pusher.Close(); <-pusher.Done() }()
 	logger, err := New(WithOutputPaths([]string{}), WithZapOptions(
 		zap.Fields(zap.String("bound", "context")),
 		zap.HooksWithFields(pusher.GetZapHook()),
@@ -75,6 +75,11 @@ func TestAlert_SendAfterClose(t *testing.T) {
 	require.NoError(t, err)
 
 	a.Close()
+	select {
+	case <-a.Done():
+	case <-time.After(time.Second):
+		t.Fatal("alert worker did not exit")
+	}
 
 	// Send after Close must return an error and must not panic.
 	err = a.Send("x")

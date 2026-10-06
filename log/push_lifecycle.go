@@ -31,7 +31,11 @@ func (p *Pusher) Stats() PusherStats {
 }
 
 // Close cancels the worker and in-flight send. It is idempotent and does not flush.
-func (p *Pusher) Close() { p.cancel() }
+func (p *Pusher) Close() {
+	p.admission.Lock()
+	defer p.admission.Unlock()
+	p.cancel()
+}
 
 // Done is closed after the sender returns; custom senders must honor cancellation.
 func (p *Pusher) Done() <-chan struct{} { return p.done }

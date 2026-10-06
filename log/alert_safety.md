@@ -25,6 +25,8 @@ labels, and raw transport/GraphQL errors. Endpoint diagnostics use only scheme
 and authority. The existing 20-entry nonblocking queue and rate limiter remain.
 
 `Close` is idempotent, cancels in-flight HTTP requests, and abandons pending work;
-it does not flush. `Done` signals the actual end of the worker. The HTTP deadline
+it does not flush. Admission and shutdown are serialized: after `Close` returns
+or `Done` closes, no send can enter an orphaned queue. Pending payload/token
+references are released before `Done` signals the actual end of the worker. The HTTP deadline
 uses the positive configured `WithAlertPushTimeout`, preserving earlier context
 deadlines. Custom rate limiters must return promptly.

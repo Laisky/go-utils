@@ -43,8 +43,10 @@ type Alert struct {
 	// closeOnce guards Close so it is idempotent (closing an already
 	// closed channel panics).
 	closeOnce sync.Once
-	// closed is set once Close has been called. SendWithType checks it
-	// before attempting a send to avoid panicking on a closed channel.
+	// admission orders enqueueing with Close and worker termination.
+	admission sync.Mutex
+	// closed records explicit shutdown or worker termination.
+	// The hook can reject before encoding; admission checks again under its lock.
 	closed atomic.Bool
 }
 
@@ -184,19 +186,37 @@ func NewAlert(ctx context.Context, pushAPI string,
 	return a, nil
 }
 
-// Close closes the Alert hook.
-//
-// Close is idempotent and safe to call concurrently. It only closes
-// stopChan (not senderChan) and cancels in-flight HTTP requests: closing senderChan while SendWithType may be
-// racing a send would panic with "send on closed channel", and a double
-// Close would panic with "close of closed channel". The sender goroutine
-// returns on stopChan, and the unsent senderChan is reclaimed by the GC.
+// Close cancels delivery and prevents later queue admissions; it does not flush.
+// It is idempotent and safe to call concurrently, including from a rate limiter.
+// Done closes only after the worker releases its queued payload references.
 func (a *Alert) Close() {
 	a.closeOnce.Do(func() {
+		a.admission.Lock()
+		defer a.admission.Unlock()
 		a.closed.Store(true)
 		close(a.stopChan)
 		a.cancel()
 	})
+}
+
+// finishSender rejects further admissions and releases pending messages before Done.
+// No caller callback or network operation is invoked while admission is locked.
+func (a *Alert) finishSender() {
+	a.admission.Lock()
+	defer a.admission.Unlock()
+	a.closed.Store(true)
+	for {
+		select {
+		case _, ok := <-a.senderChan:
+			if !ok {
+				close(a.done)
+				return
+			}
+		default:
+			close(a.done)
+			return
+		}
+	}
 }
 
 // SendWithType sends an alert with the specified type, token, and message.
@@ -205,29 +225,21 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 		return errors.Errorf("alertType, pushToken and msg should not be empty")
 	}
 
-	// Reject sends after Close to avoid panicking on a closed channel; a log
-	// triggering the alert hook after shutdown must not crash the process.
-	if a.closed.Load() || a.ctx.Err() != nil {
-		return errors.Errorf("alert is closed")
-	}
-
 	if len(msg) > a.maxMessageBytes {
 		return errors.WithStack(ErrAlertMessageTooLarge)
 	}
-	select {
-	case <-a.ctx.Done():
+	// The lifecycle check and nonblocking admission share the shutdown lock.
+	// A cancelled context may race a send ordered before worker termination,
+	// but neither Close nor Done can complete before this admission finishes.
+	a.admission.Lock()
+	defer a.admission.Unlock()
+	if a.closed.Load() || a.ctx.Err() != nil {
 		return errors.New("alert is closed")
-	case a.senderChan <- &alertMsg{
-		alertType: alertType,
-		pushToken: pushToken,
-		msg:       msg,
-	}:
-	case <-a.stopChan:
-		// Close raced with this send; abort instead of risking a send on a
-		// channel whose sole reader (runSender) has already returned.
-		return errors.Errorf("alert is closed")
+	}
+	select {
+	case a.senderChan <- &alertMsg{alertType: alertType, pushToken: pushToken, msg: msg}:
 	default:
-		return errors.Errorf("send channel overflow")
+		return errors.New("send channel overflow")
 	}
 
 	return nil
@@ -235,7 +247,7 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 
 // runSender runs the alert sender goroutine.
 func (a *Alert) runSender(ctx context.Context) {
-	defer close(a.done)
+	defer a.finishSender()
 	var (
 		ok      bool
 		payload *alertMsg
@@ -244,6 +256,9 @@ func (a *Alert) runSender(ctx context.Context) {
 		vars    = map[string]any{}
 	)
 	for {
+		if ctx.Err() != nil || a.closed.Load() {
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -255,10 +270,18 @@ func (a *Alert) runSender(ctx context.Context) {
 			}
 		}
 
+		if ctx.Err() != nil || a.closed.Load() {
+			return
+		}
+
 		// check ratelimiter
 		if a.ratelimiter != nil && !a.ratelimiter.Allow() {
 			Shared.Debug("alert dropped by rate limit")
 			continue
+		}
+
+		if ctx.Err() != nil || a.closed.Load() {
+			return
 		}
 
 		vars["type"] = graphql.String(payload.alertType)
