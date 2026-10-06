@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/sha512"
 	"io"
 	"math/big"
 
@@ -129,28 +128,22 @@ func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hasher.Sum(nil), sig)
 }
 
-// SignByEd25519WithSHA512 generate signature by ed25519 private key
+// SignByEd25519WithSHA512 signs the legacy plain-Ed25519-over-SHA512 format.
+// Existing signatures remain unchanged; this function is NOT RFC 8032 Ed25519ph.
+//
+// Deprecated: use SignByEd25519ph for new prehash protocols, or explicitly select
+// SignByEd25519LegacySHA512 when maintaining an existing legacy protocol.
 func SignByEd25519WithSHA512(prikey ed25519.PrivateKey, reader io.Reader) ([]byte, error) {
-	hasher := sha512.New()
-	if _, err := io.Copy(hasher, reader); err != nil {
-		return nil, errors.Wrap(err, "read content")
-	}
-
-	return prikey.Sign(rand.Reader, hasher.Sum(nil), crypto.Hash(0))
+	return SignByEd25519LegacySHA512(prikey, reader)
 }
 
-// VerifyByEd25519WithSHA512 verify signature by ed25519 public key
+// VerifyByEd25519WithSHA512 verifies only the legacy plain-over-SHA512 format.
+// It never falls back between the legacy and Ed25519ph protocols.
+//
+// Deprecated: use VerifyByEd25519ph for new prehash protocols, or explicitly
+// select VerifyByEd25519LegacySHA512 for existing legacy signatures.
 func VerifyByEd25519WithSHA512(pubKey ed25519.PublicKey, reader io.Reader, sig []byte) error {
-	hasher := sha512.New()
-	if _, err := io.Copy(hasher, reader); err != nil {
-		return errors.Wrap(err, "read content")
-	}
-
-	if !ed25519.Verify(pubKey, hasher.Sum(nil), sig) {
-		return errors.New("invalid signature")
-	}
-
-	return nil
+	return VerifyByEd25519LegacySHA512(pubKey, reader, sig)
 }
 
 // SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
