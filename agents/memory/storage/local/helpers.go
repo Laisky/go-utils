@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -79,16 +80,19 @@ func writeOverwrite(root *os.Root, relPath, content string, offset int64, perm o
 	return nil
 }
 
-// validateProject validates project identifier format.
+// validateProject requires one canonical child namespace, never a root alias.
+// Callers must separately authorize the selected project; syntactic validation
+// does not authorize access to another otherwise-valid project identifier.
 //
 // Parameters:
 //   - project: Project namespace string.
 //
 // Returns:
-//   - error: Non-nil when project is empty or has invalid characters.
+//   - error: Non-nil for reserved, noncanonical, oversized, or invalid names.
 func validateProject(project string) error {
-	if !projectRegex.MatchString(project) {
-		return errors.Errorf("invalid project `%s`", project)
+	if len(project) == 0 || len(project) > 128 || project == "." || project == ".." ||
+		strings.HasSuffix(project, ".") || !filepath.IsLocal(project) || !projectRegex.MatchString(project) {
+		return errors.New("invalid project: require one canonical child namespace")
 	}
 
 	return nil

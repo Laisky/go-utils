@@ -71,7 +71,7 @@ func resolveConversationItems(
 	if start > len(items) {
 		start = len(items)
 	}
-	if count <= 0 || start+count > len(items) {
+	if count <= 0 || count > len(items)-start {
 		count = len(items) - start
 	}
 
@@ -80,7 +80,7 @@ func resolveConversationItems(
 
 // buildNormalizedConversation builds one normalized conversation with stable identity sets.
 func buildNormalizedConversation(items []ResponseItem, start, count int) (normalizedConversation, error) {
-	if start < 0 || count < 0 || start > len(items) || start+count > len(items) {
+	if start < 0 || count < 0 || start > len(items) || count > len(items)-start {
 		return normalizedConversation{}, errors.Errorf("invalid conversation boundary")
 	}
 

@@ -11,7 +11,6 @@ import (
 	"crypto/sha512"
 	"io"
 	"math/big"
-	"strings"
 
 	"github.com/Laisky/errors/v2"
 	"go.dedis.ch/kyber/v3"
@@ -162,6 +161,9 @@ func SignByECDSAWithSHA256(prikey *ecdsa.PrivateKey, content []byte) (r, s *big.
 
 // VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
 func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.Int) bool {
+	if !validECDSAVerificationInputs(pubKey, r, s) {
+		return false
+	}
 	hash := sha256.Sum256(content)
 	return ecdsa.Verify(pubKey, hash[:], r, s)
 }
@@ -177,14 +179,17 @@ func SignByECDSAWithSHA256AndBase64(prikey *ecdsa.PrivateKey, content []byte) (s
 	return EncodeES256SignByBase64(r, s), nil
 }
 
-// VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
+// VerifyByECDSAWithSHA256AndBase64 verifies a bounded NIST-curve signature.
+// Malformed encodings and invalid keys/components return false with an error.
 func VerifyByECDSAWithSHA256AndBase64(pubKey *ecdsa.PublicKey, content []byte, signature string) (bool, error) {
-	hash := sha256.Sum256(content)
 	r, s, err := DecodeES256SignByBase64(signature)
 	if err != nil {
 		return false, errors.Wrap(err, "decode signature")
 	}
-
+	if !validECDSAVerificationInputs(pubKey, r, s) {
+		return false, errors.New("invalid ECDSA key or signature components")
+	}
+	hash := sha256.Sum256(content)
 	return ecdsa.Verify(pubKey, hash[:], r, s), nil
 }
 
@@ -200,6 +205,12 @@ func SignReaderByECDSAWithSHA256(prikey *ecdsa.PrivateKey, reader io.Reader) (r,
 
 // VerifyReaderByECDSAWithSHA256 verify signature by ecdsa public key use sha256
 func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r, s *big.Int) (bool, error) {
+	if reader == nil {
+		return false, errors.New("verify ECDSA: nil reader")
+	}
+	if !validECDSAVerificationInputs(pubKey, r, s) {
+		return false, errors.New("invalid ECDSA key or signature components")
+	}
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, reader); err != nil {
 		return false, errors.Wrap(err, "read content")
@@ -266,21 +277,10 @@ func EncodeES256SignByHex(r, s *big.Int) string {
 	return FormatBig2Hex(r) + ecdsaSignDelimiter + FormatBig2Hex(s)
 }
 
-// DecodeES256SignByHex parse ecdsa signature string to two *big.Int
+// DecodeES256SignByHex parses two positive hex components for the supported NIST curves.
+// Input is limited to 265 bytes and 521 bits per component before verification.
 func DecodeES256SignByHex(sign string) (r, s *big.Int, err error) {
-	ss := strings.Split(sign, ecdsaSignDelimiter)
-	if len(ss) != 2 {
-		return nil, nil, errors.Errorf("unknown format of signature `%s`, want `xxx.xxx`", sign)
-	}
-	var ok bool
-	if r, ok = ParseHex2Big(ss[0]); !ok {
-		return nil, nil, errors.Errorf("invalidate hex `%s`", ss[0])
-	}
-	if s, ok = ParseHex2Big(ss[1]); !ok {
-		return nil, nil, errors.Errorf("invalidate hex `%s`", ss[1])
-	}
-
-	return
+	return decodeBoundedECDSASignature(sign, false)
 }
 
 // EncodeES256SignByBase64 format ecdsa signature to stirng
@@ -288,22 +288,10 @@ func EncodeES256SignByBase64(r, s *big.Int) string {
 	return FormatBig2Base64(r) + ecdsaSignDelimiter + FormatBig2Base64(s)
 }
 
-// DecodeES256SignByBase64 parse ecdsa signature string to two *big.Int
+// DecodeES256SignByBase64 parses two positive canonical URL-Base64 components.
+// Input is limited to 177 bytes and 521 bits per component before verification.
 func DecodeES256SignByBase64(sign string) (r, s *big.Int, err error) {
-	ss := strings.Split(sign, ecdsaSignDelimiter)
-	if len(ss) != 2 {
-		return nil, nil, errors.Wrapf(err, "unknown format of signature `%s`, expect is `xxxx.xxxx`", sign)
-	}
-
-	if r, err = ParseBase642Big(ss[0]); err != nil {
-		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[0])
-	}
-
-	if s, err = ParseBase642Big(ss[1]); err != nil {
-		return nil, nil, errors.Wrapf(err, "`%s` is not validate base64", ss[1])
-	}
-
-	return
+	return decodeBoundedECDSASignature(sign, true)
 }
 
 // HMACSha256 calculate HMAC by sha256
