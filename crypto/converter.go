@@ -48,7 +48,12 @@ func NewRSAPrikey(bits RSAPrikeyBits) (*rsa.PrivateKey, error) {
 		return nil, errors.Errorf("not support bits %d", bits)
 	}
 
-	return rsa.GenerateKey(rand.Reader, int(bits))
+	prikey, err := rsa.GenerateKey(rand.Reader, int(bits))
+	if err != nil {
+		return nil, errors.Wrapf(err, "generate rsa %d private key", bits)
+	}
+
+	return prikey, nil
 }
 
 // ECDSACurve algorithms
@@ -65,18 +70,24 @@ const (
 
 // NewECDSAPrikey new ecdsa private key
 func NewECDSAPrikey(curve ECDSACurve) (*ecdsa.PrivateKey, error) {
+	var c elliptic.Curve
 	switch curve {
-	// case ECDSACurveP224:
-	// 	return ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	case ECDSACurveP256:
-		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		c = elliptic.P256()
 	case ECDSACurveP384:
-		return ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+		c = elliptic.P384()
 	case ECDSACurveP521:
-		return ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		c = elliptic.P521()
 	default:
 		return nil, errors.Errorf("unsupport curve %s", curve)
 	}
+
+	prikey, err := ecdsa.GenerateKey(c, rand.Reader)
+	if err != nil {
+		return nil, errors.Wrapf(err, "generate ecdsa %s private key", curve)
+	}
+
+	return prikey, nil
 }
 
 // NewEd25519Prikey new ed25519 private key
@@ -95,7 +106,12 @@ func Prikey2Der(key crypto.PrivateKey) ([]byte, error) {
 		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 private key")
 	}
 
-	return x509.MarshalPKCS8PrivateKey(key)
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal private key to pkcs8")
+	}
+
+	return der, nil
 }
 
 // Prikey2Pubkey get public key from private key
@@ -123,7 +139,12 @@ func Pubkey2Der(key crypto.PublicKey) ([]byte, error) {
 		return nil, errors.Errorf("only support rsa/ecdsa/ed25519 public key")
 	}
 
-	return x509.MarshalPKIXPublicKey(key)
+	der, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal public key to pkix")
+	}
+
+	return der, nil
 }
 
 // Pubkey2Pem marshal public key to pem, tailing with line break
@@ -156,19 +177,34 @@ func Cert2Der(cert ...*x509.Certificate) (ret []byte) {
 
 // Der2Cert parse sigle certificate in der
 func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
-	return x509.ParseCertificate(certInDer)
+	cert, err := x509.ParseCertificate(certInDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse certificate der")
+	}
+
+	return cert, nil
 }
 
 // Der2Certs parses certInDer, which holds one or more concatenated DER-encoded certificates, via
 // x509.ParseCertificates. It returns the certificates in input order, or an error if any
 // certificate cannot be parsed.
 func Der2Certs(certInDer []byte) ([]*x509.Certificate, error) {
-	return x509.ParseCertificates(certInDer)
+	certs, err := x509.ParseCertificates(certInDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse certificates der")
+	}
+
+	return certs, nil
 }
 
 // Der2CSR parse crl der
 func Der2CSR(csrDer []byte) (*x509.CertificateRequest, error) {
-	return x509.ParseCertificateRequest(csrDer)
+	csr, err := x509.ParseCertificateRequest(csrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse csr der")
+	}
+
+	return csr, nil
 }
 
 // CSR2Der marshal csr to der
@@ -178,7 +214,12 @@ func CSR2Der(csr *x509.CertificateRequest) []byte {
 
 // Der2CRL parse crl der
 func Der2CRL(crlDer []byte) (*x509.RevocationList, error) {
-	return x509.ParseRevocationList(crlDer)
+	crl, err := x509.ParseRevocationList(crlDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse crl der")
+	}
+
+	return crl, nil
 }
 
 // CRLDer2Pem marshal crl to pem
@@ -239,7 +280,7 @@ func Pem2Certs(certInPem []byte) ([]*x509.Certificate, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	return x509.ParseCertificates(der)
+	return Der2Certs(der)
 }
 
 // RSAPem2Prikey parse private key from x509 v1(rsa) pem
@@ -254,7 +295,12 @@ func RSAPem2Prikey(x509v1Pem []byte) (*rsa.PrivateKey, error) {
 
 // RSADer2Prikey parse private key from x509 v1(rsa) der
 func RSADer2Prikey(x509v1Der []byte) (*rsa.PrivateKey, error) {
-	return x509.ParsePKCS1PrivateKey(x509v1Der)
+	prikey, err := x509.ParsePKCS1PrivateKey(x509v1Der)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse pkcs1 rsa private key")
+	}
+
+	return prikey, nil
 }
 
 // Pem2Prikey parse private key from x509 v8(general) pem

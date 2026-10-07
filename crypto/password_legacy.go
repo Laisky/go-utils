@@ -185,7 +185,12 @@ func verifyLegacyHashedPassword(rawpassword []byte, hashedPassword string) error
 //
 // Deprecated: use PasswordHash instead
 func GeneratePasswordHash(password []byte) ([]byte, error) {
-	return bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate bcrypt password hash")
+	}
+
+	return hashed, nil
 }
 
 // ValidatePasswordHash validate password is match with hashedPassword

@@ -82,7 +82,7 @@ func (o *signCSROption) applyOpts(
 	// apply options
 	for _, f := range opts {
 		if err := f(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply sign CSR option")
 		}
 	}
 
@@ -307,7 +307,7 @@ func NewX509CertByCSR(
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid CA private key")
 	}
 
 	csr, err := Der2CSR(csrDer)

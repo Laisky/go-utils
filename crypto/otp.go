@@ -128,7 +128,7 @@ func NewTOTP(arg OTPArgs) (*TOTP, error) {
 
 	hasher, err := arg.Hasher()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "select TOTP hasher")
 	}
 
 	return &TOTP{

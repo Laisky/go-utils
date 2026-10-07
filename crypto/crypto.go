@@ -44,7 +44,7 @@ func FormatBig2Base64(b *big.Int) string {
 func ParseBase642Big(raw string) (*big.Int, error) {
 	bb, err := base64.URLEncoding.DecodeString(raw)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "decode base64 big integer")
 	}
 
 	b := new(big.Int)
