@@ -56,6 +56,12 @@ const (
 	smtpsPort = 465
 )
 
+// smtpSessionTimeout bounds the whole strict SMTP session (greeting, TLS
+// handshake, AUTH, and message transfer) so a stalled or malicious server
+// cannot block the caller indefinitely. It is a variable only so tests can
+// shorten it.
+var smtpSessionTimeout = 5 * time.Minute
+
 // validateHeaderValue rejects values containing CRLF sequences
 // to prevent email header injection attacks.
 func validateHeaderValue(field, value string) error {
@@ -285,6 +291,10 @@ func (s *requireTLSSender) DialAndSend(msgs ...*gomail.Message) error {
 	conn, err := dialer.DialContext(context.Background(), "tcp", addr)
 	if err != nil {
 		return errors.Wrap(err, "dial smtp server")
+	}
+	if err = conn.SetDeadline(time.Now().Add(smtpSessionTimeout)); err != nil {
+		_ = conn.Close()
+		return errors.Wrap(err, "set smtp session deadline")
 	}
 
 	// Implicit TLS (SMTPS, conventionally port 465): wrap the raw connection in
