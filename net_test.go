@@ -7,6 +7,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// TestCheckUDPPort exercises IsRemoteUDPPortOpen concurrently against UDP ports 1 through 9 of 1.2.3.4 and prints
+// each port reported as open. It is a smoke test only: probe errors are ignored and nothing is asserted.
 func TestCheckUDPPort(t *testing.T) {
 	t.Parallel()
 

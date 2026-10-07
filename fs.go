@@ -6,7 +6,6 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -21,51 +20,6 @@ import (
 	"github.com/Laisky/go-utils/v6/internal/fileguard"
 	"github.com/Laisky/go-utils/v6/log"
 )
-
-// ReplaceFile replace file with content atomatically
-//
-// this function is not goroutine-safe
-func ReplaceFile(path string, content []byte, perm os.FileMode) error {
-	dir, fname := filepath.Dir(path), filepath.Base(path)
-	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
-	swapFpath, err := JoinFilepath(dir, swapFname)
-	if err != nil {
-		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
-	}
-
-	// Security: use O_EXCL so open fails if the swap path already exists. This
-	// refuses to follow an attacker-planted symlink or overwrite a pre-created
-	// file at the (randomized) swap path. O_TRUNC is unnecessary because O_EXCL
-	// guarantees a freshly created file.
-	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_EXCL|os.O_RDWR, perm)
-	if err != nil {
-		return errors.Wrapf(err, "create swap file %q", swapFpath)
-	}
-	defer os.Remove(swapFpath) //nolint: errcheck
-	closed := false
-	defer func() {
-		if !closed {
-			LogErr(fp.Close, log.Shared)
-		}
-	}()
-
-	if _, err = fp.Write(content); err != nil {
-		return errors.Wrapf(err, "write to file %q", swapFpath)
-	}
-
-	// Windows cannot rename this file while its handle is open. Close before
-	// publishing on every platform and return a close failure without replacing
-	// the destination. Do not defer a second close of the same handle.
-	closed = true
-	if err = fp.Close(); err != nil {
-		return errors.Wrapf(err, "close replacement file %q", swapFpath)
-	}
-	if err = os.Rename(swapFpath, path); err != nil {
-		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
-	}
-
-	return nil
-}
 
 // JoinFilepath joins local child paths beneath the explicitly supplied first base.
 // An empty trusted base is rejected; use "." explicitly for the current directory.
@@ -104,81 +58,6 @@ func JoinFilepath(paths ...string) (result string, err error) {
 		return "", errors.New("joined path escaped basedir")
 	}
 	return result, nil
-}
-
-// ReplaceFileStream replace file with content atomatically
-//
-// Deprecated: use ReplaceFileAtomic instead
-var ReplaceFileStream = ReplaceFileAtomic
-
-// ReplaceFileAtomic replace file with content atomatically
-//
-// write content to a tmp file, then rename it to dst file.
-//
-// Notice: this function is not goroutine-safe
-func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
-	dir, fname := filepath.Dir(path), filepath.Base(path)
-	swapFname := fmt.Sprintf(".%s.swp-%s", fname, RandomStringWithLength(6))
-	swapFpath, err := JoinFilepath(dir, swapFname)
-	if err != nil {
-		return errors.Wrapf(err, "join path %q and %q", dir, swapFname)
-	}
-
-	// Security: use O_EXCL so open fails if the swap path already exists. This
-	// refuses to follow an attacker-planted symlink or overwrite a pre-created
-	// file at the (randomized) swap path. O_TRUNC is unnecessary because O_EXCL
-	// guarantees a freshly created file.
-	fp, err := os.OpenFile(swapFpath, os.O_CREATE|os.O_EXCL|os.O_RDWR, perm)
-	if err != nil {
-		return errors.Wrapf(err, "create swap file %q", swapFpath)
-	}
-	defer func() {
-		if err := os.Remove(swapFpath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			log.Shared.Error("remove unpublished replacement file", zap.Error(err))
-		}
-	}()
-	closed := false
-	defer func() {
-		if !closed {
-			LogErr(fp.Close, log.Shared)
-		}
-	}()
-
-	if _, err = io.Copy(fp, in); err != nil {
-		return errors.Wrapf(err, "write to file %q", swapFpath)
-	}
-
-	// Windows cannot rename this file while its handle is open. Close before
-	// publishing on every platform and return a close failure without replacing
-	// the destination. Do not defer a second close of the same handle.
-	closed = true
-	if err = fp.Close(); err != nil {
-		return errors.Wrapf(err, "close replacement file %q", swapFpath)
-	}
-	if err = os.Rename(swapFpath, path); err != nil {
-		return errors.Wrapf(err, "replace %q by %q", path, swapFpath)
-	}
-
-	return nil
-}
-
-// MoveFile move file from src to dst by copy
-//
-// sometimes move file by `rename` not work.
-// for example, you can not move file between docker volumes by `rename`.
-//
-// dst must not exist: it is created exclusively, so an existing entry or a
-// dangling link is a collision and src is kept. See CopyFile.
-func MoveFile(src, dst string) (err error) {
-	if err = CopyFile(src, dst); err != nil {
-		return errors.Wrapf(err, "copy file from %q to %q", src, dst)
-	}
-
-	if err = os.Remove(src); err != nil {
-		return errors.Wrapf(err, "remove file `%s`", src)
-	}
-
-	return nil
 }
 
 // IsDir is path exists as dir
@@ -251,12 +130,17 @@ type copyFileOption struct {
 	overwrite bool
 }
 
+// fillDefault sets the CopyFile defaults on o: file mode 0640 and open flags os.O_WRONLY|os.O_CREATE.
+// It does not modify the overwrite field, and it returns o itself so the call can be chained with
+// applyOpts.
 func (o *copyFileOption) fillDefault() *copyFileOption {
 	o.mode = 0640
 	o.flag = os.O_WRONLY | os.O_CREATE
 	return o
 }
 
+// applyOpts applies each CopyFileOptionFunc in optfs to o in order. It returns o on success; when an
+// option fails, it stops and returns nil with that error wrapped by the option function's name.
 func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption, error) {
 	for _, f := range optfs {
 		if err := f(o); err != nil {
@@ -395,113 +279,6 @@ func FileSHA1(path string) (hashed string, err error) {
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-// DirSize calculate directory size
-//
-// inspired by https://stackoverflow.com/a/32482941/2368737
-func DirSize(path string) (size int64, err error) {
-	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return nil
-	})
-
-	if err != nil {
-		return size, errors.Wrapf(err, "walk directory %q", path)
-	}
-
-	return
-}
-
-type listFilesInDirOption struct {
-	recur  bool
-	filter func(fname string) bool
-}
-
-func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
-	for _, opt := range opts {
-		if err := opt(o); err != nil {
-			return nil, errors.Wrap(err, "apply option")
-		}
-	}
-
-	return o, nil
-}
-
-// ListFilesInDirOptionFunc options for ListFilesInDir
-type ListFilesInDirOptionFunc func(*listFilesInDirOption) error
-
-// Recursive list files recursively
-//
-// Deprecated: use ListFilesInDirRecursive instead
-func Recursive() ListFilesInDirOptionFunc {
-	return func(o *listFilesInDirOption) error {
-		o.recur = true
-		return nil
-	}
-}
-
-// ListFilesInDirRecursive list files in dir recursively
-func ListFilesInDirRecursive() ListFilesInDirOptionFunc {
-	return func(o *listFilesInDirOption) error {
-		o.recur = true
-		return nil
-	}
-}
-
-// ListFilesInDirFilter filter files, only return files that filter returns true
-func ListFilesInDirFilter(filter func(fname string) bool) ListFilesInDirOptionFunc {
-	return func(o *listFilesInDirOption) error {
-		o.filter = filter
-		return nil
-	}
-}
-
-// ListFilesInDir list files in dir
-func ListFilesInDir(dir string, optfs ...ListFilesInDirOptionFunc) (files []string, err error) {
-	log.Shared.Debug("ListFilesInDir", zap.String("dir", dir))
-	opt, err := new(listFilesInDirOption).applyOpts(optfs...)
-	if err != nil {
-		return nil, errors.Wrap(err, "apply options")
-	}
-
-	fs, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, errors.Wrapf(err, "read dir `%s`", dir)
-	}
-
-	for _, f := range fs {
-		fpath, err := JoinFilepath(dir, f.Name())
-		if err != nil {
-			return nil, errors.Wrapf(err, "join path %q and %q", dir, f.Name())
-		}
-
-		if f.IsDir() {
-			if opt.recur {
-				fs, err := ListFilesInDir(fpath, optfs...)
-				if err != nil {
-					return nil, errors.Wrapf(err, "list files in %q", fpath)
-				}
-
-				files = append(files, fs...)
-			}
-
-			continue
-		}
-
-		if opt.filter != nil && !opt.filter(fpath) {
-			continue
-		}
-
-		files = append(files, fpath)
-	}
-
-	return
 }
 
 // NewTmpFileForContent write content to tmp file and return path

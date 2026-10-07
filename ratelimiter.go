@@ -63,12 +63,20 @@ type MemoryRateLimiterStateManager struct {
 // rateLimiterSyncer abstracts the synchronization primitive used by the in-memory manager.
 type rateLimiterSyncer struct{ ch chan struct{} }
 
+// newRateLimiterSyncer creates a rateLimiterSyncer backed by a channel with a buffer of one, so that it behaves
+// like a mutex. It takes no parameters and returns the ready-to-use syncer; a zero-value syncer has a nil channel
+// and would block forever on lock.
 func newRateLimiterSyncer() rateLimiterSyncer {
 	return rateLimiterSyncer{ch: make(chan struct{}, 1)}
 }
 
+// lock acquires the syncer by sending into its single-slot channel, blocking until the current holder calls
+// unlock. It takes no parameters and returns nothing; copies of a syncer share the same channel and thus the
+// same lock.
 func (s rateLimiterSyncer) lock() { s.ch <- struct{}{} }
 
+// unlock releases the syncer by draining its single-slot channel. It takes no parameters and returns nothing;
+// calling it without a matching lock blocks forever instead of panicking.
 func (s rateLimiterSyncer) unlock() { <-s.ch }
 
 // NewMemoryRateLimiterStateManager returns an in-memory state manager.
@@ -323,6 +331,9 @@ func (t *RateLimiter) Close() {
 	close(t.stopChan)
 }
 
+// setAvailableTokens overwrites the limiter's available token count with tokens through the state manager,
+// using the limiter's state context. It returns an error if tokens is negative or greater than Max, or a wrapped
+// state manager error, for example when the limiter has been closed and its state context is canceled.
 func (t *RateLimiter) setAvailableTokens(tokens int) error {
 	if tokens < 0 {
 		return errors.Errorf("available tokens should not be negative: %d", tokens)
@@ -334,6 +345,10 @@ func (t *RateLimiter) setAvailableTokens(tokens int) error {
 	return errors.Wrap(t.stateManager.SetAvailableTokens(t.stateCtx, tokens), "set tokens via state manager")
 }
 
+// setupStateManager calls the state manager's Setup with the limiter's state context, args, and initial token
+// count. It returns true when this limiter should run the refill loop (the manager reports it was freshly
+// initialized by this call), or false and a wrapped error when Setup fails, for example because the manager
+// was already initialized with different args or the context is canceled.
 func (t *RateLimiter) setupStateManager() (bool, error) {
 	shouldRefill, err := t.stateManager.Setup(t.stateCtx, t.RateLimiterArgs, t.initialTokens)
 	if err != nil {
@@ -480,6 +495,8 @@ func (m *MemoryRateLimiterStateManager) SetAvailableTokens(ctx context.Context, 
 	return nil
 }
 
+// ensureTokenRange validates that tokens lies within the inclusive range [0, args.Max]. It returns nil for a
+// valid count, and an error when tokens is negative or exceeds args.Max.
 func ensureTokenRange(args RateLimiterArgs, tokens int) error {
 	if tokens < 0 {
 		return errors.Errorf("available tokens should not be negative: %d", tokens)

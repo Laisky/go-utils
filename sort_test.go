@@ -9,14 +9,18 @@ type Item struct {
 	v int
 }
 
+// GetValue returns the item's integer sort key v, satisfying SortItemItf so PairList can order items by it.
 func (i *Item) GetValue() int {
 	return i.v
 }
 
+// GetData returns the item's string payload k as an any value, satisfying SortItemItf.
 func (i *Item) GetData() any {
 	return i.k
 }
 
+// TestSortSmallest verifies that SortSmallest sorts a PairList in place in ascending order of GetValue, so the
+// first three items hold the values 1, 15, and 22.
 func TestSortSmallest(t *testing.T) {
 	items := PairList{
 		&Item{k: "1", v: 1},
@@ -39,6 +43,8 @@ func TestSortSmallest(t *testing.T) {
 	}
 }
 
+// TestSortBiggest verifies that SortBiggest sorts a PairList in place in descending order of GetValue, so the
+// first three items hold the values 40992, 932, and 99.
 func TestSortBiggest(t *testing.T) {
 	items := PairList{
 		&Item{k: "1", v: 1},

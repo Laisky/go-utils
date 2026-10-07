@@ -5,40 +5,22 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-func TestDirSize(t *testing.T) {
-	t.Parallel()
-	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
-	size, err := DirSize(".")
-	if err != nil {
-		require.NoError(t, err)
-	}
-	t.Logf("size: %v", size)
-	// t.Error()
-}
-
-func ExampleDirSize() {
-	dirPath := "."
-	size, err := DirSize(dirPath)
-	if err != nil {
-		log.Shared.Error("get dir size", zap.Error(err), zap.String("path", dirPath))
-	}
-	log.Shared.Info("got size", zap.Int64("size", size), zap.String("path", dirPath))
-}
-
+// TestCopyFile verifies CopyFile end to end: copying a nonexistent source fails, copying to a new
+// destination reproduces the source bytes and leaves the source intact, copying onto an existing
+// destination without Overwrite fails with an "exists" error, and Overwrite replaces the destination
+// with the source's updated content.
 func TestCopyFile(t *testing.T) {
 	t.Parallel()
 	t.Run("not exist", func(t *testing.T) {
@@ -108,45 +90,9 @@ func TestCopyFile(t *testing.T) {
 	})
 }
 
-func TestMoveFile(t *testing.T) {
-	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestMoveFile-*")
-	require.NoError(t, err)
-	t.Logf("create directory: %v", dir)
-	defer os.RemoveAll(dir)
-
-	err = log.Shared.ChangeLevel(log.LevelDebug)
-	require.NoError(t, err)
-
-	raw := []byte("fj2ojf392f2jflwejf92f93fu2o3jf32;fwjf")
-	src := filepath.Join(dir, "src")
-	srcFp, err := os.OpenFile(src, os.O_CREATE|os.O_RDWR, 0644)
-	require.NoError(t, err)
-	defer srcFp.Close()
-
-	_, err = srcFp.Write(raw)
-	require.NoError(t, err)
-
-	dst := filepath.Join(dir, "dst")
-	err = MoveFile(src, dst)
-	require.NoError(t, err)
-	err = MoveFile(src, dst)
-	require.Error(t, err)
-	err = CopyFile(src, dst)
-	require.Error(t, err)
-
-	err = srcFp.Close()
-	require.NoError(t, err)
-
-	got, err := os.ReadFile(dst)
-	require.NoError(t, err)
-
-	require.Equal(t, raw, got)
-
-	_, err = os.Stat(src)
-	require.True(t, os.IsNotExist(err))
-}
-
+// TestIsDirWritable verifies that IsDirWritable returns nil for two freshly created 0751 directories.
+// The directory named "notwritable" keeps owner write permission, so both probes are expected to
+// succeed.
 func TestIsDirWritable(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestIsDirWritable-*")
@@ -169,6 +115,8 @@ func TestIsDirWritable(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestIsDir verifies that IsDir returns false with an error for a nonexistent path and true without an
+// error for an existing directory.
 func TestIsDir(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestIsDir-*")
@@ -191,35 +139,8 @@ func TestIsDir(t *testing.T) {
 	}
 }
 
-func TestListFilesInDir(t *testing.T) {
-	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestListFilesInDir-*")
-	require.NoError(t, err)
-	t.Logf("create directory: %v", dir)
-	defer os.RemoveAll(dir)
-
-	err = os.MkdirAll(filepath.Join(dir, "dir1", "dir2"), 0751)
-	require.NoError(t, err)
-
-	_, err = os.OpenFile(filepath.Join(dir, "dir1", "file1"), os.O_CREATE, 0644)
-	require.NoError(t, err)
-
-	// case: exist
-	{
-		files, err := ListFilesInDir(dir)
-		require.NoError(t, err)
-		require.Len(t, files, 0)
-
-		files, err = ListFilesInDir(filepath.Join(dir, "dir1"))
-		require.NoError(t, err)
-		require.Len(t, files, 1)
-
-		files, err = ListFilesInDir(filepath.Join(dir, "notexist"))
-		require.Error(t, err)
-		require.Len(t, files, 0)
-	}
-}
-
+// TestNewTmpFileForContent verifies that NewTmpFileForContent writes the given bytes to a new temporary
+// file and returns a path whose content reads back unchanged.
 func TestNewTmpFileForContent(t *testing.T) {
 	t.Parallel()
 	cnt := "yahoo"
@@ -233,6 +154,9 @@ func TestNewTmpFileForContent(t *testing.T) {
 	require.Equal(t, cnt, string(got))
 }
 
+// BenchmarkFileSHA1 measures the per-call cost of FileMD5 and FileSHA1 when hashing a 1 MiB temporary
+// file.
+//
 // BenchmarkFileSHA1/md5_1MB-16         	     464	   2682812 ns/op	    4296 B/op	       7 allocs/op
 // BenchmarkFileSHA1/sha1_1MB-16        	     548	   2253516 ns/op	    4336 B/op	       7 allocs/op
 func BenchmarkFileSHA1(b *testing.B) {
@@ -256,6 +180,9 @@ func BenchmarkFileSHA1(b *testing.B) {
 	})
 }
 
+// TestWatchFileChanging verifies that WatchFileChanging delivers fsnotify.Write events naming the
+// watched files after both files are written, and that deleting and recreating a watched file with new
+// content produces further events within 1.5 seconds.
 func TestWatchFileChanging(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")
@@ -337,6 +264,8 @@ func TestWatchFileChanging(t *testing.T) {
 	})
 }
 
+// TestFileMD5 verifies that FileMD5 fails for a nonexistent path, returns the hex MD5 digest matching
+// crypto/md5 for a temporary file's content, and returns a different digest after data is appended.
 func TestFileMD5(t *testing.T) {
 	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
@@ -369,6 +298,9 @@ func TestFileMD5(t *testing.T) {
 	require.NotEqual(t, fhashed, fhashed2)
 }
 
+// TestIsFileATimeChanged verifies that IsFileATimeChanged fails for a nonexistent path and, after the
+// file is rewritten, reports changed=true together with the file's new modification time. Despite its
+// name, the function compares modification times.
 func TestIsFileATimeChanged(t *testing.T) {
 	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
@@ -401,6 +333,8 @@ func TestIsFileATimeChanged(t *testing.T) {
 	require.True(t, newATime.Equal(fi.ModTime()))
 }
 
+// TestFileSHA1 verifies that FileSHA1 returns the expected lowercase hex SHA-1 digest of a temporary
+// file holding a fixed string.
 func TestFileSHA1(t *testing.T) {
 	t.Parallel()
 	fp, err := os.CreateTemp("", "TestFileSHA1-*")
@@ -417,6 +351,8 @@ func TestFileSHA1(t *testing.T) {
 
 }
 
+// TestFileExists verifies that FileExists returns (false, nil) for a missing path and for a directory,
+// and (true, nil) for a regular file.
 func TestFileExists(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestFileExists-*")
@@ -452,6 +388,8 @@ func TestFileExists(t *testing.T) {
 	})
 }
 
+// TestRenderTemplate verifies that RenderTemplateFile reads a text/template file and renders it with
+// the given struct argument, producing "hello, laisky".
 func TestRenderTemplate(t *testing.T) {
 	t.Parallel()
 	const tpl = `hello, {{.Name}}`
@@ -470,127 +408,10 @@ func TestRenderTemplate(t *testing.T) {
 	require.Equal(t, "hello, laisky", string(got))
 }
 
-func TestReplaceFile(t *testing.T) {
-	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestReplaceFile-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
-
-	t.Run("replace exists file", func(t *testing.T) {
-		fpath := filepath.Join(dir, "fpath")
-		err := os.WriteFile(fpath, []byte(RandomStringWithLength(432)), 0600)
-		require.NoError(t, err)
-
-		cnt, err := RandomBytesWithLength(1024 * 1024)
-		require.NoError(t, err)
-		err = ReplaceFile(fpath, cnt, 0640)
-		require.NoError(t, err)
-
-		finfo, err := os.Stat(fpath)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0640), finfo.Mode())
-
-		got, err := os.ReadFile(fpath)
-		require.NoError(t, err)
-		require.Equal(t, cnt, got)
-	})
-
-	t.Run("replace non-exists file", func(t *testing.T) {
-		fpath := filepath.Join(dir, "nonexists")
-		cnt, err := RandomBytesWithLength(1024 * 1024)
-		require.NoError(t, err)
-
-		err = ReplaceFile(fpath, cnt, 0640)
-		require.NoError(t, err)
-
-		finfo, err := os.Stat(fpath)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0640), finfo.Mode())
-
-		got, err := os.ReadFile(fpath)
-		require.NoError(t, err)
-		require.Equal(t, cnt, got)
-	})
-}
-
-func TestReplaceFileStream(t *testing.T) {
-	t.Parallel()
-	dir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
-
-	dst := filepath.Join(dir, "dst")
-	err = os.WriteFile(dst, []byte(RandomStringWithLength(432)), 0600)
-	require.NoError(t, err)
-
-	src := filepath.Join(dir, "src")
-	cnt, err := RandomBytesWithLength(1024 * 1024)
-	require.NoError(t, err)
-
-	err = os.WriteFile(src, cnt, 0644)
-	require.NoError(t, err)
-
-	srcfp, err := os.Open(src)
-	require.NoError(t, err)
-	defer srcfp.Close()
-
-	err = ReplaceFileStream(dst, srcfp, 0640)
-	require.NoError(t, err)
-
-	finfo, err := os.Stat(dst)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0640), finfo.Mode())
-
-	got, err := os.ReadFile(dst)
-	require.NoError(t, err)
-	require.Equal(t, cnt, got)
-}
-
-// TestReplaceFileAtomicExclSwap is a regression test for the O_EXCL hardening:
-// the swap file is created with O_CREATE|O_EXCL so it refuses to follow a
-// pre-existing file/symlink at the swap path. This verifies legitimate
-// create/replace behavior is unaffected by that change.
-func TestReplaceFileAtomicExclSwap(t *testing.T) {
-	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestReplaceFileAtomicExclSwap-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
-
-	t.Run("ReplaceFile creates new file", func(t *testing.T) {
-		fpath := filepath.Join(dir, "create")
-		cnt := []byte("brand-new-content")
-		require.NoError(t, ReplaceFile(fpath, cnt, 0640))
-
-		got, err := os.ReadFile(fpath)
-		require.NoError(t, err)
-		require.Equal(t, cnt, got)
-	})
-
-	t.Run("ReplaceFile replaces existing file", func(t *testing.T) {
-		fpath := filepath.Join(dir, "replace")
-		require.NoError(t, os.WriteFile(fpath, []byte("old"), 0600))
-
-		cnt := []byte("replaced-content")
-		require.NoError(t, ReplaceFile(fpath, cnt, 0640))
-
-		got, err := os.ReadFile(fpath)
-		require.NoError(t, err)
-		require.Equal(t, cnt, got)
-	})
-
-	t.Run("ReplaceFileAtomic creates and replaces", func(t *testing.T) {
-		fpath := filepath.Join(dir, "atomic")
-		require.NoError(t, os.WriteFile(fpath, []byte("old"), 0600))
-
-		cnt := []byte("atomic-replaced-content")
-		require.NoError(t, ReplaceFileAtomic(fpath, io.NopCloser(bytes.NewReader(cnt)), 0640))
-
-		got, err := os.ReadFile(fpath)
-		require.NoError(t, err)
-		require.Equal(t, cnt, got)
-	})
-}
-
+// TestFilepathJoin verifies JoinFilepath with table cases: an empty argument list is rejected, children
+// are joined and cleaned beneath the base (including "../" that stays inside it), parent components
+// that escape the base return an "escaped basedir" error, an empty first base is always rejected, and
+// an absolute base is joined normally.
 func TestFilepathJoin(t *testing.T) {
 	t.Parallel()
 	type args struct {

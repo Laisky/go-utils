@@ -17,7 +17,10 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-// HashSHA128String calculate string's hash by sha256
+// HashSHA128String calculates the SHA-1 digest of val and returns it as a lowercase hex string.
+//
+// Despite its name, this function uses SHA-1 (a 160-bit digest), not SHA-256; SHA-1 is not
+// collision resistant and must not be used for security decisions.
 //
 // Deprecated: use Hash instead
 func HashSHA128String(val string) string {
@@ -25,7 +28,7 @@ func HashSHA128String(val string) string {
 	return hex.EncodeToString(b[:])
 }
 
-// HashSHA256String calculate string's hash by sha256
+// HashSHA256String calculates the SHA-256 digest of val and returns it as a lowercase hex string.
 //
 // Deprecated: use Hash instead
 func HashSHA256String(val string) string {
@@ -33,7 +36,8 @@ func HashSHA256String(val string) string {
 	return hex.EncodeToString(b[:])
 }
 
-// HashXxhashString calculate string's hash by xxhash
+// HashXxhashString calculates the non-cryptographic xxhash (64-bit) digest of val and returns it
+// as a lowercase hex string.
 //
 // Deprecated: use Hash instead
 func HashXxhashString(val string) string {
@@ -42,16 +46,17 @@ func HashXxhashString(val string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// HashTypeInterface hashs
+// HashTypeInterface selects a hash algorithm: String returns the algorithm name and Hasher
+// returns a fresh hash state for it, or an error if the algorithm is unsupported.
 type HashTypeInterface interface {
 	String() string
 	Hasher() (hash.Hash, error)
 }
 
-// HashType hashs
+// HashType is the string name of a built-in hash algorithm such as HashTypeSha256.
 type HashType string
 
-// String name of hash
+// String returns the algorithm name stored in h.
 func (h HashType) String() string {
 	return string(h)
 }
@@ -114,7 +119,9 @@ const (
 	// HashTypeSha3With512 HashType = "sha3-512"
 )
 
-// Hash generate signature by hash
+// Hash computes the digest of content with the algorithm selected by hashType.
+// It reads content until EOF and returns the raw digest bytes, or an error if the
+// hasher is unknown or reading content fails.
 func Hash(hashType HashTypeInterface, content io.Reader) (signature []byte, err error) {
 	hasher, err := hashType.Hasher()
 	if err != nil {
@@ -128,7 +135,9 @@ func Hash(hashType HashTypeInterface, content io.Reader) (signature []byte, err 
 	return hasher.Sum(nil), nil
 }
 
-// HashVerify verify by hash
+// HashVerify computes the digest of content with the algorithm selected by hashType and
+// compares it with signature in constant time. It returns nil when they match, or an error
+// if the hasher is unknown, reading content fails, or the digests differ.
 func HashVerify(hashType HashTypeInterface, content io.Reader, signature []byte) (err error) {
 	hasher, err := hashType.Hasher()
 	if err != nil {

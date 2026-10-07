@@ -11,6 +11,8 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestTimeZone verifies that a time parsed with a +10:00 offset reports a zero offset in TimeZoneUTC and a +08:00
+// offset in both TimeZoneShanghai and the location loaded from "Asia/Shanghai".
 func TestTimeZone(t *testing.T) {
 	ts := "2021-10-24T20:00:00+10:00"
 	tt, err := time.Parse(time.RFC3339, ts)
@@ -34,6 +36,8 @@ func TestTimeZone(t *testing.T) {
 	require.Equal(t, 8*3600, offset)
 }
 
+// TestParseTs2String verifies that ParseTs2String formats several Unix timestamps as the expected RFC 3339 UTC
+// strings.
 func TestParseTs2String(t *testing.T) {
 	var (
 		got    string
@@ -52,6 +56,8 @@ func TestParseTs2String(t *testing.T) {
 	}
 }
 
+// TestTimeCompare verifies that RFC 3339 parsing keeps fractional seconds, so times 123ms apart are not equal
+// until truncated to the second, and that ParseTimeWithTruncate performs that truncation.
 func TestTimeCompare(t *testing.T) {
 	str1 := "2019-10-12T02:03:14Z"
 	str2 := "2019-10-12T02:03:14.123Z"
@@ -80,6 +86,8 @@ func TestTimeCompare(t *testing.T) {
 	})
 }
 
+// TestParseUnix2UTC verifies that ParseUnix2UTC and ParseUnixNano2UTC convert second and nanosecond Unix
+// timestamps into the expected UTC times.
 func TestParseUnix2UTC(t *testing.T) {
 	ut := int64(1570845794)
 	ts := ParseUnix2UTC(ut).Format(time.RFC3339)
@@ -94,6 +102,8 @@ func TestParseUnix2UTC(t *testing.T) {
 	}
 }
 
+// TestParseHex2UTC verifies that ParseHex2UTC and ParseHexNano2UTC decode hexadecimal second and nanosecond
+// Unix timestamps into the expected UTC times.
 func TestParseHex2UTC(t *testing.T) {
 	hex := "5da140b4"
 	ts, err := ParseHex2UTC(hex)
@@ -138,6 +148,8 @@ func TestParseHex2UTC(t *testing.T) {
 // 	t.Errorf("%+v - %+v", ts, ts.Format("2006-01-02 15:04:05.999"))
 // }
 
+// ExampleClock demonstrates reading the current UTC time and RFC 3339 string from the shared Clock, changing its
+// refresh interval with SetInternalClock, and creating a separate clock with NewClock.
 func ExampleClock() {
 	// use internal clock
 	// get utc now
@@ -154,6 +166,9 @@ func ExampleClock() {
 	c.GetUTCNow()
 }
 
+// TestClock verifies that a ClockT with a 100ms interval reports that interval, returns a cached time that stays
+// unchanged within one interval and advances after it, produces hex and nanosecond-hex strings that decode back
+// to the cached time, returns no error from GetDate, and can be stopped by canceling its context or by Close.
 func TestClock(t *testing.T) {
 	ctx := context.Background()
 	c := NewClock(ctx, 100*time.Millisecond)
@@ -244,6 +259,8 @@ func TestClock(t *testing.T) {
 	}
 }
 
+// Benchmark_time measures the baseline cost of time.Now, time.Now().UTC, time.Unix, time.Unix(...).UTC, and
+// time.Unix(...).UTC with an atomically loaded timestamp.
 func Benchmark_time(b *testing.B) {
 	b.Run("normal time", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -284,6 +301,9 @@ func Benchmark_time(b *testing.B) {
 // 	}
 // }
 
+// BenchmarkClock measures ClockT.GetUTCNow with refresh intervals from 500ms down to 1us, using
+// time.Now().UTC() as the baseline.
+//
 /*
 goos: linux
 goarch: amd64
@@ -369,6 +389,8 @@ func BenchmarkClock(b *testing.B) {
 	})
 }
 
+// TestSetupClock verifies that SetInternalClock accepts a 100ms interval and panics for a 1ns interval, and that
+// NewClock and ClockT.SetInterval panic with "interval must greater than 1us" for sub-microsecond intervals.
 func TestSetupClock(t *testing.T) {
 	SetInternalClock(100 * time.Millisecond)
 
@@ -397,6 +419,8 @@ func TestSetupClock(t *testing.T) {
 	})
 }
 
+// TestSleepWithContext verifies that SleepWithContext sleeps for the full duration with a background context and
+// returns shortly after the context's 10ms timeout instead of sleeping for an hour.
 func TestSleepWithContext(t *testing.T) {
 	t.Run("normal sleep", func(t *testing.T) {
 		startAt := time.Now()
@@ -414,6 +438,8 @@ func TestSleepWithContext(t *testing.T) {
 	})
 }
 
+// TestTimeEqual verifies that TimeEqual with a one-second tolerance treats times 123ms apart as equal, even with
+// different time zone offsets, and treats times 1.123s apart as not equal.
 func TestTimeEqual(t *testing.T) {
 	t.Parallel()
 

@@ -25,6 +25,8 @@ const (
 	testhashraw = "dfij3ifj2jjl2jelkjdkwef"
 )
 
+// TestHashSHA128String verifies that HashSHA128String returns the expected lowercase hex SHA-1 digest of a
+// fixed test input.
 func TestHashSHA128String(t *testing.T) {
 	t.Parallel()
 	val := testhashraw
@@ -33,12 +35,16 @@ func TestHashSHA128String(t *testing.T) {
 		t.Fatalf("got: %v", got)
 	}
 }
+
+// ExampleHashSHA128String demonstrates hashing a string with HashSHA128String and logging the hex digest.
 func ExampleHashSHA128String() {
 	val := testhashraw
 	got := HashSHA128String(val)
 	log.Shared.Info("hash", zap.String("got", got))
 }
 
+// TestHashSHA256String verifies that HashSHA256String returns the expected lowercase hex SHA-256 digest of a
+// fixed test input, and that a streaming sha256 hasher yields the same digest as sha256.Sum256.
 func TestHashSHA256String(t *testing.T) {
 	t.Parallel()
 	val := testhashraw
@@ -60,12 +66,15 @@ func TestHashSHA256String(t *testing.T) {
 	})
 }
 
+// ExampleHashSHA256String demonstrates hashing a string with HashSHA256String and logging the hex digest.
 func ExampleHashSHA256String() {
 	val := testhashraw
 	got := HashSHA256String(val)
 	log.Shared.Info("hash", zap.String("got", got))
 }
 
+// TestHashXxhashString verifies that HashXxhashString returns the expected 16-character hex xxhash64 digest of a
+// fixed test input.
 func TestHashXxhashString(t *testing.T) {
 	t.Parallel()
 	val := testhashraw
@@ -75,6 +84,7 @@ func TestHashXxhashString(t *testing.T) {
 	}
 }
 
+// ExampleHashXxhashString demonstrates hashing a string with HashXxhashString and logging the hex digest.
 func ExampleHashXxhashString() {
 	val := testhashraw
 	got := HashXxhashString(val)

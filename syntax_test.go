@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Benchmark_excape measures the cost of heap escape versus stack allocation by comparing closures that return a
+// pointer to a local int, string, or struct (forcing it to escape) with closures that return the value itself.
+//
 /*
 goos: linux
 goarch: amd64
@@ -86,6 +89,8 @@ func Benchmark_excape(b *testing.B) {
 	})
 }
 
+// Test_DeferErr documents a named-return pitfall: a deferred cleanup that assigns to the named err result overwrites
+// the io.EOF being returned, so the test asserts that the function actually returns nil.
 func Test_DeferErr(t *testing.T) {
 	doSomeCleanning := func() error { return nil }
 

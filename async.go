@@ -122,7 +122,8 @@ func (s *AsyncTaskStoreMemory) Heartbeat(_ context.Context, _ string) (alived bo
 	return true, nil
 }
 
-// asyncTask async task
+// AsyncTaskInterface describes an async task: it exposes the task's ID and current status,
+// and lets the owner mark the task as done with result data or as failed with an error message.
 type AsyncTaskInterface interface {
 	// ID get task id
 	ID() string
@@ -142,9 +143,15 @@ type AsyncTask struct {
 	cancel func()
 }
 
-// NewTask new async task
+// NewAsyncTask creates a new async task backed by store and returns it in the pending status.
 //
-// ctx must keep alive for whole lifecycle of AsyncTask
+// It derives a cancelable context from ctx, asks store.New for a fresh AsyncTaskResult (whose TaskID becomes the
+// task ID), forces its status to pending, persists it with store.Set, and then starts a background goroutine that
+// sends a heartbeat to store every 10 seconds. The heartbeat stops when ctx is canceled, when SetDone or SetError
+// finishes the task, or when store reports the task is no longer alive.
+//
+// ctx must keep alive for whole lifecycle of AsyncTask, because canceling it stops the heartbeat and is also
+// passed to the store calls made here. It returns a nil task and a wrapped error if store.New or store.Set fails.
 func NewAsyncTask(ctx context.Context, store AsyncTaskStoreInterface) (
 	*AsyncTask, error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -174,6 +181,11 @@ func NewAsyncTask(ctx context.Context, store AsyncTaskStoreInterface) (
 	return t, nil
 }
 
+// heartbeat periodically refreshes the task's liveness in its store until the task ends.
+//
+// It loops until ctx is done, calling store.Heartbeat for the task ID and then sleeping 10 seconds (the sleep is
+// interrupted early if ctx is canceled). A heartbeat error is logged and the loop keeps going; if the store reports
+// the task is no longer alive, the loop stops. It is meant to run in its own goroutine and returns nothing.
 func (t *AsyncTask) heartbeat(ctx context.Context) {
 	for {
 		select {

@@ -16,6 +16,9 @@ func NewFlock(lockFilePath string) (FLock, error) {
 	}, nil
 }
 
+// Unlock releases the file lock by closing the descriptor opened by Lock, which drops the process's fcntl lock,
+// and then removes the lock file on a best-effort basis, ignoring any unlink failure.
+// It returns a wrapped error if closing the descriptor fails, for example when Lock never opened the file.
 func (f *flock) Unlock() error {
 	if err := syscall.Close(f.fd); err != nil {
 		return errors.Wrap(err, "close file")
@@ -25,6 +28,12 @@ func (f *flock) Unlock() error {
 	return nil
 }
 
+// Lock creates (if needed) and opens the lock file at f.fpath with mode 0666 (subject to umask) and then tries to
+// acquire an exclusive, non-blocking fcntl write lock (F_SETLK) over the whole file.
+// The lock is an advisory POSIX record lock owned by the process, so another Lock on the same file from the same
+// process also succeeds, while a lock held by another process makes this call fail immediately instead of waiting.
+// It returns a wrapped error if the file cannot be opened, the descriptor is invalid, or the lock cannot be
+// acquired; the opened descriptor is kept in f.fd even when acquiring the lock fails.
 func (f *flock) Lock() (err error) {
 	f.fd, err = syscall.Open(f.fpath, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC, 0666)
 	if err != nil {

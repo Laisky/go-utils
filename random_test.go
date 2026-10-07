@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRandomStringWithLength verifies that RandomStringWithLength and SecRandomStringWithLength both return strings
+// of exactly the requested length for ten random lengths in [0, 1000).
 func TestRandomStringWithLength(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		n, err := SecRandInt(1000)
@@ -23,6 +25,9 @@ func TestRandomStringWithLength(t *testing.T) {
 	}
 }
 
+// TestRandomBoundsValidation verifies the length bounds of the random helpers: negative lengths and lengths above
+// maxRandomLength make RandomBytesWithLength, SecRandomBytesWithLength, and SecRandomStringWithLength return an
+// error and make RandomStringWithLength return an empty string, while a zero length yields an empty result.
 func TestRandomBoundsValidation(t *testing.T) {
 	t.Parallel()
 
@@ -69,6 +74,8 @@ func TestRandomBoundsValidation(t *testing.T) {
 	require.Equal(t, "", RandomStringWithLength(0))
 }
 
+// TestSecRandIntValidation verifies that SecRandInt rejects a zero or negative upper bound with an
+// "upper bound must be positive" error and returns a value in [0, 10) for an upper bound of 10.
 func TestSecRandIntValidation(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +94,8 @@ func TestSecRandIntValidation(t *testing.T) {
 	require.True(t, v >= 0 && v < 10)
 }
 
+// TestRandomChoice verifies that RandomChoice returns exactly n elements for 1000 random values of n in [0, 10000)
+// when selecting from a 10000-element slice.
 func TestRandomChoice(t *testing.T) {
 	var arr []int64
 	for i := 0; i < 10000; i++ {
@@ -101,8 +110,11 @@ func TestRandomChoice(t *testing.T) {
 	}
 }
 
+// BenchmarkRandomChoice measures the time and allocations of RandomChoice selecting 100 elements from a
+// 10000-element int64 slice.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
-// BenchmarkRandomChoice/run-16         	    8062	    130228 ns/op	    7472 B/op	      10 allocs/op
+// BenchmarkRandomChoice/run-16        	    8062	    130228 ns/op	    7472 B/op	      10 allocs/op
 func BenchmarkRandomChoice(b *testing.B) {
 	var arr []int64
 	for i := 0; i < 10000; i++ {
