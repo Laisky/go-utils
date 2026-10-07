@@ -28,6 +28,9 @@ import (
 type Tongsuo struct {
 	exePath         string
 	serialGenerator *DefaultX509CertSerialNumGenerator
+	// exactValidity reports whether both `x509` and `req` accept
+	// -not_before/-not_after, detected once by NewTongsuo.
+	exactValidity bool
 }
 
 // NewTongsuo new tongsuo wrapper
@@ -50,6 +53,10 @@ func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
 	} else if !strings.Contains(string(out), "Tongsuo") {
 		return nil, errors.Errorf("only support Tongsuo")
 	}
+
+	// detect exact validity support once; older binaries fall back to a
+	// conservative whole-day encoding that never extends NotAfter
+	ins.exactValidity = ins.probeExactValidity(context.Background())
 
 	// new serial number generator
 	if ins.serialGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
@@ -181,7 +188,11 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 // NewX509CertByCSR signs csrDer with the parent CA certificate and private
 // key through the tongsuo binary and returns the issued certificate DER.
 //
-// The issued certificate is parsed before it is returned and must carry
+// The validity window is validated before issuance (zero, past, empty and
+// inverted windows are rejected) and encoded exactly with -not_before and
+// -not_after when the binary supports them, or as conservative whole days
+// otherwise; NotAfter is never extended. The issued certificate is parsed
+// before it is returned and must lie within the requested validity and carry
 // exactly the requested extended key usages (x509.ExtKeyUsageAny stays the
 // single anyExtendedKeyUsage OID); otherwise an error is returned and no
 // certificate bytes are exposed.

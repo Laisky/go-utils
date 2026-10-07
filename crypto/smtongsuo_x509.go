@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
-	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/emmansun/gmsm/smx509"
@@ -21,6 +19,8 @@ type tongsuoIssuanceExpectation struct {
 	// extKeyUsages is the exact, canonical extended key usage list expected
 	// when checkExtKeyUsages is set; nil means no EKU extension.
 	extKeyUsages []x509.ExtKeyUsage
+	// validity, when set, bounds the issued NotBefore/NotAfter.
+	validity *tongsuoValidity
 }
 
 // verifyTongsuoIssuedCert parses certDer with the SM2-capable parser and checks
@@ -31,6 +31,12 @@ func verifyTongsuoIssuedCert(certDer []byte, want tongsuoIssuanceExpectation) er
 	cert, err := smx509.ParseCertificate(certDer)
 	if err != nil {
 		return errors.Wrap(err, "parse issued certificate")
+	}
+
+	if want.validity != nil {
+		if err = want.validity.verify(cert); err != nil {
+			return errors.Wrap(err, "verify issued validity")
+		}
 	}
 
 	if want.checkExtKeyUsages {
@@ -56,8 +62,15 @@ func verifyTongsuoIssuedCert(certDer []byte, want tongsuoIssuanceExpectation) er
 // the tongsuo binary and returns its DER.
 //
 // Extended key usages are emitted exactly as requested; without an explicit
-// request a non-CA certificate carries exactly anyExtendedKeyUsage. The issued
-// certificate is parsed and verified before it is returned.
+// request a non-CA certificate carries exactly anyExtendedKeyUsage.
+//
+// The validity window is validated against one captured clock value before
+// issuance: zero, past (NotAfter <= now), empty and inverted windows are
+// rejected. Binaries supporting -not_before/-not_after receive the exact UTC
+// bounds (truncated to whole seconds); older binaries receive a conservative
+// whole-day -days value and requests that cannot be represented without
+// extending NotAfter are rejected. The issued certificate is parsed and its
+// validity and EKUs are verified before any bytes are returned.
 //
 //	tongsuo req -out rootca.crt -outform PEM -key rootca.key \
 //	    -set_serial 123456 \
@@ -81,6 +94,10 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
 	}
+	validity, validityArgs, err := t.validityArgs(opt.notBefore, opt.notAfter)
+	if err != nil {
+		return nil, errors.Wrap(err, "validity")
+	}
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
@@ -97,17 +114,18 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	outCertPemPath := filepath.Join(dir, "rootca.pem")
 
 	// new root ca
-	if _, err = t.runCMD(ctx, []string{
+	args := slices.Concat([]string{
 		tongsuoCmdReq, tongsuoFlagOutform, "PEM", tongsuoFlagOut, outCertPemPath,
 		"-key", tongsuoStdinPath,
 		"-set_serial", tpl.SerialNumber.String(),
-		"-days", strconv.Itoa(1 + int(time.Until(opt.notAfter)/time.Hour/24)),
+	}, validityArgs, []string{
 		"-x509", "-new", "-nodes", "-utf8", "-batch",
 		tongsuoDigestSM3,
 		"-copy_extensions", "copyall",
 		"-extensions", "v3_ca",
 		tongsuoFlagConfig, confPath,
-	}, prikeyPem); err != nil {
+	})
+	if _, err = t.runCMD(ctx, args, prikeyPem); err != nil {
 		return nil, errors.Wrap(err, "generate new root ca")
 	}
 
@@ -123,6 +141,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if err = verifyTongsuoIssuedCert(certDer, tongsuoIssuanceExpectation{
 		checkExtKeyUsages: true,
 		extKeyUsages:      extKeyUsages,
+		validity:          &validity,
 	}); err != nil {
 		return nil, errors.Wrap(err, "verify issued certificate")
 	}
@@ -167,10 +186,12 @@ func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509
 	return csrDer, nil
 }
 
-// signX509CSR implements Tongsuo.NewX509CertByCSR: it signs csrDer with the
-// parent certificate and key through `tongsuo x509 -req`, then verifies the
-// issued certificate before returning its DER. Explicitly requested extended
-// key usages must appear exactly; otherwise an error is returned.
+// signX509CSR implements Tongsuo.NewX509CertByCSR: it validates the requested
+// validity window, signs csrDer with the parent certificate and key through
+// `tongsuo x509 -req`, then verifies the issued certificate before returning
+// its DER. The issued validity must lie within the request and explicitly
+// requested extended key usages must appear exactly; otherwise an error is
+// returned.
 func (t *Tongsuo) signX509CSR(ctx context.Context,
 	parentCertDer []byte,
 	parentPrikeyPem []byte,
@@ -183,6 +204,10 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	extKeyUsages, err := canonicalExtKeyUsages(opt.extKeyUsage)
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
+	}
+	validity, validityArgs, err := t.validityArgs(opt.notBefore, opt.notAfter)
+	if err != nil {
+		return nil, errors.Wrap(err, "validity")
 	}
 
 	// select the digest from the parsed parent key, never from display text
@@ -216,15 +241,16 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 
 	outCertDerPath := filepath.Join(dir, "cert.der")
 
-	if _, err = t.runCMD(ctx, []string{
+	args := slices.Concat([]string{
 		tongsuoCmdX509, "-req", tongsuoFlagOutform, tongsuoFormatDER, tongsuoFlagOut, outCertDerPath,
 		tongsuoFlagIn, csrDerPath, tongsuoFlagInform, tongsuoFormatDER,
 		"-CA", parentCertDerPath, "-CAkey", tongsuoStdinPath, "-CAcreateserial",
-		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
+	}, validityArgs, []string{
 		digestAlgo,
 		"-copy_extensions", "copyall",
 		"-extfile", confPath, "-extensions", "v3_ca",
-	}, parentPrikeyPem); err != nil {
+	})
+	if _, err = t.runCMD(ctx, args, parentPrikeyPem); err != nil {
 		return nil, errors.Wrap(err, "run tongsuo x509 -req")
 	}
 
@@ -237,6 +263,7 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	if err = verifyTongsuoIssuedCert(certDer, tongsuoIssuanceExpectation{
 		checkExtKeyUsages: len(extKeyUsages) != 0,
 		extKeyUsages:      extKeyUsages,
+		validity:          &validity,
 	}); err != nil {
 		return nil, errors.Wrap(err, "verify issued certificate")
 	}
