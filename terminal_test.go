@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestInputYes verifies InputYes by replacing os.Stdin with a temp file of mocked input: "y" or "Y" and empty input
+// (a bare newline or EOF) return true, while "n" or "N" with or without a trailing newline return false, all
+// without error.
 func TestInputYes(t *testing.T) {
 	type args struct {
 		question string

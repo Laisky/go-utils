@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewAsyncTask verifies that two tasks created on the same memory store get distinct IDs and start pending,
+// that SetDone marks a task done and persists its data, and that SetError marks a task failed and persists its
+// error message in the store.
 func TestNewAsyncTask(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// TestColor verifies that Color wraps a string in the bold ANSI escape sequence for the given color code and
+// appends the reset sequence, using the red foreground color as the table case.
 func TestColor(t *testing.T) {
 	t.Parallel()
 

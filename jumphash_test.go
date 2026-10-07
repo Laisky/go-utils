@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestJumpHash verifies that JumpHash maps fixed keys to the expected buckets for 10 and MaxInt32 buckets, and
+// returns an error when numBuckets is zero, negative, or exceeds MaxInt32.
 func TestJumpHash(t *testing.T) {
 	t.Parallel()
 
@@ -75,6 +77,8 @@ func TestJumpHash(t *testing.T) {
 	}
 }
 
+// TestJumpHashConsistency verifies that JumpHash is deterministic: 100 repeated calls with the same key and bucket
+// count all succeed and return the same bucket as the first call.
 func TestJumpHashConsistency(t *testing.T) {
 	t.Parallel()
 

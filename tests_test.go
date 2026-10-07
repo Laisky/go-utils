@@ -113,6 +113,9 @@ func (t *MockTB) Private() {
 	fmt.Println("private")
 }
 
+// TestNewGoroutineTest verifies that calling Fail on a GoroutineTest from another goroutine invokes its cancel
+// function, unblocking the waiting subtest, and that the failure is recorded on the wrapped MockTB rather than on
+// the real subtest, which therefore still passes.
 func TestNewGoroutineTest(t *testing.T) {
 	testInGoroutine := func(t testing.TB) {
 		time.Sleep(time.Second)

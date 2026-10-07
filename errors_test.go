@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestErrorsIs verifies that an error wrapped by Wrap still matches the original io.EOF through errors.Is.
 func TestErrorsIs(t *testing.T) {
 	t.Parallel()
 
