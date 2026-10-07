@@ -113,7 +113,9 @@ func md5DirFiles(ctx context.Context, files []string, targetDir string, remain b
 // conflict. It takes the context, the source path, the target directory and the
 // remain flag, and returns whether a conflict was preserved or a hard error.
 func placeMd5File(ctx context.Context, f, targetDir string, remain bool) (conflict bool, err error) {
-	hashedBytes, err := gutils.FileHash(gutils.HashTypeMD5, f)
+	// Hash under ctx so cancellation stops before any destination is touched.
+	// A zero byte cap selects gutils.DefaultFileHashMaxBytes, as FileHash does.
+	hashedBytes, err := gutils.FileHashWithContext(ctx, gutils.HashTypeMD5, f, 0)
 	if err != nil {
 		return false, errors.Wrapf(err, "calculate hash for file %q", f)
 	}
