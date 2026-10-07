@@ -252,44 +252,64 @@ func WithRateLimiterStateManager(manager RateLimiterStateManager) RateLimiterOpt
 	}
 }
 
-// runWithCtx start throttle with context
+// runWithCtx starts the refill loop driven by a real ticker. The ctx argument
+// stops the loop when canceled.
 func (t *RateLimiter) runWithCtx(ctx context.Context) {
 	defer log.Shared.Debug("throttle exit")
 
-	var (
-		nPerBatch float64
-		interval  time.Duration
-	)
-	switch {
-	case t.NPerSec <= 10000:
-		nPerBatch = float64(t.NPerSec) / 10
-		interval = 100 * time.Millisecond
-	default:
-		nPerBatch = float64(t.NPerSec) / 100
+	interval := 100 * time.Millisecond
+	if t.NPerSec > 10000 {
 		interval = 10 * time.Millisecond
 	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	var pending float64
+	t.refillLoop(ctx, ticker.C, time.Now)
+}
 
+// refillLoop adds tokens each time ticks fires until ctx is canceled or the
+// limiter is closed. The now argument supplies the monotonic clock.
+//
+// The refill amount is proportional to the time elapsed since the previous
+// refill rather than to the number of ticks received: time.Ticker drops ticks
+// for a slow receiver, so counting ticks under-delivers the configured rate
+// whenever this goroutine is delayed. Pending fractional tokens are carried
+// over and capped at Max so a long stall cannot accumulate unbounded credit.
+func (t *RateLimiter) refillLoop(ctx context.Context, ticks <-chan time.Time, now func() time.Time) {
+	last := now()
+	var pending float64
 	for {
 		select {
-		case <-ticker.C:
-			pending += nPerBatch
+		case <-ticks:
 		case <-ctx.Done():
 			return
 		case <-t.stopChan:
 			return
 		}
 
-		tokensToAdd := int(pending)
+		current := now()
+		elapsed := current.Sub(last)
+		if elapsed <= 0 {
+			continue
+		}
+		last = current
+
+		pending += elapsed.Seconds() * float64(t.NPerSec)
+		if pending > float64(t.Max) {
+			pending = float64(t.Max)
+		}
+
+		// A tiny epsilon absorbs float rounding so that, for example, ten
+		// 100ms refills at 3/s yield exactly 3 tokens instead of 2.
+		tokensToAdd := int(pending + 1e-9)
 		if tokensToAdd <= 0 {
 			continue
 		}
-
 		pending -= float64(tokensToAdd)
+		if pending < 0 {
+			pending = 0
+		}
 
 		if _, err := t.stateManager.AddTokens(ctx, tokensToAdd); err != nil {
 			log.Shared.Warn("ratelimiter add tokens", zap.Int("tokens", tokensToAdd), zap.Error(err))
