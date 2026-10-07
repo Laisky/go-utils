@@ -72,6 +72,22 @@ func verifyTongsuoIssuedCert(certDer []byte, want tongsuoIssuanceExpectation) er
 	return nil
 }
 
+// NewPrikeyAndCert generate new private key and root ca
+func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (
+	prikeyPem, certDer []byte, err error) {
+	// new private key
+	if prikeyPem, err = t.NewPrikey(ctx); err != nil {
+		return nil, nil, errors.Wrap(err, "new private key")
+	}
+
+	certDer, err = t.NewX509Cert(ctx, prikeyPem, opts...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new root ca")
+	}
+
+	return prikeyPem, certDer, nil
+}
+
 // NewX509Cert generates a self-signed x509 certificate for prikeyPem through
 // the tongsuo binary and returns its DER.
 //

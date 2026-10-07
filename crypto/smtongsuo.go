@@ -158,22 +158,6 @@ func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (
 	return pubkeyPem, nil
 }
 
-// NewPrikeyAndCert generate new private key and root ca
-func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (
-	prikeyPem, certDer []byte, err error) {
-	// new private key
-	if prikeyPem, err = t.NewPrikey(ctx); err != nil {
-		return nil, nil, errors.Wrap(err, "new private key")
-	}
-
-	certDer, err = t.NewX509Cert(ctx, prikeyPem, opts...)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "new root ca")
-	}
-
-	return prikeyPem, certDer, nil
-}
-
 // NewX509CertByCSR signs csrDer with the parent CA certificate and private
 // key through the tongsuo binary and returns the issued certificate DER.
 //
