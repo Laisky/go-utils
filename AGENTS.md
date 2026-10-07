@@ -19,7 +19,7 @@
 - **Testing policy:** Create and update unit tests for new features and bug fixes; avoid one‑off scripts; continuously improve test coverage.
 - **Test assertions:** Use `github.com/stretchr/testify/require` for assertions in tests.
 - **Comments requirement:** Every function and interface must have a comment that starts with the function/interface name and describes purpose, parameters, and return values in complete sentences.
-- **Go version and style:** Target **Go 1.26** (go.mod minimum `go 1.26.5`, which carries the os.Root CVE-2026-39822 fix); use modern Go syntax and features where appropriate.
+- **Go version and style:** The module must support **every Go 1.26 release** (go.mod `go 1.26.0`, no `toolchain` line, so local 1.26.x toolchains such as `/opt/go1.26.6` build it without auto-downloading); verify with `GOTOOLCHAIN=local` on a 1.26 toolchain as well as the latest release, and build production binaries with the latest patched 1.26.x. Use modern Go syntax and features available in Go 1.26.
 - **Context propagation:** Thread `context.Context` through call chains whenever feasible to manage lifecycles and cancellations.
 - **Error handling—proximity:** Handle errors as close to their source as possible; never ignore errors.
 - **Error handling—avoid `err == nil` pitfalls:** Avoid patterns that risk shadowing; be explicit and clear when checking errors.

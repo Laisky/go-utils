@@ -1,6 +1,6 @@
 module test_gmssl
 
-go 1.26.5
+go 1.26.0
 
 require (
 	github.com/GmSSL/GmSSL-Go v1.3.1

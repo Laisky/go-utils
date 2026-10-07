@@ -1,8 +1,6 @@
 module github.com/Laisky/go-utils/v6
 
-go 1.26.5
-
-toolchain go1.26.8
+go 1.26.0
 
 require (
 	github.com/Laisky/errors/v2 v2.0.1

@@ -33,7 +33,7 @@ content is cross-checked with gmsm in the parent module.
 
 ## Prerequisites
 
-- Go matching the parent module (`go 1.26.5` or newer) and a C toolchain (cgo).
+- Go 1.26 or newer (matching the parent module) and a C toolchain (cgo).
 - Tongsuo 8.5.x: the `tongsuo` binary on `PATH`, plus its headers and
   `libcrypto` (tested with Tongsuo 8.5.0 installed in `/opt/tongsuo`).
 - GmSSL 3.1.1, the release GmSSL-Go v1.3.1 is built against. Install it into a

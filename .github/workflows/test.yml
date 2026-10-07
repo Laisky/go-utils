@@ -33,7 +33,9 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # go.mod declares the Go 1.26 floor; lint and scan with the latest
+          # 1.26 patch so govulncheck sees a patched standard library.
+          go-version: '1.26.x'
           cache: true
 
       - name: Check formatting
@@ -64,6 +66,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # The module supports every Go 1.26 release and newer; test the latest
+        # 1.26 patch and the current stable release.
+        go: ['1.26.x', 'stable']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,7 +79,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go }}
           cache: true
 
       - name: Restore Tongsuo
@@ -104,7 +112,7 @@ jobs:
         run: go test -race -timeout 45m -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.go == '1.26.x' }}
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.txt
