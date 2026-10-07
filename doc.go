@@ -68,7 +68,7 @@
 //     counting, and [ParallelCounter] for distributed counting.
 //   - [github.com/Laisky/go-utils/v6/crypto] — Cryptographic toolkit covering
 //     AES-GCM encryption, RSA (PKCS#1 v1.5 and OAEP), ECDSA, Ed25519,
-//     SM2/SM3/SM4, password hashing, HKDF, OTP, and X.509 certificate
+//     SM2/SM3/SM4, Argon2id password hashing, HKDF, OTP, and X.509 certificate
 //     management.
 //   - [github.com/Laisky/go-utils/v6/crypto/kms] — Key Management System
 //     interface with an in-memory implementation.
