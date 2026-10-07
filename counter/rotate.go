@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Laisky/errors/v2"
+
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
@@ -98,12 +99,29 @@ func (c *RotateCounter) CountNChecked(n int64) (int64, error) {
 	if err := c.ctx.Err(); err != nil {
 		return 0, errors.Wrap(err, "advance rotate counter")
 	}
-	// Both operands are nonnegative int64 values, so their sum fits uint64.
-	// The modulo's zero represents the inclusive upper endpoint, not a new zero.
-	next := (uint64(c.n) + uint64(n)) % uint64(c.rotatePoint)
-	if next == 0 {
-		next = uint64(c.rotatePoint)
-	}
-	c.n = int64(next)
+	c.n = rotateAdd(c.n, n, c.rotatePoint)
 	return c.n, nil
+}
+
+// rotateAdd returns (current + step) modulo rotatePoint, mapping a zero result
+// to the inclusive upper endpoint rotatePoint. It requires rotatePoint > 0,
+// 0 <= current <= rotatePoint and step > 0, which CountNChecked guarantees. The
+// sum is formed from residues in [0, rotatePoint), so no intermediate value can
+// overflow int64 and no signedness conversion is needed.
+func rotateAdd(current, step, rotatePoint int64) int64 {
+	current %= rotatePoint
+	step %= rotatePoint
+	// headroom is in [1, rotatePoint]. When step reaches it the sum wraps, and
+	// step-headroom is the wrapped residue; otherwise current+step < rotatePoint.
+	headroom := rotatePoint - current
+	var next int64
+	if step < headroom {
+		next = current + step
+	} else {
+		next = step - headroom
+	}
+	if next == 0 {
+		return rotatePoint
+	}
+	return next
 }
