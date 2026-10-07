@@ -195,12 +195,9 @@ func BytesToMnemonic(data []byte) (string, error) {
 // MnemonicToBytes decodes a mnemonic phrase produced by BytesToMnemonic
 // back to the original bytes.
 func MnemonicToBytes(mnemonic string) ([]byte, error) {
-	words := strings.Fields(mnemonic)
-	if len(words) == 0 {
-		return nil, errors.New("mnemonic must not be empty")
-	}
-	if len(words) > maxEncodedMnemonicWords {
-		return nil, errors.Errorf("mnemonic too long: %d words, max %d", len(words), maxEncodedMnemonicWords)
+	words, err := splitBoundedMnemonic(mnemonic)
+	if err != nil {
+		return nil, errors.Wrap(err, "validate extended mnemonic text")
 	}
 
 	fullBytes, err := mnemonicWordsToBytes(words)
@@ -401,19 +398,25 @@ func extract11Bits(data []byte, bitPos int) uint16 {
 
 // mnemonicWordsToBytes converts BIP39 words back into a byte slice.
 func mnemonicWordsToBytes(words []string) ([]byte, error) {
+	if len(words) == 0 || len(words) > maxEncodedMnemonicWords {
+		return nil, errors.New("invalid extended mnemonic word count")
+	}
 	totalBits := len(words) * 11
 	totalBytes := totalBits / 8
 
 	result := make([]byte, totalBytes)
 	for i, word := range words {
+		if len(word) == 0 || len(word) > maxMnemonicWordBytes {
+			return nil, errors.Errorf("mnemonic word at index %d not found in BIP39 word list", i)
+		}
 		idx, ok := mnemonicWordIndex[word]
 		if !ok {
-			return nil, errors.Errorf("word %q not found in BIP39 word list", word)
+			return nil, errors.Errorf("mnemonic word at index %d not found in BIP39 word list", i)
 		}
 
 		idx16, err := checkedUint16(idx)
 		if err != nil {
-			return nil, errors.Wrapf(err, "convert mnemonic word index for %q", word)
+			return nil, errors.Wrapf(err, "convert mnemonic word at index %d", i)
 		}
 
 		write11Bits(result, i*11, idx16)

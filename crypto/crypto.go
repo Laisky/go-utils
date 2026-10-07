@@ -352,39 +352,30 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
 func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	if pubkey == nil {
-		return nil, errors.Errorf("public key is nil")
+	if pubkey == nil || pubkey.N == nil || pubkey.N.Sign() <= 0 || pubkey.N.Bit(0) == 0 ||
+		pubkey.E < 3 || pubkey.E > (1<<31)-1 || pubkey.E%2 == 0 {
+		return nil, errors.New("invalid RSA public key")
 	}
-
-	// OAEP with SHA-256 reserves 2*hashLen+2 bytes of padding, so the modulus
-	// must hold at least one plaintext byte. Guard before sizing the chunk
-	// buffer, otherwise `make` is called with a negative length and panics on
-	// tiny keys (e.g. a maliciously small RSA public key).
+	if pubkey.N.BitLen() < 1024 {
+		return nil, errors.New("RSA-OAEP requires at least a 1024-bit modulus")
+	}
 	chunkSize := pubkey.Size() - 2*sha256.Size - 2
 	if chunkSize <= 0 {
-		return nil, errors.Errorf("rsa public key too small (%d bytes) for OAEP-SHA256", pubkey.Size())
+		return nil, errors.New("RSA key has no positive SHA-256 OAEP payload capacity")
 	}
 
-	chunk := make([]byte, chunkSize)
-	reader := bytes.NewReader(plain)
-	for {
-		n, err := reader.Read(chunk)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return nil, errors.Wrap(err, "read chunk")
-		}
-
-		cipherChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, chunk[:n], nil)
+	// Slice a positive-sized chunk directly, avoiding both a key-sized temporary
+	// allocation and a zero-byte reader loop. Reject weak keys even for empty
+	// plaintext; the standard library also validates each nonempty operation.
+	for len(plain) > 0 {
+		n := min(chunkSize, len(plain))
+		cipherChunk, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, plain[:n], nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "encrypt chunk")
 		}
-
 		cipher = append(cipher, cipherChunk...)
+		plain = plain[n:]
 	}
-
 	return cipher, nil
 }
 

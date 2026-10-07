@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -153,8 +152,13 @@ func FlushWithLog(ins interface{ Flush() error },
 // DedentOptFunc dedent option
 type DedentOptFunc func(opt *dedentOpt)
 
-// WithReplaceTabBySpaces replace tab to spaces
+// WithReplaceTabBySpaces selects 0..256 spaces per leading tab.
+// Values outside this range use the default width of four spaces.
 func WithReplaceTabBySpaces(spaces int) DedentOptFunc {
+	// Keep invalid options from causing a panic or unbounded tab expansion.
+	if spaces < 0 || spaces > 256 {
+		spaces = 4
+	}
 	return func(opt *dedentOpt) {
 		opt.replaceTabBySpaces = spaces
 	}
@@ -187,7 +191,7 @@ func Dedent(v string, optfs ...DedentOptFunc) string {
 		if firstLine {
 			NSpaceTobeTrim = n
 			firstLine = false
-		} else if n != 0 && n < NSpaceTobeTrim {
+		} else if n < NSpaceTobeTrim {
 			// choose the smallest margin
 			NSpaceTobeTrim = n
 		}
@@ -321,46 +325,6 @@ func GetStructFieldByName(st any, fieldName string) any {
 // Deprecated: use VerifyFileHash instead
 var ValidateFileHash = VerifyFileHash
 
-// VerifyFileHash verify file hash against a hashed string
-//
-// Args:
-//   - filepath: file path to check
-//   - hashed: hashed string, like `sha256:xxxx`
-func VerifyFileHash(filepath string, hashed string) error {
-	hs := strings.Split(hashed, ":")
-	if len(hs) != 2 {
-		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
-	}
-
-	var hasher HashType
-	switch hs[0] {
-	case "sha256":
-		hasher = HashTypeSha256
-	case "md5":
-		hasher = HashTypeMD5
-	default:
-		return errors.Errorf("unknown hasher `%s`", hs[0])
-	}
-
-	fp, err := os.Open(filepath)
-	if err != nil {
-		return errors.Wrapf(err, "open file `%s`", filepath)
-	}
-	defer SilentClose(fp)
-
-	sig, err := Hash(hasher, fp)
-	if err != nil {
-		return errors.Wrapf(err, "calculate hash for file %q", filepath)
-	}
-
-	actualHash := hex.EncodeToString(sig)
-	if hs[1] != actualHash {
-		return errors.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
-	}
-
-	return nil
-}
-
 // GetFuncName return the name of func
 func GetFuncName(f any) string {
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
@@ -414,19 +378,6 @@ func RegexNamedSubMatch2(r *regexp.Regexp, str string) (subMatchMap map[string]s
 	}
 
 	return subMatchMap, nil
-}
-
-// FlattenMap make embedded map into flatten map
-func FlattenMap(data map[string]any, delimiter string) {
-	for k, vi := range data {
-		if v2i, ok := vi.(map[string]any); ok {
-			FlattenMap(v2i, delimiter)
-			for k3, v3i := range v2i {
-				data[k+delimiter+k3] = v3i
-			}
-			delete(data, k)
-		}
-	}
 }
 
 // ForceGCBlocking force to run blocking manual gc.
@@ -597,15 +548,6 @@ func TemplateWithMapAndRegexp(tplReg *regexp.Regexp, tpl string, data map[string
 	return tpl
 }
 
-var (
-	urlMaskingRegexp = regexp.MustCompile(`(\S+:)\S+(@\w+)`)
-)
-
-// URLMasking masking password in url
-func URLMasking(url, mask string) string {
-	return urlMaskingRegexp.ReplaceAllString(url, `${1}`+mask+`${2}`)
-}
-
 // SetStructFieldsBySlice set field value of structs slice by values slice
 func SetStructFieldsBySlice(structs, vals any) (err error) {
 	sv := reflect.ValueOf(structs)
@@ -773,115 +715,6 @@ func resolveExecutablePath(app string) (string, error) {
 	}
 
 	return resolved, nil
-}
-
-// RunCMD run command script
-func RunCMD(ctx context.Context, app string, args ...string) (stdout []byte, err error) {
-	return RunCMDWithEnv(ctx, app, args, nil)
-}
-
-// RunCMDWithEnv run command with environments
-//
-// # Args
-//   - envs: []string{"FOO=BAR"}
-func RunCMDWithEnv(ctx context.Context, app string,
-	args []string, envs []string) (stdout []byte, err error) {
-	resolvedApp, err := resolveExecutablePath(app)
-	if err != nil {
-		return nil, errors.Wrap(err, "resolve app")
-	}
-	if args, err = SanitizeCMDArgs(args); err != nil {
-		return nil, errors.Wrap(err, "sanitize args")
-	}
-
-	//nolint:gosec // executable path is resolved first and arguments are passed directly without shell expansion.
-	cmd := exec.CommandContext(ctx, resolvedApp, args...)
-
-	if len(envs) != 0 {
-		cmd.Env = append(cmd.Env, envs...)
-	}
-
-	stdout, err = cmd.CombinedOutput()
-	if err != nil {
-		cmd := strings.Join(append([]string{resolvedApp}, args...), " ")
-		return stdout, errors.Wrapf(err, "run %q got %q", cmd, stdout)
-	}
-
-	return stdout, nil
-}
-
-// RunCMD2 run command script and handle stdout/stderr by pipe
-func RunCMD2(ctx context.Context, app string,
-	args []string, envs []string,
-	stdoutHandler, stderrHandler func(string),
-) (err error) {
-	resolvedApp, err := resolveExecutablePath(app)
-	if err != nil {
-		return errors.Wrap(err, "resolve app")
-	}
-	if args, err = SanitizeCMDArgs(args); err != nil {
-		return errors.Wrap(err, "sanitize args")
-	}
-
-	//nolint:gosec // executable path is resolved first and arguments are passed directly without shell expansion.
-	cmd := exec.CommandContext(ctx, resolvedApp, args...)
-	cmd.Env = append(cmd.Env, envs...)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return errors.Wrap(err, "get stdout")
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return errors.Wrap(err, "get stderr")
-	}
-
-	if stdoutHandler == nil {
-		stdoutHandler = func(s string) {
-			log.Shared.Debug("run cmd", zap.String("msg", s), zap.String("app", resolvedApp))
-		}
-	}
-
-	if stderrHandler == nil {
-		stderrHandler = func(s string) {
-			log.Shared.Error("run cmd", zap.String("msg", s), zap.String("app", resolvedApp))
-		}
-	}
-
-	if err := cmd.Start(); err != nil {
-		return errors.Wrap(err, "start cmd")
-	}
-
-	go func() {
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			out := scanner.Text()
-			stdoutHandler(out)
-		}
-
-		if err := scanner.Err(); err != nil {
-			log.Shared.Warn("read stdout", zap.Error(err))
-		}
-	}()
-
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			out := scanner.Text()
-			stderrHandler(out)
-		}
-
-		if err := scanner.Err(); err != nil {
-			log.Shared.Warn("read stderr", zap.Error(err))
-		}
-	}()
-
-	if err := cmd.Wait(); err != nil {
-		return errors.Wrap(err, "wait cmd")
-	}
-
-	return nil
 }
 
 // EncodeByBase64 encode bytes to string by base64

@@ -57,10 +57,11 @@ func TestCVE_ECDSA_PsychicSignatureRejected(t *testing.T) {
 	})
 	t.Run("base64 zero signature rejected", func(t *testing.T) {
 		t.Parallel()
-		// "." decodes to r=0,s=0; verification must return (false, nil) — never panic.
+		// "." encodes r=0,s=0; the bounded decoder rejects it as malformed, so
+		// verification must fail closed with (false, error) — never panic.
 		sig := EncodeES256SignByBase64(zero, zero)
 		ok, err := VerifyByECDSAWithSHA256AndBase64(&priv.PublicKey, msg, sig)
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.False(t, ok)
 	})
 }

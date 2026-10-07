@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"github.com/Laisky/go-chaining"
 	"github.com/Laisky/zap"
 
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"github.com/Laisky/go-utils/v6/json"
 	"github.com/Laisky/go-utils/v6/log"
 )
@@ -73,9 +73,7 @@ func init() {
 	// new http client
 	opts := []HTTPClientOptFunc{
 		WithHTTPClientTimeout(30 * time.Second),
-	}
-	if len(GetEnvInsensitive("HTTP_PROXY")) != 0 {
-		opts = append(opts, WithHTTPClientProxy(GetEnvInsensitive("HTTP_PROXY")[0]))
+		WithHTTPClientProxyFromEnvironment(),
 	}
 	if internalHttpCli, err = NewHTTPClient(opts...); err != nil {
 		log.Shared.Panic("new http client got error", zap.Error(err))
@@ -118,10 +116,10 @@ func NewJaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceV
 		flag = 0x04 // default to not used
 	}
 
-	traceIDVal := strings.TrimLeft(fmt.Sprintf("%016x", traceID), "0")
-	spanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", spanID), "0")
+	traceIDVal := strconv.FormatUint(traceID, 16)
+	spanIDVal := strconv.FormatUint(spanID, 16)
 	parentSpanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", parentSpanID), "0")
-	flagVal := strings.TrimLeft(fmt.Sprintf("%02x", flag), "0")
+	flagVal := strconv.FormatUint(uint64(flag), 16)
 
 	return JaegerTracingID(fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal)), nil
 }
@@ -143,32 +141,48 @@ func (t JaegerTracingID) String() string {
 	return string(t)
 }
 
-// Parse parse jaeger tracing id from string
+// Parse decodes this API's 64-bit Jaeger IDs and one-byte flags. It rejects input
+// exceeding the fixed 53-byte format before splitting or decoding. An empty
+// parent ID remains accepted as zero for IDs emitted by older versions.
 func (t JaegerTracingID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
-	traceVal := t.String()
-	vals := strings.Split(traceVal, ":")
-	if len(vals) != 4 {
-		return 0, 0, 0, 0, errors.Errorf("invalid trace value `%s`", traceVal)
+	if len(t) > 53 {
+		return 0, 0, 0, 0, errors.New("invalid trace value: too long")
 	}
-
-	if traceID, err = strconv.ParseUint(PaddingLeft(vals[0], "0", 16), 16, 64); err != nil {
-		return 0, 0, 0, 0, errors.Wrapf(err, "parse traceID")
+	var fields [4]string
+	remaining := string(t)
+	for i := 0; i < 3; i++ {
+		var found bool
+		fields[i], remaining, found = strings.Cut(remaining, ":")
+		if !found {
+			return 0, 0, 0, 0, errors.New("invalid trace value: expected four components")
+		}
 	}
-	if spanID, err = strconv.ParseUint(PaddingLeft(vals[1], "0", 16), 16, 64); err != nil {
-		return 0, 0, 0, 0, errors.Wrapf(err, "parse spanID")
+	fields[3] = remaining
+	if fields[2] == "" {
+		fields[2] = "0"
 	}
-	if parentSpanID, err = strconv.ParseUint(PaddingLeft(vals[2], "0", 16), 16, 64); err != nil {
-		return 0, 0, 0, 0, errors.Wrapf(err, "parse parentSpanID")
+	var values [4]uint64
+	for i, field := range fields {
+		width := 16
+		if i == 3 {
+			width = 2
+		}
+		if len(field) == 0 || len(field) > width {
+			return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: width", i)
+		}
+		for j := range len(field) {
+			c := field[j]
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+				return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: hexadecimal syntax", i)
+			}
+		}
+		value, parseErr := strconv.ParseUint(field, 16, width*4)
+		if parseErr != nil {
+			return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: range", i)
+		}
+		values[i] = value
 	}
-	if flagSlice, err := hex.DecodeString(PaddingLeft(vals[3], "0", 2)); err != nil {
-		return 0, 0, 0, 0, errors.Wrapf(err, "parse flag")
-	} else if len(flagSlice) != 1 {
-		return 0, 0, 0, 0, errors.Errorf("invalid flag `%s`", vals[3])
-	} else {
-		flag = flagSlice[0]
-	}
-
-	return traceID, spanID, parentSpanID, flag, nil
+	return values[0], values[1], values[2], byte(values[3]), nil
 }
 
 // RandomNonZeroUint64 generate random uint64 number
@@ -228,7 +242,9 @@ func WithHTTPClientMaxConn(maxConn int) HTTPClientOptFunc {
 	}
 }
 
-// WithHTTPClientProxy set http client proxy
+// WithHTTPClientProxy explicitly selects a trusted fixed proxy for every destination.
+// This option intentionally bypasses environment discovery and NO_PROXY rules.
+// Use WithHTTPClientProxyFromEnvironment for automatic environment policy.
 func WithHTTPClientProxy(proxy string) HTTPClientOptFunc {
 	return func(opt *httpClientOption) (err error) {
 		proxy, err := url.Parse(proxy)
@@ -261,7 +277,8 @@ func WithHTTPTlsConfig(cfg *tls.Config) HTTPClientOptFunc {
 	}
 }
 
-// NewHTTPClient create http client
+// NewHTTPClient creates a direct HTTP client unless a proxy option is supplied.
+// The package's default RequestJSON client separately opts into environment policy.
 func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 	opt := &httpClientOption{
 		maxConn: defaultHTTPClientOptMaxConn,
@@ -414,7 +431,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.Wrap(err, "new request options")
 	}
 
-	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("url", url))
+	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("endpoint", netdiag.Endpoint(url)))
 
 	var (
 		jsonBytes []byte
@@ -438,7 +455,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 	req, err := http.NewRequestWithContext(ctx,
 		strings.ToUpper(method), url, body)
 	if err != nil {
-		return errors.Wrap(err, "new request")
+		return errors.WithStack(netdiag.New("create JSON request", url, err))
 	}
 
 	if request != nil {
@@ -450,7 +467,7 @@ func RequestJSONWithClient(httpClient *http.Client,
 
 	r, err := httpClient.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "try to request url error")
+		return errors.WithStack(netdiag.New("send JSON request", url, err))
 	}
 	defer func() { _ = r.Body.Close() }()
 

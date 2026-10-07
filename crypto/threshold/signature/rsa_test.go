@@ -12,23 +12,12 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// TestVerifyBySHA256 exercises real threshold signing with validated test-only primes.
 func TestVerifyBySHA256(t *testing.T) {
 	t.Parallel()
 
-	// Increase test timeout
-	if testing.Short() {
-		t.Skip("skipping test in short mode")
-	}
-
-	total := 5
 	threshold := 3
-
-	// Generate key shares once. Use the minimum supported (and secure) key
-	// size for tests; this is gated behind !testing.Short above because
-	// 2048-bit threshold key generation is expensive.
-	keyShares, keyMeta, err := NewKeyShares(total, threshold, gcrypto.RSAPrikeyBits2048)
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, keyMeta.PublicKey.N.BitLen(), minRSAPublicKeyBits)
+	keyShares, keyMeta := thresholdFixture(t)
 
 	t.Run("verify valid signature", func(t *testing.T) {
 		content := gutils.RandomStringWithLength(128) // Reduced content size
@@ -94,8 +83,8 @@ func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 		{
 			// Bounds/validation cases only: each returns an error BEFORE the
 			// expensive key-generation step, so this table stays fast. The
-			// successful 2048-bit key-generation path is covered (once) by
-			// TestVerifyBySHA256, which is gated behind !testing.Short.
+			// randomized success path is covered by the explicit, bounded
+			// TestNewKeySharesRandomIntegration; routine signatures use fixtures.
 			name:      "overflow uint16 max",
 			total:     70000,
 			threshold: 65536,

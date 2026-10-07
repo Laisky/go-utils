@@ -687,7 +687,10 @@ func WithX509SignCSRIsCRLCA() SignCSROption {
 	}
 }
 
-// NewX509CertByCSR sign CSR to certificate
+// NewX509CertByCSR verifies csrDer and signs it with the parent CA and prikey.
+// It returns the certificate DER or an error. Signature verification establishes
+// request integrity and proof of possession, not authorization for the requested
+// subject or SANs; callers must enforce their enrollment policy.
 //
 // Depends on RFC-5280 4.2.1.12, empty ext key usage is as same as any key usage.
 // so do not set any default ext key usages.
@@ -709,6 +712,11 @@ func NewX509CertByCSR(
 	csr, err := Der2CSR(csrDer)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse csr")
+	}
+
+	// Parsing alone does not authenticate the request or prove key possession.
+	if err := csr.CheckSignature(); err != nil {
+		return nil, errors.Wrap(err, "verify csr signature")
 	}
 
 	opt, err := new(signCSROption).applyOpts(csr, opts...)
@@ -1273,6 +1281,9 @@ func NewX509CRL(ca *x509.Certificate,
 	seriaNumber *big.Int,
 	revokeCerts []pkix.RevokedCertificate,
 	opts ...X509CRLOption) (crlDer []byte, err error) {
+	if ca == nil {
+		return nil, errors.New("create CRL: nil issuer")
+	}
 	if err = validPrikey(prikey); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -1288,19 +1299,16 @@ func NewX509CRL(ca *x509.Certificate,
 
 	tpl.Number = seriaNumber
 	tpl.ExtraExtensions = ca.ExtraExtensions
-	// tpl.RevokedCertificates = revokeCerts
-	for i := range revokeCerts {
-		tpl.RevokedCertificateEntries = append(
-			tpl.RevokedCertificateEntries,
-			x509.RevocationListEntry{
-				SerialNumber:   revokeCerts[i].SerialNumber,
-				RevocationTime: revokeCerts[i].RevocationTime,
-				Extensions:     revokeCerts[i].Extensions,
-			},
-		)
+	tpl.RevokedCertificateEntries, err = convertRevokedCertificateEntries(revokeCerts)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert revoked certificate entries")
 	}
 
-	return x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
+	crlDer, err = x509.CreateRevocationList(rand.Reader, tpl, ca, Privkey2Signer(prikey))
+	if err != nil {
+		return nil, errors.Wrap(err, "create revocation list")
+	}
+	return crlDer, nil
 }
 
 // x509CertOption2Template convert X509CertOption to x509.Certificate template

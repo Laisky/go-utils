@@ -2,6 +2,9 @@ package log
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,28 +13,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAlertHook verifies field-aware alert delivery against a local GraphQL fixture.
 func TestAlertHook(t *testing.T) {
-	pusher, err := NewAlert(
-		context.Background(),
-		"https://gq.laisky.com/query/",
-		WithAlertType("hello"),
-		WithAlertToken("YOUR_ALERT_TOKEN"),
-	)
+	requests := make(chan map[string]any, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode alert request: %v", err)
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		requests <- request
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"TelegramMonitorAlert": map[string]any{"name": "accepted"}},
+		}); err != nil {
+			t.Errorf("encode alert response: %v", err)
+		}
+	}))
+	defer server.Close()
+	pusher, err := NewAlert(context.Background(), server.URL,
+		WithAlertType("compatibility"), WithAlertToken("test-token"),
+		WithAlertFieldAllowlist("bound", "call"))
 	require.NoError(t, err)
-
-	defer pusher.Close()
-	logger := Shared.WithOptions(
-		zap.Fields(zap.String("logger", "test")),
+	defer func() { pusher.Close(); <-pusher.Done() }()
+	logger, err := New(WithOutputPaths([]string{}), WithZapOptions(
+		zap.Fields(zap.String("bound", "context")),
 		zap.HooksWithFields(pusher.GetZapHook()),
-	)
-
-	logger.Debug("DEBUG", zap.String("yo", "hello"))
-	logger.Info("Info", zap.String("yo", "hello"))
-	logger.Warn("Warn", zap.String("yo", "hello"))
-	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(errors.Errorf("xxx")))
-	// t.Error()
-
-	// time.Sleep(1 * time.Second)
+	))
+	require.NoError(t, err)
+	logger.Info("below alert level")
+	logger.Error("compatibility alert", zap.String("call", "value"), zap.Error(errors.Errorf("test error")))
+	select {
+	case request := <-requests:
+		variables, ok := request["variables"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "compatibility", variables["type"])
+		require.Equal(t, "test-token", variables["token"])
+		message, ok := variables["msg"].(string)
+		require.True(t, ok)
+		require.Contains(t, message, "compatibility alert")
+		require.Contains(t, message, `"bound":"context"`)
+		require.Contains(t, message, `"call":"value"`)
+		require.NotContains(t, message, "test error", "error fields are not approved scalar context")
+	case <-time.After(5 * time.Second):
+		t.Fatal("local alert was not delivered")
+	}
+	require.Empty(t, requests, "below-level entries must not enqueue an alert")
 }
 
 // TestAlert_SendAfterClose verifies that sending after Close returns an error
@@ -47,6 +75,11 @@ func TestAlert_SendAfterClose(t *testing.T) {
 	require.NoError(t, err)
 
 	a.Close()
+	select {
+	case <-a.Done():
+	case <-time.After(time.Second):
+		t.Fatal("alert worker did not exit")
+	}
 
 	// Send after Close must return an error and must not panic.
 	err = a.Send("x")

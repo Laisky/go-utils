@@ -1,0 +1,81 @@
+name: RBAC security
+
+on:
+  pull_request:
+    branches: [v6]
+    paths:
+      - 'rbac*.go'
+      - 'json/**'
+      - 'log/**'
+      - 'common/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/rbac-security.yml'
+  push:
+    branches: [v6]
+    paths:
+      - 'rbac*.go'
+      - 'json/**'
+      - 'log/**'
+      - 'common/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/rbac-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rbac:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check RBAC formatting
+        run: test -z "$(gofmt -l rbac*.go)"
+      - name: Run existing and new RBAC tests with real dependencies
+        run: go test -race -count=1 -timeout=5m rbac*.go
+      - name: Vet RBAC code and tests
+        run: go vet rbac*.go
+      - name: Fuzz restriction and persistence invariants
+        env:
+          GOMAXPROCS: '2'
+        run: >-
+          go test -run '^$' -fuzz '^FuzzRBACRestrictionMonotonicity$'
+          -fuzztime=30s -parallel=2 -timeout=5m rbac*.go
+  repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Vet all packages
+        run: go vet ./...
+      - name: Build all packages
+        if: ${{ !cancelled() }}
+        run: go build ./...
+      - name: Test all packages with race detection
+        if: ${{ !cancelled() }}
+        run: |
+          set +e
+          go test -race -count=1 -timeout=5m ./... > "$RUNNER_TEMP/full-test.log" 2>&1
+          status=$?
+          grep -E '(^FAIL|--- FAIL:|Error Trace:|Error:|panic:|WARNING: DATA RACE)' "$RUNNER_TEMP/full-test.log" || true
+          tail -n 200 "$RUNNER_TEMP/full-test.log"
+          exit "$status"

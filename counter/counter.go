@@ -2,7 +2,6 @@
 package counter
 
 import (
-	"context"
 	"math"
 	"math/rand"
 	"sync"
@@ -78,102 +77,6 @@ func (c *Counter) CountN(n int64) int64 {
 }
 
 // -------------------------------------------------
-
-var rotateCounterChanLength = 10000
-
-// RotateCounter rotate counter
-type RotateCounter struct {
-	gutils.Mutex
-	rotateRunner   sync.Once
-	n, rotatePoint int64
-	c              chan int64
-	stopChan       chan struct{}
-}
-
-// NewRotateCounter create new RotateCounter with threshold from 0
-func NewRotateCounter(rotatePoint int64) (*RotateCounter, error) {
-	return NewRotateCounterFromNWithCtx(context.Background(), 0, rotatePoint)
-}
-
-// NewRotateCounterWithCtx create new RotateCounter with threshold from 0
-func NewRotateCounterWithCtx(ctx context.Context, rotatePoint int64) (*RotateCounter, error) {
-	return NewRotateCounterFromNWithCtx(ctx, 0, rotatePoint)
-}
-
-// NewRotateCounterFromN create new RotateCounter with threshold from N
-func NewRotateCounterFromN(n, rotatePoint int64) (*RotateCounter, error) {
-	return NewRotateCounterFromNWithCtx(context.Background(), n, rotatePoint)
-}
-
-// NewRotateCounterFromNWithCtx create new RotateCounter with threshold from N
-func NewRotateCounterFromNWithCtx(ctx context.Context, n, rotatePoint int64) (*RotateCounter, error) {
-	if rotatePoint <= 0 {
-		return nil, errors.Errorf("rotatePoint should bigger than 0, but got %d", rotatePoint)
-	}
-	if n < 0 {
-		return nil, errors.Errorf("n should bigger than 0, but got %d", n)
-	}
-	if n >= rotatePoint {
-		return nil, errors.Errorf("n should less than rotatePoint, got n %d, rotatePoint %d", n, rotatePoint)
-	}
-	c := &RotateCounter{
-		n:           n,
-		rotatePoint: rotatePoint,
-		c:           make(chan int64, rotateCounterChanLength),
-		stopChan:    make(chan struct{}, 1),
-	}
-	go c.runRotator(ctx)
-	return c, nil
-}
-
-// Close stop rorate runner
-func (c *RotateCounter) Close() {
-	c.stopChan <- struct{}{}
-}
-
-// runRotator start rotator
-func (c *RotateCounter) runRotator(ctx context.Context) {
-	c.rotateRunner.Do(func() {
-		var n int64
-		for {
-			n = atomic.AddInt64(&c.n, 1)
-			if n > c.rotatePoint {
-				atomic.StoreInt64(&c.n, 1)
-				n = 1
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			case <-c.stopChan:
-				return
-			case c.c <- n:
-			}
-		}
-	})
-}
-
-// Count increse and return the result
-func (c *RotateCounter) Count() int64 {
-	return <-c.c
-}
-
-// Get return current counter's number
-func (c *RotateCounter) Get() int64 {
-	return atomic.LoadInt64(&c.n)
-}
-
-// CountN increse N and return the result
-func (c *RotateCounter) CountN(n int64) (r int64) {
-	if n == 0 {
-		return c.Get()
-	}
-	for n > 0 {
-		r = <-c.c
-		n--
-	}
-	return r
-}
 
 // ---------------------------------------------------
 

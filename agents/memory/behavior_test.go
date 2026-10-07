@@ -73,7 +73,7 @@ func TestMemoryEngineBehaviorRoundTrip(t *testing.T) {
 
 	foundReferenceBlock := false
 	for _, item := range nextBeforeOut.InputItems {
-		if item.Role != "developer" || len(item.Content) == 0 {
+		if !isMemoryReferenceData(item) {
 			continue
 		}
 
