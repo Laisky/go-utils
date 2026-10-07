@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
+	"github.com/Laisky/go-utils/v6/internal/fileguard"
 	"github.com/Laisky/go-utils/v6/log"
 )
 
@@ -138,19 +139,7 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 		return errors.Errorf("prikey must be rsa private key")
 	}
 
-	fp, err := os.Open(filePath)
-	if err != nil {
-		return errors.Wrapf(err, "open file %q", filePath)
-	}
-
-	sigFile := filePath + ".sig"
-	//nolint:gosec // G302: Expect file permissions to be 0600 or less
-	sigFp, err := os.OpenFile(sigFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
-	if err != nil {
-		return errors.Wrapf(err, "generate signature file %q", sigFile)
-	}
-
-	sigBytes, err := gcrypto.SignReaderByRSAWithSHA256(prikey, fp)
+	sigBytes, err := signFileContent(prikey, filePath)
 	if err != nil {
 		return errors.Wrapf(err, "generate signature")
 	}
@@ -158,8 +147,17 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 	sig := hex.EncodeToString(sigBytes)
 	sig = rsaSignPrefixSHA256 + sig
 
-	_, err = sigFp.WriteString(sig)
-	if err != nil {
+	// The signature is public, so it keeps the historical 0644 creation mode. It is
+	// published through a temporary file and rename: an existing regular .sig is
+	// replaced, while a link or special file at the .sig path is rejected and its
+	// target is never written.
+	sigFile := filePath + ".sig"
+	if err = fileguard.Replace(sigFile, 0, 0o644, func(sigFp *os.File) error {
+		if _, err := sigFp.WriteString(sig); err != nil {
+			return errors.Wrap(err, "write signature")
+		}
+		return nil
+	}); err != nil {
 		return errors.Wrapf(err, "write signature to sig file %q", sigFile)
 	}
 
@@ -171,4 +169,25 @@ func SignFileByRSA(prikeyPath, filePath string) error {
 	)
 
 	return nil
+}
+
+// signFileContent signs the content of filePath with prikey using RSA and SHA-256.
+// It takes the private key and the input path, and returns the raw signature or an
+// error; the input file is always closed.
+func signFileContent(prikey *rsa.PrivateKey, filePath string) (sig []byte, retErr error) {
+	fp, err := os.Open(filePath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "open file %q", filePath)
+	}
+	defer func() {
+		if err := fp.Close(); err != nil {
+			retErr = errors.Join(retErr, errors.Wrapf(err, "close file %q", filePath))
+		}
+	}()
+
+	sig, err = gcrypto.SignReaderByRSAWithSHA256(prikey, fp)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign file content")
+	}
+	return sig, nil
 }
