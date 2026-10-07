@@ -75,8 +75,8 @@ var (
 // Use RSAEncryptByOAEP and RSADecryptByOAEP instead. This wrapper remains only
 // for interoperability with existing ciphertexts.
 func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	if pubkey == nil {
-		return nil, errors.Errorf("public key is nil")
+	if err = validateRSAPublicKey(pubkey); err != nil {
+		return nil, errors.WithStack(err)
 	}
 
 	// PKCS#1 v1.5 reserves 11 bytes of padding, so the modulus must be able to
@@ -120,6 +120,9 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 // Go 1.26. Never expose its errors to untrusted parties; migrate data to
 // RSAEncryptByOAEP / RSADecryptByOAEP.
 func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
+	if err = validateRSAPrivateKey(prikey); err != nil {
+		return nil, errors.WithStack(err)
+	}
 	chunk := make([]byte, prikey.Size())
 	reader := bytes.NewReader(cipher)
 	for {
@@ -150,9 +153,8 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
 func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
-	if pubkey == nil || pubkey.N == nil || pubkey.N.Sign() <= 0 || pubkey.N.Bit(0) == 0 ||
-		pubkey.E < 3 || pubkey.E > (1<<31)-1 || pubkey.E%2 == 0 {
-		return nil, errors.New("invalid RSA public key")
+	if err = validateRSAPublicKey(pubkey); err != nil {
+		return nil, errors.WithStack(err)
 	}
 	if pubkey.N.BitLen() < 1024 {
 		return nil, errors.New("RSA-OAEP requires at least a 1024-bit modulus")
@@ -179,6 +181,9 @@ func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err e
 
 // RSADecryptByOAEP decrypt by OAEP with SHA256
 func RSADecryptByOAEP(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
+	if err = validateRSAPrivateKey(prikey); err != nil {
+		return nil, errors.WithStack(err)
+	}
 	chunk := make([]byte, prikey.Size())
 	reader := bytes.NewReader(cipher)
 	for {
@@ -210,4 +215,29 @@ func RSADecryptByOAEP(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err 
 func ConstantTimeStringEqual(candidate string, expectedHash [sha256.Size]byte) bool {
 	candidateHash := sha256.Sum256([]byte(candidate))
 	return subtle.ConstantTimeCompare(candidateHash[:], expectedHash[:]) == 1
+}
+
+// validateRSAPublicKey rejects a nil key, a missing, non-positive or even
+// modulus, and an exponent outside the odd range [3, 2^31-1], so callers never
+// reach rsa.PublicKey.Size or the standard library with a malformed key. It
+// returns nil for a structurally valid key or an error otherwise.
+func validateRSAPublicKey(pubkey *rsa.PublicKey) error {
+	if pubkey == nil || pubkey.N == nil || pubkey.N.Sign() <= 0 || pubkey.N.Bit(0) == 0 ||
+		pubkey.E < 3 || pubkey.E > (1<<31)-1 || pubkey.E%2 == 0 {
+		return errors.New("invalid RSA public key")
+	}
+	return nil
+}
+
+// validateRSAPrivateKey rejects a nil private key or one whose public half is
+// malformed (see validateRSAPublicKey). It returns nil for a structurally valid
+// key or an error otherwise.
+func validateRSAPrivateKey(prikey *rsa.PrivateKey) error {
+	if prikey == nil {
+		return errors.New("invalid RSA private key")
+	}
+	if err := validateRSAPublicKey(&prikey.PublicKey); err != nil {
+		return errors.Wrap(err, "invalid RSA private key")
+	}
+	return nil
 }
