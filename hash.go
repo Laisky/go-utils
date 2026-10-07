@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"hash"
 	"io"
-	"os"
 	"sync/atomic"
 
 	"github.com/Laisky/errors/v2"
@@ -127,17 +126,6 @@ func Hash(hashType HashTypeInterface, content io.Reader) (signature []byte, err 
 	}
 
 	return hasher.Sum(nil), nil
-}
-
-// FileHash generate file signature by hash
-func FileHash(hashType HashTypeInterface, filepath string) (signature []byte, err error) {
-	fp, err := os.Open(filepath)
-	if err != nil {
-		return nil, errors.Wrap(err, "open file")
-	}
-	defer LogErr(fp.Close, log.Shared)
-
-	return Hash(hashType, fp)
 }
 
 // HashVerify verify by hash

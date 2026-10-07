@@ -325,46 +325,6 @@ func GetStructFieldByName(st any, fieldName string) any {
 // Deprecated: use VerifyFileHash instead
 var ValidateFileHash = VerifyFileHash
 
-// VerifyFileHash verify file hash against a hashed string
-//
-// Args:
-//   - filepath: file path to check
-//   - hashed: hashed string, like `sha256:xxxx`
-func VerifyFileHash(filepath string, hashed string) error {
-	hs := strings.Split(hashed, ":")
-	if len(hs) != 2 {
-		return errors.Errorf("unknown hashed format, expect is `sha256:xxxx`, but got `%s`", hashed)
-	}
-
-	var hasher HashType
-	switch hs[0] {
-	case "sha256":
-		hasher = HashTypeSha256
-	case "md5":
-		hasher = HashTypeMD5
-	default:
-		return errors.Errorf("unknown hasher `%s`", hs[0])
-	}
-
-	fp, err := os.Open(filepath)
-	if err != nil {
-		return errors.Wrapf(err, "open file `%s`", filepath)
-	}
-	defer SilentClose(fp)
-
-	sig, err := Hash(hasher, fp)
-	if err != nil {
-		return errors.Wrapf(err, "calculate hash for file %q", filepath)
-	}
-
-	actualHash := hex.EncodeToString(sig)
-	if hs[1] != actualHash {
-		return errors.Errorf("hash `%s` not match expect `%s`", actualHash, hs[1])
-	}
-
-	return nil
-}
-
 // GetFuncName return the name of func
 func GetFuncName(f any) string {
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
