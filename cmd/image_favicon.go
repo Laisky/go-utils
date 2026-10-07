@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	gutils "github.com/Laisky/go-utils/v6"
+	"github.com/Laisky/go-utils/v6/internal/fileguard"
 	glog "github.com/Laisky/go-utils/v6/log"
 
 	_ "image/gif"
@@ -147,7 +148,7 @@ func generateFaviconFile(args imageFaviconOptions) (string, error) {
 		if err != nil {
 			return "", errors.Wrapf(err, "encode png size %d", outputSize)
 		}
-		if err = os.WriteFile(outputPath, data, 0o600); err != nil {
+		if err = writeFaviconOutput(outputPath, data, args.Force); err != nil {
 			return "", errors.Wrapf(err, "write output file %q", outputPath)
 		}
 		return outputPath, nil
@@ -156,7 +157,7 @@ func generateFaviconFile(args imageFaviconOptions) (string, error) {
 		if err != nil {
 			return "", errors.Wrap(err, "build ico")
 		}
-		if err = os.WriteFile(outputPath, data, 0o600); err != nil {
+		if err = writeFaviconOutput(outputPath, data, args.Force); err != nil {
 			return "", errors.Wrapf(err, "write output file %q", outputPath)
 		}
 		return outputPath, nil
@@ -186,10 +187,12 @@ func buildFaviconOutputPath(inputPath, output, format string) (string, error) {
 	return outputPath, nil
 }
 
-// assertFileNotExists checks whether the given file path is absent.
-// It returns nil when the path does not exist, otherwise returns an error.
+// assertFileNotExists checks whether the given file path is absent without
+// following a final link, so a dangling link counts as an existing entry. It is an
+// early user-facing check only; the final write still creates exclusively.
+// It returns nil when no entry exists at the path, otherwise returns an error.
 func assertFileNotExists(fpath string) error {
-	if _, err := os.Stat(fpath); err != nil {
+	if _, err := os.Lstat(fpath); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
@@ -197,6 +200,25 @@ func assertFileNotExists(fpath string) error {
 	}
 
 	return errors.Errorf("output file already exists: %q", fpath)
+}
+
+// writeFaviconOutput writes data to outputPath without following links. Without
+// force the file is created exclusively, so any existing entry, including a
+// dangling link, is refused atomically. With force an existing regular file is
+// replaced through a private temporary file and rename, while links and special
+// files are rejected. It takes the output path, the encoded bytes and the force
+// flag, and returns an error when the output cannot be published.
+func writeFaviconOutput(outputPath string, data []byte, force bool) error {
+	write := func(fp *os.File) error {
+		if _, err := fp.Write(data); err != nil {
+			return errors.Wrap(err, "write favicon bytes")
+		}
+		return nil
+	}
+	if force {
+		return fileguard.Replace(outputPath, 0, 0o600, write)
+	}
+	return fileguard.WriteNew(outputPath, 0, 0o600, write)
 }
 
 // normalizeFaviconSizes validates, deduplicates, and sorts favicon sizes.

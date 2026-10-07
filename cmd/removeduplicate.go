@@ -203,6 +203,13 @@ func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
 	return finfo1.Size() > finfo2.Size(), nil
 }
 
+// checkDupByHash removes fpath when an earlier file with the same SHA-1 digest
+// holds byte-identical content. The digest is only a candidate index: sizes and
+// all bytes are compared before any deletion, and a size or content mismatch, a
+// comparison failure or a file that changed after comparison preserves both
+// files. In dry mode a proven duplicate is only reported. It takes the dry flag,
+// the shared digest cache and the path, and returns whether fpath is a proven
+// duplicate (removed unless dry) or an error; on error nothing is deleted.
 func checkDupByHash(dry bool, hashes *sync.Map, fpath string) (deleted bool, err error) {
 	fhashBytes, err := gutils.FileHash(gutils.HashTypeSha1, fpath)
 	if err != nil {
@@ -221,20 +228,38 @@ func checkDupByHash(dry bool, hashes *sync.Map, fpath string) (deleted bool, err
 		sizeBytes: fstat.Size(),
 	}
 
-	if vi, loaded := hashes.LoadOrStore(fhash, cacheItem); loaded {
-		raw := vi.(*dupFile) //nolint:forcetypeassert
-		glog.Shared.Info("remove duplicate since same hash",
-			zap.String("remove", fpath),
-			zap.String("keep", raw.path),
-		)
-		if !dry {
-			return true, removeFile(fpath)
-		}
-
-		return true, nil
+	vi, loaded := hashes.LoadOrStore(fhash, cacheItem)
+	if !loaded {
+		return false, nil
+	}
+	raw := vi.(*dupFile) //nolint:forcetypeassert
+	if raw.sizeBytes != cacheItem.sizeBytes {
+		glog.Shared.Warn("digest matched but file sizes differ; preserving both files",
+			zap.String("file", fpath), zap.String("other", raw.path))
+		return false, nil
+	}
+	cmp, err := compareFileContent(raw.path, fpath)
+	if err != nil {
+		return false, errors.Wrapf(err, "verify digest candidate %q against %q; both files preserved", fpath, raw.path)
+	}
+	if !cmp.equal || cmp.first.Size() != raw.sizeBytes || os.SameFile(cmp.first, cmp.second) {
+		glog.Shared.Warn("digest matched but content is not a removable duplicate; preserving both files",
+			zap.String("file", fpath), zap.String("other", raw.path),
+			zap.Bool("same_inode", cmp.equal && os.SameFile(cmp.first, cmp.second)))
+		return false, nil
 	}
 
-	return false, nil
+	glog.Shared.Info("remove duplicate since identical content",
+		zap.String("remove", fpath),
+		zap.String("keep", raw.path),
+	)
+	if !dry {
+		if err := removeIfUnchanged(fpath, cmp.second); err != nil {
+			return false, errors.Wrap(err, "remove verified duplicate")
+		}
+	}
+
+	return true, nil
 }
 
 func removeFile(fpath string) error {

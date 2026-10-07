@@ -93,10 +93,10 @@
 // The gutils command-line tool exposes several handy operations:
 //
 //	# find and delete duplicate files or similar images
-//	gutils remove-dup examples/images --dry
+//	gutils remove-dup -d examples/images --dry
 //
 //	# move files into hash-based hierarchical directories
-//	gutils md5dir -i examples/md5dir/ --dry
+//	gutils md5dir -i examples/md5dir/
 //
 //	# show X.509 certificate details
 //	gutils certinfo -r blog.laisky.com:443

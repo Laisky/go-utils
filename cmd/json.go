@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	gutils "github.com/Laisky/go-utils/v6"
+	"github.com/Laisky/go-utils/v6/internal/fileguard"
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
@@ -117,14 +119,8 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool, indent 
 			if err != nil {
 				return err
 			}
-			if d.IsDir() {
-				return nil
-			}
-			for _, ext := range exts {
-				if strings.HasSuffix(p, ext) {
-					files = append(files, p)
-					break
-				}
+			if isJSONCandidate(p, p, d, exts) {
+				files = append(files, p)
 			}
 			return nil
 		})
@@ -134,14 +130,9 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool, indent 
 			return errors.Wrapf(err, "read dir %q", path)
 		}
 		for _, entry := range entries {
-			if entry.IsDir() {
-				continue
-			}
-			for _, ext := range exts {
-				if strings.HasSuffix(entry.Name(), ext) {
-					files = append(files, filepath.Join(path, entry.Name()))
-					break
-				}
+			fpath := filepath.Join(path, entry.Name())
+			if isJSONCandidate(fpath, entry.Name(), entry, exts) {
+				files = append(files, fpath)
 			}
 		}
 	}
@@ -159,7 +150,34 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool, indent 
 	return nil
 }
 
+// isJSONCandidate reports whether a scanned directory entry should be sorted.
+// Directories are skipped silently; links and other non-regular entries are
+// skipped with a debug log so that a scan never rewrites a link target. It takes
+// the entry's full path for logging, the string matched against the suffixes, the
+// entry and the accepted suffixes, and returns true for a matching regular file.
+func isJSONCandidate(fpath, match string, entry os.DirEntry, exts []string) bool {
+	if entry.IsDir() {
+		return false
+	}
+	if !entry.Type().IsRegular() {
+		glog.Shared.Debug("skip non-regular json candidate", zap.String("file", fpath))
+		return false
+	}
+	for _, ext := range exts {
+		if strings.HasSuffix(match, ext) {
+			return true
+		}
+	}
+	return false
+}
+
 // sortJSONFile sort a single json file
+//
+// Only regular files are rewritten; a symbolic link, directory or special file is
+// rejected so that the rewrite can never modify an unrelated link target. The
+// file is read through a descriptor bound to the inspected inode, and the sorted
+// output is published with an atomic replace that keeps the original permission
+// bits. The replacement is a new inode owned by the current user.
 //
 // Parameters:
 //   - fpath: file path
@@ -171,13 +189,22 @@ func sortJSONPath(path string, exts []string, recursive, dry, desc bool, indent 
 // Returns:
 //   - error: error if any
 func sortJSONFile(fpath string, dry, desc bool, indent int, insensitive bool) error {
+	info, err := os.Lstat(fpath)
+	if err != nil {
+		return errors.Wrapf(err, "inspect json file %q", fpath)
+	}
+	if !info.Mode().IsRegular() {
+		return errors.Wrapf(fileguard.ErrNotRegular, "refuse to rewrite json file %q of type %s",
+			fpath, info.Mode().Type())
+	}
+
 	if dry {
 		fmt.Printf("found json file: %s\n", fpath)
 		return nil
 	}
 
 	glog.Shared.Info("sorting json file", zap.String("file", fpath))
-	raw, err := os.ReadFile(fpath)
+	raw, err := readInspectedRegularFile(fpath, info)
 	if err != nil {
 		return errors.Wrapf(err, "read file %q", fpath)
 	}
@@ -194,18 +221,53 @@ func sortJSONFile(fpath string, dry, desc bool, indent int, insensitive bool) er
 	}
 	out = append(out, '\n')
 
-	// Open existing file without O_CREATE so file mode is preserved.
-	fp, err := os.OpenFile(fpath, os.O_WRONLY|os.O_TRUNC, 0)
-	if err != nil {
-		return errors.Wrapf(err, "open file %q for rewrite", fpath)
-	}
-	defer gutils.SilentClose(fp)
-
-	if _, err = fp.Write(out); err != nil {
-		return errors.Wrapf(err, "write file %q", fpath)
+	// Publish through a private temporary file and rename: the destination entry
+	// is replaced, never written through, and the original mode is restored
+	// explicitly because the creation mode is reduced by the umask.
+	perm := info.Mode().Perm()
+	if err = fileguard.Replace(fpath, 0, perm, func(fp *os.File) error {
+		if err := fp.Chmod(perm); err != nil {
+			return errors.Wrap(err, "restore json file mode")
+		}
+		if _, err := fp.Write(out); err != nil {
+			return errors.Wrap(err, "write sorted json")
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrapf(err, "rewrite file %q", fpath)
 	}
 
 	return nil
+}
+
+// readInspectedRegularFile reads fpath only if the opened descriptor is still the
+// regular file described by info, so a link swapped in after inspection cannot
+// redirect the read. It takes the path and its Lstat metadata and returns the
+// file content or an error.
+func readInspectedRegularFile(fpath string, info os.FileInfo) (data []byte, retErr error) {
+	root, err := os.OpenRoot(filepath.Dir(fpath))
+	if err != nil {
+		return nil, errors.Wrap(err, "open json directory")
+	}
+	defer func() {
+		if err := root.Close(); err != nil {
+			retErr = errors.Join(retErr, errors.Wrap(err, "close json directory"))
+		}
+	}()
+	fp, err := fileguard.OpenRegular(root, filepath.Base(fpath), info)
+	if err != nil {
+		return nil, errors.Wrap(err, "open inspected json file")
+	}
+	defer func() {
+		if err := fp.Close(); err != nil {
+			retErr = errors.Join(retErr, errors.Wrap(err, "close json file"))
+		}
+	}()
+	data, err = io.ReadAll(fp)
+	if err != nil {
+		return nil, errors.Wrap(err, "read json file")
+	}
+	return data, nil
 }
 
 // sortedMap is a helper to marshal map with sorted keys
