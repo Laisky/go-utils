@@ -51,10 +51,15 @@ type dhkxOption struct {
 	group int
 }
 
+// fillDefault populates the default DHKX options on the receiver and returns the same receiver for
+// chaining. It currently leaves group at zero, which dhkx.GetGroup treats as the default 2048-bit
+// MODP group 14.
 func (o *dhkxOption) fillDefault() *dhkxOption {
 	return o
 }
 
+// applyOpts applies each DHKXOptionFunc in opts to the receiver in order. It returns the receiver
+// on success, or nil and the first error returned by an option.
 func (o *dhkxOption) applyOpts(opts ...DHKXOptionFunc) (*dhkxOption, error) {
 	for _, opt := range opts {
 		if err := opt(o); err != nil {

@@ -43,6 +43,8 @@ type kmsOption struct {
 // KMSOption optional arguments for kms
 type KMSOption func(*kmsOption) error
 
+// fillDefault sets the default options: a 32-byte AES key length, a 128-byte DEK ID length,
+// and the shared logger named "kms". It returns the receiver so it can be chained with applyOpts.
 func (o *kmsOption) fillDefault() *kmsOption {
 	o.aesKeyLen = 32
 	o.dekIDLen = 128 // 2^1024
@@ -51,6 +53,8 @@ func (o *kmsOption) fillDefault() *kmsOption {
 	return o
 }
 
+// applyOpts applies each KMSOption in opts to the receiver in order. It returns the receiver,
+// or the first error reported by an option.
 func (o *kmsOption) applyOpts(opts ...KMSOption) (*kmsOption, error) {
 	for i := range opts {
 		if err := opts[i](o); err != nil {
@@ -61,7 +65,8 @@ func (o *kmsOption) applyOpts(opts ...KMSOption) (*kmsOption, error) {
 	return o, nil
 }
 
-// (optional) WithAesKeyLen set aes key length
+// WithAesKeyLen (optional) sets the AES key length in bytes, keyLen, used for the DEKs
+// derived to encrypt and decrypt data. It returns the corresponding KMSOption.
 //
 // default to 32
 func WithAesKeyLen(keyLen int) KMSOption {
@@ -129,12 +134,15 @@ func (m *KMS) Status() gkms.Status {
 	return m.status
 }
 
+// setStatus stores status as the current KMS status under the write lock.
 func (m *KMS) setStatus(status gkms.Status) {
 	m.mu.Lock()
 	m.status = status
 	m.mu.Unlock()
 }
 
+// statusShouldBe checks that the current KMS status equals status. It returns nil when it does,
+// or an error naming the expected and actual statuses otherwise.
 func (m *KMS) statusShouldBe(status gkms.Status) error {
 	if m.Status() != status {
 		return errors.Errorf("kms status should be %s, but got %s",
@@ -168,7 +176,8 @@ func (m *KMS) AddKek(_ context.Context,
 	return nil
 }
 
-// KEK return current used kek
+// Kek returns the KEK currently used for new encryptions, which is the one with the largest ID.
+// It returns that KEK's ID and a defensive copy of its bytes, or an error if the KMS is not ready.
 func (m *KMS) Kek(_ context.Context) (
 	kekID uint16, kek []byte, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
@@ -195,7 +204,8 @@ func (m *KMS) Kek(_ context.Context) (
 	return kekID, out, nil
 }
 
-// keks return all keks
+// Keks returns all registered KEKs keyed by their IDs. Every value is a defensive copy, so
+// callers cannot mutate the internal key material. It returns an error if the KMS is not ready.
 func (m *KMS) Keks(_ context.Context) (
 	keks map[uint16][]byte, err error) {
 	if err = m.statusShouldBe(gkms.StatusReady); err != nil {
@@ -268,7 +278,9 @@ func (m *KMS) DeriveKey(ctx context.Context,
 	return kekID, dekID, dek, nil
 }
 
-// Encrypt encrypt by specific dek
+// EncryptByID encrypts plaintext with AEAD, binding additionalData, using the DEK derived from
+// the KEK identified by kekID and the given dekID. It returns the ciphertext, or an error if the
+// KMS is not ready, the KEK does not exist, or encryption fails.
 func (m *KMS) EncryptByID(ctx context.Context,
 	plaintext, additionalData []byte,
 	kekID uint16,

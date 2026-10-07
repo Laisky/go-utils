@@ -16,6 +16,10 @@ import (
 	gkms "github.com/Laisky/go-utils/v6/crypto/kms"
 )
 
+// TestKMS_Decrypt verifies that data encrypted by KMS.Encrypt decrypts correctly while other
+// goroutines concurrently read KEKs and add new ones, that EncryptByID with the same KEK/DEK IDs
+// yields a different (freshly nonced) ciphertext, and that Decrypt fails for wrong additional
+// data, an unknown KEK ID, a different KEK ID, or a wrong DEK ID.
 func TestKMS_Decrypt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

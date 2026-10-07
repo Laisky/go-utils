@@ -41,6 +41,9 @@ func TestVerifyBySHA256(t *testing.T) {
 	})
 }
 
+// TestSignVerifyNilInputs verifies that SignBySHA256 rejects a nil content reader, empty key
+// shares, and a nil key meta, and that VerifyBySHA256 rejects a nil content reader, a nil public
+// key, and an empty signature, each with a descriptive error instead of a panic.
 func TestSignVerifyNilInputs(t *testing.T) {
 	t.Parallel()
 
@@ -70,6 +73,10 @@ func TestSignVerifyNilInputs(t *testing.T) {
 	})
 }
 
+// TestNewKeyShares_IntegerOverflow verifies the input validation of NewKeyShares: totals or
+// thresholds above 65535 and RSA sizes below 2048 bits are rejected with descriptive errors and
+// nil results before any key generation, while valid parameters yield shares and a public key of
+// at least minRSAPublicKeyBits bits.
 func TestNewKeyShares_IntegerOverflow(t *testing.T) {
 	t.Parallel()
 

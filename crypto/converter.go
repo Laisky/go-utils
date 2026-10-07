@@ -159,7 +159,9 @@ func Der2Cert(certInDer []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(certInDer)
 }
 
-// Der2Cert parse multiple certificates in der
+// Der2Certs parses certInDer, which holds one or more concatenated DER-encoded certificates, via
+// x509.ParseCertificates. It returns the certificates in input order, or an error if any
+// certificate cannot be parsed.
 func Der2Certs(certInDer []byte) ([]*x509.Certificate, error) {
 	return x509.ParseCertificates(certInDer)
 }

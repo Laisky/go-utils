@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTOTP_Key verifies that a TOTP with a 1-second period yields 6-digit codes that are equal for
+// the same timestamp and differ two seconds later, that URI renders the expected otpauth URI, and
+// that ParseOTPUri on that URI recovers the original arguments (SHA-1, 6 digits, 1-second period)
+// and builds a TOTP that behaves identically.
 func TestTOTP_Key(t *testing.T) {
 	t.Parallel()
 
@@ -54,6 +58,8 @@ func TestTOTP_Key(t *testing.T) {
 	testTOTP(t, tt)
 }
 
+// TestTOTP_InputValidation verifies that NewTOTP accepts a secret with default settings and rejects
+// 9 digits and a 61-second period with range-validation errors.
 func TestTOTP_InputValidation(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +105,10 @@ func TestTOTP_InputValidation(t *testing.T) {
 	}
 }
 
+// TestParseOTPUri_InputValidation verifies that ParseOTPUri extracts the type, secret, account,
+// issuer, digits, period and default SHA-1 algorithm from valid TOTP URIs, applies the defaults of
+// 6 digits and a 30-second period when they are omitted, and rejects 9 digits and a 61-second
+// period with range-validation errors.
 func TestParseOTPUri_InputValidation(t *testing.T) {
 	t.Parallel()
 

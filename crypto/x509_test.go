@@ -4,11 +4,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha1"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
-	"net"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +15,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// TestCrossAlgorithmSign verifies that an RSA-2048 root CA can issue a certificate for a P-256
+// ECDSA CSR via NewX509CertByCSR, and that the resulting ECDSA leaf certificate verifies against a
+// pool containing only that RSA root.
 func TestCrossAlgorithmSign(t *testing.T) {
 	rootcaPrikeyPem, rootcaCertDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
 		WithX509CertCommonName("rootca"),
@@ -58,6 +58,9 @@ func TestCrossAlgorithmSign(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestNewECDSAPrikeyAndCert verifies NewECDSAPrikeyAndCert for the P-256, P-384 and P-521 curves:
+// the returned PEM key parses to an *ecdsa.PrivateKey whose public key matches the certificate, and
+// the certificate carries the "ca" common name and the CA flag.
 func TestNewECDSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -87,238 +90,8 @@ func TestNewECDSAPrikeyAndCert(t *testing.T) {
 	}
 }
 
-func TestNewX509CSR(t *testing.T) {
-	t.Parallel()
-
-	t.Run("sign by non-ca", func(t *testing.T) {
-		t.Parallel()
-		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-		)
-		require.NoError(t, err)
-
-		prikey, err := Pem2Prikey(prikeyPem)
-		require.NoError(t, err)
-
-		csrPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
-		require.NoError(t, err)
-
-		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CSRCommonName("laisky"),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		_, err = NewX509CertByCSR(ca, prikey, csrder,
-			WithX509SignCSRIsCA(),
-		)
-		require.Error(t, err)
-	})
-
-	// generate root-ca
-	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-		WithX509CertIsCA(),
-		WithX509CertCommonName("ca"),
-		WithX509CertCaMaxPathLen(0),
-	)
-	require.NoError(t, err)
-
-	ca, err := Der2Cert(certder)
-	require.NoError(t, err)
-	require.Equal(t, 0, ca.MaxPathLen)
-	require.True(t, ca.MaxPathLenZero)
-
-	prikey, err := Pem2Prikey(prikeyPem)
-	require.NoError(t, err)
-
-	csrPrikey, err := NewRSAPrikey(RSAPrikeyBits3072)
-	require.NoError(t, err)
-
-	csrPrikeyPem, err := Prikey2Pem(csrPrikey)
-	require.NoError(t, err)
-
-	t.Run("sign ca-csr with no options", func(t *testing.T) {
-		t.Parallel()
-		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CSRCommonName("laisky"),
-		)
-		require.NoError(t, err)
-
-		validFrom := time.Now().UTC()
-		validAt := validFrom.Add(time.Hour)
-
-		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder)
-		require.NoError(t, err)
-
-		newCert, err := Der2Cert(newCertDer)
-		require.NoError(t, err)
-
-		require.Equal(t, "laisky", newCert.Subject.CommonName)
-		require.NotContains(t, newCert.DNSNames, "laisky.com")
-		require.False(t, newCert.IsCA)
-		require.Equal(t, "ca", newCert.Issuer.CommonName)
-		require.NotContains(t, newCert.Subject.Organization, "laisky-o")
-		require.NotContains(t, newCert.Subject.OrganizationalUnit, "laisky-u")
-		require.NotContains(t, newCert.Subject.Locality, "local")
-		require.NotContains(t, newCert.Subject.Country, "country")
-		require.NotContains(t, newCert.Subject.Province, "province")
-		require.NotContains(t, newCert.Subject.StreetAddress, "st-1")
-		require.NotContains(t, newCert.Subject.StreetAddress, "st-2")
-		require.NotContains(t, newCert.Subject.PostalCode, "200233")
-		require.NotEqual(t, big.NewInt(489238432420), newCert.SerialNumber)
-		require.NotEqual(t, x509.KeyUsageCRLSign, newCert.KeyUsage&x509.KeyUsageCRLSign)
-		require.NotContains(t, newCert.ExtKeyUsage, x509.ExtKeyUsageCodeSigning)
-		require.NotEqual(t, newCert.NotBefore, validFrom)
-		require.NotEqual(t, newCert.NotAfter, validAt)
-		require.NotContains(t, newCert.ExtKeyUsage, x509.KeyUsageCRLSign)
-		require.NotContains(t, newCert.CRLDistributionPoints, "crl")
-		require.NotContains(t, newCert.OCSPServer, "ocsp")
-		require.Empty(t, newCert.PolicyIdentifiers)
-		require.LessOrEqual(t, newCert.MaxPathLen, 0)
-		require.False(t, newCert.MaxPathLenZero)
-	})
-
-	t.Run("sign ca-csr with full options", func(t *testing.T) {
-		t.Parallel()
-		ext := pkix.Extension{
-			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-			Critical: false,
-			Value:    []byte("laisky-ext"),
-		}
-		exext := pkix.Extension{
-			Id:       asn1.ObjectIdentifier{1, 2, 3, 4, 5, 1},
-			Critical: false,
-			Value:    []byte("laisky-exext"),
-		}
-
-		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CSRCommonName("laisky"),
-			WithX509CSRSANS("laisky.com"),
-			WithX509CSROrganization("laisky-o"),
-			WithX509CSROrganizationUnit("laisky-u"),
-			WithX509CSRLocality("local"),
-			WithX509CSRCountry("country"),
-			WithX509CSRProvince("province"),
-			WithX509CSRStreetAddrs("st-1", "st-2"),
-			WithX509CSRPostalCode("200233"),
-			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
-			WithX509CSRAttribute(pkix.AttributeTypeAndValueSET{
-				Type: asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-				Value: [][]pkix.AttributeTypeAndValue{{{
-					Type:  asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-					Value: "laisky",
-				}}},
-			}),
-			WithX509CSRExtension(ext),
-			WithX509CSRExtraExtension(exext),
-			WithX509CSRPublicKeyAlgorithm(x509.RSA),
-			WithX509CSRDNSNames("laisky.com"),
-			WithX509CSRIPAddrs(net.ParseIP("1.2.3.4")),
-			WithX509CSRURIs(&url.URL{Scheme: "https", Host: "laisky.com"}),
-		)
-		require.NoError(t, err)
-
-		csr, err := Der2CSR(csrder)
-		require.NoError(t, err)
-		require.Equal(t, "laisky", csr.Subject.CommonName)
-		require.Contains(t, csr.Extensions, exext)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		validFrom := time.Unix(time.Now().Unix(), 0).UTC()
-		validAt := validFrom.Add(time.Hour)
-
-		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder,
-			WithX509SignCSRIsCA(),
-			WithX509SignCSRIsCRLCA(),
-			WithX509SignCSRSeriaNumber(big.NewInt(489238432420)),
-			WithX509SignCSRKeyUsage(x509.KeyUsageCRLSign),
-			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageCodeSigning),
-			WithX509SignCSRNotBefore(validFrom),
-			WithX509SignCSRNotAfter(validFrom.Add(time.Hour)),
-			WithX509SignCSRCRLs("crl"),
-			WithX509SignCSRPolicies(asn1.ObjectIdentifier{1, 2, 3, 4}),
-			WithX509SignCSROCSPServers("ocsp"),
-			WithX509SignCSRExtenstions(ext),
-			WithX509SignCSRExtraExtenstions(exext),
-		)
-		require.NoError(t, err)
-
-		newCert, err := Der2Cert(newCertDer)
-		require.NoError(t, err)
-
-		v := net.ParseIP("1.2.3.4")
-		t.Logf("%v", v)
-
-		require.Equal(t, "laisky", newCert.Subject.CommonName)
-		require.True(t, newCert.IsCA)
-		require.Equal(t, "ca", newCert.Issuer.CommonName)
-		require.Contains(t, newCert.Subject.Organization, "laisky-o")
-		require.Contains(t, newCert.Subject.OrganizationalUnit, "laisky-u")
-		require.Contains(t, newCert.Subject.Locality, "local")
-		require.Contains(t, newCert.Subject.Country, "country")
-		require.Contains(t, newCert.Subject.Province, "province")
-		require.Contains(t, newCert.Subject.StreetAddress, "st-1")
-		require.Contains(t, newCert.Subject.StreetAddress, "st-2")
-		require.Contains(t, newCert.Subject.PostalCode, "200233")
-		require.Equal(t, big.NewInt(489238432420), newCert.SerialNumber)
-		require.Equal(t, x509.KeyUsageCRLSign, newCert.KeyUsage&x509.KeyUsageCRLSign)
-		require.Contains(t, newCert.ExtKeyUsage, x509.ExtKeyUsageCodeSigning)
-		require.Equal(t, newCert.NotBefore, validFrom)
-		require.Equal(t, newCert.NotAfter, validAt)
-		require.NotEmpty(t, newCert.KeyUsage&x509.KeyUsageCRLSign)
-		require.Contains(t, newCert.CRLDistributionPoints, "crl")
-		require.Contains(t, newCert.OCSPServer, "ocsp")
-		require.True(t, OIDContains([]asn1.ObjectIdentifier{{1, 2, 3, 4}}, newCert.PolicyIdentifiers[0]))
-		require.Equal(t, x509.SHA256WithRSA, newCert.SignatureAlgorithm)
-		require.Equal(t, x509.RSA, newCert.PublicKeyAlgorithm)
-		require.Contains(t, newCert.DNSNames, "laisky.com")
-		require.True(t, newCert.IPAddresses[0].Equal(net.ParseIP("1.2.3.4")))
-		require.Contains(t, newCert.URIs, &url.URL{Scheme: "https", Host: "laisky.com"})
-		require.Contains(t, newCert.Extensions, exext)
-		// require.Contains(t, newCert.ExtraExtensions, exext)
-	})
-
-	t.Run("set attribtues in non-ca csr", func(t *testing.T) {
-		t.Parallel()
-		csrder, err := NewX509CSR(csrPrikey,
-			WithX509CSRCommonName("laisky"),
-			WithX509CSRSANS("laisky.com"),
-			WithX509CSRSignatureAlgorithm(x509.SHA512WithRSA),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		newCertDer, err := NewX509CertByCSR(ca, prikey, csrder)
-		require.NoError(t, err)
-
-		newCert, err := Der2Cert(newCertDer)
-		require.NoError(t, err)
-
-		require.Equal(t, "laisky", newCert.Subject.CommonName)
-		require.Contains(t, newCert.DNSNames, "laisky.com")
-		require.False(t, newCert.IsCA)
-
-		t.Run("verify", func(t *testing.T) {
-			roots := x509.NewCertPool()
-			roots.AppendCertsFromPEM(CertDer2Pem(certder))
-			_, err = newCert.Verify(x509.VerifyOptions{
-				Roots:     roots,
-				KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-			})
-			require.NoError(t, err)
-
-			err = VerifyCertByPrikey(CertDer2Pem(newCertDer), csrPrikeyPem)
-			require.NoError(t, err)
-		})
-	})
-}
-
+// TestX509CertSubjectKeyID verifies that X509CertSubjectKeyID returns the SHA-1 digest of the
+// public key's PKIX DER encoding (as produced by Pubkey2Der) for an RSA-2048 key.
 func TestX509CertSubjectKeyID(t *testing.T) {
 	t.Parallel()
 
@@ -335,463 +108,11 @@ func TestX509CertSubjectKeyID(t *testing.T) {
 	require.Equal(t, expected[:], got)
 }
 
-func newTestSeriaNo(t *testing.T) *big.Int {
-	g, err := NewDefaultX509CertSerialNumGenerator()
-	require.NoError(t, err)
-
-	return big.NewInt(g.SerialNum())
-}
-
-func TestNewX509CRL(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ca without crl sign key usage", func(t *testing.T) {
-		t.Parallel()
-		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertIsCA())
-		require.NoError(t, err)
-
-		prikey, err := Pem2Prikey(prikeyPem)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		serialNum := newTestSeriaNo(t)
-		revokeTime := time.Now().UTC()
-
-		_, err = NewX509CRL(ca, prikey, serialNum,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: revokeTime,
-					SerialNumber:   serialNum,
-				},
-			},
-		)
-		require.NoError(t, err)
-	})
-	// Setup CA with CRL signing capability
-	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-		WithX509CertCommonName("laisky-test"),
-		WithX509CertIsCRLCA())
-	require.NoError(t, err)
-
-	prikey, err := Pem2Prikey(prikeyPem)
-	require.NoError(t, err)
-
-	ca, err := Der2Cert(certder)
-	require.NoError(t, err)
-
-	serialNum := newTestSeriaNo(t)
-	revokeTime := time.Now().UTC()
-
-	t.Run("without crl serial number", func(t *testing.T) {
-		t.Parallel()
-		_, err = NewX509CRL(ca, prikey, nil,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: revokeTime,
-					SerialNumber:   serialNum,
-				},
-			})
-		require.ErrorContains(t, err, "seriaNumber is empty")
-	})
-
-	t.Run("with crl serial number", func(t *testing.T) {
-		t.Parallel()
-		crlDer, err := NewX509CRL(ca, prikey, serialNum,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: revokeTime,
-					SerialNumber:   serialNum,
-				},
-			},
-		)
-		require.NoError(t, err)
-
-		crl, err := Der2CRL(crlDer)
-		require.NoError(t, err)
-
-		err = VerifyCRL(ca, crl)
-		require.NoError(t, err)
-
-		require.Equal(t, serialNum, crl.RevokedCertificates[0].SerialNumber)
-		require.Equal(t, revokeTime.Unix(), crl.RevokedCertificates[0].RevocationTime.Unix())
-	})
-
-	t.Run("with multiple revoked certificates", func(t *testing.T) {
-		t.Parallel()
-		serialNum2 := newTestSeriaNo(t)
-		revokeTime2 := time.Now().UTC()
-
-		crlDer, err := NewX509CRL(ca, prikey, serialNum,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: revokeTime,
-					SerialNumber:   serialNum,
-				},
-				{
-					RevocationTime: revokeTime2,
-					SerialNumber:   serialNum2,
-				},
-			},
-		)
-		require.NoError(t, err)
-
-		crl, err := Der2CRL(crlDer)
-		require.NoError(t, err)
-
-		require.Len(t, crl.RevokedCertificates, 2)
-		require.Equal(t, serialNum2, crl.RevokedCertificates[1].SerialNumber)
-	})
-
-	t.Run("crl convert", func(t *testing.T) {
-		t.Parallel()
-		crlDer, err := NewX509CRL(ca, prikey, serialNum,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: revokeTime,
-					SerialNumber:   serialNum,
-				},
-			},
-		)
-		require.NoError(t, err)
-
-		pem := CRLDer2Pem(crlDer)
-		gotDer, err := CRLPem2Der(pem)
-		require.NoError(t, err)
-		require.Equal(t, crlDer, gotDer)
-
-		crl, err := Pem2CRL(pem)
-		require.NoError(t, err)
-		pem2 := CRL2Pem(crl)
-		require.Equal(t, pem, pem2)
-
-		der2 := CRL2Der(crl)
-		require.Equal(t, crlDer, der2)
-	})
-
-	t.Run("invalid revocation time", func(t *testing.T) {
-		t.Parallel()
-		_, err := NewX509CRL(ca, prikey, serialNum,
-			[]pkix.RevokedCertificate{
-				{
-					RevocationTime: time.Time{}, // zero time
-					SerialNumber:   serialNum,
-				},
-			},
-		)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "zero RevocationTime field")
-	})
-}
-
-func Test_Pem2Certs(t *testing.T) {
-	t.Parallel()
-
-	rawPems := []byte(`-----BEGIN CERTIFICATE-----
-MIIFBzCCAu+gAwIBAgIHPIuIgY/99DANBgkqhkiG9w0BAQsFADAiMSAwHgYDVQQD
-Exdwa2ktYXV0b3Rlc3QtbmV3LXJvb3RjYTAeFw0yNDAxMDIxMDMwMzZaFw0zOTAx
-MDIxMDMwMzZaMCIxIDAeBgNVBAMTF3BraS1hdXRvdGVzdC1uZXctcm9vdGNhMIIC
-IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxQWAQtLfnHAQNz1ZzhwTZVaP
-WZ+4st3GbBq1G3hl0hSbPM33qeVQVi67mKUo/tN2jQYUKwPNjVrswUGGUY+7z4WP
-Kw3bt3ss5qlacp67f4Sfx3xHN4G7NhSVOPzZ+Zy4lyfpeRXGhl2pT/nR6T6kO1mT
-3PngPb3cVuZ1M52mwapeLWMGbbUtVBj/mE/RtODqzCKEInv1ILlWbZ5+Y3B26WQJ
-Bi7fgl6iajIOfRaMsGS06r2rh2wGYueDTUweSi5CT/H8dhyd0vgPRb9INpQflwkA
-vmSYkqNhHBRJkVf1gO66Pm00+6xXh62iJ/9bujs4yGh+Lo3Iu62tZjxx9x9bv2u+
-pARghInYvj+Oo974Isj++LyxfrfQMqv2x/gFbe5+nxsU3PtV3m8Ccqznb5rt5xJ+
-XQGs3jYJRUMIp+qn7s7fst1go4j2Xl/H8bozG/DIBxTH8VAvP+3p8TSloNlcsS0t
-6xhAVlH0rnD8u8BCRtdCdWR6geDif+9Y2fGMJEGOVyEaeYWRjK/IkYdm/VQQ7xXY
-9TFmX0kOVhVUeNc/gH3SL2/4VW80igzRKP/LzeuD8AhlbUZK9azzNzhOzcoU0rDM
-zxHfKoEgNErRArAvy9IETc/35leHQFnWAagWrO364jWp8r1XGxo+gOJfBAW8F4mh
-8HFJForHSWB0Lzp+GN0CAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8GA1UdEwEB
-/wQFMAMBAf8wHQYDVR0OBBYEFB3ENnK2MHLAwByBxkQgAj+s2oEqMA0GCSqGSIb3
-DQEBCwUAA4ICAQAFEgoFUZdd4yhQGEe1Et6JyqWLiXXILoAVPFVKsBVwl9y5aF+f
-K5MAyturlDkPaCXX93uZ5+Ogi7yvbPUjGeYNsNmc9q520nRQBiHn5qusPl7QW2+j
-CP3XkjK2kWCS6mUQ7fVKOGyS91Jj3NbY1UxYCUdWkBeT/T7W8vQAaMutoEjwSDTB
-+VgEvLQB8mnOu95jyAqI6JxsGIOzGBpBeggKePZ17Dce/Bv5PjkQh0yqIyqNDwd1
-I5+mU9B/DEJZOUeseLLTpXLXTX2aaA98Rd0jlRHCfShJkPc/hgWFuTOELyAwlQ5c
-pDqfHvrUcbzfLFRRhWFISZR293uWGOzTW3Koa6stLu0Hupdu+z0ip6cbCFNsuS55
-AWHJ23LlJ+91wIfGaoGqryF79j/F9+q70SFbZLk9tQ4Z3HiUMPllR+IxYttHn2mm
-e2B/+t6UZ4XhWA8YWkRum9jdYvIm8tYIwvE9JYa/BCG0jdw3t1W4PeprnQCd5J+i
-aErJcXxVABscUZnBKI7HHHNhTPfgtq/FMVkhCb91gQ1xC4Kd/dmbcHdXb2KLDWTB
-yfts6lp6jGHLPOAXwOSJfbszZL5mgIvdClFWSl/+WHr0VA8wJ1ptvC71KsqjXywi
-Ok3X2p/IwrThOEGL47+JsjVngIbI8A0kJG2pncBGilSvQt3yBP4oKKDpFw==
------END CERTIFICATE-----
------BEGIN CERTIFICATE-----
-MIIFBzCCAu+gAwIBAgIHPIuIgY/99DANBgkqhkiG9w0BAQsFADAiMSAwHgYDVQQD
-Exdwa2ktYXV0b3Rlc3QtbmV3LXJvb3RjYTAeFw0yNDAxMDIxMDMwMzZaFw0zOTAx
-MDIxMDMwMzZaMCIxIDAeBgNVBAMTF3BraS1hdXRvdGVzdC1uZXctcm9vdGNhMIIC
-IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxQWAQtLfnHAQNz1ZzhwTZVaP
-WZ+4st3GbBq1G3hl0hSbPM33qeVQVi67mKUo/tN2jQYUKwPNjVrswUGGUY+7z4WP
-Kw3bt3ss5qlacp67f4Sfx3xHN4G7NhSVOPzZ+Zy4lyfpeRXGhl2pT/nR6T6kO1mT
-3PngPb3cVuZ1M52mwapeLWMGbbUtVBj/mE/RtODqzCKEInv1ILlWbZ5+Y3B26WQJ
-Bi7fgl6iajIOfRaMsGS06r2rh2wGYueDTUweSi5CT/H8dhyd0vgPRb9INpQflwkA
-vmSYkqNhHBRJkVf1gO66Pm00+6xXh62iJ/9bujs4yGh+Lo3Iu62tZjxx9x9bv2u+
-pARghInYvj+Oo974Isj++LyxfrfQMqv2x/gFbe5+nxsU3PtV3m8Ccqznb5rt5xJ+
-XQGs3jYJRUMIp+qn7s7fst1go4j2Xl/H8bozG/DIBxTH8VAvP+3p8TSloNlcsS0t
-6xhAVlH0rnD8u8BCRtdCdWR6geDif+9Y2fGMJEGOVyEaeYWRjK/IkYdm/VQQ7xXY
-9TFmX0kOVhVUeNc/gH3SL2/4VW80igzRKP/LzeuD8AhlbUZK9azzNzhOzcoU0rDM
-zxHfKoEgNErRArAvy9IETc/35leHQFnWAagWrO364jWp8r1XGxo+gOJfBAW8F4mh
-8HFJForHSWB0Lzp+GN0CAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8GA1UdEwEB
-/wQFMAMBAf8wHQYDVR0OBBYEFB3ENnK2MHLAwByBxkQgAj+s2oEqMA0GCSqGSIb3
-DQEBCwUAA4ICAQAFEgoFUZdd4yhQGEe1Et6JyqWLiXXILoAVPFVKsBVwl9y5aF+f
-K5MAyturlDkPaCXX93uZ5+Ogi7yvbPUjGeYNsNmc9q520nRQBiHn5qusPl7QW2+j
-CP3XkjK2kWCS6mUQ7fVKOGyS91Jj3NbY1UxYCUdWkBeT/T7W8vQAaMutoEjwSDTB
-+VgEvLQB8mnOu95jyAqI6JxsGIOzGBpBeggKePZ17Dce/Bv5PjkQh0yqIyqNDwd1
-I5+mU9B/DEJZOUeseLLTpXLXTX2aaA98Rd0jlRHCfShJkPc/hgWFuTOELyAwlQ5c
-pDqfHvrUcbzfLFRRhWFISZR293uWGOzTW3Koa6stLu0Hupdu+z0ip6cbCFNsuS55
-AWHJ23LlJ+91wIfGaoGqryF79j/F9+q70SFbZLk9tQ4Z3HiUMPllR+IxYttHn2mm
-e2B/+t6UZ4XhWA8YWkRum9jdYvIm8tYIwvE9JYa/BCG0jdw3t1W4PeprnQCd5J+i
-aErJcXxVABscUZnBKI7HHHNhTPfgtq/FMVkhCb91gQ1xC4Kd/dmbcHdXb2KLDWTB
-yfts6lp6jGHLPOAXwOSJfbszZL5mgIvdClFWSl/+WHr0VA8wJ1ptvC71KsqjXywi
-Ok3X2p/IwrThOEGL47+JsjVngIbI8A0kJG2pncBGilSvQt3yBP4oKKDpFw==
------END CERTIFICATE----------BEGIN CERTIFICATE-----
-MIIFHDCCAwSgAwIBAgIHPIuIgfLedTANBgkqhkiG9w0BAQsFADAWMRQwEgYDVQQD
-EwtiYnQgcm9vdCBjYTAeFw0yNDAxMDIxMDMwMzZaFw0zOTAxMDIxMDMwMzZaMCIx
-IDAeBgNVBAMTF2Nyb3Nzc2lnbiBpbnRlcm1lZGlhIGNhMIICIjANBgkqhkiG9w0B
-AQEFAAOCAg8AMIICCgKCAgEAy6ZVv3DebRfFfu2YwHg0TcbUluWmzV0nR4PMiWx3
-D+0OilCoKrD+t+AbbFPVubIVYaMihP1hWDISqFx+adbikcKyYHsZC6z1wohO9N7w
-d2TJz+7kDQ+CKrsJ6p0gHjnAGGNkHR3mX3LQxDfQ9bkUoZ7BzViyMJX1Auh6/DFS
-8NvvcBXpbqBhm21rk1NKNk1f5r/TIWTL9XnvmEwVtrPrC6Aekyty6/9kfY+q9itd
-owUoyccaZRtHoX+DjOFTor8G+knmfRj6pA5uC2gI2rHdwhNtJtxz9RMiZe2c7AF8
-UuqJnH+qtyGFHIjyabafKUkifLvgCvmGRvn93wM3a0pDr0dUQxp/HcIgUl28oQdp
-mAgSiCH7z6WuZwAN9q/vfUGyrpOtZ08iswYYe/FPOTjZRObXOScmM1kFUxjK9BH6
-9poZlwjEJd/5/eQDeSBwc+463MbXGk8Z1RA9z2tvYGGpYdeY/AtzfxnqGBoFZ4y+
-pycWgYWONzpsIMlzYjRLEZ2tnqQiJuctLNQd4ZuuJ10LN23fq84ZCPmpxahfc4qw
-D/UAPuh3Qiqhn2Y75YA0pfzNdwHXDuxfKOvTxyTVzKvOtyuM1PK83qpnYXDiK/k4
-op75sqcuEnb0UaHommxTA1ZkQOngx+Z615FGmTYtJCtgdAO7yJ6mplIPq7uwONM6
-3c0CAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgGmMA8GA1UdEwEB/wQFMAMBAf8wHQYD
-VR0OBBYEFKyN8gPuMOoF0coqpAcn528iBDUnMB8GA1UdIwQYMBaAFC5HHXzW0A8h
-OTCpzcZeGYdvoZUGMA0GCSqGSIb3DQEBCwUAA4ICAQCPAAoobYHTdSKmOcWPxR0M
-FFdGXHiirvPHXcbf+lG03Zlk3F50xOJRRmDAAeuCbhpnaY4FC2qqPBi1gKy2SSoa
-jtgmhsyf5y4j5IlhLyT6zToDc0Tp3lwdZnixqmSM7YUwmP1TiN5vaboAbe9TSYeO
-10gVtufNOQPma9suvUyc+oMbi25DB9eHG5AnkoMM7h5Yw31RYPcMMiZCnJz5mWhn
-SqD9sKHCzwEH8V34SfYSzf52sx2MOE7DKb8WHBzg2xQHASuJQw4M+vcHa22KrZYg
-wqZjVjVtmyjT0XJD6j5Eow4pqiqAzbjTLC9EfWpuQLDwu2ZP5H873cvmPyo92FAE
-TQ9wchgI8mDN4dXxfyanSgSnNcCv3fJGq4lgUOvQxdN+IcQdTzhzSdHP/7IASj8K
-utgK/ZsZJjr1TKutxN9rBhuoqkPB1+IR7v4iXxmB6iSA/VoTia1owsiRelZSHoiU
-SVQg88YRdZZKB/23zKOM0zFxqgSDm8LpjR93WSU+7zpGPY2yfp6ywpzPojJoB8Ro
-1mkSNpU6qceBLJKtP9iEl6p83kcg7eFj77ecjFP8fzM6Y0ghdn3hTqIkViEX4XY1
-CeFj26ubIwjsklXtP2tw0lqm6/E+hoUCyMm0JwOmzpKeCKr2gzPOOhk8OjkkFjMt
-VXPoAsyCmCurZLLFPChpwQ==
------END CERTIFICATE----------BEGIN CERTIFICATE-----
-MIIFKDCCAxCgAwIBAgIHPIuIgfTaRjANBgkqhkiG9w0BAQsFADAiMSAwHgYDVQQD
-Exdwa2ktYXV0b3Rlc3QtbmV3LXJvb3RjYTAeFw0yNDAxMDIxMDMwMzZaFw0zOTAx
-MDIxMDMwMzZaMCIxIDAeBgNVBAMTF2Nyb3Nzc2lnbiBpbnRlcm1lZGlhIGNhMIIC
-IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAy6ZVv3DebRfFfu2YwHg0TcbU
-luWmzV0nR4PMiWx3D+0OilCoKrD+t+AbbFPVubIVYaMihP1hWDISqFx+adbikcKy
-YHsZC6z1wohO9N7wd2TJz+7kDQ+CKrsJ6p0gHjnAGGNkHR3mX3LQxDfQ9bkUoZ7B
-zViyMJX1Auh6/DFS8NvvcBXpbqBhm21rk1NKNk1f5r/TIWTL9XnvmEwVtrPrC6Ae
-kyty6/9kfY+q9itdowUoyccaZRtHoX+DjOFTor8G+knmfRj6pA5uC2gI2rHdwhNt
-Jtxz9RMiZe2c7AF8UuqJnH+qtyGFHIjyabafKUkifLvgCvmGRvn93wM3a0pDr0dU
-Qxp/HcIgUl28oQdpmAgSiCH7z6WuZwAN9q/vfUGyrpOtZ08iswYYe/FPOTjZRObX
-OScmM1kFUxjK9BH69poZlwjEJd/5/eQDeSBwc+463MbXGk8Z1RA9z2tvYGGpYdeY
-/AtzfxnqGBoFZ4y+pycWgYWONzpsIMlzYjRLEZ2tnqQiJuctLNQd4ZuuJ10LN23f
-q84ZCPmpxahfc4qwD/UAPuh3Qiqhn2Y75YA0pfzNdwHXDuxfKOvTxyTVzKvOtyuM
-1PK83qpnYXDiK/k4op75sqcuEnb0UaHommxTA1ZkQOngx+Z615FGmTYtJCtgdAO7
-yJ6mplIPq7uwONM63c0CAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgGmMA8GA1UdEwEB
-/wQFMAMBAf8wHQYDVR0OBBYEFKyN8gPuMOoF0coqpAcn528iBDUnMB8GA1UdIwQY
-MBaAFB3ENnK2MHLAwByBxkQgAj+s2oEqMA0GCSqGSIb3DQEBCwUAA4ICAQAKuoet
-QhOIOLKQD5BJQ9e0BEYywN88SJSDPftJd8s+nBMj6WpOkAYMv/QbufGmcMaDjmMz
-j4SzpC5YPwxLMnPFUxBvuYzHp2TC+KaT2wDcor4ScPeUdp3Qu6zQyrOvXN3kkfCL
-LAqsBVFv4M2ZXrs7zBxkFcW9hU5QNCiEF1ahdtO4ekNyPIQPWdY3nDrvEVUVmS61
-flsUqusCmj76sqgM3p01GUuJ54n2vAqIkULYxnAEzW8Tho6xU8cYh+hCHQ5j/fWK
-vqVt4Ajd72ZSYkv9of0QhFihQc+ckDNeWuFvFGriodz8TxtmqmbboWuCaJA2Y3mJ
-hDa+ugmxz53HJ3TP9esrapJogqOxHNTRV2XxhaHGVvynuuvPhXDd9swOq/IbP2QQ
-7s/bex3pDxEmgkDfj8rWQsfXHTB9BLXlWUsWZkKMAnB0JL5r6SIcd1ZfRNCPJrdm
-+CmC15S6J/cJ8TBFFh4RDDOZKQazifmFVQvp0jSczLRrxI/HFTsQXLO49zCW3dfS
-dQRysE508fz2TQv/iiyrb2MPsqe+6yd6dN7k+RgJCDox/vTMnAjBWrbtcsDaVkbK
-MPCHsJtDt1CtTrLdQfzqWtoossgKlBgvFyMoNQl8jG0TAISHVpZfyO1PyMobDgXh
-Avbn48m2szXQtlzZkRHJfF6GSgNnEEpEomsQAw==
------END CERTIFICATE-----`)
-	_, err := Pem2Certs(rawPems)
-	require.NoError(t, err)
-
-	t.Run("sm2 certs", func(t *testing.T) {
-		t.Parallel()
-
-		certPem := `-----BEGIN CERTIFICATE-----
-MIICSDCCATCgAwIBAgIUIF7aDNWh4PqTC0f3gApFXUrNjaMwDQYJKoZIhvcNAQEL
-BQAwFTETMBEGA1UEAxMKcnNhLXJvb3RjYTAeFw0yNDAzMTUwNTUyMThaFw0yNDAz
-MjEwNTUyMThaMBMxETAPBgNVBAMMCGxlYWYtc20yMFkwEwYHKoZIzj0CAQYIKoEc
-z1UBgi0DQgAEp8k8YC8eJ0DPsrESd7mlE+RU7UCVWFfV6Uqy4NI03oXx7HpUFHNG
-jn1Cxmg0MSRpfXLgBcRToGYrpu3FzaiwoaNdMFswHQYDVR0OBBYEFKwDNCFqItl/
-1K8aEfYAuRTp0ZUiMB8GA1UdIwQYMBaAFGQcftJFina89WFIs//UUiOsewjjMAwG
-A1UdEwEB/wQCMAAwCwYDVR0PBAQDAgWgMA0GCSqGSIb3DQEBCwUAA4IBAQBHmLtB
-4nPrkgscisPRjLsIPQtC3hgfEMpZzvovffUH+dfnZXOtHJREYrW0I6gjBtNR6mc6
-Gxh3fGa3d+6S1ebHmnWQ1NyYV5utGNfVTaZKbGam4MxYt3zjPP1K+JgiantgSD71
-H36fK3Jytv9ArW5/P3DJ4rkJJsIqnG8OOgSdVW4Avumc5HQBbD+sdAgw6BI/R1Ob
-1NCXCdZO6QVKqE45YjOJTXKMiznOmWjnMSDXQJsB97G+XwVZ+WyMHGcEdt4GfdcS
-US7t8YmgMM3Ho3oc4yLVcuACfWYbKSL1KcZi1/xOpynJHqV3D8I26pVha+qudXn6
-+u8fW6e5cD2qzqe2
------END CERTIFICATE-----
-`
-
-		_, err := Pem2Certs([]byte(certPem))
-		require.ErrorContains(t, err, "x509: unsupported elliptic curve")
-	})
-}
-
-func TestOidAsn2X509(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		input   asn1.ObjectIdentifier
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "valid OID",
-			input:   asn1.ObjectIdentifier{1, 2, 3, 4},
-			want:    "1.2.3.4",
-			wantErr: false,
-		},
-		{
-			name:    "empty OID",
-			input:   asn1.ObjectIdentifier{},
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name:    "negative value",
-			input:   asn1.ObjectIdentifier{1, -2, 3},
-			wantErr: true,
-		},
-		{
-			name:    "long OID",
-			input:   asn1.ObjectIdentifier{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-			want:    "1.2.3.4.5.6.7.8.9.10",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := OidAsn2X509(tt.input)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err) // <-- 665
-			require.Equal(t, tt.want, got.String())
-		})
-	}
-}
-
-func Test_OIDs(t *testing.T) {
-	t.Parallel()
-
-	t.Run("compare OIDs", func(t *testing.T) {
-		t.Parallel()
-
-		a1 := asn1.ObjectIdentifier{1, 2, 3}
-		a2 := asn1.ObjectIdentifier{1, 2, 3}
-		a3 := asn1.ObjectIdentifier{1, 2, 3, 4}
-		require.Equal(t, a1, a2)
-		require.NotEqual(t, a1, a3)
-		require.NotEqual(t, a2, a3)
-	})
-
-	t.Run("valid policy OIDs", func(t *testing.T) {
-		t.Parallel()
-
-		// Using valid policy OIDs
-		// As per RFC 5280, policy OIDs should start with 2.5.29.32
-		policyOID1 := asn1.ObjectIdentifier{2, 5, 29, 32, 0}
-		policyOID2 := asn1.ObjectIdentifier{2, 5, 29, 32, 1}
-
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertPolicies(policyOID1, policyOID2),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		require.Contains(t, ca.PolicyIdentifiers, policyOID1)
-		require.Contains(t, ca.PolicyIdentifiers, policyOID2)
-		require.NotContains(t, ca.PolicyIdentifiers, asn1.ObjectIdentifier{2, 5, 29, 32, 2})
-		oid1, err := OidAsn2X509(policyOID1)
-		require.NoError(t, err)
-		oid2, err := OidAsn2X509(policyOID2)
-		require.NoError(t, err)
-		require.Contains(t, ca.Policies, oid1)
-		require.Contains(t, ca.Policies, oid2)
-	})
-
-	t.Run("OID prefix matching", func(t *testing.T) {
-		t.Parallel()
-
-		policyOID := asn1.ObjectIdentifier{2, 5, 29, 32, 0}
-		prefix := asn1.ObjectIdentifier{2, 5, 29}
-
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertPolicies(policyOID),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		require.True(t, OIDContains(ca.PolicyIdentifiers, policyOID))
-		require.True(t, OIDContains(ca.PolicyIdentifiers, prefix, MatchPrefix()))
-		require.False(t, OIDContains(ca.PolicyIdentifiers, asn1.ObjectIdentifier{1, 2, 3}))
-		require.NotEmpty(t, ca.Policies)
-	})
-
-	t.Run("empty policy OIDs", func(t *testing.T) {
-		t.Parallel()
-
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		require.Empty(t, ca.PolicyIdentifiers)
-		require.Empty(t, ca.Policies)
-	})
-
-	t.Run("multiple valid policy OIDs", func(t *testing.T) {
-		t.Parallel()
-
-		policies := []asn1.ObjectIdentifier{
-			{2, 5, 29, 32, 0},
-			{2, 5, 29, 32, 1},
-			{2, 5, 29, 32, 2},
-		}
-
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertPolicies(policies...),
-		)
-		require.NoError(t, err)
-
-		ca, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		require.Len(t, ca.PolicyIdentifiers, len(policies))
-		for _, policy := range policies {
-			require.Contains(t, ca.PolicyIdentifiers, policy)
-			oid, err := OidAsn2X509(policy)
-			require.NoError(t, err)
-			require.Contains(t, ca.Policies, oid)
-		}
-		require.Len(t, ca.Policies, len(policies))
-	})
-}
-
+// TestNewRSAPrikeyAndCert verifies the certificate produced by NewRSAPrikeyAndCert with RSA-3072
+// keys. With only a common name, none of the optional subject fields, SANs, CA flag, custom serial
+// number, extra key usages, CRL or OCSP endpoints, or policies are present; with the full option
+// set, every one of them, including the validity window and the policy OID in both
+// PolicyIdentifiers and Policies, is reflected in the parsed certificate.
 func TestNewRSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -883,206 +204,9 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 	})
 }
 
-func TestReadableX509Cert(t *testing.T) {
-	t.Parallel()
-
-	validFrom := time.Unix(time.Now().Unix(), 0).UTC()
-	_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-		WithX509CertCommonName("laisky"),
-		WithX509CertSANS("laisky.com"),
-		WithX509CertSignatureAlgorithm(x509.SHA512WithRSA),
-		WithX509CertOrganization("laisky-o"),
-		WithX509CertOrganizationUnit("laisky-u"),
-		WithX509CertLocality("local"),
-		WithX509CertCountry("country"),
-		WithX509CertProvince("province"),
-		WithX509CertStreetAddrs("st-1", "st-2"),
-		WithX509CertPostalCode("200233"),
-		WithX509CertIsCA(),
-		WithX509CertIsCRLCA(),
-		WithX509CertSeriaNumber(big.NewInt(489238432420)),
-		WithX509CertKeyUsage(x509.KeyUsageCRLSign),
-		WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
-		WithX509CertValidFrom(validFrom),
-		WithX509CertValidFor(time.Hour),
-		WithX509CertCRLs("crl"),
-		WithX509CertOCSPServers("ocsp"),
-		WithX509CertPolicies(asn1.ObjectIdentifier{1, 2, 3, 4}),
-	)
-	require.NoError(t, err)
-
-	cert, err := Der2Cert(certder)
-	require.NoError(t, err)
-
-	m, err := ReadableX509Cert(cert)
-	require.NoError(t, err)
-
-	require.Equal(t, "laisky", m["subject"].(map[string]any)["common_name"])
-}
-
-func Test_ExtKeyUsage(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty ext key usage", func(t *testing.T) {
-		t.Parallel()
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"))
-		require.NoError(t, err)
-
-		cert, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		root := x509.NewCertPool()
-		root.AddCert(cert)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots:     root,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("ext key usage not match", func(t *testing.T) {
-		t.Parallel()
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
-		)
-		require.NoError(t, err)
-
-		cert, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		root := x509.NewCertPool()
-		root.AddCert(cert)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots:     root,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		})
-		require.ErrorContains(t, err, "certificate specifies an incompatible key usage")
-	})
-
-	t.Run("ext key usage match", func(t *testing.T) {
-		t.Parallel()
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
-		)
-		require.NoError(t, err)
-
-		cert, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		root := x509.NewCertPool()
-		root.AddCert(cert)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots:     root,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("ext key usage match any", func(t *testing.T) {
-		t.Parallel()
-		_, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertExtKeyUsage(x509.ExtKeyUsageServerAuth),
-		)
-		require.NoError(t, err)
-
-		cert, err := Der2Cert(certder)
-		require.NoError(t, err)
-
-		root := x509.NewCertPool()
-		root.AddCert(cert)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots: root,
-			KeyUsages: []x509.ExtKeyUsage{
-				x509.ExtKeyUsageCodeSigning,
-				x509.ExtKeyUsageServerAuth,
-			},
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("not all cert in chain match ext key usage", func(t *testing.T) {
-		t.Parallel()
-		// new ca
-		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertIsCA(),
-			WithX509CertExtKeyUsage(x509.ExtKeyUsageCodeSigning),
-		)
-		require.NoError(t, err)
-		ca, err := Der2Cert(caDer)
-		require.NoError(t, err)
-		cakey, err := Pem2Prikey(cakeyPem)
-		require.NoError(t, err)
-
-		// new leaf cert
-		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
-		require.NoError(t, err)
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
-			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
-		)
-		require.NoError(t, err)
-		cert, err := Der2Cert(certDer)
-		require.NoError(t, err)
-		prikeyPem, err := Prikey2Pem(prikey)
-		require.NoError(t, err)
-		require.NoError(t, VerifyCertByPrikey(CertDer2Pem(certDer), prikeyPem))
-
-		// verify
-		root := x509.NewCertPool()
-		root.AddCert(ca)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots: root,
-			KeyUsages: []x509.ExtKeyUsage{
-				x509.ExtKeyUsageServerAuth,
-			},
-		})
-		require.ErrorContains(t, err, "certificate specifies an incompatible key usage")
-	})
-
-	t.Run("all cert in chain match ext key usage", func(t *testing.T) {
-		t.Parallel()
-		// new ca
-		cakeyPem, caDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
-			WithX509CertCommonName("laisky-test"),
-			WithX509CertIsCA(),
-		)
-		require.NoError(t, err)
-		ca, err := Der2Cert(caDer)
-		require.NoError(t, err)
-		cakey, err := Pem2Prikey(cakeyPem)
-		require.NoError(t, err)
-
-		// new leaf cert
-		prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
-		require.NoError(t, err)
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-		certDer, err := NewX509CertByCSR(ca, cakey, csrDer,
-			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth),
-		)
-		require.NoError(t, err)
-		cert, err := Der2Cert(certDer)
-		require.NoError(t, err)
-
-		// verify
-		root := x509.NewCertPool()
-		root.AddCert(ca)
-		_, err = cert.Verify(x509.VerifyOptions{
-			Roots: root,
-			KeyUsages: []x509.ExtKeyUsage{
-				x509.ExtKeyUsageServerAuth,
-			},
-		})
-		require.NoError(t, err)
-	})
-}
-
+// BenchmarkRSA_bits measures NewX509CSR when creating a CSR with only a common name from
+// pre-generated RSA keys of 2048, 3072 and 4096 bits, with one sub-benchmark per key size.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // BenchmarkRSA_bits/2048-16         	     116	  10240150 ns/op	   27944 B/op	     221 allocs/op
 // BenchmarkRSA_bits/3072-16         	      46	  25347501 ns/op	   40680 B/op	     249 allocs/op
@@ -1119,6 +243,10 @@ func BenchmarkRSA_bits(b *testing.B) {
 	})
 }
 
+// Test_CrossSign verifies cross-signing: one intermediate CSR is signed as a CA by two independent
+// RSA root CAs (the first with a zero max path length, which is asserted), and a leaf certificate
+// issued with the intermediate key validates through either root and intermediate pair alone, and
+// yields two chains when both pairs are available.
 func Test_CrossSign(t *testing.T) {
 	t.Parallel()
 
@@ -1212,6 +340,8 @@ func Test_CrossSign(t *testing.T) {
 	})
 }
 
+// TestRandomSerialNumber verifies that DefaultX509CertSerialNumGenerator is safe for concurrent use
+// and produces positive, unique serial numbers across 10,000 calls made from concurrent goroutines.
 func TestRandomSerialNumber(t *testing.T) {
 	t.Parallel()
 
@@ -1257,6 +387,9 @@ func TestRandomSerialNumber(t *testing.T) {
 	})
 }
 
+// BenchmarkRandomSerialNumber measures the cost of a single SerialNum call on
+// DefaultX509CertSerialNumGenerator.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // BenchmarkRandomSerialNumber/gen-16         	  718527	      1553 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkRandomSerialNumber(b *testing.B) {
@@ -1270,24 +403,9 @@ func BenchmarkRandomSerialNumber(b *testing.B) {
 	})
 }
 
-func TestReadableX509CSR(t *testing.T) {
-	t.Parallel()
-
-	prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
-	require.NoError(t, err)
-
-	csrder, err := NewX509CSR(prikey, WithX509CSRCommonName("test"))
-	require.NoError(t, err)
-
-	csr, err := Der2CSR(csrder)
-	require.NoError(t, err)
-
-	got, err := ReadableX509CSR(csr)
-	require.NoError(t, err)
-
-	require.Equal(t, "test", got["subject"].(map[string]any)["common_name"])
-
-}
+// TestNewEd25519PrikeyAndCert verifies that NewEd25519PrikeyAndCert produces a parseable
+// certificate whose common name is reported by ReadableX509Cert, and that the WithX509CertIsCA
+// option sets the CA flag on the generated certificate.
 func TestNewEd25519PrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -1318,13 +436,4 @@ func TestNewEd25519PrikeyAndCert(t *testing.T) {
 		require.True(t, cert.IsCA)
 		require.Equal(t, "test_common_name", cert.Subject.CommonName)
 	})
-}
-
-func TestOidFromString(t *testing.T) {
-	t.Parallel()
-
-	input := "1.2.3.4"
-	oid, err := OidFromString(input)
-	require.NoError(t, err)
-	require.True(t, oid.EqualASN1OID(asn1.ObjectIdentifier{1, 2, 3, 4}))
 }

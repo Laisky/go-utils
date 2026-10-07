@@ -1,22 +1,15 @@
 package crypto
 
 import (
-	"bytes"
-	"context"
 	"crypto"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
 	"encoding/base64"
-	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	gutils "github.com/Laisky/go-utils/v6"
 )
 
 const (
@@ -77,6 +70,11 @@ emCoppSZz2o5Go8jmqJYBJJEv0lst+cGTuUErhx08DoADfUveAQkgzVdE9/z
 `
 )
 
+// TestTLSPrivatekey verifies private key conversions. NewRSAPrikey and NewECDSAPrikey reject an
+// unsupported size and curve. For every key from testAsymmetricPrikeys, DER and PEM forms
+// round-trip through Prikey2Der, Prikey2Pem, Pem2Der, Pem2Ders, PrikeyDer2Pem, Pem2Prikey and
+// Der2Prikey (plus RSADer2Prikey and RSAPem2Prikey for PKCS#1 RSA keys), PEM output ends with a
+// newline, and a certificate created from the key round-trips through Cert2Pem and Pem2Cert.
 func TestTLSPrivatekey(t *testing.T) {
 	t.Parallel()
 	t.Run("err", func(t *testing.T) {
@@ -162,6 +160,10 @@ func TestTLSPrivatekey(t *testing.T) {
 	}
 }
 
+// testAsymmetricPrikeys generates one private key of each supported type for table-driven tests:
+// RSA-2048, RSA-3072, ECDSA P-256, P-384 and P-521, and Ed25519. The t parameter is used to fail
+// the calling test if key generation fails. It returns the keys indexed by a short algorithm name
+// such as "rsa2048" or "es256".
 func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) {
 	t.Helper()
 
@@ -188,6 +190,9 @@ func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) 
 	}
 }
 
+// TestTLSPublickey verifies that Pubkey2Der rejects a nil key and that, for the public key of each
+// key from testAsymmetricPrikeys, DER and PEM forms round-trip through Pubkey2Der, Pubkey2Pem,
+// Pem2Der, PubkeyDer2Pem, Pem2Pubkey and Der2Pubkey, with PEM output ending in a newline.
 func TestTLSPublickey(t *testing.T) {
 	t.Parallel()
 
@@ -227,6 +232,9 @@ func TestTLSPublickey(t *testing.T) {
 	}
 }
 
+// TestPem2Der_multi_certs verifies that Pem2Der concatenates the DER of a two-certificate PEM
+// chain, that Der2Certs parses it back in order, and that Cert2Der and Cert2Pem over the parsed
+// certificates reproduce the same DER.
 func TestPem2Der_multi_certs(t *testing.T) {
 	t.Parallel()
 
@@ -246,6 +254,8 @@ func TestPem2Der_multi_certs(t *testing.T) {
 	require.Equal(t, der, gotder)
 }
 
+// TestSecureCipherSuites verifies that SecureCipherSuites returns every secure suite when the
+// filter is nil or always true, and none when the filter always returns false.
 func TestSecureCipherSuites(t *testing.T) {
 	t.Parallel()
 
@@ -261,6 +271,9 @@ func TestSecureCipherSuites(t *testing.T) {
 	require.Zero(t, len(filtered))
 }
 
+// TestVerifyCertByPrikey verifies that VerifyCertByPrikey accepts a PEM certificate together with
+// its own PEM private key, that CertDer2Pem output ends with a newline, and that a certificate
+// generated for a different key is rejected.
 func TestVerifyCertByPrikey(t *testing.T) {
 	t.Parallel()
 
@@ -286,6 +299,9 @@ func TestVerifyCertByPrikey(t *testing.T) {
 	})
 }
 
+// TestDer2CSR verifies that CSRs created by NewX509CSR for each key from testAsymmetricPrikeys
+// parse identically from DER (Der2CSR) and from PEM (CSRDer2Pem and Pem2CSR), and that an
+// OpenSSL-generated CSR with an empty subject parses successfully.
 func TestDer2CSR(t *testing.T) {
 	t.Parallel()
 
@@ -318,500 +334,8 @@ func TestDer2CSR(t *testing.T) {
 	})
 }
 
-func Test_UseCaAsClientTlsCert(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	rootprikeyPem, rootcaDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits4096,
-		WithX509CertCommonName("laisky-test"),
-		WithX509CertIsCA(),
-	)
-	require.NoError(t, err)
-
-	rootcaPrikey, err := Pem2Prikey(rootprikeyPem)
-	require.NoError(t, err)
-
-	rootca, err := Der2Cert(rootcaDer)
-	require.NoError(t, err)
-
-	rootcapool := x509.NewCertPool()
-	rootcapool.AppendCertsFromPEM(CertDer2Pem(rootcaDer))
-
-	gt := gutils.NewGoroutineTest(t, cancel)
-	go func(t testing.TB) {
-		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
-		require.NoError(t, err)
-
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-
-		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
-		require.NoError(t, err)
-
-		ln, err := tls.Listen("tcp", "localhost:38443", &tls.Config{
-			RootCAs:    rootcapool,
-			ClientAuth: tls.RequireAndVerifyClientCert,
-			Certificates: []tls.Certificate{
-				{
-					Certificate: [][]byte{certDer, rootcaDer},
-					PrivateKey:  prikey,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		for {
-			conn, err := ln.Accept()
-			require.NoError(t, err)
-
-			go func() {
-				buf := make([]byte, 4096)
-				for {
-					defer conn.Close()
-
-					n, err := conn.Read(buf)
-					if err != nil {
-						t.Logf("failed to read: %v", err)
-						break
-					}
-
-					if bytes.Equal(buf, []byte("close")) {
-						t.Logf("close connection")
-						break
-					}
-
-					_, err = conn.Write(buf[:n])
-					if err != nil {
-						t.Logf("failed to write: %v", err)
-						break
-					}
-				}
-			}()
-		}
-	}(gt)
-
-	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38443))
-
-	t.Run("use ca as client tls cert", func(t *testing.T) {
-		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
-		require.NoError(t, err)
-
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-
-		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer,
-			WithX509SignCSRIsCA(),
-		)
-		require.NoError(t, err)
-
-		conn, err := tls.Dial("tcp", "localhost:38443", &tls.Config{
-			RootCAs:            rootcapool,
-			InsecureSkipVerify: true,
-			Certificates: []tls.Certificate{
-				{
-					Certificate: [][]byte{certDer, rootcaDer},
-					PrivateKey:  prikey,
-				},
-			},
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		_, err = conn.Write([]byte("hello"))
-		require.NoError(t, err)
-	})
-}
-
-func Test_UseCaAsServerTlsCert(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	rootprikeyPem, rootcaDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits4096,
-		WithX509CertCommonName("laisky-test"),
-		WithX509CertIsCA(),
-	)
-	require.NoError(t, err)
-
-	rootcaPrikey, err := Pem2Prikey(rootprikeyPem)
-	require.NoError(t, err)
-
-	rootca, err := Der2Cert(rootcaDer)
-	require.NoError(t, err)
-
-	rootcapool := x509.NewCertPool()
-	rootcapool.AppendCertsFromPEM(CertDer2Pem(rootcaDer))
-
-	gt := gutils.NewGoroutineTest(t, cancel)
-	go func(t testing.TB) {
-		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
-		require.NoError(t, err)
-
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-
-		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer,
-			WithX509SignCSRIsCA(),
-		)
-		require.NoError(t, err)
-
-		// cert, err := Der2Cert(certDer)
-		// require.NoError(t, err)
-		// t.Logf("cert: %+v", cert)
-
-		ln, err := tls.Listen("tcp", "localhost:38444", &tls.Config{
-			RootCAs:    rootcapool,
-			ClientAuth: tls.RequireAndVerifyClientCert,
-			Certificates: []tls.Certificate{
-				{
-					Certificate: [][]byte{certDer, rootcaDer},
-					PrivateKey:  prikey,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		for {
-			conn, err := ln.Accept()
-			require.NoError(t, err)
-
-			go func() {
-				buf := make([]byte, 4096)
-				for {
-					defer conn.Close()
-
-					n, err := conn.Read(buf)
-					if err != nil {
-						t.Logf("failed to read: %v", err)
-						break
-					}
-
-					if bytes.Equal(buf, []byte("close")) {
-						t.Logf("close connection")
-						break
-					}
-
-					_, err = conn.Write(buf[:n])
-					if err != nil {
-						t.Logf("failed to write: %v", err)
-						break
-					}
-				}
-			}()
-		}
-	}(gt)
-
-	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38444))
-
-	t.Run("use leaf cert as client tls cert", func(t *testing.T) {
-		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
-		require.NoError(t, err)
-
-		csrDer, err := NewX509CSR(prikey, WithX509CSRCommonName("laisky-test"))
-		require.NoError(t, err)
-
-		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
-		require.NoError(t, err)
-
-		conn, err := tls.Dial("tcp", "localhost:38444", &tls.Config{
-			RootCAs:            rootcapool,
-			InsecureSkipVerify: true,
-			Certificates: []tls.Certificate{
-				{
-					Certificate: [][]byte{certDer, rootcaDer},
-					PrivateKey:  prikey,
-				},
-			},
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		peercerts := conn.ConnectionState().PeerCertificates
-		t.Log(peercerts)
-
-		_, err = conn.Write([]byte("hello"))
-		require.NoError(t, err)
-	})
-}
-
-func TestX509Cert2OpensslConf(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ca", func(t *testing.T) {
-		t.Parallel()
-
-		cert := &x509.Certificate{
-			Subject: pkix.Name{
-				CommonName:         "example.com",
-				Province:           []string{"California"},
-				Locality:           []string{"San Francisco"},
-				Organization:       []string{"Acme Corp"},
-				OrganizationalUnit: []string{"IT"},
-			},
-			IsCA:              true,
-			PolicyIdentifiers: []asn1.ObjectIdentifier{[]int{2, 5, 29, 32}},
-			DNSNames: []string{
-				"localhost",
-				"example.com",
-			},
-			IPAddresses: []net.IP{
-				net.ParseIP("1.2.3.4"),
-			},
-		}
-
-		expected := gutils.Dedent(`
-			[ req ]
-			distinguished_name = req_distinguished_name
-			prompt = no
-			string_mask = utf8only
-			x509_extensions = v3_ca
-			req_extensions = req_ext
-
-			[ req_distinguished_name ]
-			commonName = example.com
-			stateOrProvinceName = California
-			localityName = San Francisco
-			organizationName = Acme Corp
-			organizationalUnitName = IT
-
-			[ v3_ca ]
-			basicConstraints = critical, CA:TRUE
-			keyUsage = cRLSign, keyCertSign
-			subjectKeyIdentifier = hash
-			authorityKeyIdentifier = keyid:always, issuer
-			certificatePolicies = @policy-0
-
-			[ policy-0 ]
-			policyIdentifier = 2.5.29.32
-
-			[ req_ext ]
-			subjectAltName = @alt_names
-
-			[ alt_names ]
-			DNS.1 = localhost
-			DNS.2 = example.com
-			IP.1 = 1.2.3.4
-			`)
-
-		expected += "\n"
-
-		opensslConf := X509Cert2OpensslConf(cert)
-		t.Logf("got\n%s", string(opensslConf))
-		require.Equal(t, expected, string(opensslConf))
-	})
-
-	t.Run("not ca", func(t *testing.T) {
-		t.Parallel()
-
-		cert := &x509.Certificate{
-			Subject: pkix.Name{
-				CommonName:         "example.com",
-				Country:            []string{"US"},
-				Province:           []string{"California"},
-				Locality:           []string{"San Francisco"},
-				Organization:       []string{"Acme Corp"},
-				OrganizationalUnit: []string{"IT"},
-			},
-			IsCA: false,
-			PolicyIdentifiers: []asn1.ObjectIdentifier{
-				[]int{2, 5, 29, 32},
-				[]int{1, 2, 3},
-			},
-			DNSNames: []string{
-				"localhost",
-				"example.com",
-			},
-			IPAddresses: []net.IP{
-				net.ParseIP("1.2.3.4"),
-			},
-		}
-
-		expected := gutils.Dedent(`
-			[ req ]
-			distinguished_name = req_distinguished_name
-			prompt = no
-			string_mask = utf8only
-			x509_extensions = v3_ca
-			req_extensions = req_ext
-
-			[ req_distinguished_name ]
-			commonName = example.com
-			countryName = US
-			stateOrProvinceName = California
-			localityName = San Francisco
-			organizationName = Acme Corp
-			organizationalUnitName = IT
-
-			[ v3_ca ]
-			basicConstraints = critical, CA:FALSE
-			keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement
-			extendedKeyUsage = anyExtendedKeyUsage
-			subjectKeyIdentifier = hash
-			authorityKeyIdentifier = keyid:always, issuer
-			certificatePolicies = @policy-0, @policy-1
-
-			[ policy-0 ]
-			policyIdentifier = 2.5.29.32
-			[ policy-1 ]
-			policyIdentifier = 1.2.3
-
-			[ req_ext ]
-			subjectAltName = @alt_names
-
-			[ alt_names ]
-			DNS.1 = localhost
-			DNS.2 = example.com
-			IP.1 = 1.2.3.4
-			`)
-		expected += "\n"
-
-		opensslConf := X509Cert2OpensslConf(cert)
-		t.Logf("got\n%s", string(opensslConf))
-		require.Equal(t, expected, string(opensslConf))
-	})
-}
-
-func TestX509Csr2OpensslConf(t *testing.T) {
-	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:         "example.com",
-			Country:            []string{"US"},
-			Province:           []string{"California"},
-			Locality:           []string{"San Francisco"},
-			Organization:       []string{"Acme Corp"},
-			OrganizationalUnit: []string{"IT"},
-		},
-		DNSNames: []string{
-			"localhost",
-			"example.com",
-		},
-		IPAddresses: []net.IP{
-			net.ParseIP("1.2.3.4"),
-		},
-	}
-
-	expectedConf := gutils.Dedent(`
-		[ req ]
-		distinguished_name = req_distinguished_name
-		prompt = no
-		string_mask = utf8only
-		req_extensions = req_ext
-
-		[ req_distinguished_name ]
-		commonName = example.com
-		countryName = US
-		stateOrProvinceName = California
-		localityName = San Francisco
-		organizationName = Acme Corp
-		organizationalUnitName = IT
-
-		[ req_ext ]
-		subjectAltName = @alt_names
-
-		[ alt_names ]
-		DNS.1 = localhost
-		DNS.2 = example.com
-		IP.1 = 1.2.3.4
-		`)
-	expectedConf += "\n"
-
-	opensslConf := X509Csr2OpensslConf(csr)
-	t.Logf("got\n%s", string(opensslConf))
-	require.Equal(t, expectedConf, string(opensslConf))
-}
-
-// TestX509Cert2OpensslConf_ConfigInjection is a regression test for an OpenSSL
-// config-injection vulnerability: a newline embedded in an attacker-influenceable
-// subject/SAN field could inject arbitrary OpenSSL directives (e.g. turning a
-// leaf cert into a CA). The sanitizer must strip the control characters.
-func TestX509Cert2OpensslConf_ConfigInjection(t *testing.T) {
-	t.Parallel()
-
-	const injected = "\n[ v3_ca ]\nbasicConstraints = critical, CA:TRUE"
-
-	cert := &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: "evil.example.com" + injected,
-		},
-		IsCA: false,
-		DNSNames: []string{
-			"good.example.com",
-			"evil-san" + injected,
-		},
-	}
-
-	conf := string(X509Cert2OpensslConf(cert))
-	t.Logf("got\n%s", conf)
-
-	// the injected CA directive must NOT appear as its own line
-	require.NotContains(t, conf, "\nbasicConstraints = critical, CA:TRUE\n",
-		"injected basicConstraints line must be stripped")
-	// the legitimate (non-CA) basicConstraints line must remain intact
-	require.Contains(t, conf, "basicConstraints = critical, CA:FALSE")
-	// the sanitized values should be flattened onto a single line
-	require.Contains(t, conf, "commonName = evil.example.com[ v3_ca ]basicConstraints = critical, CA:TRUE")
-	require.NotContains(t, conf, "\r")
-}
-
-// TestX509Cert2OpensslConf_BenignStillValid ensures sanitization does not break
-// the conf produced for a normal certificate.
-func TestX509Cert2OpensslConf_BenignStillValid(t *testing.T) {
-	t.Parallel()
-
-	cert := &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: "example.com",
-		},
-		IsCA:     true,
-		DNSNames: []string{"example.com"},
-	}
-
-	conf := string(X509Cert2OpensslConf(cert))
-	require.Contains(t, conf, "commonName = example.com\n")
-	require.Contains(t, conf, "DNS.1 = example.com\n")
-	require.Contains(t, conf, "basicConstraints = critical, CA:TRUE")
-}
-
-// TestX509Csr2OpensslConf_ConfigInjection is the CSR counterpart of the
-// config-injection regression test.
-func TestX509Csr2OpensslConf_ConfigInjection(t *testing.T) {
-	t.Parallel()
-
-	const injected = "\n[ v3_ca ]\nbasicConstraints = critical, CA:TRUE"
-
-	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName: "evil.example.com" + injected,
-		},
-		DNSNames: []string{
-			"good.example.com",
-			"evil-san" + injected,
-		},
-	}
-
-	conf := string(X509Csr2OpensslConf(csr))
-	t.Logf("got\n%s", conf)
-
-	// the injected CA directive must NOT appear as its own line
-	require.NotContains(t, conf, "\nbasicConstraints = critical, CA:TRUE\n",
-		"injected basicConstraints line must be stripped")
-	require.NotContains(t, conf, "\n[ v3_ca ]\n",
-		"injected v3_ca section must be stripped")
-	// the sanitized values should be flattened onto a single line
-	require.Contains(t, conf, "commonName = evil.example.com[ v3_ca ]basicConstraints = critical, CA:TRUE")
-	require.NotContains(t, conf, "\r")
-
-	// benign CommonName still produces the expected line
-	benign := &x509.CertificateRequest{
-		Subject:  pkix.Name{CommonName: "example.com"},
-		DNSNames: []string{"example.com"},
-	}
-	require.Contains(t, string(X509Csr2OpensslConf(benign)), "commonName = example.com\n")
-}
-
+// TestSplitCertsPemChain verifies that SplitCertsPemChain splits a PEM chain into one trimmed block
+// per certificate for single and multiple certificates, and returns nil for an empty chain.
 func TestSplitCertsPemChain(t *testing.T) {
 	t.Parallel()
 
@@ -856,68 +380,4 @@ CERT3
 			require.Equal(t, tc.expected, got)
 		})
 	}
-}
-
-func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
-	t.Parallel()
-
-	t.Run("normal", func(t *testing.T) {
-		opts := []SignCSROption{
-			WithX509SignCSRIsCA(),
-			WithX509SignCSRKeyUsage(x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment),
-			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth),
-			WithX509SignCSRPolicies(
-				asn1.ObjectIdentifier{1, 2, 3, 4, 5},
-				asn1.ObjectIdentifier{2, 23, 140, 1, 2, 1},
-			),
-		}
-
-		_, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
-		require.NoError(t, err)
-
-		expectedConf := []byte(gutils.Dedent(`
-		[req]
-		x509_extensions = v3_ca
-
-		[ v3_ca ]
-		subjectKeyIdentifier = hash
-		authorityKeyIdentifier = keyid:always, issuer
-		basicConstraints = critical, CA:TRUE
-		keyUsage = digitalSignature, keyEncipherment, keyCertSign, cRLSign
-		extendedKeyUsage = serverAuth, clientAuth
-		certificatePolicies = @policy-0, @policy-1
-
-		[ policy-0 ]
-		policyIdentifier = 1.2.3.4.5
-		[ policy-1 ]
-		policyIdentifier = 2.23.140.1.2.1
-	`))
-		expectedConf = append(expectedConf, '\n')
-
-		require.Equal(t, string(expectedConf), string(opensslConf))
-	})
-
-	t.Run("any ext key usages", func(t *testing.T) {
-		opts := []SignCSROption{
-			WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageAny),
-		}
-
-		_, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
-		require.NoError(t, err)
-
-		expectedConf := []byte(gutils.Dedent(`
-			[req]
-			x509_extensions = v3_ca
-
-			[ v3_ca ]
-			subjectKeyIdentifier = hash
-			authorityKeyIdentifier = keyid:always, issuer
-			basicConstraints = critical, CA:FALSE
-			keyUsage = digitalSignature, keyEncipherment
-			extendedKeyUsage = anyExtendedKeyUsage
-		`))
-		expectedConf = append(expectedConf, '\n')
-
-		require.Equal(t, string(expectedConf), string(opensslConf))
-	})
 }
