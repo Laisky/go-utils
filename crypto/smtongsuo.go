@@ -126,6 +126,8 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
 	return encryptedPrikeyPem, nil
 }
 
+// removeAll recursively deletes path, typically a temporary working directory, and logs any
+// removal failure instead of returning it, so it can be used directly in defer statements.
 func (t *Tongsuo) removeAll(path string) {
 	if err := os.RemoveAll(path); err != nil {
 		glog.Shared.Error("remove dir", zap.String("path", path), zap.Error(err))

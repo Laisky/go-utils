@@ -13,6 +13,9 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// TestTongsuo_NewPrikeyWithPassword verifies that a password-encrypted private key PEM produced by
+// Tongsuo.NewPrikeyWithPassword can be loaded with the same password by the tongsuo-go-sdk, and
+// documents that the GmSSL Go binding currently fails to import it ("Libgmssl inner error").
 func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {

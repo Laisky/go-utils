@@ -13,6 +13,10 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// testSkipSmTongsuo reports whether the GmSSL/Tongsuo interoperability tests should be skipped
+// because the tongsuo binary is not on PATH. It takes the calling test t, fails it if the PATH
+// lookup errors for any reason other than exec.ErrNotFound, and returns true only when tongsuo
+// is missing.
 func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	t.Helper()
 	if _, err := exec.LookPath("tongsuo"); err != nil {
@@ -23,6 +27,8 @@ func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	return false
 }
 
+// Test_HashBySm3 verifies interoperability of SM3 hashing: the digest of 1 MiB of random data
+// computed by Tongsuo.HashBySm3 equals the digest computed by the GmSSL Go binding.
 func Test_HashBySm3(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -49,6 +55,10 @@ func Test_HashBySm3(t *testing.T) {
 	require.Equal(t, sigByGmssl, sigByTongsuo)
 }
 
+// TestTOngsuo_EncryptBySm4Cbc verifies SM4-CBC interoperability between Tongsuo and GmSSL for
+// 1 MiB of random data with a shared key and IV: ciphertext from Tongsuo.EncryptBySm4CbcBaisc
+// decrypts with GmSSL, and ciphertext from GmSSL decrypts with Tongsuo.DecryptBySm4CbcBaisc
+// when no HMAC tag is supplied.
 func TestTOngsuo_EncryptBySm4Cbc(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -100,6 +110,10 @@ func TestTOngsuo_EncryptBySm4Cbc(t *testing.T) {
 	})
 }
 
+// TestTongsuo_SignBySM2SM3 verifies SM2/SM3 signature interoperability between GmSSL and Tongsuo
+// over 1 MiB of random data: a GmSSL signature verifies with Tongsuo.VerifyBySm2Sm3 and is
+// rejected when the signature or plaintext is altered, and a Tongsuo.SignBySm2Sm3 signature
+// verifies with GmSSL and is rejected when altered.
 func TestTongsuo_SignBySM2SM3(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {

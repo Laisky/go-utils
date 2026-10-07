@@ -8,6 +8,8 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestSplitValidation verifies that Split rejects a nil or empty secret with a
+// "secret must not be empty" error.
 func TestSplitValidation(t *testing.T) {
 	t.Parallel()
 
@@ -18,6 +20,10 @@ func TestSplitValidation(t *testing.T) {
 	require.ErrorContains(t, err, "secret must not be empty")
 }
 
+// TestSplit verifies Shamir secret sharing for several (total, threshold) pairs over a 1 KiB
+// secret: combining a random subset of at least threshold shares with their original indexes
+// recovers the secret, while relabeling the shares with wrong indexes or combining fewer than
+// threshold shares yields a different value.
 func TestSplit(t *testing.T) {
 	type args struct {
 		secret    []byte

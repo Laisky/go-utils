@@ -9,6 +9,10 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestEncryptedItem_Marshal_Overflow verifies the DekID length bounds of EncryptedData.Marshal:
+// a DekID longer than math.MaxUint16 bytes is rejected, a DekID of exactly math.MaxUint16 bytes
+// marshals and unmarshals back to the same KekID, DekID length, and ciphertext, and Unmarshal
+// rejects input that is too short to hold the header.
 func TestEncryptedItem_Marshal_Overflow(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +55,9 @@ func TestEncryptedItem_Marshal_Overflow(t *testing.T) {
 	require.Contains(t, err.Error(), "data too short")
 }
 
+// TestEncryptedItem_Unmarshal verifies that EncryptedData round-trips through both the binary
+// (Marshal/Unmarshal) and string (MarshalToString/UnmarshalFromString) encodings for short and
+// 1 KiB DekID/ciphertext values, and that Unmarshal rejects too-short data and unknown versions.
 func TestEncryptedItem_Unmarshal(t *testing.T) {
 	t.Parallel()
 
@@ -120,6 +127,8 @@ func TestEncryptedItem_Unmarshal(t *testing.T) {
 	})
 }
 
+// TestEncryptedDataVer_String verifies that EncryptedDataVer.String names EncryptedItemVer1
+// "encrypted_item_ver_1" and reports any unknown version as "encrypted_item_unimplemented".
 func TestEncryptedDataVer_String(t *testing.T) {
 	tests := []struct {
 		name string

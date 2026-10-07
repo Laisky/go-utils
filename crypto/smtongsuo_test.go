@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSm2CrossAlgorithmSign verifies cross-algorithm issuance with Tongsuo: an SM2 root CA signs
+// an RSA leaf CSR (the leaf keeps the RSA public key algorithm and its chain verifies, while an
+// unrelated self-signed RSA certificate fails verification), and an RSA root CA signs an SM2
+// leaf CSR whose chain verifies.
 func TestSm2CrossAlgorithmSign(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -96,6 +100,9 @@ func TestSm2CrossAlgorithmSign(t *testing.T) {
 	})
 }
 
+// Test_VerifyCertsChain verifies that Tongsuo.VerifyCertsChain accepts a leaf certificate signed
+// through Tongsuo.NewX509CertByCSR for the SM2->SM2, RSA->SM2, and SM2->RSA root/leaf
+// combinations.
 func Test_VerifyCertsChain(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -180,6 +187,9 @@ func Test_VerifyCertsChain(t *testing.T) {
 
 }
 
+// testSkipSmTongsuo reports whether Tongsuo-dependent tests should be skipped because the
+// tongsuo binary is not on PATH. It takes the calling test t, fails it if the PATH lookup errors
+// for any reason other than exec.ErrNotFound, and returns true only when tongsuo is missing.
 func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	t.Helper()
 	if _, err := exec.LookPath("tongsuo"); err != nil {
@@ -190,6 +200,9 @@ func testSkipSmTongsuo(t *testing.T) (skipped bool) {
 	return false
 }
 
+// TestTongsuo_NewPrikeyWithPassword verifies that Tongsuo.NewPrikeyWithPassword returns an
+// encrypted private key PEM for a non-empty password and rejects an empty password with
+// "password should not be empty".
 func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {

@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTongsuo_NewPrikeyAndCert verifies that Tongsuo.NewPrikeyAndCert creates an SM2 key and a
+// self-signed certificate honoring the requested options: for a CA, the certificate public key
+// matches the private key and the subject, CA:TRUE flag, validity window, and policy OIDs are
+// set; for a non-CA, CA:FALSE, the subject, the NotAfter year, and both policy OIDs are set.
 func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -114,6 +118,11 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 	})
 }
 
+// TestTongsuo_NewIntermediaCaByCsr verifies signing an SM2 CSR with an SM2 root CA through
+// Tongsuo.NewX509CertByCSR: as a CA it yields an intermediate with the CSR subject, the root as
+// issuer, and the requested policies, which can sign a second-level intermediate and a leaf whose
+// chain verifies against a root bundle (but not against an unrelated root); as a non-CA it yields
+// a certificate with IsCA false and the requested policy.
 func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -245,6 +254,9 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 
 }
 
+// TestTongsuo_CloneX509Csr verifies that Tongsuo.CloneX509Csr re-signs an existing CSR with a new
+// SM2 private key while preserving its subject (CN, C, L, O), DNS names, and email addresses, and
+// that the cloned CSR carries a valid self-signature.
 func TestTongsuo_CloneX509Csr(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {

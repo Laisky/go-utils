@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTongsuo_EncryptBySm4Baisc verifies SM4-CBC encryption with an HMAC tag via
+// EncryptBySm4CbcBaisc/DecryptBySm4CbcBaisc: the correct key, IV, and 32-byte tag round-trip the
+// plaintext; a wrong key or tag fails with "hmac not match"; wrong key, IV, or tag lengths are
+// rejected; and decrypting with a wrong key and no tag never yields the original plaintext.
 func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -97,6 +101,8 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 	})
 }
 
+// TestTongsuo_DecryptBySm4 verifies that ciphertext produced by Tongsuo.EncryptBySm4Cbc with a
+// random 16-byte key decrypts back to the original plaintext through Tongsuo.DecryptBySm4Cbc.
 func TestTongsuo_DecryptBySm4(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -119,6 +125,8 @@ func TestTongsuo_DecryptBySm4(t *testing.T) {
 	require.Equal(t, plaintext, gotPlain)
 }
 
+// TestTongsuo_SignBySM2SM3 verifies that an SM2/SM3 signature created by Tongsuo.SignBySm2Sm3 over
+// 8 KiB of random data verifies with the matching public key through Tongsuo.VerifyBySm2Sm3.
 func TestTongsuo_SignBySM2SM3(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -145,6 +153,8 @@ func TestTongsuo_SignBySM2SM3(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestTongsuo_HashBySm3 verifies that Tongsuo.HashBySm3 returns a raw 32-byte digest without any
+// "stdin" label, is deterministic for identical input, and changes when one byte of input changes.
 func TestTongsuo_HashBySm3(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -172,6 +182,9 @@ func TestTongsuo_HashBySm3(t *testing.T) {
 	require.NotEqual(t, hash, hash3)
 }
 
+// TestTongsuo_EncryptBySm2 verifies that Tongsuo.EncryptBySm2/DecryptBySm2 round-trip a plaintext
+// with both an SM2 key pair and an RSA-2048 key pair, and that decrypting ciphertext with extra
+// prepended or appended bytes fails with "operation error" instead of returning the plaintext.
 func TestTongsuo_EncryptBySm2(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
