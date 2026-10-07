@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/go-utils/v6/log"
 	"github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (
@@ -89,7 +90,8 @@ func RunCMD2(ctx context.Context, app string, args, envs []string, stdoutHandler
 
 // RunCMD2WithOptions cancels on framing or byte-limit failures. Nil handlers keep
 // existing debug/error logging behavior. Sensitive output needs explicit handlers.
-func RunCMD2WithOptions(ctx context.Context, app string, args, envs []string, stdoutHandler, stderrHandler func(string), opts CMDOptions) error {
+func RunCMD2WithOptions(ctx context.Context, app string, args, envs []string,
+	stdoutHandler, stderrHandler func(string), opts CMDOptions) error {
 	opts, err := opts.normalized()
 	if err != nil {
 		return err
@@ -120,7 +122,8 @@ func RunCMD2WithOptions(ctx context.Context, app string, args, envs []string, st
 
 // prepareCMD resolves argv without shell expansion and allocates invocation-local
 // cancellation and accounting before starting a process.
-func prepareCMD(ctx context.Context, app string, args, envs []string, opts CMDOptions) (*exec.Cmd, *cmdBudget, context.CancelFunc, error) {
+func prepareCMD(ctx context.Context, app string, args, envs []string,
+	opts CMDOptions) (*exec.Cmd, *cmdBudget, context.CancelFunc, error) {
 	if ctx == nil {
 		return nil, nil, nil, errors.New("command context must not be nil")
 	}

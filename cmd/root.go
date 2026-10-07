@@ -18,10 +18,13 @@ var (
 	cmdVersion bool
 )
 
+// rootCommandName is the executable name shown in usage, help and examples.
+const rootCommandName = "go-utils"
+
 var rootCmd = &cobra.Command{
-	Use:   "go-utils",
-	Short: "go-utils",
-	Long:  `go-utils`,
+	Use:   rootCommandName,
+	Short: rootCommandName,
+	Long:  rootCommandName,
 	Args:  NoExtraArgs,
 	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		if cmdVersion {

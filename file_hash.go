@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/Laisky/errors/v2"
+
 	"github.com/Laisky/go-utils/v6/internal/fileguard"
 )
 
@@ -30,7 +31,8 @@ func FileHash(hashType HashTypeInterface, path string) ([]byte, error) {
 // Zero selects DefaultFileHashMaxBytes. Cancellation closes the descriptor and is
 // checked between reads; a filesystem syscall that cannot be interrupted by the
 // operating system is not given a hard real-time deadline by this API.
-func FileHashWithContext(ctx context.Context, hashType HashTypeInterface, path string, maxBytes int64) (signature []byte, retErr error) {
+func FileHashWithContext(ctx context.Context, hashType HashTypeInterface, path string,
+	maxBytes int64) (signature []byte, retErr error) {
 	if ctx == nil || hashType == nil {
 		return nil, errors.New("hash context and algorithm must not be nil")
 	}

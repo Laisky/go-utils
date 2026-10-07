@@ -3,11 +3,12 @@ package log
 import (
 	"bytes"
 	"context"
-	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"maps"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -258,7 +259,10 @@ func NewPusher(ctx context.Context, opts ...PusherOption) (*Pusher, error) {
 		return nil, errors.Wrap(err, "apply opts")
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	p := &Pusher{opt: opt, ctx: ctx, cancel: cancel, done: make(chan struct{}), senderChan: make(chan []byte, opt.senderChanLen)}
+	p := &Pusher{
+		opt: opt, ctx: ctx, cancel: cancel,
+		done: make(chan struct{}), senderChan: make(chan []byte, opt.senderChanLen),
+	}
 	go p.sender(ctx)
 	return p, nil
 }

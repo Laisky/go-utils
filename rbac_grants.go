@@ -139,7 +139,8 @@ func (p *RBACPermissionElem) intersectRBACSnapshot(other rbacPermissionSnapshot,
 // retainRBACStructure keeps common metadata nodes while explicitly clearing
 // all grants. Parent and depth locate and bound the traversal; overwrite selects
 // the source titles. Invalid branches are discarded under the receiver lock.
-func (p *RBACPermissionElem) retainRBACStructure(other rbacPermissionSnapshot, parent RBACPermFullKey, depth int, overwrite bool) {
+func (p *RBACPermissionElem) retainRBACStructure(other rbacPermissionSnapshot, parent RBACPermFullKey,
+	depth int, overwrite bool) {
 	current := p.rbacFullKey(parent)
 	invalid := p.Key == "" || !p.validGrantMode() || depth > rbacMaxDepth
 	p.Grant = RBACGrantNone
@@ -166,7 +167,8 @@ func (p *RBACPermissionElem) retainRBACStructure(other rbacPermissionSnapshot, p
 
 // insertRBACGrant reconstructs a narrower branch when a broad input grant was
 // intersected with a descendant grant. Every synthesized ancestor is structural.
-func (p *RBACPermissionElem) insertRBACGrant(key RBACPermFullKey, before, other rbacPermissionSnapshot, overwrite bool) {
+func (p *RBACPermissionElem) insertRBACGrant(key RBACPermFullKey, before, other rbacPermissionSnapshot,
+	overwrite bool) {
 	root := p.rbacFullKey("")
 	if p.Key == "" || root == "" {
 		return
@@ -180,7 +182,8 @@ func (p *RBACPermissionElem) insertRBACGrant(key RBACPermFullKey, before, other 
 		// represented below this root; dropping them is fail-closed.
 		return
 	}
-	segments := strings.Split(strings.TrimPrefix(key.String(), root.String()+rbacPermKeyDelimiter), rbacPermKeyDelimiter)
+	relative := strings.TrimPrefix(key.String(), root.String()+rbacPermKeyDelimiter)
+	segments := strings.Split(relative, rbacPermKeyDelimiter)
 	if len(segments) > rbacMaxDepth {
 		return
 	}
