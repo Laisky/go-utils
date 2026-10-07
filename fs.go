@@ -130,12 +130,17 @@ type copyFileOption struct {
 	overwrite bool
 }
 
+// fillDefault sets the CopyFile defaults on o: file mode 0640 and open flags os.O_WRONLY|os.O_CREATE.
+// It does not modify the overwrite field, and it returns o itself so the call can be chained with
+// applyOpts.
 func (o *copyFileOption) fillDefault() *copyFileOption {
 	o.mode = 0640
 	o.flag = os.O_WRONLY | os.O_CREATE
 	return o
 }
 
+// applyOpts applies each CopyFileOptionFunc in optfs to o in order. It returns o on success; when an
+// option fails, it stops and returns nil with that error wrapped by the option function's name.
 func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption, error) {
 	for _, f := range optfs {
 		if err := f(o); err != nil {

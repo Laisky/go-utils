@@ -17,6 +17,10 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestCopyFile verifies CopyFile end to end: copying a nonexistent source fails, copying to a new
+// destination reproduces the source bytes and leaves the source intact, copying onto an existing
+// destination without Overwrite fails with an "exists" error, and Overwrite replaces the destination
+// with the source's updated content.
 func TestCopyFile(t *testing.T) {
 	t.Parallel()
 	t.Run("not exist", func(t *testing.T) {
@@ -86,6 +90,9 @@ func TestCopyFile(t *testing.T) {
 	})
 }
 
+// TestIsDirWritable verifies that IsDirWritable returns nil for two freshly created 0751 directories.
+// The directory named "notwritable" keeps owner write permission, so both probes are expected to
+// succeed.
 func TestIsDirWritable(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestIsDirWritable-*")
@@ -108,6 +115,8 @@ func TestIsDirWritable(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestIsDir verifies that IsDir returns false with an error for a nonexistent path and true without an
+// error for an existing directory.
 func TestIsDir(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestIsDir-*")
@@ -130,6 +139,8 @@ func TestIsDir(t *testing.T) {
 	}
 }
 
+// TestNewTmpFileForContent verifies that NewTmpFileForContent writes the given bytes to a new temporary
+// file and returns a path whose content reads back unchanged.
 func TestNewTmpFileForContent(t *testing.T) {
 	t.Parallel()
 	cnt := "yahoo"
@@ -143,6 +154,9 @@ func TestNewTmpFileForContent(t *testing.T) {
 	require.Equal(t, cnt, string(got))
 }
 
+// BenchmarkFileSHA1 measures the per-call cost of FileMD5 and FileSHA1 when hashing a 1 MiB temporary
+// file.
+//
 // BenchmarkFileSHA1/md5_1MB-16         	     464	   2682812 ns/op	    4296 B/op	       7 allocs/op
 // BenchmarkFileSHA1/sha1_1MB-16        	     548	   2253516 ns/op	    4336 B/op	       7 allocs/op
 func BenchmarkFileSHA1(b *testing.B) {
@@ -166,6 +180,9 @@ func BenchmarkFileSHA1(b *testing.B) {
 	})
 }
 
+// TestWatchFileChanging verifies that WatchFileChanging delivers fsnotify.Write events naming the
+// watched files after both files are written, and that deleting and recreating a watched file with new
+// content produces further events within 1.5 seconds.
 func TestWatchFileChanging(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")
@@ -247,6 +264,8 @@ func TestWatchFileChanging(t *testing.T) {
 	})
 }
 
+// TestFileMD5 verifies that FileMD5 fails for a nonexistent path, returns the hex MD5 digest matching
+// crypto/md5 for a temporary file's content, and returns a different digest after data is appended.
 func TestFileMD5(t *testing.T) {
 	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
@@ -279,6 +298,9 @@ func TestFileMD5(t *testing.T) {
 	require.NotEqual(t, fhashed, fhashed2)
 }
 
+// TestIsFileATimeChanged verifies that IsFileATimeChanged fails for a nonexistent path and, after the
+// file is rewritten, reports changed=true together with the file's new modification time. Despite its
+// name, the function compares modification times.
 func TestIsFileATimeChanged(t *testing.T) {
 	t.Parallel()
 	t.Run("file not exist", func(t *testing.T) {
@@ -311,6 +333,8 @@ func TestIsFileATimeChanged(t *testing.T) {
 	require.True(t, newATime.Equal(fi.ModTime()))
 }
 
+// TestFileSHA1 verifies that FileSHA1 returns the expected lowercase hex SHA-1 digest of a temporary
+// file holding a fixed string.
 func TestFileSHA1(t *testing.T) {
 	t.Parallel()
 	fp, err := os.CreateTemp("", "TestFileSHA1-*")
@@ -327,6 +351,8 @@ func TestFileSHA1(t *testing.T) {
 
 }
 
+// TestFileExists verifies that FileExists returns (false, nil) for a missing path and for a directory,
+// and (true, nil) for a regular file.
 func TestFileExists(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestFileExists-*")
@@ -362,6 +388,8 @@ func TestFileExists(t *testing.T) {
 	})
 }
 
+// TestRenderTemplate verifies that RenderTemplateFile reads a text/template file and renders it with
+// the given struct argument, producing "hello, laisky".
 func TestRenderTemplate(t *testing.T) {
 	t.Parallel()
 	const tpl = `hello, {{.Name}}`
@@ -380,6 +408,10 @@ func TestRenderTemplate(t *testing.T) {
 	require.Equal(t, "hello, laisky", string(got))
 }
 
+// TestFilepathJoin verifies JoinFilepath with table cases: an empty argument list is rejected, children
+// are joined and cleaned beneath the base (including "../" that stays inside it), parent components
+// that escape the base return an "escaped basedir" error, an empty first base is always rejected, and
+// an absolute base is joined normally.
 func TestFilepathJoin(t *testing.T) {
 	t.Parallel()
 	type args struct {

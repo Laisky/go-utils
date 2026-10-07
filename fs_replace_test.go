@@ -12,6 +12,9 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestMoveFile verifies that MoveFile reproduces the source bytes at a new destination and removes the
+// source, and that repeating the move or copying from the removed source onto the existing destination
+// returns an error.
 func TestMoveFile(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestMoveFile-*")
@@ -51,6 +54,9 @@ func TestMoveFile(t *testing.T) {
 	require.True(t, os.IsNotExist(err))
 }
 
+// TestReplaceFile verifies that ReplaceFile writes 1 MiB of random content with mode 0640 both when it
+// replaces an existing 0600 file and when the target file does not exist yet, and that the stored bytes
+// match the input exactly.
 func TestReplaceFile(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestReplaceFile-*")
@@ -94,6 +100,9 @@ func TestReplaceFile(t *testing.T) {
 	})
 }
 
+// TestReplaceFileStream verifies that the deprecated ReplaceFileStream alias replaces an existing 0600
+// file with the 1 MiB content read from an open source file, applying mode 0640 and preserving the
+// bytes exactly.
 func TestReplaceFileStream(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")

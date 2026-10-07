@@ -36,6 +36,8 @@ type listFilesInDirOption struct {
 	filter func(fname string) bool
 }
 
+// applyOpts applies each ListFilesInDirOptionFunc in opts to o in order. It returns o on success; when
+// an option fails, it stops and returns nil with that error wrapped as "apply option".
 func (o *listFilesInDirOption) applyOpts(opts ...ListFilesInDirOptionFunc) (*listFilesInDirOption, error) {
 	for _, opt := range opts {
 		if err := opt(o); err != nil {

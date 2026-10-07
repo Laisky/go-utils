@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRBACPermissionElem_ValueScan verifies the SQL round trip of RBACPermissionElem: Value encodes the
+// tree as a JSON string with keys, titles, and children; Scan restores the tree from []byte or string;
+// Scan rejects nil, unsupported types, and malformed JSON but accepts JSON with only unknown fields as
+// an empty element; and a scanned tree refilled by FillDefault regains the original full keys.
 func TestRBACPermissionElem_ValueScan(t *testing.T) {
 	// Create a permission tree for testing
 	p := &RBACPermissionElem{
@@ -450,7 +454,8 @@ func TestRBACPermissionElem_Cut_EmptyKey(t *testing.T) {
 	require.NotNil(t, p.GetElemByKey(RBACPermFullKey("root.a")))
 }
 
-// TestRBACPermissionElem_HasPerm_EmptyKey verifies HasPerm with empty-key tree.
+// TestRBACPermissionElem_HasPerm_EmptyKeyTree verifies that HasPerm on an empty-key tree grants only the
+// empty required key and denies "root".
 func TestRBACPermissionElem_HasPerm_EmptyKeyTree(t *testing.T) {
 	p := &RBACPermissionElem{}
 	require.True(t, p.HasPerm(RBACPermFullKey("")))

@@ -6,6 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRBACPermissionElemFullKey_Parent verifies that RBACPermFullKey.Parent drops the last
+// dot-separated segment, returning "" for an empty or single-segment key, "a" for "a.b", and "a.b"
+// for "a.b.c".
 func TestRBACPermissionElemFullKey_Parent(t *testing.T) {
 	tests := []struct {
 		name string
@@ -26,6 +29,9 @@ func TestRBACPermissionElemFullKey_Parent(t *testing.T) {
 	}
 }
 
+// TestRBACPermissionElemFullKey_Append verifies that RBACPermFullKey.Append joins a child key with the
+// "." delimiter ("a.b" plus "c" gives "a.b.c") and returns the bare child key when the base key is
+// empty.
 func TestRBACPermissionElemFullKey_Append(t *testing.T) {
 	type args struct {
 		key RBACPermKey
@@ -48,6 +54,11 @@ func TestRBACPermissionElemFullKey_Append(t *testing.T) {
 	}
 }
 
+// TestRBACPermissionGrantsRequired verifies the rbacPermissionGrantsRequired matching rules: an exact or
+// ancestor permission grants the required key, an empty required key is always granted, a descendant
+// never grants its ancestor, matching respects segment boundaries ("root.sys" does not grant
+// "root.sysadmin"), a wildcard "x.*" grants descendants of any depth but not x itself or sibling
+// segments, and an empty permission grants only an empty requirement.
 func TestRBACPermissionGrantsRequired(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -74,6 +85,10 @@ func TestRBACPermissionGrantsRequired(t *testing.T) {
 	}
 }
 
+// TestRBACCutTargetMatchesNode verifies that rbacCutTargetMatchesNode selects a node for removal only
+// on an exact key match or, for a "x.*" target, when the node is a descendant of x. Empty keys, the
+// wildcard's own parent, children of an exact target, and partial segment matches such as
+// "root.sysadmin" for "root.sys.*" never match.
 func TestRBACCutTargetMatchesNode(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -98,6 +113,9 @@ func TestRBACCutTargetMatchesNode(t *testing.T) {
 	}
 }
 
+// TestHasRBACHierarchicalPrefix verifies that hasRBACHierarchicalPrefix reports true when parentKey is
+// empty or when childKey is a strict descendant of parentKey on a "." boundary, and false for equal
+// keys, shorter keys, an empty child, and partial segment prefixes such as "root.sysadmin".
 func TestHasRBACHierarchicalPrefix(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -119,6 +137,10 @@ func TestHasRBACHierarchicalPrefix(t *testing.T) {
 	}
 }
 
+// TestRBACPermissionElem_CutAvoidSegmentMismatch verifies that Cut honors segment boundaries: cutting
+// "root.sysadmin" leaves the "root.sys" branch intact, cutting "root.sys.*" removes only the
+// children of "root.sys" and keeps "root.sysadmin", and cutting the leaf "root.sys.read" keeps its
+// parent and sibling.
 func TestRBACPermissionElem_CutAvoidSegmentMismatch(t *testing.T) {
 	p := &RBACPermissionElem{
 		Key: "root",
@@ -170,6 +192,9 @@ func TestRBACPermissionElem_CutAvoidSegmentMismatch(t *testing.T) {
 	})
 }
 
+// TestRBACPermissionElem_Clone verifies that Clone of a filled tree built from NewPermissionTree copies
+// the root key and full key as well as the child's key and full key, so the cloned child reports the
+// full key "root.a".
 func TestRBACPermissionElem_Clone(t *testing.T) {
 	p := NewPermissionTree()
 	p.Children = append(p.Children, &RBACPermissionElem{
@@ -186,6 +211,10 @@ func TestRBACPermissionElem_Clone(t *testing.T) {
 	require.Equal(t, p.Children[0].FullKey, p2.Children[0].FullKey)
 }
 
+// TestRBACPermissionElem_HasPerm verifies the legacy HasPerm semantics on a valid tree: the empty key,
+// the root, and every existing node path (leaf or intermediate) are granted, while unknown paths,
+// descendants below a leaf, and keys with a trailing delimiter are denied. It also checks that Valid
+// rejects the tree once a child with an empty key is appended.
 func TestRBACPermissionElem_HasPerm(t *testing.T) {
 	p := &RBACPermissionElem{
 		Key: "root",
@@ -221,6 +250,11 @@ func TestRBACPermissionElem_HasPerm(t *testing.T) {
 	})
 }
 
+// TestRBACPermissionElem_HasPerm2 verifies the HasPerm2 grant rules across root-only, root.sys,
+// wildcard, leaf-only, empty, and nil trees: an empty requirement is always granted, a leaf grant covers
+// itself and all descendants, a child grant does not imply its parent, an intermediate node is not
+// granted by its leaf children, a "root.sys.*" wildcard grants descendants but not "root.sys", and
+// empty or nil trees grant nothing else.
 func TestRBACPermissionElem_HasPerm2(t *testing.T) {
 	rootPerm := &RBACPermissionElem{Key: "root"}
 	require.NoError(t, rootPerm.FillDefault(""))

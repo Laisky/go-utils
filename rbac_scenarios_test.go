@@ -6,6 +6,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRBACPermissionElem_UnionAndOverwriteBy verifies the tree-combining operations on two overlapping
+// trees: UnionAndOverwriteBy adds the other tree's branches (root.e.f) while keeping existing ones,
+// Intersection keeps only shared nodes and drops root.b.c and root.e, OverwriteBy without intersection
+// updates the title of root.a to "A" without adding nodes, OverwriteBy with intersection also prunes
+// to the shared nodes, and Cut("root.b") on the union removes that branch while keeping root.a and
+// root.e.f.
 func TestRBACPermissionElem_UnionAndOverwriteBy(t *testing.T) {
 	p1 := &RBACPermissionElem{
 		Key: "root",
@@ -121,6 +127,12 @@ func TestRBACPermissionElem_UnionAndOverwriteBy(t *testing.T) {
 	})
 }
 
+// TestRBACPermissionElem_ComplexScenarios verifies multi-step tree behavior: HasPerm on a deep tree
+// grants existing leaf and intermediate paths and denies unknown or too-deep paths; UnionAndOverwriteBy
+// merges children and takes titles from the other tree; a union, Cut, and second union sequence keeps
+// the expected branches; and in edge cases Cut on an empty tree is harmless, cutting "root" clears the
+// children and revokes every grant while keeping the receiver, and cutting a nonexistent key leaves the
+// tree unchanged.
 func TestRBACPermissionElem_ComplexScenarios(t *testing.T) {
 	t.Run("deep nested permissions", func(t *testing.T) {
 		p := &RBACPermissionElem{
