@@ -206,7 +206,7 @@ func BenchmarkGzip(b *testing.B) {
 		b.Fatalf("seek: %+v", err)
 	}
 
-	if gzWriter, err = gzip.NewWriterLevel(buf, gzip.BestSpeed); err != nil {
+	if gzWriter, err = gzip.NewWriterLevel(fp, gzip.BestSpeed); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 	b.Run("gz write 50KB to file best speed", func(b *testing.B) {
@@ -220,7 +220,7 @@ func BenchmarkGzip(b *testing.B) {
 		b.Fatalf("seek: %+v", err)
 	}
 
-	if gzWriter, err = gzip.NewWriterLevel(buf, gzip.BestCompression); err != nil {
+	if gzWriter, err = gzip.NewWriterLevel(fp, gzip.BestCompression); err != nil {
 		b.Fatalf("got error: %+v", err)
 	}
 	b.Run("gz write 50KB to file BestCompression", func(b *testing.B) {
