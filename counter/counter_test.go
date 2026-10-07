@@ -2,14 +2,12 @@ package counter
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/Laisky/zap"
 
 	"github.com/Laisky/go-utils/v6/log"
 )
@@ -31,62 +29,56 @@ func ExampleRotateCounter() {
 	counter.CountN(10) // 1
 }
 
-func validateCounter(N int, wg *sync.WaitGroup, counter Int64CounterItf, name string, store *sync.Map) {
+// validateCounter hammers counter from parallel goroutines with Count and
+// CountN and reports through t any value returned twice. N is the number of
+// Count calls per goroutine, wg tracks the spawned goroutines, name labels
+// failures, and store (shared when several children of one parallel counter
+// must never overlap) records every value seen; nil allocates a private map.
+func validateCounter(t *testing.T, N int, wg *sync.WaitGroup, counter Int64CounterItf, name string, store *sync.Map) {
+	t.Helper()
 	defer wg.Done()
-	defer log.Shared.Info("validator exit", zap.String("name", name))
-	var (
-		nParallel = 10
-		padding   = struct{}{}
-	)
+	const nParallel = 10
+	padding := struct{}{}
 	if store == nil {
 		store = &sync.Map{}
 	}
 
-	for i := 0; i < nParallel; i++ {
+	for range nParallel {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer log.Shared.Info("counter exit", zap.String("name", name))
-			var (
-				ok bool
-				n  int64
-			)
-			for j := 0; j < N; j++ {
-				n = counter.Count()
-				if _, ok = store.LoadOrStore(n, padding); ok {
-					log.Shared.Panic("duplicate", zap.String("name", name), zap.Int64("n", n))
+			for range N {
+				n := counter.Count()
+				if _, dup := store.LoadOrStore(n, padding); dup {
+					t.Errorf("%s returned duplicate value %d from Count", name, n)
+					return
 				}
 			}
 		}()
 	}
-	for i := 0; i < nParallel; i++ {
+	for range nParallel {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer log.Shared.Info("multi counter exit", zap.String("name", name))
-			var (
-				ok      bool
-				step, n int64
-			)
-			for j := 0; j < N/100; j++ {
-				step = rand.Int63n(100) + 1
-				n = counter.CountN(step)
-				if _, ok = store.LoadOrStore(n, padding); ok {
-					log.Shared.Panic("duplicate", zap.String("name", name), zap.Int64("n", n), zap.Int64("step", step))
+			for range N / 100 {
+				step := rand.Int63n(100) + 1
+				n := counter.CountN(step)
+				if _, dup := store.LoadOrStore(n, padding); dup {
+					t.Errorf("%s returned duplicate value %d from CountN(%d)", name, n, step)
+					return
 				}
 			}
 		}()
 	}
 }
 
+// TestCounterValidation verifies that every counter implementation returns
+// unique values under concurrent Count and CountN calls.
 func TestCounterValidation(t *testing.T) {
-	var (
-		err error
-		wg  = &sync.WaitGroup{}
-	)
-	if err = log.Shared.ChangeLevel("info"); err != nil {
-		t.Fatalf("set level: %+v", err)
-	}
+	// 20k calls per goroutine across 50 goroutines keeps heavy contention while
+	// staying fast under the race detector.
+	const callsPerGoroutine = 20000
+	wg := &sync.WaitGroup{}
 	atomicCounter := NewCounter()
 	rotateCounter, err := NewRotateCounter(math.MaxInt64)
 	if err != nil {
@@ -102,14 +94,12 @@ func TestCounterValidation(t *testing.T) {
 	childCounter3 := parallelCounter.GetChild()
 
 	wg.Add(5)
-	go validateCounter(100000, wg, atomicCounter, "atomicCounter", nil)
-	go validateCounter(100000, wg, rotateCounter, "rotateCounter", nil)
-	go validateCounter(100000, wg, childCounter1, "childCounter-1", store2ChildCounter)
-	go validateCounter(100000, wg, childCounter2, "childCounter-2", store2ChildCounter)
-	go validateCounter(100000, wg, childCounter3, "childCounter-3", store2ChildCounter)
-	t.Log("waiting tasks")
+	go validateCounter(t, callsPerGoroutine, wg, atomicCounter, "atomicCounter", nil)
+	go validateCounter(t, callsPerGoroutine, wg, rotateCounter, "rotateCounter", nil)
+	go validateCounter(t, callsPerGoroutine, wg, childCounter1, "childCounter-1", store2ChildCounter)
+	go validateCounter(t, callsPerGoroutine, wg, childCounter2, "childCounter-2", store2ChildCounter)
+	go validateCounter(t, callsPerGoroutine, wg, childCounter3, "childCounter-3", store2ChildCounter)
 	wg.Wait()
-
 }
 
 func TestCounter(t *testing.T) {
@@ -192,11 +182,9 @@ func TestRotateCounter(t *testing.T) {
 	}
 }
 
+// TestParallelRotateCounter verifies rotation bounds of a parallel counter
+// child and that two children never return the same value.
 func TestParallelRotateCounter(t *testing.T) {
-	var err error
-	if err = log.Shared.ChangeLevel("info"); err != nil {
-		t.Fatalf("set level: %+v", err)
-	}
 	pcounter, err := NewParallelCounter(10, 100)
 	if err != nil {
 		t.Fatalf("got error: %+v", err)
@@ -246,53 +234,43 @@ func TestParallelRotateCounter(t *testing.T) {
 	counter2 := pcounter.GetChild()
 
 	var (
-		ns  = sync.Map{}
-		wg  sync.WaitGroup
-		val = struct{}{}
+		ns     sync.Map
+		wg     sync.WaitGroup
+		failed atomic.Bool
+		val    = struct{}{}
 	)
-	wg.Add(2)
-	failed := make(chan string)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000000; i++ {
-			select {
-			case <-failed:
-				return
-			default:
-			}
-
-			n := counter1.Count()
-			if _, ok := ns.LoadOrStore(n, val); ok {
-				failed <- fmt.Sprintf("should not contains: %v", n)
-				return
-			}
+	// record stores n and reports a duplicate through t; it returns false once
+	// any goroutine has failed so both loops stop early.
+	record := func(n int64) bool {
+		if failed.Load() {
+			return false
 		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
-			select {
-			case <-failed:
-				return
-			default:
-			}
-			n := counter2.CountN(100)
-
-			if _, ok := ns.LoadOrStore(n, val); ok {
-				failed <- fmt.Sprintf("should not contains: %v", n)
-				return
-			}
+		if _, dup := ns.LoadOrStore(n, val); dup {
+			failed.Store(true)
+			t.Errorf("parallel counter children returned duplicate value %d", n)
+			return false
 		}
-	}()
-
-	wg.Wait()
-	select {
-	case fault := <-failed:
-		t.Fatalf("%+v", fault)
-	default:
+		return true
 	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for range 200000 {
+			if !record(counter1.Count()) {
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range 1000 {
+			if !record(counter2.CountN(100)) {
+				return
+			}
+		}
+	}()
+	wg.Wait()
 }
 
 func TestRotateCounterFromN(t *testing.T) {
