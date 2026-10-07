@@ -72,7 +72,7 @@ Contains some useful tools in different directories:
 - `settings`: move go [github.com/Laisky/go-config](https://github.com/Laisky/go-config)
 - `color.go`: colorful code
 - `compressor.go`: compress and extract dir/files
-- `email/`: SMTP email sdk
+- `email/`: SMTP email sdk (verified TLS required by default; plaintext relays need the explicit `WithEmailInsecureAllowPlaintext` opt-out)
 - `encrypt/`: some tools for encrypt and decrypt,
   support AES, RSA, ECDSA, MD5, SHA128, SHA256
   - `configserver.go`: load configs from file or config-server
