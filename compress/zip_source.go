@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Laisky/errors/v2"
+
 	"github.com/Laisky/go-utils/v6/internal/fileguard"
 )
 
@@ -135,7 +136,11 @@ func (s *zipSourceState) addSelected(filename, prefix string) (retErr error) {
 }
 
 // add walks through directory handles and verifies opened identities before reads.
-func (s *zipSourceState) add(root *os.Root, name, prefix string, info os.FileInfo, depth int) (retErr error) {
+// It takes the anchored parent root, the entry name within it, the archive
+// prefix, the entry's Lstat information and the traversal depth, enforces the
+// traversal limits, output exclusion and member-name policy, and returns the
+// first error from adding the entry or its descendants.
+func (s *zipSourceState) add(root *os.Root, name, prefix string, info os.FileInfo, depth int) error {
 	if depth > maxZIPSourceDepth || s.entries >= maxZIPSourceEntries {
 		return errors.New("ZIP source traversal limit exceeded")
 	}
@@ -150,37 +155,55 @@ func (s *zipSourceState) add(root *os.Root, name, prefix string, info os.FileInf
 		return errors.Wrap(err, "invalid source member name")
 	}
 	if info.IsDir() {
-		child, err := fileguard.OpenDirectory(root, name, info)
-		if err != nil {
-			return errors.Wrap(err, "open ZIP source directory")
+		return s.addDirectory(root, name, member, info, depth)
+	}
+	return s.addRegularFile(root, name, member, info)
+}
+
+// addDirectory opens a verified directory handle and adds each child through
+// it. It takes the parent root, the directory name within it, the directory's
+// archive member name, its Lstat information and depth, and returns the first
+// enumeration, inspection, recursion or close error.
+func (s *zipSourceState) addDirectory(root *os.Root, name, member string, info os.FileInfo,
+	depth int) (retErr error) {
+	child, err := fileguard.OpenDirectory(root, name, info)
+	if err != nil {
+		return errors.Wrap(err, "open ZIP source directory")
+	}
+	defer func() { retErr = errors.Join(retErr, wrapZIPClose(child.Close(), "close ZIP source directory")) }()
+	dir, err := child.Open(".")
+	if err != nil {
+		return errors.Wrap(err, "enumerate ZIP source directory")
+	}
+	defer func() { retErr = errors.Join(retErr, wrapZIPClose(dir.Close(), "close ZIP directory enumerator")) }()
+	for {
+		entries, readErr := dir.ReadDir(128)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return errors.Wrap(readErr, "read ZIP source directory")
 		}
-		defer func() { retErr = errors.Join(retErr, wrapZIPClose(child.Close(), "close ZIP source directory")) }()
-		dir, err := child.Open(".")
-		if err != nil {
-			return errors.Wrap(err, "enumerate ZIP source directory")
+		for _, entry := range entries {
+			// DirEntry.Info may resolve against a pathname after a rename.
+			// Lstat through the anchored root is the source of truth instead.
+			fi, err := child.Lstat(entry.Name())
+			if err != nil {
+				return errors.Wrap(err, "inspect ZIP directory entry")
+			}
+			if err := s.add(child, entry.Name(), member, fi, depth+1); err != nil {
+				return err
+			}
 		}
-		defer func() { retErr = errors.Join(retErr, wrapZIPClose(dir.Close(), "close ZIP directory enumerator")) }()
-		for {
-			entries, readErr := dir.ReadDir(128)
-			if readErr != nil && !errors.Is(readErr, io.EOF) {
-				return errors.Wrap(readErr, "read ZIP source directory")
-			}
-			for _, entry := range entries {
-				// DirEntry.Info may resolve against a pathname after a rename.
-				// Lstat through the anchored root is the source of truth instead.
-				fi, err := child.Lstat(entry.Name())
-				if err != nil {
-					return errors.Wrap(err, "inspect ZIP directory entry")
-				}
-				if err := s.add(child, entry.Name(), member, fi, depth+1); err != nil {
-					return err
-				}
-			}
-			if errors.Is(readErr, io.EOF) {
-				return nil
-			}
+		if errors.Is(readErr, io.EOF) {
+			return nil
 		}
 	}
+}
+
+// addRegularFile opens a verified regular file and copies exactly its inspected
+// size into a new deflated archive member. It takes the parent root, the file
+// name within it, the archive member name and its Lstat information, and
+// returns an error if the file cannot be opened or read, or if its size or
+// modification time changed while it was being read.
+func (s *zipSourceState) addRegularFile(root *os.Root, name, member string, info os.FileInfo) (retErr error) {
 	f, err := fileguard.OpenRegular(root, name, info)
 	if err != nil {
 		return errors.Wrap(err, "open ZIP source file")
