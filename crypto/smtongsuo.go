@@ -687,40 +687,6 @@ func (t *Tongsuo) DecryptBySm2(ctx context.Context,
 	return data, nil
 }
 
-// SignX509CRL sign x509 crl by ca private key
-func (t *Tongsuo) SignX509CRL(ctx context.Context,
-	CrlDer []byte,
-	PrikeyPem []byte,
-) (signedCrlDer []byte, err error) {
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	// write crl file
-	crlPath := filepath.Join(dir, "crl")
-	crlPem := CRLDer2Pem(CrlDer)
-	if err = os.WriteFile(crlPath, crlPem, 0600); err != nil {
-		return nil, errors.Wrap(err, "write crl")
-	}
-
-	// sign crl
-	signedCrlPath := filepath.Join(dir, "signed_crl")
-	if _, err = t.runCMD(ctx, []string{
-		"crl", "-in", crlPath, "-out", signedCrlPath, "-signkey", "/dev/stdin",
-	}, PrikeyPem); err != nil {
-		return nil, errors.Wrap(err, "sign crl")
-	}
-
-	signedCrlDer, err = os.ReadFile(signedCrlPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read signed crl")
-	}
-
-	return signedCrlDer, nil
-}
-
 // PrivateKey get private key
 func (t *Tongsuo) PrivateKey(prikeyPem []byte) (crypto.PrivateKey, error) {
 	return &TongsuoPriKey{ts: t, pem: prikeyPem}, nil
