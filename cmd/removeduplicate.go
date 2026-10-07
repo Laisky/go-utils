@@ -25,6 +25,10 @@ import (
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
+// similarImageMu serializes the query-then-index step of
+// checkDupByImageSimilar so concurrent workers make consistent decisions.
+var similarImageMu sync.Mutex
+
 var removeDupArg struct {
 	Dir string
 	Dry bool
@@ -124,11 +128,11 @@ func removeDuplicate(dry bool, dir string) error {
 
 // checkDupByImageSimilar decodes fpath as a JPEG, PNG or GIF image, chosen by its lower-cased extension
 // (other extensions are skipped), and queries store for the closest perceptual match. A best match scoring
-// above -60 is treated as not similar. Otherwise the larger file is kept and the other one is removed (the
-// current file is removed on a size tie, and nothing is removed when dry is true); when the current file is
-// kept it replaces the match in store. Images without a close enough match are not added to store. It takes
-// the dry flag, the shared duplo store and the file path, and returns whether a similar image was found,
-// together with any open, decode, size comparison or removal error.
+// above -60 is treated as not similar, and the image is indexed in store so later similar images can match
+// it. Otherwise the larger file is kept and the other one is removed (the current file is removed on a size
+// tie); when the current file is kept it replaces the match in store. When dry is true the similar pair is
+// only reported. It takes the dry flag, the shared duplo store and the file path, and returns whether a file
+// was removed, together with any open, decode, size comparison or removal error.
 func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted bool, err error) {
 	fp, err := os.Open(fpath)
 	if err != nil {
@@ -159,18 +163,24 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 
 	glog.Shared.Debug("check similar for images", zap.String("file", fpath))
 	hash, _ := duplo.CreateHash(img)
+
+	// Query and index under one lock so concurrent workers cannot both miss
+	// each other and keep a similar pair.
+	similarImageMu.Lock()
+	defer similarImageMu.Unlock()
+
 	matched := store.Query(hash)
-	if len(matched) == 0 {
+	if len(matched) != 0 {
+		sort.Sort(matched)
+	}
+	if len(matched) == 0 || matched[0].Score > -60 { // experience threshold
+		// Index every image that is not a duplicate, otherwise later similar
+		// images can never match it.
+		store.Add(fpath, hash)
 		return false, nil
 	}
 
-	sort.Sort(matched)
 	otherFile := matched[0]
-	if otherFile.Score > -60 { // experience threshold
-		return false, nil
-	}
-
-	deleted = true
 	otherFp, ok := otherFile.ID.(string)
 	if !ok {
 		return false, errors.Errorf("invalid file id type %T", otherFile.ID)
@@ -183,8 +193,6 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	deletePath := fpath
 	keepPath := otherFp
 	if keepCurrentFile {
-		store.Delete(otherFile)
-		store.Add(fpath, hash)
 		deletePath = otherFp
 		keepPath = fpath
 	}
@@ -192,16 +200,22 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	glog.Shared.Info("remove similar image",
 		zap.Float64("score", otherFile.Score),
 		zap.String("keep", keepPath),
-		zap.String("remove", deletePath))
-	if !dry {
-		return deleted, removeFile(deletePath)
+		zap.String("remove", deletePath),
+		zap.Bool("dry", dry))
+	if dry {
+		return false, nil
 	}
 
-	if !deleted {
+	if err = removeFile(deletePath); err != nil {
+		return false, errors.WithStack(err)
+	}
+	if keepCurrentFile {
+		// The indexed image was removed; index the kept, larger one instead.
+		store.Delete(otherFile.ID)
 		store.Add(fpath, hash)
 	}
 
-	return deleted, nil
+	return true, nil
 }
 
 // fileSizeBiggerThan reports whether the file at fp1 is strictly larger than the file at fp2. It takes the
