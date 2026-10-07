@@ -2,7 +2,7 @@
 
 - **Sensitive local info:** Local tools and debugging sensitive information is stored in `.github/instructions/laisky.instructions.md`; treat it as sensitive and never leak it.
 - **English only:** Always output **English** for all code, comments, chat, documents, logs, and UI text regardless of input language.
-- **Project purpose:** Purrfect TEE is a high-assurance trusted wallet service. It generates, stores, imports, and uses tenant wallet keys inside a GCP Confidential Space TEE. Prioritize security, integrity, and behavioral correctness over availability.
+- **Project purpose:** go-utils (`github.com/Laisky/go-utils/v6`) is a reusable Go utility library (crypto/PKI including Tongsuo SM2/SM3/SM4, filesystem, compression, logging, HTTP, rate limiting, RBAC, agent memory) consumed by security-sensitive services such as Purrfect TEE. Prioritize security, integrity, and behavioral correctness over availability.
 - **File length limits:** No manually written code file may exceed **800 lines**; for Go prefer files ≤**600 lines**; split by responsibility when needed; generated files are exempt.
 - **Build and test checks:** After code changes run `make lint` and `go test -race -cover ./...`. Add narrower checks when they exist, but do not skip these final gates.
 - **Debug logging discipline:** Add targeted DEBUG logs to aid diagnosis, keep useful logs after debugging, and **never** include secrets (API keys, passwords, tokens) in logs or outputs.
@@ -19,7 +19,7 @@
 - **Testing policy:** Create and update unit tests for new features and bug fixes; avoid one‑off scripts; continuously improve test coverage.
 - **Test assertions:** Use `github.com/stretchr/testify/require` for assertions in tests.
 - **Comments requirement:** Every function and interface must have a comment that starts with the function/interface name and describes purpose, parameters, and return values in complete sentences.
-- **Go version and style:** Target **Go 1.26.4**; use modern Go syntax and features where appropriate.
+- **Go version and style:** Target **Go 1.26** (go.mod minimum `go 1.26.5`, which carries the os.Root CVE-2026-39822 fix); use modern Go syntax and features where appropriate.
 - **Context propagation:** Thread `context.Context` through call chains whenever feasible to manage lifecycles and cancellations.
 - **Error handling—proximity:** Handle errors as close to their source as possible; never ignore errors.
 - **Error handling—avoid `err == nil` pitfalls:** Avoid patterns that risk shadowing; be explicit and clear when checking errors.
