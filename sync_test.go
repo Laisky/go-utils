@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -419,37 +420,50 @@ func TestWaitComplete(t *testing.T) {
 	})
 
 	t.Run("tasks not finished before context cancel", func(t *testing.T) {
-		var tasks []func(context.Context) error
-		var n int
-		var mu sync.Mutex
-		for i := 0; i < 1000; i++ {
-			tasks = append(tasks, func(ctx context.Context) error {
-				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-
-				mu.Lock()
-				n++
-				mu.Unlock()
-
+		// Deterministic: ten fast tasks finish, then the context is canceled
+		// while 990 slow tasks are still running, so WaitComplete must return
+		// the context error promptly with exactly the fast tasks completed.
+		const fast, slow = 10, 990
+		var (
+			n      atomic.Int64
+			fastWg sync.WaitGroup
+			tasks  []func(context.Context) error
+		)
+		fastWg.Add(fast)
+		for range fast {
+			tasks = append(tasks, func(context.Context) error {
+				n.Add(1)
+				fastWg.Done()
+				return nil
+			})
+		}
+		release := make(chan struct{})
+		defer close(release)
+		for range slow {
+			tasks = append(tasks, func(context.Context) error {
+				select {
+				case <-release:
+				case <-time.After(30 * time.Second):
+				}
+				n.Add(1)
 				return nil
 			})
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		go func() {
+			fastWg.Wait()
+			cancel()
+		}()
 
 		startat := time.Now()
 		err := WaitComplete(ctx, tasks...)
 		cost := time.Since(startat)
 
-		require.ErrorContains(t, err, "context deadline exceeded")
-
-		mu.Lock()
-		require.Less(t, n, 1000)
-		require.Greater(t, n, 0)
-		mu.Unlock()
-
-		require.GreaterOrEqual(t, cost, 10*time.Millisecond)
-		require.Less(t, cost, time.Second)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, int64(fast), n.Load(), "only the fast tasks may have finished")
+		require.Less(t, cost, 10*time.Second)
 	})
 }
 

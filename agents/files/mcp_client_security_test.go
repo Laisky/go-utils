@@ -262,13 +262,40 @@ func TestMCPClientDefaultClientFollowsSameOriginRedirect(t *testing.T) {
 	require.NoError(t, err)
 	httpCli, ok := client.httpCli.(*http.Client)
 	require.True(t, ok)
-	rec := &recordingTransport{respond: mcpRedirectResponder("https://AGENT.example.invalid:443/mcp/v2")}
+	rec := &recordingTransport{respond: mcpRedirectResponder("https://agent.example.invalid/mcp/v2")}
 	httpCli.Transport = rec
 
 	require.NoError(t, callSyntheticTool(client))
+	require.Greater(t, len(rec.requests()), 1, "same-origin redirect must be followed")
 	for _, req := range rec.requests() {
 		require.Equal(t, "https", req.scheme)
 		require.Equal(t, "Bearer "+syntheticMCPKey, req.authorization)
+	}
+}
+
+// TestMCPClientDefaultClientFollowsCanonicallySameOriginRedirect verifies that
+// a redirect whose host differs only in letter case or an explicit default
+// port is treated as the same origin and followed over HTTPS. Whether
+// net/http re-sends the Authorization header for such a spelling differs
+// between Go releases (1.26 drops it, 1.27 keeps it); both are safe, so the
+// credential is deliberately not asserted here.
+func TestMCPClientDefaultClientFollowsCanonicallySameOriginRedirect(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewMCPClient(MCPClientConfig{Endpoint: syntheticMCPEndpoint, APIKey: syntheticMCPKey})
+	require.NoError(t, err)
+	httpCli, ok := client.httpCli.(*http.Client)
+	require.True(t, ok)
+	rec := &recordingTransport{respond: mcpRedirectResponder("https://AGENT.example.invalid:443/mcp/v2")}
+	httpCli.Transport = rec
+
+	callErr := callSyntheticTool(client)
+	if callErr != nil {
+		require.NotContains(t, callErr.Error(), "refusing", "canonically same-origin redirect must not be refused")
+	}
+	require.Greater(t, len(rec.requests()), 1, "canonically same-origin redirect must be followed")
+	for _, req := range rec.requests() {
+		require.Equal(t, "https", req.scheme)
 	}
 }
 
