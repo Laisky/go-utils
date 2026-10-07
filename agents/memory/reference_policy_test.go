@@ -11,7 +11,8 @@ import (
 // reference-looking user input; only the engine's paired policy/data is transient.
 func TestSecurity43StandaloneUserDataIsNotDropped(t *testing.T) {
 	engine := &StandardEngine{}
-	item, _, _ := engine.buildMemoryBlock([]MemoryFact{{Value: security43Text}}, nil, nil)
+	item, _, _, buildErr := engine.buildMemoryBlock([]MemoryFact{{Value: security43Text}}, nil, nil)
+	require.NoError(t, buildErr)
 	standalone := []ResponseItem{*item, {Type: "message", Role: "user", Content: []ResponseContentPart{{Type: "input_text", Text: security43Text}}}}
 	require.Equal(t, standalone, stripMemoryReferenceItems(standalone))
 	paired := append([]ResponseItem{memoryReferencePolicy(), *item}, standalone...)

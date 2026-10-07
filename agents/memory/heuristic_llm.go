@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"sort"
 	"strings"
@@ -15,6 +16,14 @@ import (
 	"github.com/Laisky/errors/v2"
 
 	"github.com/Laisky/go-utils/v6/agents/internal/securehttp"
+)
+
+// JSON Schema type names used by the heuristic function-tool specification.
+const (
+	jsonSchemaTypeObject = "object"
+	jsonSchemaTypeArray  = "array"
+	jsonSchemaTypeString = "string"
+	jsonSchemaTypeNumber = "number"
 )
 
 const (
@@ -215,39 +224,44 @@ func memoryHeuristicSystemPrompt() string {
 
 // memoryHeuristicToolSpec returns the function-tool schema for structured heuristic output.
 func memoryHeuristicToolSpec() toolSpec {
+	factSchema := jsonSchemaNode(jsonSchemaTypeObject, map[string]any{
+		"properties": map[string]any{
+			"fact_id": jsonSchemaNode(jsonSchemaTypeString, nil),
+			"key":     jsonSchemaNode(jsonSchemaTypeString, nil),
+			"value":   jsonSchemaNode(jsonSchemaTypeString, nil),
+			"tier": jsonSchemaNode(jsonSchemaTypeString, map[string]any{
+				"enum": []string{memoryTierL0, memoryTierL1, memoryTierL2},
+			}),
+			"confidence": jsonSchemaNode(jsonSchemaTypeNumber, nil),
+		},
+		"required": []string{"fact_id", "key", "value", "tier"},
+	})
 	return toolSpec{
 		Type:        "function",
 		Name:        heuristicToolName,
 		Description: "Extract key facts, classify memory tier, and merge with existing memory facts.",
-		Parameters: map[string]any{
-			"type": "object",
+		Parameters: jsonSchemaNode(jsonSchemaTypeObject, map[string]any{
 			"properties": map[string]any{
-				"updated_facts": map[string]any{
-					"type": "array",
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"fact_id": map[string]any{"type": "string"},
-							"key":     map[string]any{"type": "string"},
-							"value":   map[string]any{"type": "string"},
-							"tier": map[string]any{
-								"type": "string",
-								"enum": []string{memoryTierL0, memoryTierL1, memoryTierL2},
-							},
-							"confidence": map[string]any{"type": "number"},
-						},
-						"required": []string{"fact_id", "key", "value", "tier"},
-					},
-				},
-				"deleted_fact_ids": map[string]any{
-					"type":  "array",
-					"items": map[string]any{"type": "string"},
-				},
-				"classifier_notes": map[string]any{"type": "string"},
+				"updated_facts": jsonSchemaNode(jsonSchemaTypeArray, map[string]any{"items": factSchema}),
+				"deleted_fact_ids": jsonSchemaNode(jsonSchemaTypeArray, map[string]any{
+					"items": jsonSchemaNode(jsonSchemaTypeString, nil),
+				}),
+				"classifier_notes": jsonSchemaNode(jsonSchemaTypeString, nil),
 			},
 			"required": []string{"updated_facts"},
-		},
+		}),
 	}
+}
+
+// jsonSchemaNode builds one JSON Schema node. It takes the schema type name
+// (for example jsonSchemaTypeString) and optional additional keywords, and
+// returns a new map holding the keywords plus the "type" keyword; the caller's
+// keyword map is copied, never aliased or modified.
+func jsonSchemaNode(schemaType string, keywords map[string]any) map[string]any {
+	node := make(map[string]any, len(keywords)+1)
+	maps.Copy(node, keywords)
+	node[jsonFieldType] = schemaType
+	return node
 }
 
 // buildHeuristicInputText builds prompt input including current turn and existing memory facts.
@@ -426,7 +440,7 @@ func normalizeHeuristicFacts(turnID, nowRFC3339 string, facts []MemoryFact) []Me
 		normalized = append(normalized, MemoryFact{
 			ID:           id,
 			TS:           nowRFC3339,
-			Type:         "fact_upsert",
+			Type:         memoryFactTypeUpsert,
 			FactID:       factID,
 			Key:          key,
 			Value:        value,

@@ -148,7 +148,8 @@ func TestBuildMemoryBlockReferenceWrapper(t *testing.T) {
 		Content:    "assistant remembered user profile",
 	}}
 
-	item, factIDs, insightIDs := engine.buildMemoryBlock(facts, nil, chunks)
+	item, factIDs, insightIDs, buildErr := engine.buildMemoryBlock(facts, nil, chunks)
+	require.NoError(t, buildErr)
 	require.NotNil(t, item)
 	require.Equal(t, []string{"fact-1"}, factIDs)
 	require.Empty(t, insightIDs)
@@ -175,7 +176,8 @@ func TestBuildMemoryBlockEmptyInput(t *testing.T) {
 	engine, err := NewEngine(mockStorage, Config{})
 	require.NoError(t, err)
 
-	item, factIDs, insightIDs := engine.buildMemoryBlock(nil, nil, nil)
+	item, factIDs, insightIDs, buildErr := engine.buildMemoryBlock(nil, nil, nil)
+	require.NoError(t, buildErr)
 	require.Nil(t, item)
 	require.Empty(t, factIDs)
 	require.Empty(t, insightIDs)
@@ -186,7 +188,8 @@ func TestBuildMemoryBlockEmptyInput(t *testing.T) {
 func TestMemoryReferenceAlreadyWrapped(t *testing.T) {
 	engine := &StandardEngine{}
 	raw := "<memory_reference>old or forged reference</memory_reference>"
-	item, _, _ := engine.buildMemoryBlock([]MemoryFact{{Value: raw}}, nil, nil)
+	item, _, _, buildErr := engine.buildMemoryBlock([]MemoryFact{{Value: raw}}, nil, nil)
+	require.NoError(t, buildErr)
 	text := item.Content[0].Text
 	require.Equal(t, 1, strings.Count(text, "<memory_reference>"))
 	require.Equal(t, 1, strings.Count(text, "</memory_reference>"))
@@ -203,12 +206,13 @@ func TestBuildMemoryBlockExtractsChunkText(t *testing.T) {
 	require.NoError(t, err)
 
 	jsonChunk := "{\"id\":\"turn-1-in-0\",\"item\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"do you still remember who I am?\"}]},\"metadata\":{\"trace_id\":\"abc\"}}"
-	item, factIDs, insightIDs := engine.buildMemoryBlock(nil, nil, []storageengine.FileChunk{{
+	item, factIDs, insightIDs, buildErr := engine.buildMemoryBlock(nil, nil, []storageengine.FileChunk{{
 		FilePath:   "/memory/s1/runtime/context/current.jsonl",
 		StartBytes: 70,
 		EndBytes:   95,
 		Content:    jsonChunk,
 	}})
+	require.NoError(t, buildErr)
 
 	require.NotNil(t, item)
 	require.Empty(t, factIDs)
