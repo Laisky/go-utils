@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
-	gutils "github.com/Laisky/go-utils/v6"
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
@@ -31,21 +29,47 @@ type Tongsuo struct {
 	// exactValidity reports whether both `x509` and `req` accept
 	// -not_before/-not_after, detected once by NewTongsuo.
 	exactValidity bool
+	// inheritedEnv names extra parent environment variables passed to
+	// subprocesses, configured by WithTongsuoInheritedEnv.
+	inheritedEnv []string
 }
 
-// NewTongsuo new tongsuo wrapper
+// NewTongsuo creates a wrapper around the tongsuo executable at exePath and
+// returns it, or an error when the binary cannot be run or is not Tongsuo.
 //
-// Notice, only support
-//   - github.com/tongsuo-project/tongsuo-go-sdk v0.0.0-20231225081335-82a881b9b3d3
-//   - https://github.com/Tongsuo-Project/Tongsuo 8.4.0-pre3
+// # Supported versions
 //
-// #Args
+//   - Tongsuo 8.5.x (OpenSSL 3.5 based) is tested. Its `x509`/`req` commands
+//     accept -not_before/-not_after, so certificate validity is encoded exactly.
+//   - Tongsuo 8.4.x (OpenSSL 3.0 based, e.g. 8.4.0-pre3) lacks those options.
+//     Validity then falls back to whole days computed conservatively; requests
+//     that cannot be represented without extending NotAfter, or that start in
+//     the future, fail before issuance. Support is detected once here.
+//
+// Every issued certificate is parsed and checked against the request before
+// it is returned, so toolchain differences fail closed.
+//
+// # Environment
+//
+// Subprocesses receive only a minimal environment: the dynamic loader
+// variables listed in tongsuoInheritedEnvAllowlist (plus PATH on Windows), any
+// names allowed with WithTongsuoInheritedEnv, and the explicit variables used
+// internally to pass secrets. OPENSSL_CONF and all other parent variables are
+// not inherited.
+//
+// # Args
 //   - exePath: path of tongsuo executable binary
-func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
+//   - opts: optional settings such as WithTongsuoInheritedEnv
+func NewTongsuo(exePath string, opts ...TongsuoOption) (ins *Tongsuo, err error) {
+	ins = &Tongsuo{exePath: exePath}
+	for _, opt := range opts {
+		if err = opt(ins); err != nil {
+			return nil, errors.Wrap(err, "apply tongsuo option")
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-
-	ins = &Tongsuo{exePath: exePath}
 
 	// check tongsuo executable binary
 	if out, err := ins.runCMD(ctx, []string{"version"}, nil); err != nil {
@@ -64,40 +88,6 @@ func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
 	}
 
 	return ins, nil
-}
-
-func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
-	output []byte, err error) {
-	return t.runCMDWithEnv(ctx, args, stdin, nil)
-}
-
-// runCMDWithEnv runs a tongsuo command with optional extra environment variables.
-//
-// Use extraEnv to pass sensitive values (keys, passwords) via process environment
-// instead of command-line arguments, which would be visible in the process list.
-func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
-	output []byte, err error) {
-	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
-		return nil, errors.Wrap(err, "sanitize cmd args")
-	}
-
-	//nolint: gosec
-	// G204: Subprocess launched with a potential tainted input or cmd arguments
-	cmd := exec.CommandContext(ctx, t.exePath, args...)
-	if len(extraEnv) != 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
-	if len(stdin) != 0 {
-		var stdinBuf bytes.Buffer
-		stdinBuf.Write(stdin)
-		cmd.Stdin = &stdinBuf
-	}
-
-	if output, err = cmd.CombinedOutput(); err != nil {
-		return nil, errors.Wrapf(err, "run cmd failed, got %s", output)
-	}
-
-	return output, nil
 }
 
 // NewPrikey generate new sm2 private key

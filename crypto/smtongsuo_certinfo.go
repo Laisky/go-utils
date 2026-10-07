@@ -8,6 +8,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -214,11 +216,29 @@ func (t *Tongsuo) ShowCertInfo(ctx context.Context,
 	return info.Display, info.Certificate, nil
 }
 
-// ShowCsrInfo show csr info
+// ShowCsrInfo returns the human-readable `tongsuo req -text` rendering of
+// csrDer, for display only.
+//
+// `req` reads an OpenSSL configuration file even when only printing; an
+// explicit empty configuration is passed so the output does not depend on the
+// system default file or on OPENSSL_CONF, which subprocesses do not inherit.
+// It returns the rendering or an error.
 func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (
 	output string, err error) {
+	dir, err := os.MkdirTemp("", "tongsuo*")
+	if err != nil {
+		return "", errors.Wrap(err, "generate temp dir")
+	}
+	defer t.removeAll(dir)
+
+	confPath := filepath.Join(dir, "empty.cnf")
+	if err = os.WriteFile(confPath, nil, 0600); err != nil {
+		return "", errors.Wrap(err, "write empty openssl conf")
+	}
+
 	out, err := t.runCMD(ctx, []string{
 		tongsuoCmdReq, tongsuoFlagInform, tongsuoFormatDER, tongsuoFlagText,
+		tongsuoFlagConfig, confPath,
 	}, csrDer)
 	if err != nil {
 		return "", errors.Wrap(err, "run cmd to show csr info")

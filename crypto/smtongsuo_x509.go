@@ -21,6 +21,8 @@ type tongsuoIssuanceExpectation struct {
 	extKeyUsages []x509.ExtKeyUsage
 	// validity, when set, bounds the issued NotBefore/NotAfter.
 	validity *tongsuoValidity
+	// names, when set, is the exact subject and SAN content required.
+	names *tongsuoNames
 }
 
 // verifyTongsuoIssuedCert parses certDer with the SM2-capable parser and checks
@@ -36,6 +38,18 @@ func verifyTongsuoIssuedCert(certDer []byte, want tongsuoIssuanceExpectation) er
 	if want.validity != nil {
 		if err = want.validity.verify(cert); err != nil {
 			return errors.Wrap(err, "verify issued validity")
+		}
+	}
+
+	if want.names != nil {
+		if err = want.names.verify(tongsuoNames{
+			subject:  cert.Subject,
+			dnsNames: cert.DNSNames,
+			emails:   cert.EmailAddresses,
+			ips:      cert.IPAddresses,
+			uris:     cert.URIs,
+		}); err != nil {
+			return errors.Wrap(err, "verify issued names")
 		}
 	}
 
@@ -86,7 +100,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 		return nil, errors.Wrap(err, "X509CertOption2Template")
 	}
 
-	opensslConf, err := x509Cert2OpensslConf(tpl)
+	opensslConf, err := x509Cert2OpensslConf(tpl, opensslConfEncoder{})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal openssl conf")
 	}
@@ -142,6 +156,13 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 		checkExtKeyUsages: true,
 		extKeyUsages:      extKeyUsages,
 		validity:          &validity,
+		names: &tongsuoNames{
+			subject:  tpl.Subject,
+			dnsNames: tpl.DNSNames,
+			emails:   tpl.EmailAddresses,
+			ips:      tpl.IPAddresses,
+			uris:     tpl.URIs,
+		},
 	}); err != nil {
 		return nil, errors.Wrap(err, "verify issued certificate")
 	}
@@ -149,20 +170,32 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	return certDer, nil
 }
 
-// NewX509CSR generate new x509 csr
+// NewX509CSR generates a CSR for prikeyPem through the tongsuo binary and
+// returns its DER.
+//
+// Subject and SAN values are written to the configuration as literal values,
+// so OpenSSL variable expansion, quoting, escapes and comments never apply,
+// and values that cannot be encoded exactly (control characters, non-ASCII
+// SANs, the email keywords "copy"/"move") are rejected. The generated CSR is
+// parsed, its signature verified and its subject and SANs compared with the
+// request before it is returned.
 func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509CSROption) (csrDer []byte, err error) {
+	tpl, err := X509CsrOption2Template(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "X509CsrOption2Template")
+	}
+
+	opensslConf, err := x509Csr2OpensslConf(tpl, opensslConfEncoder{})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal openssl conf")
+	}
+
 	dir, err := os.MkdirTemp("", "tongsuo*")
 	if err != nil {
 		return nil, errors.Wrap(err, "generate temp dir")
 	}
 	defer t.removeAll(dir)
 
-	tpl, err := X509CsrOption2Template(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509CsrOption2Template")
-	}
-
-	opensslConf := X509Csr2OpensslConf(tpl)
 	confPath := filepath.Join(dir, "csr.cnf")
 	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
 		return nil, errors.Wrap(err, "write openssl conf")
@@ -173,6 +206,7 @@ func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509
 	if _, err = t.runCMD(ctx, []string{
 		tongsuoCmdReq, "-new", tongsuoFlagOutform, tongsuoFormatDER, tongsuoFlagOut, outCsrDerPath,
 		"-key", tongsuoStdinPath,
+		"-utf8",
 		tongsuoDigestSM3,
 		tongsuoFlagConfig, confPath,
 	}, prikeyPem); err != nil {
@@ -181,6 +215,29 @@ func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509
 
 	if csrDer, err = os.ReadFile(outCsrDerPath); err != nil {
 		return nil, errors.Wrap(err, "read csr")
+	}
+
+	csr, err := smx509.ParseCertificateRequest(csrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse generated csr")
+	}
+	if err = csr.CheckSignature(); err != nil {
+		return nil, errors.Wrap(err, "verify generated csr signature")
+	}
+	if err = (tongsuoNames{
+		subject:  tpl.Subject,
+		dnsNames: tpl.DNSNames,
+		emails:   tpl.EmailAddresses,
+		ips:      tpl.IPAddresses,
+		uris:     tpl.URIs,
+	}).verify(tongsuoNames{
+		subject:  csr.Subject,
+		dnsNames: csr.DNSNames,
+		emails:   csr.EmailAddresses,
+		ips:      csr.IPAddresses,
+		uris:     csr.URIs,
+	}); err != nil {
+		return nil, errors.Wrap(err, "verify generated csr names")
 	}
 
 	return csrDer, nil
@@ -208,6 +265,16 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	validity, validityArgs, err := t.validityArgs(opt.notBefore, opt.notAfter)
 	if err != nil {
 		return nil, errors.Wrap(err, "validity")
+	}
+
+	// verify request integrity and proof of possession before invoking the
+	// tool, independently of the binary's own check
+	csr, err := smx509.ParseCertificateRequest(csrDer)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse csr")
+	}
+	if err = csr.CheckSignature(); err != nil {
+		return nil, errors.Wrap(err, "verify csr signature")
 	}
 
 	// select the digest from the parsed parent key, never from display text

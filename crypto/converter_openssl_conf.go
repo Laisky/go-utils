@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/x509"
+	"encoding/asn1"
 	"fmt"
 	"strings"
 
@@ -31,13 +32,18 @@ func sanitizeOpensslConfValue(s string) string {
 // X509Cert2OpensslConf marshals a certificate template into the OpenSSL
 // configuration used by Tongsuo.NewX509Cert.
 //
-// Extended key usages are emitted exactly as requested (x509.ExtKeyUsageAny is
-// the single anyExtendedKeyUsage OID); without an explicit request a non-CA
-// certificate gets exactly anyExtendedKeyUsage. It returns nil when the
-// template cannot be represented exactly, for example for an unknown extended
-// key usage.
+// Subject and SAN values are encoded as literal configuration values (quoted
+// and escaped when they contain $, quotes, backslashes, # or edge spaces), so
+// OpenSSL variable expansion such as ${ENV::NAME} can never apply; for
+// backward compatibility this exported helper strips control characters.
+// Each SAN value becomes its own alt_names entry. Extended key usages are
+// emitted exactly as requested (x509.ExtKeyUsageAny is the single
+// anyExtendedKeyUsage OID); without an explicit request a non-CA certificate
+// gets exactly anyExtendedKeyUsage. It returns nil when the template cannot be
+// represented exactly, for example for an unknown extended key usage, a
+// non-ASCII SAN or the OpenSSL email keywords "copy"/"move".
 func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
-	opensslConf, err := x509Cert2OpensslConf(cert)
+	opensslConf, err := x509Cert2OpensslConf(cert, opensslConfEncoder{legacy: true})
 	if err != nil {
 		return nil
 	}
@@ -46,9 +52,9 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 }
 
 // x509Cert2OpensslConf marshals a certificate template into OpenSSL
-// configuration. It returns the configuration, or an error when the template
-// cannot be represented exactly.
-func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error) {
+// configuration using enc for every caller-controlled value. It returns the
+// configuration, or an error when the template cannot be represented exactly.
+func x509Cert2OpensslConf(cert *x509.Certificate, enc opensslConfEncoder) (opensslConf []byte, err error) {
 	extKeyUsages, err := tongsuoCertExtKeyUsages(cert)
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
@@ -57,45 +63,25 @@ func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
 	}
+	subjectLines, err := enc.subjectLines(cert.Subject)
+	if err != nil {
+		return nil, errors.Wrap(err, "subject")
+	}
+	altCnt, err := enc.altNameLines(cert.DNSNames, cert.EmailAddresses, cert.IPAddresses, cert.URIs)
+	if err != nil {
+		return nil, errors.Wrap(err, "subject alternative names")
+	}
 
 	// set req & req_distinguished_name
-	// sanitize the attacker-influenceable CommonName to block config injection
-	cnt := fmt.Sprintf(gutils.Dedent(`
+	cnt := gutils.Dedent(`
 		[ req ]
 		distinguished_name = req_distinguished_name
 		prompt = no
 		string_mask = utf8only
 		x509_extensions = v3_ca
 
-		[ req_distinguished_name ]
-		commonName = %s`), sanitizeOpensslConfValue(cert.Subject.CommonName))
-	cnt += "\n"
-
-	subjectMaps := map[string][]string{
-		"countryName":            cert.Subject.Country,
-		"stateOrProvinceName":    cert.Subject.Province,
-		"localityName":           cert.Subject.Locality,
-		"organizationName":       cert.Subject.Organization,
-		"organizationalUnitName": cert.Subject.OrganizationalUnit,
-	}
-
-	for _, name := range []string{ // keep order
-		"countryName",
-		"stateOrProvinceName",
-		"localityName",
-		"organizationName",
-		"organizationalUnitName",
-	} {
-		if len(subjectMaps[name]) != 0 {
-			// sanitize each subject element to block config injection
-			vals := make([]string, len(subjectMaps[name]))
-			for i, v := range subjectMaps[name] {
-				vals[i] = sanitizeOpensslConfValue(v)
-			}
-			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(vals, ","))
-		}
-	}
-	cnt += "\n"
+		[ req_distinguished_name ]`)
+	cnt += "\n" + subjectLines + "\n"
 
 	// set v3_ca
 	cnt += gutils.Dedent(`
@@ -110,34 +96,9 @@ func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error
 	cnt += "subjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always, issuer\n"
 
 	// set policies
-	if len(cert.PolicyIdentifiers) > 0 {
-		cnt += "certificatePolicies = "
-
-		var policySecions string
-		for i, policy := range cert.PolicyIdentifiers {
-			cnt += fmt.Sprintf("@policy-%d, ", i)
-			policySecions += fmt.Sprintf("[ policy-%d ]\npolicyIdentifier = %s\n", i, policy.String())
-		}
-
-		cnt = strings.TrimRight(cnt, ", ")
-		cnt += "\n\n" + policySecions
-	}
+	cnt += opensslPoliciesLines(cert.PolicyIdentifiers)
 
 	// set req_ext
-	// sanitize each SAN entry to block config injection via embedded newlines
-	var altCnt string
-	for i, v := range cert.DNSNames {
-		altCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
-	}
-	for i, v := range cert.EmailAddresses {
-		altCnt += fmt.Sprintf("email.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
-	}
-	for i, v := range cert.IPAddresses {
-		altCnt += fmt.Sprintf("IP.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
-	}
-	for i, v := range cert.URIs {
-		altCnt += fmt.Sprintf("URI.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
-	}
 	if altCnt != "" {
 		cnt += "\n"
 		cnt += gutils.Dedent(`
@@ -151,6 +112,24 @@ func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error
 	}
 
 	return []byte(cnt), nil
+}
+
+// opensslPoliciesLines renders a certificatePolicies line and one policy
+// section per OID, or an empty string when there are no policies. OIDs are
+// rendered in dotted form, which needs no encoding.
+func opensslPoliciesLines(policies []asn1.ObjectIdentifier) string {
+	if len(policies) == 0 {
+		return ""
+	}
+
+	refs := make([]string, 0, len(policies))
+	var sections string
+	for i, policy := range policies {
+		refs = append(refs, fmt.Sprintf("@policy-%d", i))
+		sections += fmt.Sprintf("[ policy-%d ]\npolicyIdentifier = %s\n", i, policy.String())
+	}
+
+	return "certificatePolicies = " + strings.Join(refs, ", ") + "\n\n" + sections
 }
 
 // X509Csr2OpensslConf marshal x509 csr to openssl conf
@@ -177,59 +156,42 @@ func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error
 //	[ alt_names ]
 //	DNS.1 = localhost
 //	DNS.2 = example.com
+//
+// Values are encoded exactly like X509Cert2OpensslConf. It returns nil when the
+// request cannot be represented exactly.
 func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
+	opensslConf, err := x509Csr2OpensslConf(csr, opensslConfEncoder{legacy: true})
+	if err != nil {
+		return nil
+	}
+
+	return opensslConf
+}
+
+// x509Csr2OpensslConf marshals a CSR template into OpenSSL configuration using
+// enc for every caller-controlled value. It returns the configuration, or an
+// error when the template cannot be represented exactly.
+func x509Csr2OpensslConf(csr *x509.CertificateRequest, enc opensslConfEncoder) (opensslConf []byte, err error) {
+	subjectLines, err := enc.subjectLines(csr.Subject)
+	if err != nil {
+		return nil, errors.Wrap(err, "subject")
+	}
+	sansCnt, err := enc.altNameLines(csr.DNSNames, csr.EmailAddresses, csr.IPAddresses, csr.URIs)
+	if err != nil {
+		return nil, errors.Wrap(err, "subject alternative names")
+	}
+
 	// set req & req_distinguished_name
-	// sanitize the attacker-influenceable CommonName to block config injection
-	cnt := fmt.Sprintf(gutils.Dedent(`
+	cnt := gutils.Dedent(`
 		[ req ]
 		distinguished_name = req_distinguished_name
 		prompt = no
 		string_mask = utf8only
 
-		[ req_distinguished_name ]
-		commonName = %s`), sanitizeOpensslConfValue(csr.Subject.CommonName))
-	cnt += "\n"
-
-	subjectMaps := map[string][]string{
-		"countryName":            csr.Subject.Country,
-		"stateOrProvinceName":    csr.Subject.Province,
-		"localityName":           csr.Subject.Locality,
-		"organizationName":       csr.Subject.Organization,
-		"organizationalUnitName": csr.Subject.OrganizationalUnit,
-	}
-
-	for _, name := range []string{ // keep order
-		"countryName",
-		"stateOrProvinceName",
-		"localityName",
-		"organizationName",
-		"organizationalUnitName",
-	} {
-		if len(subjectMaps[name]) != 0 {
-			// sanitize each subject element to block config injection
-			vals := make([]string, len(subjectMaps[name]))
-			for i, v := range subjectMaps[name] {
-				vals[i] = sanitizeOpensslConfValue(v)
-			}
-			cnt += fmt.Sprintf("%s = %s\n", name, strings.Join(vals, ","))
-		}
-	}
+		[ req_distinguished_name ]`)
+	cnt += "\n" + subjectLines
 
 	// set req_ext
-	// sanitize each SAN entry to block config injection via embedded newlines
-	var sansCnt string
-	for i, v := range csr.DNSNames {
-		sansCnt += fmt.Sprintf("DNS.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
-	}
-	for i, v := range csr.EmailAddresses {
-		sansCnt += fmt.Sprintf("email.%d = %s\n", i+1, sanitizeOpensslConfValue(v))
-	}
-	for i, v := range csr.IPAddresses {
-		sansCnt += fmt.Sprintf("IP.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
-	}
-	for i, v := range csr.URIs {
-		sansCnt += fmt.Sprintf("URI.%d = %s\n", i+1, sanitizeOpensslConfValue(v.String()))
-	}
 	if sansCnt != "" {
 		cnt += "\n"
 		cnt += gutils.Dedent(`
@@ -243,7 +205,7 @@ func X509Csr2OpensslConf(csr *x509.CertificateRequest) (opensslConf []byte) {
 		cnt = strings.ReplaceAll(cnt, "string_mask = utf8only", "string_mask = utf8only\nreq_extensions = req_ext")
 	}
 
-	return []byte(cnt)
+	return []byte(cnt), nil
 }
 
 var (
@@ -415,18 +377,7 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	}
 	cnt += extKeyUsageLine
 
-	if len(opt.policies) > 0 {
-		cnt += "certificatePolicies = "
-
-		var policySecions string
-		for i, policy := range opt.policies {
-			cnt += fmt.Sprintf("@policy-%d, ", i)
-			policySecions += fmt.Sprintf("[ policy-%d ]\npolicyIdentifier = %s\n", i, policy.String())
-		}
-
-		cnt = strings.TrimRight(cnt, ", ")
-		cnt += "\n\n" + policySecions
-	}
+	cnt += opensslPoliciesLines(opt.policies)
 
 	return opt, []byte(cnt), nil
 }
