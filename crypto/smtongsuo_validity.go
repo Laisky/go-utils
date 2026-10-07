@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -33,30 +34,61 @@ var reTongsuoHelpExactValidity = struct{ notBefore, notAfter *regexp.Regexp }{
 	notAfter:  regexp.MustCompile(`(?m)^\s*-not_after\s`),
 }
 
+// tongsuoValidityCaps caches the result of the exact validity probe.
+type tongsuoValidityCaps struct {
+	mu sync.Mutex
+	// probed is set once a probe completed and exact holds its result.
+	probed bool
+	// exact reports whether -not_before/-not_after are supported.
+	exact bool
+}
+
 // probeExactValidity reports whether both the `x509` and `req` subcommands of
 // the binary accept -not_before and -not_after (Tongsuo 8.5 / OpenSSL 3.4+).
-// Any probe failure is treated as "unsupported", which selects the
-// conservative whole-day mode.
-func (t *Tongsuo) probeExactValidity(ctx context.Context) bool {
+// It returns an error only when a probe subprocess cannot be run.
+func (t *Tongsuo) probeExactValidity(ctx context.Context) (bool, error) {
 	for _, sub := range []string{tongsuoCmdX509, tongsuoCmdReq} {
 		probeCtx, cancel := context.WithTimeout(ctx, tongsuoProbeTimeout)
 		out, err := t.runCMD(probeCtx, []string{sub, "-help"}, nil)
 		cancel()
 		if err != nil {
-			glog.Shared.Debug("tongsuo exact validity probe failed",
-				zap.String("subcommand", sub), zap.Error(err))
-			return false
+			return false, errors.Wrapf(err, "probe `%s -help`", sub)
 		}
 
 		if !reTongsuoHelpExactValidity.notBefore.Match(out) ||
 			!reTongsuoHelpExactValidity.notAfter.Match(out) {
 			glog.Shared.Debug("tongsuo subcommand lacks exact validity options",
 				zap.String("subcommand", sub))
-			return false
+			return false, nil
 		}
 	}
 
-	return true
+	return true, nil
+}
+
+// supportsExactValidity returns the cached exact validity capability,
+// probing the binary on first use. A probe that cannot run is not cached and
+// reports false, which selects the conservative whole-day encoding for that
+// issuance only.
+func (t *Tongsuo) supportsExactValidity() bool {
+	t.validityCaps.mu.Lock()
+	defer t.validityCaps.mu.Unlock()
+
+	if t.validityCaps.probed {
+		return t.validityCaps.exact
+	}
+
+	// a detached context keeps one caller's cancellation from deciding the cache
+	exact, err := t.probeExactValidity(context.Background())
+	if err != nil {
+		glog.Shared.Debug("tongsuo exact validity probe failed", zap.Error(err))
+		return false
+	}
+
+	t.validityCaps.probed = true
+	t.validityCaps.exact = exact
+	glog.Shared.Debug("tongsuo exact validity support detected", zap.Bool("exact", exact))
+	return exact
 }
 
 // tongsuoValidity is a validated certificate validity window at the
@@ -163,7 +195,8 @@ func (t *Tongsuo) validityArgs(notBefore, notAfter time.Time) (tongsuoValidity, 
 		return tongsuoValidity{}, nil, errors.Wrap(err, "invalid validity window")
 	}
 
-	args, err := v.args(now, t.exactValidity)
+	exact := t.supportsExactValidity()
+	args, err := v.args(now, exact)
 	if err != nil {
 		return tongsuoValidity{}, nil, errors.Wrap(err, "unrepresentable validity window")
 	}
@@ -171,6 +204,6 @@ func (t *Tongsuo) validityArgs(notBefore, notAfter time.Time) (tongsuoValidity, 
 	glog.Shared.Debug("tongsuo validity window",
 		zap.Time("not_before", v.notBefore),
 		zap.Time("not_after", v.notAfter),
-		zap.Bool("exact", t.exactValidity))
+		zap.Bool("exact", exact))
 	return v, args, nil
 }

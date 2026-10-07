@@ -4,7 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -276,8 +280,8 @@ func TestTongsuoValidityVerifyFailsClosed(t *testing.T) {
 func TestTongsuoLegacyDaysValidityNeverExtends(t *testing.T) {
 	t.Parallel()
 	ins := newSecurityTestTongsuo(t)
-	require.True(t, ins.exactValidity, "Tongsuo 8.5 must be detected as supporting -not_after")
-	ins.exactValidity = false // this instance is private to the test
+	require.True(t, ins.supportsExactValidity(), "Tongsuo 8.5 must be detected as supporting -not_after")
+	ins.validityCaps.exact = false // this instance is private to the test
 	ctx := t.Context()
 
 	caKey, caDer := newTongsuoSM2CAForTest(t, ins, "legacy-days-root")
@@ -310,4 +314,56 @@ func TestTongsuoLegacyDaysValidityNeverExtends(t *testing.T) {
 		require.Error(t, err, "lifetime %s cannot be encoded in whole days", lifetime)
 		require.Nil(t, certDer)
 	}
+}
+
+// writeLegacyTongsuoForTest writes a fake tongsuo executable that reports a
+// Tongsuo 8.4 version, prints help text without -not_before/-not_after and
+// records every invocation. It returns the executable and argv log paths.
+func writeLegacyTongsuoForTest(t *testing.T) (exePath, argvLogPath string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	exePath = filepath.Join(dir, "tongsuo")
+	argvLogPath = filepath.Join(dir, "argv.log")
+	script := "#!/bin/sh\n" +
+		"echo \"$*\" >> '" + argvLogPath + "'\n" +
+		"case \"$1 $2\" in\n" +
+		"  'version ') echo 'Tongsuo 8.4.0-pre3 (Library: Tongsuo 8.4.0-pre3)' ;;\n" +
+		"  *' -help') echo ' -days int     Number of days' >&2 ;;\n" +
+		"  *) exit 1 ;;\n" +
+		"esac\n"
+	require.NoError(t, os.WriteFile(exePath, []byte(script), 0o700)) //nolint:gosec // test executable
+	return exePath, argvLogPath
+}
+
+// TestTongsuoLegacyBinaryCapabilityDetection verifies that a binary without
+// -not_after is detected lazily (NewTongsuo itself only runs `version`) and
+// that a sub-day request is rejected before any issuance command runs.
+// Regression for issue #40.
+//
+//nolint:paralleltest // the fake executable is written then executed; avoid ETXTBSY races.
+func TestTongsuoLegacyBinaryCapabilityDetection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake requires a POSIX shell")
+	}
+	exePath, argvLogPath := writeLegacyTongsuoForTest(t)
+
+	ins, err := NewTongsuo(exePath)
+	require.NoError(t, err)
+	raw, err := os.ReadFile(argvLogPath)
+	require.NoError(t, err)
+	require.Equal(t, "version", strings.TrimSpace(string(raw)), "NewTongsuo must only run version")
+
+	require.False(t, ins.supportsExactValidity())
+
+	now := time.Now().UTC()
+	certDer, err := ins.NewX509Cert(t.Context(), []byte("unused-key"),
+		WithX509CertCommonName("legacy"), WithX509CertNotAfter(now.Add(time.Hour)))
+	require.ErrorContains(t, err, "unrepresentable validity window")
+	require.Nil(t, certDer)
+
+	raw, err = os.ReadFile(argvLogPath)
+	require.NoError(t, err)
+	require.Equal(t, []string{"version", "x509 -help"}, strings.Split(strings.TrimSpace(string(raw)), "\n"),
+		"no issuance command may run for an unrepresentable window")
 }

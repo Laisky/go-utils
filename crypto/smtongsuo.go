@@ -28,9 +28,9 @@ import (
 type Tongsuo struct {
 	exePath         string
 	serialGenerator *DefaultX509CertSerialNumGenerator
-	// exactValidity reports whether both `x509` and `req` accept
-	// -not_before/-not_after, detected once by NewTongsuo.
-	exactValidity bool
+	// validityCaps caches whether both `x509` and `req` accept
+	// -not_before/-not_after; it is probed lazily on first issuance.
+	validityCaps tongsuoValidityCaps
 	// inheritedEnv names extra parent environment variables passed to
 	// subprocesses, configured by WithTongsuoInheritedEnv.
 	inheritedEnv []string
@@ -46,7 +46,8 @@ type Tongsuo struct {
 //   - Tongsuo 8.4.x (OpenSSL 3.0 based, e.g. 8.4.0-pre3) lacks those options.
 //     Validity then falls back to whole days computed conservatively; requests
 //     that cannot be represented without extending NotAfter, or that start in
-//     the future, fail before issuance. Support is detected once here.
+//     the future, fail before issuance. Support is probed once, lazily, on the
+//     first certificate issuance (`x509 -help` and `req -help`).
 //
 // Every issued certificate is parsed and checked against the request before
 // it is returned, so toolchain differences fail closed.
@@ -79,10 +80,6 @@ func NewTongsuo(exePath string, opts ...TongsuoOption) (ins *Tongsuo, err error)
 	} else if !strings.Contains(string(out), "Tongsuo") {
 		return nil, errors.Errorf("only support Tongsuo")
 	}
-
-	// detect exact validity support once; older binaries fall back to a
-	// conservative whole-day encoding that never extends NotAfter
-	ins.exactValidity = ins.probeExactValidity(context.Background())
 
 	// new serial number generator
 	if ins.serialGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
