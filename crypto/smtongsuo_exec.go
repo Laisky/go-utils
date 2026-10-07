@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Laisky/errors/v2"
 
@@ -100,7 +102,7 @@ func (t *Tongsuo) subprocessEnv(extraEnv []string) []string {
 }
 
 // runCMD runs a tongsuo command with stdin and the minimal subprocess
-// environment. It returns the combined output or an error.
+// environment. It returns the command's stdout only, or an error.
 func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 	output []byte, err error) {
 	return t.runCMDWithEnv(ctx, args, stdin, nil)
@@ -112,11 +114,28 @@ func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
 // allowlisted loader variables (see subprocessEnv) plus extraEnv. Use extraEnv
 // to pass sensitive values (keys, passwords) via process environment instead
 // of command-line arguments, which would be visible in the process list. It
-// returns the combined output or an error.
+// returns the command's stdout only; stderr diagnostics are never mixed into
+// the result. On failure it returns an error carrying a bounded, sanitized
+// stderr excerpt and never any stdout, which may hold key material.
 func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
 	output []byte, err error) {
+	output, _, err = t.runCMDOutputs(ctx, args, stdin, extraEnv)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return output, nil
+}
+
+// runCMDOutputs runs a tongsuo command and captures stdout and stderr
+// separately. Stdout is returned in full because it carries the command's
+// data; stderr is kept up to maxTongsuoStderrCapture bytes. The parameters are
+// as for runCMDWithEnv. On failure it returns nil outputs and an error that
+// includes only sanitizeTongsuoStderr of the captured stderr.
+func (t *Tongsuo) runCMDOutputs(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
+	stdout, stderr []byte, err error) {
 	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
-		return nil, errors.Wrap(err, "sanitize cmd args")
+		return nil, nil, errors.Wrap(err, "sanitize cmd args")
 	}
 
 	//nolint: gosec
@@ -124,14 +143,99 @@ func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte
 	cmd := exec.CommandContext(ctx, t.exePath, args...)
 	cmd.Env = t.subprocessEnv(extraEnv)
 	if len(stdin) != 0 {
-		var stdinBuf bytes.Buffer
-		stdinBuf.Write(stdin)
-		cmd.Stdin = &stdinBuf
+		cmd.Stdin = bytes.NewReader(stdin)
 	}
 
-	if output, err = cmd.CombinedOutput(); err != nil {
-		return nil, errors.Wrapf(err, "run cmd failed, got %s", output)
+	var stdoutBuf bytes.Buffer
+	stderrBuf := &cappedBuffer{limit: maxTongsuoStderrCapture}
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = stderrBuf
+
+	if err = cmd.Run(); err != nil {
+		subcommand := ""
+		if len(args) != 0 {
+			subcommand = args[0]
+		}
+		return nil, nil, errors.Wrapf(err, "run tongsuo %q failed, stderr: %s",
+			subcommand, sanitizeTongsuoStderr(stderrBuf.buf.Bytes(), stderrBuf.truncated))
 	}
 
-	return output, nil
+	return stdoutBuf.Bytes(), stderrBuf.buf.Bytes(), nil
+}
+
+const (
+	// maxTongsuoStderrCapture bounds the stderr bytes kept from one tongsuo run,
+	// so a chatty or hostile binary cannot grow memory without limit.
+	maxTongsuoStderrCapture = 64 << 10
+	// maxTongsuoStderrExcerpt bounds the stderr excerpt embedded in an error.
+	maxTongsuoStderrExcerpt = 512
+	// tongsuoPEMBeginMarker starts every PEM block; nothing from it onward is
+	// ever copied from stderr into an error, because it may be key material.
+	tongsuoPEMBeginMarker = "-----BEGIN"
+)
+
+// cappedBuffer is an io.Writer that keeps at most limit bytes and discards the
+// rest, recording in truncated that output was dropped. Write never fails, so
+// the subprocess is never blocked or killed by the cap.
+type cappedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+// Write appends as much of p as fits under the limit and drops the rest. It
+// always reports len(p) bytes written and a nil error.
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if room := c.limit - c.buf.Len(); room < len(p) {
+		c.truncated = true
+		p = p[:max(room, 0)]
+	}
+	c.buf.Write(p)
+
+	return len(p), nil
+}
+
+// sanitizeTongsuoStderr turns captured stderr into a short, single-line excerpt
+// that is safe to embed in an error. Everything from the first PEM BEGIN marker
+// onward is replaced by "[PEM redacted]", line breaks become " | ", other
+// control characters and invalid UTF-8 become "?", and the result is cut to
+// maxTongsuoStderrExcerpt bytes. truncated reports that the capture itself was
+// cut. It returns "<empty>" when nothing remains.
+func sanitizeTongsuoStderr(stderr []byte, truncated bool) string {
+	text := string(stderr)
+	redacted := false
+	if i := strings.Index(text, tongsuoPEMBeginMarker); i >= 0 {
+		text, redacted = text[:i], true
+	}
+
+	var b strings.Builder
+	for _, r := range strings.ToValidUTF8(strings.TrimSpace(text), "?") {
+		switch {
+		case r == '\n':
+			b.WriteString(" | ")
+		case r == '\t' || r == ' ':
+			b.WriteByte(' ')
+		case unicode.IsControl(r) || r == utf8.RuneError:
+			b.WriteByte('?')
+		default:
+			b.WriteRune(r)
+		}
+	}
+
+	excerpt := b.String()
+	if len(excerpt) > maxTongsuoStderrExcerpt {
+		excerpt = strings.ToValidUTF8(excerpt[:maxTongsuoStderrExcerpt], "") + " ...(truncated)"
+		truncated = false
+	}
+	if truncated {
+		excerpt += " ...(truncated)"
+	}
+	if redacted {
+		excerpt += " [PEM redacted]"
+	}
+	if strings.TrimSpace(excerpt) == "" {
+		return "<empty>"
+	}
+
+	return excerpt
 }

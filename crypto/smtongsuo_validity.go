@@ -49,11 +49,13 @@ type tongsuoValidityCaps struct {
 func (t *Tongsuo) probeExactValidity(ctx context.Context) (bool, error) {
 	for _, sub := range []string{tongsuoCmdX509, tongsuoCmdReq} {
 		probeCtx, cancel := context.WithTimeout(ctx, tongsuoProbeTimeout)
-		out, err := t.runCMD(probeCtx, []string{sub, "-help"}, nil)
+		// `-help` prints its summary to stderr, so inspect both streams.
+		stdout, stderr, err := t.runCMDOutputs(probeCtx, []string{sub, "-help"}, nil, nil)
 		cancel()
 		if err != nil {
 			return false, errors.Wrapf(err, "probe `%s -help`", sub)
 		}
+		out := append(stdout, stderr...)
 
 		if !reTongsuoHelpExactValidity.notBefore.Match(out) ||
 			!reTongsuoHelpExactValidity.notAfter.Match(out) {
