@@ -27,6 +27,8 @@ const (
 	tongsuoStdinPath    = "/dev/stdin"
 	tongsuoDigestSM3    = "-sm3"
 	tongsuoDigestSHA256 = "-sha256"
+	tongsuoCmdDgst      = "dgst"
+	tongsuoCipherSM4CBC = "-sm4-cbc"
 )
 
 // tongsuoInheritedEnvAllowlist names the only parent environment variables

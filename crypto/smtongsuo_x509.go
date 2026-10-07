@@ -108,7 +108,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
 	}
-	validity, validityArgs, err := t.validityArgs(opt.notBefore, opt.notAfter)
+	validity, validityArgs, err := t.validityArgs(ctx, opt.notBefore, opt.notAfter)
 	if err != nil {
 		return nil, errors.Wrap(err, "validity")
 	}
@@ -262,7 +262,7 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
 	}
-	validity, validityArgs, err := t.validityArgs(opt.notBefore, opt.notAfter)
+	validity, validityArgs, err := t.validityArgs(ctx, opt.notBefore, opt.notAfter)
 	if err != nil {
 		return nil, errors.Wrap(err, "validity")
 	}

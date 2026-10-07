@@ -67,10 +67,11 @@ func (t *Tongsuo) probeExactValidity(ctx context.Context) (bool, error) {
 }
 
 // supportsExactValidity returns the cached exact validity capability,
-// probing the binary on first use. A probe that cannot run is not cached and
-// reports false, which selects the conservative whole-day encoding for that
-// issuance only.
-func (t *Tongsuo) supportsExactValidity() bool {
+// probing the binary on first use with a context derived from ctx but detached
+// from its cancellation, so one caller's cancellation cannot decide the cached
+// result. A probe that cannot run is not cached and reports false, which
+// selects the conservative whole-day encoding for that issuance only.
+func (t *Tongsuo) supportsExactValidity(ctx context.Context) bool {
 	t.validityCaps.mu.Lock()
 	defer t.validityCaps.mu.Unlock()
 
@@ -78,8 +79,7 @@ func (t *Tongsuo) supportsExactValidity() bool {
 		return t.validityCaps.exact
 	}
 
-	// a detached context keeps one caller's cancellation from deciding the cache
-	exact, err := t.probeExactValidity(context.Background())
+	exact, err := t.probeExactValidity(context.WithoutCancel(ctx))
 	if err != nil {
 		glog.Shared.Debug("tongsuo exact validity probe failed", zap.Error(err))
 		return false
@@ -186,16 +186,18 @@ func (v tongsuoValidity) verify(cert *smx509.Certificate) error {
 
 // validityArgs captures one clock value, validates the requested window and
 // returns the validated window together with the tongsuo options encoding it.
-// It returns an error before any issuance when the window is invalid or cannot
-// be represented by this binary without extending it.
-func (t *Tongsuo) validityArgs(notBefore, notAfter time.Time) (tongsuoValidity, []string, error) {
+// ctx bounds the one-time capability probe. It returns an error before any
+// issuance when the window is invalid or cannot be represented by this binary
+// without extending it.
+func (t *Tongsuo) validityArgs(ctx context.Context, notBefore, notAfter time.Time) (
+	tongsuoValidity, []string, error) {
 	now := time.Now().UTC()
 	v, err := newTongsuoValidity(now, notBefore, notAfter)
 	if err != nil {
 		return tongsuoValidity{}, nil, errors.Wrap(err, "invalid validity window")
 	}
 
-	exact := t.supportsExactValidity()
+	exact := t.supportsExactValidity(ctx)
 	args, err := v.args(now, exact)
 	if err != nil {
 		return tongsuoValidity{}, nil, errors.Wrap(err, "unrepresentable validity window")

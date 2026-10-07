@@ -234,7 +234,7 @@ func (t *Tongsuo) SignX509CRL(ctx context.Context,
 	}
 	sigPath := filepath.Join(dir, "signature")
 	if _, err = t.runCMD(ctx, []string{
-		"dgst", digest, "-sign", tongsuoStdinPath, tongsuoFlagOut, sigPath, tbsPath,
+		tongsuoCmdDgst, digest, "-sign", tongsuoStdinPath, tongsuoFlagOut, sigPath, tbsPath,
 	}, PrikeyPem); err != nil {
 		return nil, errors.Wrap(err, "sign tbs crl")
 	}

@@ -118,8 +118,8 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
 	// Pass password via environment variable instead of command-line argument
 	// to avoid exposing it in the process list (ps aux, /proc/*/cmdline).
 	encryptedPrikeyPem, err = t.runCMDWithEnv(ctx, []string{
-		"ec", "-in", "/dev/stdin", "-out", "/dev/stdout",
-		"-sm4-cbc", "-passout", "env:_TONGSUO_PASSOUT",
+		"ec", tongsuoFlagIn, tongsuoStdinPath, tongsuoFlagOut, "/dev/stdout",
+		tongsuoCipherSM4CBC, "-passout", "env:_TONGSUO_PASSOUT",
 	}, prikeyPem, []string{"_TONGSUO_PASSOUT=" + password})
 	if err != nil {
 		return nil, errors.Wrap(err, "encrypt private key")
@@ -146,7 +146,7 @@ func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (
 	pubkeyPath := filepath.Join(dir, "pubkey")
 	if _, err = t.runCMD(ctx,
 		[]string{
-			"ec", "-in", "/dev/stdin", "-pubout", "-out", pubkeyPath,
+			"ec", tongsuoFlagIn, tongsuoStdinPath, "-pubout", tongsuoFlagOut, pubkeyPath,
 		}, prikeyPem); err != nil {
 		return nil, errors.Wrap(err, "convert private key to public key")
 	}
@@ -454,8 +454,8 @@ func (t *Tongsuo) SignBySm2Sm3(ctx context.Context,
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-sign", "/dev/stdin",
-			"-out", outputPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-sign", tongsuoStdinPath,
+			tongsuoFlagOut, outputPath,
 			contentPath,
 		},
 		parentPrikeyPem,
@@ -554,7 +554,7 @@ func (t *Tongsuo) VerifyBySm2Sm3(ctx context.Context,
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-verify", pubkeyPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-verify", pubkeyPath,
 			"-signature", signaturePath,
 			contentPath,
 		},
@@ -584,8 +584,8 @@ func (t *Tongsuo) HashBySm3(ctx context.Context, content []byte) (hash []byte, e
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-binary",
-			"-out", outputPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-binary",
+			tongsuoFlagOut, outputPath,
 		},
 		content,
 	)
@@ -616,7 +616,7 @@ func (t *Tongsuo) GetPubkeyFromCertPem(ctx context.Context, certPem []byte) (pub
 	pubkeyPath := filepath.Join(dir, "pubkey")
 	if _, err = t.runCMD(ctx, []string{
 		"x509", "-pubkey", "-noout",
-		"-in", certPath, "-out", pubkeyPath,
+		tongsuoFlagIn, certPath, tongsuoFlagOut, pubkeyPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "get pubkey from cert")
 	}
@@ -650,7 +650,7 @@ func (t *Tongsuo) EncryptBySm2(ctx context.Context,
 	cipherPath := filepath.Join(dir, "cipher")
 	if _, err = t.runCMD(ctx, []string{
 		"pkeyutl", "-inkey", pubkeyPath, "-pubin", "-encrypt",
-		"-in", dataPath, "-out", cipherPath,
+		tongsuoFlagIn, dataPath, tongsuoFlagOut, cipherPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "encrypt by sm2")
 	}
@@ -684,7 +684,7 @@ func (t *Tongsuo) DecryptBySm2(ctx context.Context,
 	dataPath := filepath.Join(dir, "data")
 	if _, err = t.runCMD(ctx, []string{
 		"pkeyutl", "-inkey", prikeyPath, "-decrypt",
-		"-in", cipherPath, "-out", dataPath,
+		tongsuoFlagIn, cipherPath, tongsuoFlagOut, dataPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "decrypt by sm2")
 	}

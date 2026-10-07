@@ -280,7 +280,7 @@ func TestTongsuoValidityVerifyFailsClosed(t *testing.T) {
 func TestTongsuoLegacyDaysValidityNeverExtends(t *testing.T) {
 	t.Parallel()
 	ins := newSecurityTestTongsuo(t)
-	require.True(t, ins.supportsExactValidity(), "Tongsuo 8.5 must be detected as supporting -not_after")
+	require.True(t, ins.supportsExactValidity(t.Context()), "Tongsuo 8.5 must be detected as supporting -not_after")
 	ins.validityCaps.exact = false // this instance is private to the test
 	ctx := t.Context()
 
@@ -354,7 +354,7 @@ func TestTongsuoLegacyBinaryCapabilityDetection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "version", strings.TrimSpace(string(raw)), "NewTongsuo must only run version")
 
-	require.False(t, ins.supportsExactValidity())
+	require.False(t, ins.supportsExactValidity(t.Context()))
 
 	now := time.Now().UTC()
 	certDer, err := ins.NewX509Cert(t.Context(), []byte("unused-key"),
