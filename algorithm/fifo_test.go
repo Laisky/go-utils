@@ -13,6 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// ExampleFIFO demonstrates putting a value into a FIFO queue with Put and reading it back with
+// Get, which returns nil when the queue is empty.
 func ExampleFIFO() {
 	f := NewFIFO()
 	f.Put(1)
@@ -25,6 +27,8 @@ func ExampleFIFO() {
 	// Output: 1
 }
 
+// Test_UnsafePtr verifies that atomically loading an unsafe.Pointer to an int and dereferencing
+// it yields the original value, the pointer pattern the lock-free FIFO relies on.
 func Test_UnsafePtr(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +40,9 @@ func Test_UnsafePtr(t *testing.T) {
 	require.Equal(t, a, b)
 }
 
+// TestNewFIFO verifies that a FIFO shared by 100 goroutines randomly calling Put and Get loses
+// no items: after draining, the queue is empty and the number of values received equals the
+// number of values put.
 func TestNewFIFO(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +95,8 @@ func TestNewFIFO(t *testing.T) {
 	require.Len(t, got, int(cnt), "total len")
 }
 
-// BenchmarkFIFO
+// BenchmarkFIFO measures random Put and Get calls on a shared FIFO under RunParallel contention.
+// Sample results:
 //
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // BenchmarkFIFO/fifo-16         	  752448	      1654 ns/op	      12 B/op	       0 allocs/op
@@ -108,6 +116,9 @@ func BenchmarkFIFO(b *testing.B) {
 	})
 }
 
+// BenchmarkFIFOAndChan compares random Put and Get on a FIFO with non-blocking sends and receives
+// on buffered struct{} and int channels, all under RunParallel contention. Sample results:
+//
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // BenchmarkFIFOAndChan/fifo-16         	  733112	      1608 ns/op	      12 B/op	       0 allocs/op
 // BenchmarkFIFOAndChan/channel_struct-16         	 1809888	       653.2 ns/op	       0 B/op	       0 allocs/op

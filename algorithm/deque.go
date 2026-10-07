@@ -5,7 +5,8 @@ import (
 	"github.com/gammazero/deque"
 )
 
-// Deque
+// Deque is a generic double-ended queue that supports pushing, popping, and peeking at both
+// ends; it is backed by gammazero/deque.
 //
 // https://pkg.go.dev/github.com/gammazero/deque#Deque
 type Deque[T any] interface {
@@ -18,11 +19,14 @@ type Deque[T any] interface {
 	Back() T
 }
 
+// dequeOpt holds the capacity settings that DequeOptFunc options configure for NewDeque.
 type dequeOpt struct {
 	currentCapacity,
 	minimalCapacity int
 }
 
+// applyFuncs applies each option in optfs to o in order. It returns o after all options succeed,
+// or a wrapped error from the first option that rejects its argument.
 func (o *dequeOpt) applyFuncs(optfs ...DequeOptFunc) (*dequeOpt, error) {
 	for _, optf := range optfs {
 		if err := optf(o); err != nil {

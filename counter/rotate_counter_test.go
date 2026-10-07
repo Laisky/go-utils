@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// ExampleRotateCounter demonstrates a RotateCounter with rotate point 10: Count returns 1, and
+// CountN(10) advances a full cycle so the value wraps back to 1.
 func ExampleRotateCounter() {
 	counter, err := NewRotateCounter(10)
 	if err != nil {
@@ -16,6 +18,9 @@ func ExampleRotateCounter() {
 	counter.CountN(10) // 1
 }
 
+// TestRotateCounter verifies that NewRotateCounterFromN rejects a start value above the rotate
+// point, and that Count and CountN on a counter rotating at 10 wrap modulo the rotate point,
+// including steps equal to and far larger than the rotate point.
 func TestRotateCounter(t *testing.T) {
 	_, err := NewRotateCounterFromN(100, 10)
 	if err == nil {
@@ -45,6 +50,8 @@ func TestRotateCounter(t *testing.T) {
 	}
 }
 
+// TestRotateCounterFromN verifies that a RotateCounter created from start value 2 with rotate
+// point 10 continues counting from 2 and wraps CountN steps modulo the rotate point.
 func TestRotateCounterFromN(t *testing.T) {
 	counter, err := NewRotateCounterFromN(2, 10)
 	if err != nil {
@@ -66,6 +73,8 @@ func TestRotateCounterFromN(t *testing.T) {
 	}
 }
 
+// TestRotateCounterClose verifies that Close on a working RotateCounter returns within two
+// seconds instead of blocking forever on an uninitialized stop channel.
 func TestRotateCounterClose(t *testing.T) {
 	t.Parallel()
 	counter, err := NewRotateCounter(100)
@@ -94,6 +103,9 @@ func TestRotateCounterClose(t *testing.T) {
 	}
 }
 
+// TestRotateCounterCloseWithCtx verifies that a RotateCounter created with
+// NewRotateCounterWithCtx counts normally and that cancelling its parent context, the
+// alternative shutdown path to Close, neither panics nor hangs the test.
 func TestRotateCounterCloseWithCtx(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())

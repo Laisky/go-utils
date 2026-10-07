@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+// ExampleCounter demonstrates creating a Counter, incrementing it by one with Count and by an
+// arbitrary step with CountN, and reading the current total with Get.
 func ExampleCounter() {
 	counter := NewCounter()
 	counter.Count()
@@ -87,6 +89,8 @@ func TestCounterValidation(t *testing.T) {
 	wg.Wait()
 }
 
+// TestCounter verifies that 10 goroutines each calling Count 1000 times on a shared Counter
+// produce an exact total of 10000, and that Set overwrites the stored value.
 func TestCounter(t *testing.T) {
 	counter := NewCounterFromN(0)
 	counter = NewCounter()
@@ -113,6 +117,8 @@ func TestCounter(t *testing.T) {
 	}
 }
 
+// TestUint32Counter verifies that 10 goroutines each calling Count 1000 times on a shared
+// Uint32Counter produce an exact total of 10000, and that Set overwrites the stored value.
 func TestUint32Counter(t *testing.T) {
 	counter := NewUint32Counter()
 	wg := &sync.WaitGroup{}

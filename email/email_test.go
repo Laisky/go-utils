@@ -13,6 +13,9 @@ import (
 	"github.com/Laisky/go-utils/v6/mocks"
 )
 
+// ExampleMail demonstrates creating a Mail client for an SMTP host and port with NewMail and
+// sending a message with sender and recipient addresses, display names, subject, and content,
+// logging any send error.
 func ExampleMail() {
 	sender := NewMail("smtp_host", 53)
 	if err := sender.Send(
@@ -27,6 +30,9 @@ func ExampleMail() {
 	}
 }
 
+// TestEmailHeaderInjection verifies that Send rejects CR or LF characters in the recipient
+// address, subject, and sender name with a header injection error, while clean input is sent
+// through the injected dialer without error.
 func TestEmailHeaderInjection(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +65,9 @@ func TestEmailHeaderInjection(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestMaskUsername verifies that maskUsername keeps only the domain of email-style usernames,
+// fully masks plain names and malformed addresses, leaves an empty string empty, and never
+// returns a non-empty username unchanged.
 func TestMaskUsername(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +97,8 @@ func TestMaskUsername(t *testing.T) {
 	}
 }
 
+// TestLoginConfiguresAuth verifies that Login stores the raw username and password on the Mail
+// so Send can authenticate, even though the logged username is masked.
 func TestLoginConfiguresAuth(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +111,8 @@ func TestLoginConfiguresAuth(t *testing.T) {
 	require.Equal(t, "s3cret", m.password)
 }
 
+// TestNewMail verifies that Send on a Mail built by NewMail succeeds when the injected dialer
+// succeeds, and returns an error matching the dialer error with errors.Is when it fails.
 func TestNewMail(t *testing.T) {
 	m := NewMail("yo", 123)
 	m.Login("username", "password")

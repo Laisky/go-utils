@@ -6,6 +6,9 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// BenchmarkCounter measures Counter throughput for Count, GetSpeed, and CountN with steps of 5 and
+// 500, serially and under RunParallel contention. Sample results:
+//
 // BenchmarkCounter/count_1-8         	 1369930	       920 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkCounter/get_speed-8       	  620430	      2278 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkCounter/count_1_parallel_4-8         	  212336	      5285 ns/op	       0 B/op	       0 allocs/op
@@ -55,6 +58,8 @@ func BenchmarkCounter(b *testing.B) {
 	})
 }
 
+// BenchmarkRotateCounter measures RotateCounter throughput for Count and for CountN with steps of
+// 5 and 500, both serially and under RunParallel contention, on a counter rotating at 1e9.
 func BenchmarkRotateCounter(b *testing.B) {
 	counter, err := NewRotateCounter(1000000000)
 	if err != nil {
@@ -94,7 +99,10 @@ func BenchmarkRotateCounter(b *testing.B) {
 }
 
 /*
-BenchmarkAllCounter
+BenchmarkAllCounter compares the atomic Counter, the RotateCounter, and a ParallelCounter child
+for Count and CountN(500), serially and with four consecutive RunParallel loops per sub-benchmark.
+It runs at info log level so debug logging does not distort the results, and restores the previous
+global log level when it finishes. Sample results:
 
 ✗ go test -run=All -bench=AllCo -benchtime=5s -benchmem
 goos: darwin

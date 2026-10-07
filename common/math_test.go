@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAbsInt64 verifies that AbsInt64 returns the magnitude of zero, plus or minus one, and values
+// near the int64 limits, saturating math.MinInt64 to math.MaxInt64 instead of overflowing the way
+// a float64 round trip through math.Abs does.
 func TestAbsInt64(t *testing.T) {
 	// int64: -9223372036854775808 ~ 9223372036854775807
 	// Abs(math.MinInt64) == math.MinInt64
@@ -39,6 +42,8 @@ func TestAbsInt64(t *testing.T) {
 	}
 }
 
+// TestAbsInt32 verifies that AbsInt32 returns the magnitude of zero, plus or minus one, and values
+// near the int32 limits, saturating math.MinInt32 to math.MaxInt32.
 func TestAbsInt32(t *testing.T) {
 	type args struct {
 		v int32
@@ -65,6 +70,9 @@ func TestAbsInt32(t *testing.T) {
 	}
 }
 
+// TestRound logs how float32, float64, and untyped-constant arithmetic represent 1.005 * 100 and
+// 1.005 * 1.005 next to the result of Round(1.005, 2), documenting floating-point precision
+// pitfalls; it makes no assertions.
 func TestRound(t *testing.T) {
 	{
 		r32 := float32(1.005) * 100                  // 100.5
@@ -96,6 +104,9 @@ func TestRound(t *testing.T) {
 	}
 }
 
+// FuzzHumanReadableByteCount seeds the corpus with representative byte counts and verifies that
+// HumanReadableByteCount, for any byte count with si either true or false, returns a non-empty
+// string that ends with the byte unit suffix B.
 func FuzzHumanReadableByteCount(f *testing.F) {
 	type args struct {
 		bytes int64
@@ -158,6 +169,8 @@ func FuzzHumanReadableByteCount(f *testing.F) {
 // 	}
 // }
 
+// FuzzMinInt verifies that Min on two arbitrary ints is independent of argument order and never
+// exceeds either argument.
 func FuzzMinInt(f *testing.F) {
 	f.Add(1, 2)
 	f.Add(-1, 2)
@@ -172,6 +185,8 @@ func FuzzMinInt(f *testing.F) {
 	})
 }
 
+// FuzzMinStr verifies that Min on two arbitrary strings is independent of argument order and is
+// lexicographically no greater than either argument.
 func FuzzMinStr(f *testing.F) {
 	f.Add("a", "b")
 	f.Add("4324a", "br4r")
@@ -186,6 +201,8 @@ func FuzzMinStr(f *testing.F) {
 	})
 }
 
+// TestMin verifies that Min returns the smallest of several ints, floats, or strings regardless
+// of position, and panics when called without arguments.
 func TestMin(t *testing.T) {
 	require.Equal(t, Min(-1, 2, 3), -1)
 	require.Equal(t, Min(1, -2, 3), -2)
@@ -195,6 +212,8 @@ func TestMin(t *testing.T) {
 	require.Panics(t, func() { Min[int]() })
 }
 
+// TestMax verifies that Max returns the largest of several ints, floats, or strings regardless
+// of position, and panics when called without arguments.
 func TestMax(t *testing.T) {
 	require.Equal(t, Max(-1, 2, 3), 3)
 	require.Equal(t, Max(1, -2, 3), 3)
@@ -254,6 +273,8 @@ func TestMax(t *testing.T) {
 // 	// t.Error()
 // }
 
+// TestFallTr verifies Go fallthrough semantics: a matching switch case that ends in fallthrough
+// also runs the next case body, so the later assignment wins.
 func TestFallTr(t *testing.T) {
 	a := "a"
 	var got string
@@ -268,6 +289,9 @@ func TestFallTr(t *testing.T) {
 	require.Equal(t, "b", got)
 }
 
+// TestNumber2Roman_Comprehensive verifies that Number2Roman converts single digits, tens,
+// hundreds, thousands, and composite values up to 3999 into Unicode Roman numeral characters,
+// and returns an empty string for negative numbers, zero, and values above 3999.
 func TestNumber2Roman_Comprehensive(t *testing.T) {
 	tests := []struct {
 		name string
@@ -322,6 +346,9 @@ func TestNumber2Roman_Comprehensive(t *testing.T) {
 	}
 }
 
+// FuzzNumber2Roman verifies that Number2Roman returns an empty string for any int outside 1 to
+// 3999, and otherwise a non-empty string made only of Unicode Roman numeral code points
+// U+2160 through U+216F.
 func FuzzNumber2Roman(f *testing.F) {
 	// Add initial corpus
 	f.Add(1)
@@ -347,6 +374,9 @@ func FuzzNumber2Roman(f *testing.F) {
 		}
 	})
 }
+
+// TestMin_EdgeCases verifies Min for a single value, identical values, all-negative values, and
+// inputs that contain math.MaxInt or math.MinInt.
 func TestMin_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name string
@@ -388,6 +418,8 @@ func TestMin_EdgeCases(t *testing.T) {
 	}
 }
 
+// TestMax_EdgeCases verifies Max for a single value, identical values, all-negative values, and
+// inputs that contain math.MaxInt or math.MinInt.
 func TestMax_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name string
