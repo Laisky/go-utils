@@ -33,7 +33,7 @@ func (f *flock) Unlock() error {
 // The lock is an advisory POSIX record lock owned by the process, so another Lock on the same file from the same
 // process also succeeds, while a lock held by another process makes this call fail immediately instead of waiting.
 // It returns a wrapped error if the file cannot be opened, the descriptor is invalid, or the lock cannot be
-// acquired; the opened descriptor is kept in f.fd even when acquiring the lock fails.
+// acquired; when acquiring the lock fails the opened descriptor is closed and f.fd is reset to -1.
 func (f *flock) Lock() (err error) {
 	f.fd, err = syscall.Open(f.fpath, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC, 0666)
 	if err != nil {
@@ -51,6 +51,12 @@ func (f *flock) Lock() (err error) {
 	}
 	fd := uintptr(f.fd) //nolint:gosec // fd is validated non-negative and originates from syscall.Open.
 	if err := syscall.FcntlFlock(fd, syscall.F_SETLK, &flock); err != nil {
+		// Release the descriptor opened above; keeping it would leak one
+		// descriptor per failed attempt.
+		if closeErr := syscall.Close(f.fd); closeErr != nil {
+			err = errors.Join(err, errors.Wrap(closeErr, "close lock file after failed lock"))
+		}
+		f.fd = -1
 		return errors.Wrap(err, "FcntlFlock(F_SETLK)")
 	}
 

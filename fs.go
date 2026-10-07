@@ -235,7 +235,14 @@ func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 	return nil
 }
 
-// IsFileATimeChanged check is file's atime equal to expectATime
+// IsFileATimeChanged reports whether the modification time of the file at path
+// differs from expectATime, and returns the current modification time so the
+// caller can pass it back on the next call.
+//
+// Despite its historical name it compares the modification time (mtime), not
+// the access time: access times are unreliable on noatime/relatime mounts and
+// are not portable, and existing callers depend on the mtime semantics. It
+// returns an error when the file cannot be stat-ed.
 func IsFileATimeChanged(path string, expectATime time.Time) (changed bool, newATime time.Time, err error) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -254,6 +261,7 @@ func FileMD5(path string) (hashed string, err error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "open file %s", path)
 	}
+	defer SilentClose(fp)
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return "", errors.Wrapf(err, "read file %s", path)
@@ -273,6 +281,7 @@ func FileSHA1(path string) (hashed string, err error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "open file %s", path)
 	}
+	defer SilentClose(fp)
 
 	if _, err = io.Copy(hasher, fp); err != nil {
 		return "", errors.Wrapf(err, "read file %s", path)
