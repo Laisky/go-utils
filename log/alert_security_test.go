@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Laisky/zap/buffer"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Laisky/zap/buffer"
 
 	"github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"

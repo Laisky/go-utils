@@ -3,10 +3,11 @@ package compress
 import (
 	"archive/zip"
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestSecurity70CycleAndOutputOverlap rejects finite cycle/overlap fixtures without publication.

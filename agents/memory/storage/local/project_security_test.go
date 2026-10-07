@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	memorystorage "github.com/Laisky/go-utils/v6/agents/memory/storage"
 	"github.com/stretchr/testify/require"
+
+	memorystorage "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
 // TestSecurity51DotProjectCannotReachSibling exercises every public storage operation against a disposable sibling project.

@@ -15,8 +15,9 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	gutils "github.com/Laisky/go-utils/v6"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v6"
 )
 
 // TestSecurity42VerificationWarningBudget limits weak-hash warnings independently of the stored work factor.
