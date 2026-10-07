@@ -312,9 +312,9 @@ func TestRateLimiterRapidCreateDestroy(t *testing.T) {
 // Behavioral Tests – Different NPerSec tiers
 // ============================================================
 
-// TestRateLimiterAllTiers verifies that limiters starting empty accumulate roughly NPerSec tokens after about
-// one second (within 15%, and at least 2) for rates from 1/s to 20000/s, covering both the 100ms refill interval
-// and the 10ms interval used above 10000/s.
+// TestRateLimiterAllTiers verifies that limiters starting empty accumulate roughly NPerSec tokens (within 15%,
+// and at least 2) for rates from 1/s to 20000/s, covering both the 100ms refill interval and the 10ms interval
+// used above 10000/s, and never hold more tokens than NPerSec times the measured time since their creation.
 func TestRateLimiterAllTiers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -336,22 +336,29 @@ func TestRateLimiterAllTiers(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			created := time.Now()
 			rl, err := NewRateLimiter(ctx,
 				RateLimiterArgs{NPerSec: tt.nPerSec, Max: tt.max},
 				WithAvailableTokens(0))
 			require.NoError(t, err)
 			defer rl.Close()
 
-			// Wait 1 second, check tokens are roughly NPerSec
-			time.Sleep(1100 * time.Millisecond)
-			tokens := rl.Len()
+			// The background refill must reach about one second's worth of tokens. How long that takes
+			// depends on when the refill goroutine gets scheduled, so it is awaited rather than timed.
 			tolerance := float64(tt.nPerSec) * 0.15
 			if tolerance < 2 {
 				tolerance = 2
 			}
-			require.InDelta(t, tt.nPerSec, tokens, tolerance,
-				"tier %s: expected ~%d tokens after 1s, got %d",
-				tt.name, tt.nPerSec, tokens)
+			want := max(tt.nPerSec-int(tolerance), 1)
+			require.Eventually(t, func() bool { return rl.Len() >= want }, 30*time.Second, 10*time.Millisecond,
+				"tier %s: expected at least %d tokens", tt.name, want)
+
+			// Refill is proportional to elapsed time, so it can never run ahead of NPerSec over the time that
+			// actually passed since the limiter was created, however long the host stalled this test.
+			tokens := rl.Len()
+			ceiling := float64(tt.nPerSec) * time.Since(created).Seconds()
+			require.LessOrEqual(t, float64(tokens), ceiling+1,
+				"tier %s: %d tokens exceed %d/s over the measured elapsed time", tt.name, tokens, tt.nPerSec)
 		})
 	}
 }
@@ -360,28 +367,46 @@ func TestRateLimiterAllTiers(t *testing.T) {
 // Behavioral Tests – NPerSec equals Max boundary
 // ============================================================
 
-// TestRateLimiterNPerSecEqualsMax verifies the boundary where NPerSec equals Max (5): the limiter starts with 5
-// tokens, rejects the sixth Allow after five succeed, and holds exactly 5 tokens again after about one second.
+// TestRateLimiterNPerSecEqualsMax verifies the boundary where NPerSec equals Max (5): a new limiter starts with
+// 5 tokens, rejects the sixth Allow after five succeed, refills exactly to 5 after one second, and never exceeds
+// 5 however long it refills. The exact counts use a driven refill loop; the real background refill is checked
+// to restore the full bucket without a deadline tied to host load.
 func TestRateLimiterNPerSecEqualsMax(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	args := RateLimiterArgs{NPerSec: 5, Max: 5}
 
-	rl, err := NewRateLimiter(ctx, RateLimiterArgs{NPerSec: 5, Max: 5})
-	require.NoError(t, err)
-	defer rl.Close()
+	t.Run("driven refill", func(t *testing.T) {
+		t.Parallel()
+		rl, refill := newManuallyRefilledLimiter(t, args, args.NPerSec)
 
-	// Should start with NPerSec tokens
-	require.Equal(t, 5, rl.Len())
+		for i := 0; i < 5; i++ {
+			require.True(t, rl.Allow(), i)
+		}
+		require.False(t, rl.Allow())
 
-	// Consume all
-	for i := 0; i < 5; i++ {
-		require.True(t, rl.Allow())
-	}
-	require.False(t, rl.Allow())
+		refill.advance(time.Second)
+		require.Equal(t, 5, rl.Len())
 
-	// After 1s, should refill to Max (which is same as NPerSec)
-	time.Sleep(1100 * time.Millisecond)
-	require.Equal(t, 5, rl.Len())
+		refill.advance(time.Hour)
+		require.Equal(t, 5, rl.Len(), "refill must stop at Max")
+	})
+
+	t.Run("real refill", func(t *testing.T) {
+		t.Parallel()
+		rl, err := NewRateLimiter(context.Background(), args)
+		require.NoError(t, err)
+		defer rl.Close()
+
+		// The default initial balance is NPerSec, which is also Max, so no refill can change it.
+		require.Equal(t, 5, rl.Len())
+		for i := 0; i < 5; i++ {
+			require.True(t, rl.Allow(), i)
+		}
+
+		require.Eventually(t, func() bool { return rl.Len() == 5 },
+			30*time.Second, 10*time.Millisecond, "the background refill must restore the full bucket")
+		require.Equal(t, 5, rl.Len(), "refill must stop at Max")
+	})
 }
 
 // ============================================================

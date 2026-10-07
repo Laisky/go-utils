@@ -15,9 +15,9 @@ import (
 // ============================================================
 
 // TestRateLimiter verifies NewRateLimiter argument validation (zero or negative NPerSec, Max below NPerSec, and
-// a nil context are rejected), that limiters can be stopped via Close or context cancellation, and that Allow and
-// AllowN admit the initial 10 tokens, reject further requests, and admit requests again after about one second
-// of refill.
+// a nil context are rejected), that limiters can be stopped via Close or context cancellation, that Allow and
+// AllowN admit the initial 10 tokens, reject further requests, and admit exactly the tokens refilled for the
+// elapsed time of a driven refill loop, and that the real background refill restores tokens.
 func TestRateLimiter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -77,6 +77,38 @@ func TestRateLimiter(t *testing.T) {
 	t.Run("allow", func(t *testing.T) {
 		t.Parallel()
 
+		// The refill is driven explicitly, so the exact token counts below cannot be disturbed by a
+		// background refill that happens to run while the test is descheduled on a loaded host.
+		args := RateLimiterArgs{NPerSec: 10, Max: 100}
+		ratelimiter, refill := newManuallyRefilledLimiter(t, args, args.NPerSec)
+
+		for i := 0; i < 20; i++ {
+			require.Equal(t, i < 10, ratelimiter.Allow(), i)
+		}
+
+		// 1050ms at 10/s refills 10.5 tokens: 10 whole tokens now, the half token stays pending.
+		refill.advance(1050 * time.Millisecond)
+		require.Equal(t, 10, ratelimiter.Len())
+		for i := 0; i < 5; i++ {
+			require.True(t, ratelimiter.Allow(), i)
+		}
+		require.Equal(t, 5, ratelimiter.Len())
+		require.False(t, ratelimiter.AllowN(20))
+		require.Equal(t, 5, ratelimiter.Len(), "a rejected AllowN must not consume tokens")
+		require.True(t, ratelimiter.AllowN(5))
+
+		for i := 0; i < 100; i++ {
+			require.False(t, ratelimiter.Allow(), i)
+		}
+
+		// The pending half token completes with the next 50ms.
+		refill.advance(50 * time.Millisecond)
+		require.Equal(t, 1, ratelimiter.Len())
+	})
+
+	t.Run("allow with real refill", func(t *testing.T) {
+		t.Parallel()
+
 		ratelimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
@@ -84,28 +116,15 @@ func TestRateLimiter(t *testing.T) {
 		require.NoError(t, err)
 		defer ratelimiter.Close()
 
-		for i := 0; i < 20; i++ {
-			allowed := ratelimiter.Allow()
-			if i < 10 {
-				require.True(t, allowed, i)
-			} else if i >= 10 {
-				require.False(t, allowed, i)
-			}
-		}
-
-		time.Sleep(1050 * time.Millisecond)
-		require.GreaterOrEqual(t, ratelimiter.Len(), 10)
-		for i := 0; i < 5; i++ {
+		// A new limiter starts with NPerSec tokens; refills can only add to them.
+		for i := 0; i < 10; i++ {
 			require.True(t, ratelimiter.Allow(), i)
 		}
-		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
-		require.False(t, ratelimiter.AllowN(20))
-		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
-		require.True(t, ratelimiter.AllowN(5))
 
-		for i := 0; i < 100; i++ {
-			require.False(t, ratelimiter.Allow(), i)
-		}
+		// The background ticker refills tokens again, however late the refill goroutine gets scheduled.
+		require.Eventually(t, func() bool { return ratelimiter.Len() >= 5 },
+			30*time.Second, 10*time.Millisecond, "the background refill must restore tokens")
+		require.True(t, ratelimiter.AllowN(5))
 	})
 }
 
