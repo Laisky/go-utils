@@ -25,6 +25,9 @@ type capturedRequest struct {
 	Body   []byte
 }
 
+// newJSONEchoServer starts an httptest server that decodes a JSON object request body, records the method,
+// headers, and raw body on the returned buffered channel (capacity 1), and responds with {"json": <payload>}.
+// It returns the running server, which the caller must close, and the receive-only capture channel.
 func newJSONEchoServer() (*httptest.Server, <-chan capturedRequest) {
 	captureCh := make(chan capturedRequest, 1)
 
@@ -67,6 +70,8 @@ func newJSONEchoServer() (*httptest.Server, <-chan capturedRequest) {
 	return server, captureCh
 }
 
+// receiveCapturedRequest waits up to two seconds for a request recorded by newJSONEchoServer on ch and
+// returns it. t is the calling test, which is failed fatally if no request arrives before the timeout.
 func receiveCapturedRequest(t *testing.T, ch <-chan capturedRequest) capturedRequest {
 	t.Helper()
 
@@ -80,6 +85,8 @@ func receiveCapturedRequest(t *testing.T, ch <-chan capturedRequest) capturedReq
 	return capturedRequest{}
 }
 
+// TestRequestJSON verifies that RequestJSON with the internal client POSTs the request data as a JSON body
+// with the application/json Content-Type header and decodes the echoed JSON response into the result.
 func TestRequestJSON(t *testing.T) {
 	server, captureCh := newJSONEchoServer()
 	defer server.Close()
@@ -102,6 +109,8 @@ func TestRequestJSON(t *testing.T) {
 	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 
+// TestRequestJSONWithClient verifies that RequestJSONWithClient using a custom client (insecure, 20 max
+// connections, 30-second timeout) POSTs the data as JSON with the JSON Content-Type and decodes the echo.
 func TestRequestJSONWithClient(t *testing.T) {
 	server, captureCh := newJSONEchoServer()
 	defer server.Close()
@@ -131,6 +140,8 @@ func TestRequestJSONWithClient(t *testing.T) {
 	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 
+// TestRequestJSONWithClientNilRequest verifies that a nil request makes RequestJSONWithClient send a GET
+// with an empty body and no Content-Type header, and that the echoed null payload decodes to a nil map.
 func TestRequestJSONWithClientNilRequest(t *testing.T) {
 	server, captureCh := newJSONEchoServer()
 	defer server.Close()
@@ -152,6 +163,8 @@ func TestRequestJSONWithClientNilRequest(t *testing.T) {
 	require.Empty(t, captured.Header.Get(HTTPHeaderContentType))
 }
 
+// TestRequestJSONWithClientNilHTTPClient verifies that RequestJSONWithClient falls back to the internal client
+// when given a nil *http.Client, still sending the JSON body and decoding the echoed response.
 func TestRequestJSONWithClientNilHTTPClient(t *testing.T) {
 	server, captureCh := newJSONEchoServer()
 	defer server.Close()
@@ -173,6 +186,8 @@ func TestRequestJSONWithClientNilHTTPClient(t *testing.T) {
 	require.JSONEq(t, `{"hello":"world"}`, string(captured.Body))
 }
 
+// TestRequestJSONWithClientLargeErrorBodyIsTruncated verifies that a 400 response with a 20 KiB body yields an
+// error marked "(truncated)" whose message stays below 8300 bytes because of the default error-body limit.
 func TestRequestJSONWithClientLargeErrorBodyIsTruncated(t *testing.T) {
 	t.Parallel()
 
@@ -192,6 +207,8 @@ func TestRequestJSONWithClientLargeErrorBodyIsTruncated(t *testing.T) {
 	require.Less(t, len(err.Error()), 8300)
 }
 
+// TestRequestJSONWithClientLargeSuccessBodyWithinLimit verifies that a successful JSON response just under the
+// default success-body limit (8 MiB minus 1 KiB of payload) is read and decoded in full.
 func TestRequestJSONWithClientLargeSuccessBodyWithinLimit(t *testing.T) {
 	t.Parallel()
 
@@ -216,6 +233,8 @@ func TestRequestJSONWithClientLargeSuccessBodyWithinLimit(t *testing.T) {
 	require.Equal(t, payload, resp.Payload)
 }
 
+// TestRequestJSONWithClientLargeSuccessBodyExceedsLimit verifies that a successful JSON response larger than
+// the default 8 MiB success-body limit is rejected with a "response body too large" error.
 func TestRequestJSONWithClientLargeSuccessBodyExceedsLimit(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +259,9 @@ func TestRequestJSONWithClientLargeSuccessBodyExceedsLimit(t *testing.T) {
 	require.Contains(t, err.Error(), "response body too large")
 }
 
+// TestRequestJSONWithClientCustomMaxResponseBodyBytes verifies that WithRequestJSONMaxResponseBodyBytes
+// overrides the success-body limit: a 2 KiB payload fails with "response body too large" under a 1 KiB limit
+// and decodes successfully under a 10 KiB limit.
 func TestRequestJSONWithClientCustomMaxResponseBodyBytes(t *testing.T) {
 	t.Parallel()
 
@@ -281,6 +303,8 @@ func TestRequestJSONWithClientCustomMaxResponseBodyBytes(t *testing.T) {
 	require.Equal(t, payload, resp.Payload)
 }
 
+// TestRequestJSONWithClientInvalidOption verifies that RequestJSONWithClient returns an option error when
+// WithRequestJSONMaxResponseBodyBytes is given a non-positive limit of 0.
 func TestRequestJSONWithClientInvalidOption(t *testing.T) {
 	t.Parallel()
 
@@ -306,6 +330,8 @@ func TestRequestJSONWithClientInvalidOption(t *testing.T) {
 	require.Contains(t, err.Error(), "max response body bytes should greater than 0")
 }
 
+// TestCheckResp verifies that CheckResp returns an error for a 500 response and that the error message
+// includes the response body text.
 func TestCheckResp(t *testing.T) {
 	var (
 		resp *http.Response
@@ -324,6 +350,8 @@ func TestCheckResp(t *testing.T) {
 	}
 }
 
+// TestCheckRespLargeErrorBodyIsTruncated verifies that CheckResp truncates a 20 KiB error body to the default
+// limit, marks the error with "got http body (truncated):", and keeps the message below 9000 bytes.
 func TestCheckRespLargeErrorBodyIsTruncated(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: 500,
@@ -336,6 +364,8 @@ func TestCheckRespLargeErrorBodyIsTruncated(t *testing.T) {
 	require.Less(t, len(err.Error()), 9000)
 }
 
+// TestCheckRespWithCustomMaxErrorBodyBytes verifies that WithCheckRespMaxErrorBodyBytes(1024) truncates a
+// 2 KiB error body, marks the error as truncated, and keeps the message below 1300 bytes.
 func TestCheckRespWithCustomMaxErrorBodyBytes(t *testing.T) {
 	t.Parallel()
 
@@ -350,6 +380,8 @@ func TestCheckRespWithCustomMaxErrorBodyBytes(t *testing.T) {
 	require.Less(t, len(err.Error()), 1300)
 }
 
+// TestCheckRespInvalidOption verifies that CheckResp returns an option error, even for a 200 response, when
+// WithCheckRespMaxErrorBodyBytes is given a non-positive limit of 0.
 func TestCheckRespInvalidOption(t *testing.T) {
 	t.Parallel()
 

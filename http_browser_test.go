@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestValidateOpenBrowserURL verifies that validateOpenBrowserURL accepts well-formed http, https, and mailto
+// URLs (including query strings containing '&') and rejects javascript and file schemes, malformed URLs, an
+// https URL without a host, a mailto URL without a recipient, and URLs containing newline, NUL, or DEL bytes.
 func TestValidateOpenBrowserURL(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +52,9 @@ func TestValidateOpenBrowserURL(t *testing.T) {
 	}
 }
 
+// TestBuildOpenURLCommand verifies that buildOpenURLCommand selects rundll32 url.dll,FileProtocolHandler on
+// Windows, rundll32.exe on WSL, open on darwin, and xdg-open on Linux, never routes through a shell, and keeps
+// a URL containing '&' as a single argv element.
 func TestBuildOpenURLCommand(t *testing.T) {
 	t.Parallel()
 
@@ -117,6 +123,8 @@ func TestBuildOpenURLCommand(t *testing.T) {
 	}
 }
 
+// TestOpenURLInDefaultBrowserRejectsInvalidSchemes verifies that OpenURLInDefaultBrowser refuses a
+// javascript: URL with an "unsupported url scheme" error instead of launching a browser.
 func TestOpenURLInDefaultBrowserRejectsInvalidSchemes(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +136,8 @@ func TestOpenURLInDefaultBrowserRejectsInvalidSchemes(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported url scheme")
 }
 
+// TestOpenURLInDefaultBrowserRejectsMalformedURL verifies that OpenURLInDefaultBrowser returns a "parse url"
+// error for a malformed URL with an unterminated IPv6 host instead of launching a browser.
 func TestOpenURLInDefaultBrowserRejectsMalformedURL(t *testing.T) {
 	t.Parallel()
 

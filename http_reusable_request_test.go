@@ -362,6 +362,8 @@ type errorReader struct {
 	err error
 }
 
+// Read implements io.Reader for errorReader by ignoring p and always returning zero bytes together with the
+// configured r.err, which lets tests simulate a body that fails on every read.
 func (r *errorReader) Read(p []byte) (n int, err error) {
 	return 0, r.err
 }
@@ -373,6 +375,9 @@ type streamReader struct {
 	delay time.Duration
 }
 
+// Read implements io.Reader for streamReader: it first sleeps for r.delay when positive, then copies the
+// unread remainder of r.data into p and advances the position. It returns the number of bytes copied with a
+// nil error, or zero bytes and io.EOF once all data has been consumed.
 func (r *streamReader) Read(p []byte) (n int, err error) {
 	if r.delay > 0 {
 		time.Sleep(r.delay)

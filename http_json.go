@@ -281,6 +281,9 @@ func HTTPInvalidStatusError(statusCode int) error {
 	return errors.Errorf("got http invalid status code `%d`", statusCode)
 }
 
+// checkRespStatus is the first CheckResp chaining step; it expects the chain value c to hold an *http.Response.
+// It returns the response with a nil error for 2xx status codes, the response with an HTTPInvalidStatusError
+// for any other status code, and a nil value with an error when the chain value is not an *http.Response.
 func checkRespStatus(c *chaining.Chain) (r any, err error) {
 	resp, ok := c.GetVal().(*http.Response)
 	if !ok {
@@ -295,6 +298,12 @@ func checkRespStatus(c *chaining.Chain) (r any, err error) {
 	return resp, nil
 }
 
+// checkRespErr builds the CheckResp chaining step that enriches an upstream status error with the response
+// body. maxErrBodyBytes caps how many body bytes are read into the error message. The returned step passes the
+// chain value through unchanged when there is no upstream error; otherwise it closes the response body and
+// returns the response with the upstream error wrapped as "got http body: ..." (marked "(truncated)" when
+// the body exceeds the limit), or wrapped with the read failure if the body cannot be read. A chain value that
+// is not an *http.Response yields a nil value and the upstream error joined with a type error.
 func checkRespErr(maxErrBodyBytes int64) func(c *chaining.Chain) (any, error) {
 	return func(c *chaining.Chain) (any, error) {
 		upErr := c.GetError()

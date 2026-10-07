@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewReusableRequest verifies that NewReusableRequest builds a request with the given method, URL, and
+// context for bytes.Buffer, bytes.Reader, strings.Reader, nil, io.NopCloser, and custom bodies, and that for
+// the bytes and strings readers GetBody is set and returns content identical to the original body.
 func TestNewReusableRequest(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +121,9 @@ func TestNewReusableRequest(t *testing.T) {
 	}
 }
 
+// TestNewReusableRequestHTTP2Compatibility verifies that bytes and strings readers get a GetBody that replays
+// the original body as an HTTP/2 GOAWAY retry would need, and logs a warning when io.NopCloser or a custom
+// reader leaves GetBody nil.
 func TestNewReusableRequestHTTP2Compatibility(t *testing.T) {
 	t.Parallel()
 
@@ -185,6 +191,9 @@ func TestNewReusableRequestHTTP2Compatibility(t *testing.T) {
 	})
 }
 
+// TestNewReusableRequestEdgeCases verifies that NewReusableRequest rejects an invalid URL and an invalid
+// method, accepts an already-cancelled context and keeps it on the request, and sets a working GetBody for
+// empty readers and for 1 MiB bytes bodies whose recreated content matches the original.
 func TestNewReusableRequestEdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -294,6 +303,9 @@ type customReader struct {
 	pos  int
 }
 
+// Read implements io.Reader for customReader by copying the unread remainder of r.data into p and advancing
+// the position. It returns the number of bytes copied with a nil error, or zero bytes and io.EOF once all
+// data has been consumed.
 func (r *customReader) Read(p []byte) (n int, err error) {
 	if r.pos >= len(r.data) {
 		return 0, io.EOF
@@ -303,6 +315,8 @@ func (r *customReader) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// BenchmarkNewReusableRequest measures the cost of creating a POST request with NewReusableRequest for
+// bytes.Buffer, bytes.Reader, strings.Reader, and custom reader bodies, using a fresh reader per iteration.
 func BenchmarkNewReusableRequest(b *testing.B) {
 	ctx := context.Background()
 	testData := []byte("benchmark test data")

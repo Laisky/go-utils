@@ -52,6 +52,9 @@ var (
 	internalHttpCli *http.Client
 )
 
+// init builds the package-level internalHttpCli that RequestJSON and RequestJSONWithClient fall back to,
+// configured with a 30-second timeout and proxy settings read from the environment. It takes no parameters,
+// returns nothing, and panics through the shared logger if the HTTP client cannot be constructed.
 func init() {
 	var err error
 

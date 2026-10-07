@@ -6,6 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestJaegerTracingID verifies that NewJaegerTracingID formats explicit IDs as hex
+// "trace:span:parent:flags" (with an empty parent for zero) that Parse round-trips, and that a zero trace or
+// span ID is replaced by a random non-zero value, producing a different but still parseable tracing ID.
 func TestJaegerTracingID(t *testing.T) {
 	t.Parallel()
 
