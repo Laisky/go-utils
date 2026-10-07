@@ -209,7 +209,9 @@ func NewExpCache[T any](ctx context.Context, ttl time.Duration) *ExpCache[T] {
 // runClean runs the background eviction loop of ExpCache until ctx is canceled.
 // On every pass it ranges over all stored items, deletes those whose expiration time is before the start of the
 // pass, and then sleeps for c.ttl, so cancellation is only noticed after the current sleep. Expired items may stay
-// in memory until the next pass, although Load and LoadAndDelete already treat them as missing. It returns nothing.
+// in memory until the next pass, although Load and LoadAndDelete already treat them as missing. An expired item
+// is removed only while it is still the value stored under its key, so a fresh value stored concurrently under
+// the same key is never deleted. It returns nothing.
 func (c *ExpCache[T]) runClean(ctx context.Context) {
 	for {
 		select {
@@ -221,12 +223,8 @@ func (c *ExpCache[T]) runClean(ctx context.Context) {
 		now := time.Now()
 		c.data.Range(func(k, v any) bool {
 			if v.(*expCacheItem).exp.Before(now) { //nolint:forcetypeassert
-				// delete expired
-				//
-				// if new expCacheItem stored just before delete,
-				// may delete item that not expired.
-				// but this condition is rare, so may just add a little cost.
-				c.data.Delete(k)
+				// Compare-and-delete: a concurrent Store replaces the pointer, and that fresh item must survive.
+				c.data.CompareAndDelete(k, v)
 			}
 
 			return true
@@ -260,13 +258,16 @@ func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 }
 
 // Load load val from cache
+//
+// An expired value is reported as missing and removed, but only while it is still the value stored under key,
+// so a fresh value stored concurrently under the same key is kept.
 func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
 	//nolint:forcetypeassert
 	if datai, ok := c.data.Load(key); ok && time.Now().UTC().Before(datai.(*expCacheItem).exp) {
 		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	} else if ok {
-		// delete expired
-		c.data.Delete(key)
+		// delete expired, unless a concurrent Store already replaced it
+		c.data.CompareAndDelete(key, datai)
 	}
 
 	return data, false
