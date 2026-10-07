@@ -587,16 +587,21 @@ func TestTongsuo_CloneX509Csr(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, clonedCsr)
 
-		// Verify the generated cloned CSR
+		// Verify the generated cloned CSR structurally; the display text format
+		// differs between Tongsuo releases ("C = CN" vs "C=CN")
 		clonedCsrInfo, err := ins.ShowCsrInfo(ctx, clonedCsr)
 		require.NoError(t, err)
-		require.Contains(t, clonedCsrInfo, "C = CN")
-		require.Contains(t, clonedCsrInfo, "L = Shanghai")
-		require.Contains(t, clonedCsrInfo, "O = BBT")
-		require.Contains(t, clonedCsrInfo, "CN = test-common-name")
-		require.Contains(t, clonedCsrInfo, "DNS:www.example.com")
-		require.Contains(t, clonedCsrInfo, "DNS:www.example.net")
-		require.Contains(t, clonedCsrInfo, "DNS:www.example.origin")
+		require.Contains(t, clonedCsrInfo, "test-common-name")
+
+		parsed, err := smx509.ParseCertificateRequest(clonedCsr)
+		require.NoError(t, err)
+		require.NoError(t, parsed.CheckSignature())
+		require.Equal(t, "test-common-name", parsed.Subject.CommonName)
+		require.Equal(t, []string{"CN"}, parsed.Subject.Country)
+		require.Equal(t, []string{"Shanghai"}, parsed.Subject.Locality)
+		require.Equal(t, []string{"BBT"}, parsed.Subject.Organization)
+		require.Equal(t, []string{"www.example.com", "www.example.net", "www.example.origin"}, parsed.DNSNames)
+		require.Equal(t, []string{"test@laisky.com"}, parsed.EmailAddresses)
 	})
 }
 

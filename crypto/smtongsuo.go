@@ -6,16 +6,18 @@ import (
 	"crypto"
 	cryptohmac "crypto/hmac"
 	"crypto/sha256"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
+	"github.com/emmansun/gmsm/smx509"
 
 	glog "github.com/Laisky/go-utils/v6/log"
 )
@@ -345,63 +347,73 @@ func (t *Tongsuo) DecryptBySm4Cbc(ctx context.Context, key, combinedCipher []byt
 }
 
 var (
-	reX509Subject = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
-	reX509Sans    = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
+	// csrCloneSubjectAttributes lists the subject attribute types that
+	// ParseCsr2Opts reproduces; any other attribute fails closed.
+	csrCloneSubjectAttributes = []asn1.ObjectIdentifier{
+		{2, 5, 4, 3}, {2, 5, 4, 5}, {2, 5, 4, 6}, {2, 5, 4, 7}, {2, 5, 4, 8},
+		{2, 5, 4, 9}, {2, 5, 4, 10}, {2, 5, 4, 11}, {2, 5, 4, 17},
+	}
 )
 
-// ParseCsr2Opts parse csr to opts
-func (t *Tongsuo) ParseCsr2Opts(ctx context.Context, csrDer []byte) ([]X509CSROption, error) {
-	csrinfo, err := t.ShowCsrInfo(ctx, csrDer)
+// ParseCsr2Opts parses csrDer structurally and returns the options that
+// reproduce its subject and subject alternative names.
+//
+// The subject (CN, serialNumber, C, ST, L, street, postalCode, O, OU, with
+// every value of multi-valued attributes) and the DNS, email, IP and URI SANs
+// are copied from the DER structure with their types preserved; display text
+// is never parsed. Other requested extensions are not copied. It returns an
+// error for malformed DER, for subject attribute types outside
+// csrCloneSubjectAttributes and for repeated CN or serialNumber attributes,
+// which the options cannot reproduce.
+func (t *Tongsuo) ParseCsr2Opts(_ context.Context, csrDer []byte) ([]X509CSROption, error) {
+	csr, err := smx509.ParseCertificateRequest(csrDer)
 	if err != nil {
-		return nil, errors.Wrap(err, "show csr info")
+		return nil, errors.Wrap(err, "parse csr")
 	}
 
-	var opts []X509CSROption
-
-	// extract subjects
-	// Subject: C = CN, ST = Shanghai, L = Shanghai, O = BBT, CN = Intermediate CA
-	matched := reX509Subject.FindStringSubmatch(csrinfo)
-	if len(matched) != 2 {
-		return nil, errors.Errorf("invalid csr info")
-	}
-	sbjs := strings.Split(matched[1], ", ")
-	for _, sbj := range sbjs {
-		kv := strings.Split(sbj, " = ")
-		if len(kv) != 2 {
-			return nil, errors.Errorf("invalid subject info %q", sbj)
-		}
-
-		switch kv[0] {
-		case "C":
-			opts = append(opts, WithX509CSRCountry(kv[1]))
-		case "ST":
-			opts = append(opts, WithX509CSRProvince(kv[1]))
-		case "L":
-			opts = append(opts, WithX509CSRLocality(kv[1]))
-		case "O":
-			opts = append(opts, WithX509CSROrganization(kv[1]))
-		case "CN":
-			opts = append(opts, WithX509CSRCommonName(kv[1]))
-		}
-	}
-
-	// extract SANs
-	// X509v3 Subject Alternative Name:
-	//     DNS:www.example.com, DNS:www.example.net, DNS:www.example.origin
-	matched = reX509Sans.FindStringSubmatch(csrinfo)
-	if len(matched) == 2 {
-		sans := strings.Split(matched[1], ", ")
-		for _, san := range sans {
-			kv := strings.Split(san, ":")
-			if len(kv) != 2 {
-				return nil, errors.Errorf("invalid csr info %q", san)
+	var commonNames, serialNumbers int
+	for _, atv := range csr.Subject.Names {
+		supported := false
+		for _, oid := range csrCloneSubjectAttributes {
+			if atv.Type.Equal(oid) {
+				supported = true
+				break
 			}
+		}
+		if !supported {
+			return nil, errors.Errorf("unsupported csr subject attribute %s", atv.Type.String())
+		}
 
-			opts = append(opts, WithX509CSRSANS(kv[1]))
+		switch {
+		case atv.Type.Equal(csrCloneSubjectAttributes[0]):
+			commonNames++
+		case atv.Type.Equal(csrCloneSubjectAttributes[1]):
+			serialNumbers++
 		}
 	}
+	if commonNames > 1 || serialNumbers > 1 {
+		return nil, errors.New("csr subject repeats commonName or serialNumber")
+	}
 
-	return opts, nil
+	subject := pkix.Name{
+		CommonName:         csr.Subject.CommonName,
+		SerialNumber:       csr.Subject.SerialNumber,
+		Country:            csr.Subject.Country,
+		Province:           csr.Subject.Province,
+		Locality:           csr.Subject.Locality,
+		StreetAddress:      csr.Subject.StreetAddress,
+		PostalCode:         csr.Subject.PostalCode,
+		Organization:       csr.Subject.Organization,
+		OrganizationalUnit: csr.Subject.OrganizationalUnit,
+	}
+
+	return []X509CSROption{
+		WithX509CSRSubject(subject),
+		WithX509CSRDNSNames(csr.DNSNames...),
+		WithX509CSREmailAddrs(csr.EmailAddresses...),
+		WithX509CSRIPAddrs(csr.IPAddresses...),
+		WithX509CSRURIs(csr.URIs...),
+	}, nil
 }
 
 // CloneX509Csr generat a cloned csr with different private key
