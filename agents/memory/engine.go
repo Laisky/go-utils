@@ -66,7 +66,7 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 
 	heuristic := conf.HeuristicClient
 	if heuristic == nil && strings.TrimSpace(conf.LLMAPIBase) != "" && strings.TrimSpace(conf.LLMAPIKey) != "" {
-		heuristic, err := newOpenAIResponsesClient(openAIResponsesClientConfig{
+		llmClient, buildErr := newOpenAIResponsesClient(openAIResponsesClientConfig{
 			APIBase:         conf.LLMAPIBase,
 			APIKey:          conf.LLMAPIKey,
 			Model:           conf.LLMModel,
@@ -75,10 +75,13 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 			// Cleartext http is only accepted through the explicit opt-in.
 			AllowInsecureHTTP: conf.LLMAllowInsecureHTTP,
 		})
-		if err != nil {
-			return nil, errors.Wrap(err, "build heuristic client")
+		if buildErr != nil {
+			return nil, errors.Wrap(buildErr, "build heuristic client")
 		}
-		conf.HeuristicClient = heuristic
+		// Assign to the outer variable: a ":=" here once shadowed it and left
+		// the engine without the configured heuristic client.
+		heuristic = llmClient
+		conf.HeuristicClient = llmClient
 	}
 
 	return &StandardEngine{storage: storage, heuristic: heuristic, conf: conf}, nil
