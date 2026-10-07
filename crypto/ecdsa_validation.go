@@ -29,7 +29,8 @@ func decodeBoundedECDSASignature(signature string, useBase64 bool) (*big.Int, *b
 		return nil, nil, errors.New("invalid ECDSA signature length")
 	}
 	left, right, found := strings.Cut(signature, ecdsaSignDelimiter)
-	if !found || len(left) == 0 || len(right) == 0 || len(left) > limit || len(right) > limit || strings.Contains(right, ecdsaSignDelimiter) {
+	if !found || len(left) == 0 || len(right) == 0 || len(left) > limit || len(right) > limit ||
+		strings.Contains(right, ecdsaSignDelimiter) {
 		return nil, nil, errors.New("invalid ECDSA signature structure")
 	}
 	r, err := decodeECDSAComponent(left, useBase64)
@@ -49,9 +50,7 @@ func decodeECDSAComponent(raw string, useBase64 bool) (*big.Int, error) {
 	if useBase64 {
 		// Go's decoder otherwise ignores newlines, even in Strict mode.
 		for i := range len(raw) {
-			c := raw[i]
-			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-				(c >= '0' && c <= '9') || c == '-' || c == '_' || c == '=') {
+			if !isBase64URLByte(raw[i]) {
 				return nil, errors.New("invalid Base64 alphabet")
 			}
 		}
@@ -62,8 +61,7 @@ func decodeECDSAComponent(raw string, useBase64 bool) (*big.Int, error) {
 		value.SetBytes(decoded)
 	} else {
 		for i := range len(raw) {
-			c := raw[i]
-			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			if !isHexDigitByte(raw[i]) {
 				return nil, errors.New("invalid hexadecimal encoding")
 			}
 		}
@@ -90,5 +88,30 @@ func validECDSAVerificationInputs(key *ecdsa.PublicKey, r, s *big.Int) bool {
 		return false
 	}
 	order := key.Curve.Params().N
-	return r.Sign() > 0 && s.Sign() > 0 && r.Cmp(order) < 0 && s.Cmp(order) < 0 && key.Curve.IsOnCurve(key.X, key.Y)
+	return r.Sign() > 0 && s.Sign() > 0 && r.Cmp(order) < 0 && s.Cmp(order) < 0 && ecdsaPublicKeyOnCurve(key)
+}
+
+// ecdsaPublicKeyOnCurve reports whether key holds a valid point on its NIST
+// curve. It takes a key whose curve is P-224, P-256, P-384 or P-521 and returns
+// false for negative, oversized or out-of-field coordinates, off-curve points
+// and the point at infinity. PublicKey.Bytes (Go 1.25+) applies the same
+// SEC 1 point validation as crypto/ecdh, replacing the deprecated
+// elliptic.Curve.IsOnCurve with identical acceptance for these curves.
+func ecdsaPublicKeyOnCurve(key *ecdsa.PublicKey) bool {
+	_, err := key.Bytes()
+	return err == nil
+}
+
+// isBase64URLByte reports whether c belongs to the padded URL-safe Base64
+// alphabet (RFC 4648 section 5). It takes one byte and returns true for A-Z,
+// a-z, 0-9, '-', '_' and the '=' padding character.
+func isBase64URLByte(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' ||
+		c == '-' || c == '_' || c == '='
+}
+
+// isHexDigitByte reports whether c is an ASCII hexadecimal digit in either
+// letter case. It takes one byte and returns true only for 0-9, a-f and A-F.
+func isHexDigitByte(c byte) bool {
+	return '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F'
 }
