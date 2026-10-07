@@ -13,6 +13,8 @@ import (
 
 	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
+
+	"github.com/Laisky/go-utils/v6/internal/fileguard"
 )
 
 const defaultRotationFilenamePattern = "{logger}-YYYYMMDD.log"
@@ -146,7 +148,9 @@ func WithRotationRetention(days int) Option {
 // rotated log files. The pattern must include YYYY, MM, and DD tokens and may reference
 // the logger name via {logger}. The result must be one portable filename: no
 // separators, volume/stream syntax, Windows device names, or trailing dots/spaces.
-// Final filenames are limited to 255 UTF-8 bytes. This does not prevent symlinks.
+// Final filenames are limited to 255 UTF-8 bytes. Lexical validation alone does not
+// stop links; each daily file is opened without following a final link and must
+// be a regular, single-link file, so links, FIFOs and other special files fail.
 func WithRotationFilenamePattern(pattern string) Option {
 	return func(c *option) error {
 		if strings.TrimSpace(pattern) == "" {
@@ -328,7 +332,10 @@ func (w *rotationWriter) openNewFile(start, next time.Time) error {
 		return err
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	// Every first open and rollover uses the same destination policy: no final
+	// link is followed, a FIFO cannot block, and only a regular single-link file
+	// verified through the opened descriptor is appended to.
+	file, err := fileguard.OpenAppend(path, 0o600)
 	if err != nil {
 		return errors.Wrap(err, "open log file")
 	}
@@ -437,12 +444,16 @@ func deriveFallbackLoggerName(path string) string {
 	return name
 }
 
+// ensureDir creates missing log directories as private (0700 before the umask).
+// Existing directories keep their permissions, so operators who need shared
+// access can pre-create the directory with broader permissions. It takes the
+// directory and returns an error when it cannot be created.
 func ensureDir(dir string) error {
 	if dir == "" || dir == "." {
 		return nil
 	}
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return errors.Wrap(err, "create log directory")
 	}
 	return nil

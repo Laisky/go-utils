@@ -79,6 +79,29 @@ if err != nil {
 
 Each window writes to a date-stamped file named `{logger}-YYYYMMDD.log`. The active file and all historical archives follow this pattern, guaranteeing predictable names such as `service-20251028.log`.
 
+## Destination Safety
+
+Every daily file is opened with the same policy on the first write and on each
+rollover:
+
+- A missing file is created atomically (`O_CREATE|O_EXCL`) with mode `0600`.
+- An existing entry must be a regular file. Symbolic links (including dangling
+  ones), directories, FIFOs and devices are rejected; nothing is written through
+  a link and a planted FIFO cannot block the logger. On Unix the open also uses
+  `O_NOFOLLOW|O_NONBLOCK`, and the opened descriptor is verified to be the same
+  regular file that was inspected with no additional hard links. Windows and
+  other platforms without `O_NOFOLLOW` rely on `Lstat` plus post-open identity
+  and type checks.
+- Existing files are appended to as they are; their mode and owner are not
+  changed or checked. Keep the log directory private so other users cannot
+  pre-create files in it.
+- Missing log directories are created with mode `0700`. Existing directories are
+  not modified, so to share logs with a group, pre-create the directory with the
+  permissions you need (for example `install -d -m 0750 /var/log/app`).
+- A rejected destination makes the write fail; the next write retries the open.
+
+The configured directory and its ancestors must be trusted by the operator.
+
 ## Retention Policy
 
 Control how long rotated files are retained with `WithRotationRetention`:
