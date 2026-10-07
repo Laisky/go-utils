@@ -115,6 +115,14 @@ stdout and stderr are captured separately:
   everything from the first `-----BEGIN` marker replaced by `[PEM redacted]`.
   stdout, which may hold private keys, is never copied into an error.
 
+### SM2 signature verification (`VerifyBySm2Sm3`)
+
+A well-formed signature that does not match the message and public key returns
+an error matching `ErrSm2SignatureVerification` (test with `errors.Is`).
+Operational failures (unparsable key or signature, subprocess errors) return
+other errors. A zero exit status without tongsuo's `Verified OK` confirmation
+is treated as a failure (fail closed).
+
 ### Password-protected private keys (`NewPrikeyWithPassword`)
 
 `NewPrikeyWithPassword` returns a PKCS#8 `ENCRYPTED PRIVATE KEY` PEM using PBES2

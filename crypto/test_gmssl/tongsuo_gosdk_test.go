@@ -15,13 +15,20 @@ import (
 // TestTongsuo_NewPrikeyWithPassword verifies the password-encrypted SM2 private
 // key produced by Tongsuo.NewPrikeyWithPassword.
 //
-// The key uses OpenSSL "traditional" PEM encryption ("EC PRIVATE KEY" with
-// Proc-Type/DEK-Info SM4-CBC headers). tongsuo-go-sdk must decrypt it with the
+// The key is a PKCS#8 "ENCRYPTED PRIVATE KEY" (PBES2: PBKDF2-HMAC-SM3 with a
+// high iteration count + SM4-CBC). tongsuo-go-sdk must decrypt it with the
 // right password, reject a wrong one, and yield a usable SM2 key: its public
 // key must match Tongsuo.Prikey2Pubkey, and a Tongsuo.SignBySm2Sm3 signature
-// made with it must verify in GmSSL. GmSSL itself only imports PKCS#8
-// "ENCRYPTED PRIVATE KEY" (PBKDF2-HMAC-SM3 + SM4-CBC), so it is expected to
-// reject this format even after the PEM is re-encoded without any extra text.
+// made with it must verify in GmSSL.
+//
+// GmSSL 3.1.1 cannot import it: Tongsuo (like OpenSSL 3) omits the optional
+// [0] curve parameters from the inner ECPrivateKey, as RFC 5915 section 3
+// recommends for PKCS#8, while GmSSL's sm2_private_key_from_der requires them;
+// GmSSL also names HMAC-SM3 with the older OID 1.2.156.10197.1.401.2. The
+// rejection is asserted next to a positive control showing GmSSL imports its
+// own PKCS#8 key, so a future GmSSL that accepts the format is noticed. The
+// PBKDF2-HMAC-SM3 content itself is cross-checked with the independent gmsm
+// parser in the parent module (TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2).
 func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
 	t.Parallel()
 	ins := newTongsuo(t)
@@ -31,12 +38,11 @@ func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
 	encryptedPem, err := ins.NewPrikeyWithPassword(ctx, password)
 	require.NoError(t, err)
 
-	block, _ := pem.Decode(encryptedPem)
+	block, rest := pem.Decode(encryptedPem)
 	require.NotNil(t, block)
-	require.Equal(t, "EC PRIVATE KEY", block.Type)
-	require.Equal(t, "4,ENCRYPTED", block.Headers["Proc-Type"])
-	require.True(t, strings.HasPrefix(block.Headers["DEK-Info"], "SM4-CBC,"),
-		"unexpected DEK-Info %q", block.Headers["DEK-Info"])
+	require.Empty(t, strings.TrimSpace(string(rest)))
+	require.Equal(t, "ENCRYPTED PRIVATE KEY", block.Type)
+	require.Empty(t, block.Headers)
 
 	t.Run("tongsuo-go-sdk", func(t *testing.T) {
 		ctx := t.Context()
@@ -60,11 +66,11 @@ func TestTongsuo_NewPrikeyWithPassword(t *testing.T) {
 		require.True(t, gmsslSm2Verify(t, pubkeyPem, msg, signature))
 	})
 
-	t.Run("gmssl rejects traditional format", func(t *testing.T) {
+	t.Run("gmssl rejects pkcs8 without ECPrivateKey parameters", func(t *testing.T) {
 		dir := t.TempDir()
 
 		// Positive control: GmSSL round-trips its own PKCS#8 encrypted key, so
-		// the rejection below is caused by the key format, not the import path.
+		// the rejection below is caused by the key encoding, not the import path.
 		gmsslKey, err := gmssl.GenerateSm2Key()
 		require.NoError(t, err)
 		pkcs8Path := filepath.Join(dir, "gmssl-pkcs8.pem")

@@ -325,6 +325,12 @@ func (t *Tongsuo) VerifyCertsChain(ctx context.Context,
 	return nil
 }
 
+// ErrSm2SignatureVerification is returned (wrapped) by VerifyBySm2Sm3 when
+// tongsuo reports that a well-formed SM2 signature does not match the message
+// and public key. Operational failures such as an unparsable key do not match
+// it. Use errors.Is to test for it.
+var ErrSm2SignatureVerification = errors.New("sm2 signature verification failure")
+
 // VerifyBySm2Sm3 verify by sm2 sm3
 //
 // https://www.yuque.com/tsdoc/ts/ewh6xg7qlddxlec2#rehkK
@@ -351,16 +357,25 @@ func (t *Tongsuo) VerifyBySm2Sm3(ctx context.Context,
 		return errors.Wrap(err, "write signature")
 	}
 
-	_, err = t.runCMD(ctx,
+	stdout, _, err := t.runCMDOutputs(ctx,
 		[]string{
 			tongsuoCmdDgst, tongsuoDigestSM3, "-verify", pubkeyPath,
 			"-signature", signaturePath,
 			contentPath,
 		},
-		nil,
+		nil, nil,
 	)
 	if err != nil {
+		// dgst prints "Verification failure" on stdout for a well-formed but
+		// non-matching signature; anything else is an operational failure.
+		if bytes.Contains(stdout, []byte("Verification failure")) {
+			return errors.Wrap(ErrSm2SignatureVerification, "verify by sm2 sm3")
+		}
 		return errors.Wrap(err, "verify by sm2 sm3")
+	}
+	// Fail closed if tongsuo exits successfully without confirming the result.
+	if !bytes.Contains(stdout, []byte("Verified OK")) {
+		return errors.New("verify by sm2 sm3: tongsuo did not report a successful verification")
 	}
 
 	return nil

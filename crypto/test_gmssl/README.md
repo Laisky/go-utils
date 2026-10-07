@@ -17,15 +17,19 @@ golangci-lint never include it.
 | Test | Cross-check |
 | --- | --- |
 | `Test_HashBySm3` | `HashBySm3` (tongsuo binary) equals GmSSL SM3 for 0, 1, 55, 56, 64 bytes and 1 MiB. |
-| `TestTongsuo_SignBySM2SM3` | GmSSL SM2/SM3 signatures verify with `VerifyBySm2Sm3`; `SignBySm2Sm3` signatures verify with GmSSL. Both sides reject a modified signature and a modified message. |
+| `TestTongsuo_SignBySM2SM3` | GmSSL SM2/SM3 signatures verify with `VerifyBySm2Sm3`; `SignBySm2Sm3` signatures verify with GmSSL. Both sides reject a modified signature and a modified message (go-utils reports `ErrSm2SignatureVerification`). |
 | `TestTongsuo_EncryptBySm4CbcBaisc` | The basic API ciphertext is plain SM4-CBC/PKCS#7 in both directions with GmSSL. The returned tag equals the HMAC-SHA256 over `iv \|\| ciphertext` described in `crypto/smtongsuo.md`, computed independently. A tag that does not match the IV is rejected. |
 | `TestTongsuo_Sm4CbcEnvelopeInterop` | The `"GUS4"` v1 envelope from `EncryptBySm4Cbc` decrypts with GmSSL plus standard-library HKDF/HMAC, using only the documented format. Envelopes built that way decrypt with `DecryptBySm4Cbc`. A modified IV is rejected. |
 | `TestTongsuo_NewPrikeyWithPassword` | tongsuo-go-sdk decrypts the encrypted key (wrong password rejected); the decrypted key matches `Prikey2Pubkey` and its `SignBySm2Sm3` signature verifies in GmSSL. GmSSL is expected to **reject** the key (see below). |
 
-Known incompatibility: `NewPrikeyWithPassword` writes OpenSSL "traditional"
-PEM encryption (`EC PRIVATE KEY` with `Proc-Type`/`DEK-Info: SM4-CBC`). GmSSL
-3.1 only imports PKCS#8 `ENCRYPTED PRIVATE KEY` (PBKDF2-HMAC-SM3 + SM4-CBC).
-The test checks both the rejection and a GmSSL PKCS#8 positive control.
+Known incompatibility: `NewPrikeyWithPassword` writes PKCS#8
+`ENCRYPTED PRIVATE KEY` (PBES2: PBKDF2-HMAC-SM3, 600000 iterations, SM4-CBC).
+GmSSL 3.1.1 still rejects it: Tongsuo (like OpenSSL 3) omits the optional `[0]`
+curve parameters from the inner `ECPrivateKey`, as RFC 5915 section 3
+recommends for PKCS#8, while GmSSL's `sm2_private_key_from_der` requires them;
+GmSSL also names HMAC-SM3 with the older OID `1.2.156.10197.1.401.2`. The test
+asserts the rejection next to a GmSSL PKCS#8 positive control; the PBKDF2-SM3
+content is cross-checked with gmsm in the parent module.
 
 ## Prerequisites
 

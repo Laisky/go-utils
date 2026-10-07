@@ -8,6 +8,8 @@ import (
 
 	gmssl "github.com/GmSSL/GmSSL-Go"
 	"github.com/stretchr/testify/require"
+
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
 // Test_HashBySm3 verifies SM3 interoperability: for inputs that cover the empty
@@ -64,9 +66,9 @@ func TestTongsuo_SignBySM2SM3(t *testing.T) {
 		require.NoError(t, ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, plaintext))
 
 		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, flipLastByte(signature), plaintext)
-		require.ErrorContains(t, err, "Verification failure")
+		require.ErrorIs(t, err, gcrypto.ErrSm2SignatureVerification)
 		err = ins.VerifyBySm2Sm3(ctx, pubkeyPem, signature, flipLastByte(plaintext))
-		require.ErrorContains(t, err, "Verification failure")
+		require.ErrorIs(t, err, gcrypto.ErrSm2SignatureVerification)
 	})
 
 	t.Run("go-utils -> gmssl", func(t *testing.T) {

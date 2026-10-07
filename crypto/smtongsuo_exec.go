@@ -129,8 +129,10 @@ func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte
 // runCMDOutputs runs a tongsuo command and captures stdout and stderr
 // separately. Stdout is returned in full because it carries the command's
 // data; stderr is kept up to maxTongsuoStderrCapture bytes. The parameters are
-// as for runCMDWithEnv. On failure it returns nil outputs and an error that
-// includes only sanitizeTongsuoStderr of the captured stderr.
+// as for runCMDWithEnv. On failure it still returns the captured stdout so a
+// caller can classify the failure (for example a signature mismatch), returns
+// nil stderr, and returns an error that includes only sanitizeTongsuoStderr of
+// the captured stderr; stdout is never embedded in the error.
 func (t *Tongsuo) runCMDOutputs(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
 	stdout, stderr []byte, err error) {
 	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
@@ -155,7 +157,7 @@ func (t *Tongsuo) runCMDOutputs(ctx context.Context, args []string, stdin []byte
 		if len(args) != 0 {
 			subcommand = args[0]
 		}
-		return nil, nil, errors.Wrapf(err, "run tongsuo %q failed, stderr: %s",
+		return stdoutBuf.Bytes(), nil, errors.Wrapf(err, "run tongsuo %q failed, stderr: %s",
 			subcommand, sanitizeTongsuoStderr(stderrBuf.buf.Bytes(), stderrBuf.truncated))
 	}
 
