@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/Laisky/errors/v2"
+
+	"github.com/Laisky/go-utils/v6/agents/internal/securehttp"
 )
 
 const (
@@ -24,12 +25,19 @@ const (
 
 // openAIResponsesClientConfig stores runtime options for heuristic model requests.
 type openAIResponsesClientConfig struct {
+	// APIBase must resolve to an https URL (scheme-less values are normalized
+	// to https); http is only accepted with AllowInsecureHTTP.
 	APIBase         string
 	APIKey          string
 	Model           string
 	Timeout         time.Duration
 	MaxOutputTokens int
-	HTTPClient      *http.Client
+	// HTTPClient optionally overrides the default client. The API base is
+	// still validated, but a supplied client's redirect policy is used as-is.
+	HTTPClient *http.Client
+	// AllowInsecureHTTP is the explicit insecure opt-in for a cleartext http
+	// APIBase (local development only).
+	AllowInsecureHTTP bool
 }
 
 // openAIResponsesClient implements heuristic extraction/merge with Responses API tools.
@@ -67,13 +75,23 @@ type toolSpec struct {
 	Parameters  map[string]any `json:"parameters,omitempty"`
 }
 
-// newOpenAIResponsesClient creates a heuristic client backed by OpenAI-compatible Responses API.
+// newOpenAIResponsesClient creates a heuristic client backed by an
+// OpenAI-compatible Responses API described by conf. It validates the API base
+// against the agents transport-security policy before any request is built, so
+// a rejected endpoint never receives the API key or memory payloads. It
+// returns the client, or an error when the API base or key is missing or the
+// API base is not allowed.
 func newOpenAIResponsesClient(conf openAIResponsesClientConfig) (*openAIResponsesClient, error) {
 	if strings.TrimSpace(conf.APIBase) == "" {
 		return nil, errors.Errorf("api base is required")
 	}
 	if strings.TrimSpace(conf.APIKey) == "" {
 		return nil, errors.Errorf("api key is required")
+	}
+
+	apiURL, err := resolveResponsesURL(conf.APIBase, conf.AllowInsecureHTTP)
+	if err != nil {
+		return nil, errors.Wrap(err, "validate llm api base")
 	}
 
 	model := strings.TrimSpace(conf.Model)
@@ -91,11 +109,13 @@ func newOpenAIResponsesClient(conf openAIResponsesClientConfig) (*openAIResponse
 
 	httpCli := conf.HTTPClient
 	if httpCli == nil {
-		httpCli = &http.Client{Timeout: timeout}
+		// The default client refuses redirects that would carry the bearer
+		// credential or the replayed memory payload off the API base's origin.
+		httpCli = securehttp.NewHTTPClient(timeout)
 	}
 
 	return &openAIResponsesClient{
-		apiURL:          normalizeResponsesURL(conf.APIBase),
+		apiURL:          apiURL,
 		apiKey:          conf.APIKey,
 		model:           model,
 		timeout:         timeout,
@@ -249,25 +269,17 @@ func buildHeuristicInputText(in HeuristicFactInput) string {
 	return sb.String()
 }
 
-// normalizeResponsesURL normalizes API base and appends responses path when required.
-func normalizeResponsesURL(apiBase string) string {
-	trimmed := strings.TrimSpace(apiBase)
-	if trimmed == "" {
-		return ""
-	}
-
-	if !strings.Contains(trimmed, "://") {
-		trimmed = "https://" + strings.TrimPrefix(trimmed, "//")
-	}
-
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Host == "" {
-		trimmed = strings.TrimSuffix(trimmed, "/")
-		if strings.HasSuffix(trimmed, defaultResponsesPath) {
-			return trimmed
-		}
-
-		return trimmed + defaultResponsesPath
+// resolveResponsesURL validates apiBase with the agents transport-security
+// policy (https required; http only when allowInsecureHTTP is true; no
+// userinfo; valid host and port; scheme-less values become https) and returns
+// the Responses API endpoint derived from it. Supported forms are a full
+// .../v1/responses endpoint, an API base with or without a trailing /v1, and a
+// bare host[:port]; any query string or fragment is dropped. It returns an
+// error when apiBase is not allowed.
+func resolveResponsesURL(apiBase string, allowInsecureHTTP bool) (string, error) {
+	parsed, err := securehttp.ParseEndpoint(apiBase, allowInsecureHTTP)
+	if err != nil {
+		return "", errors.Wrap(err, "parse api base")
 	}
 
 	normalizedPath := strings.TrimSuffix(parsed.Path, "/")
@@ -283,22 +295,12 @@ func normalizeResponsesURL(apiBase string) string {
 	}
 
 	parsed.RawPath = ""
-	if parsed.Scheme == "" {
-		parsed.Scheme = "https"
-	}
-
-	if parsed.RawQuery == "" && parsed.Fragment == "" {
-		return parsed.String()
-	}
-
 	parsed.RawQuery = ""
+	parsed.ForceQuery = false
 	parsed.Fragment = ""
-	trimmed = parsed.String()
-	if strings.HasSuffix(trimmed, defaultResponsesPath) {
-		return trimmed
-	}
+	parsed.RawFragment = ""
 
-	return trimmed + defaultResponsesPath
+	return parsed.String(), nil
 }
 
 // readHTTPBodyWithLimit reads body up to maxBytes and reports whether truncation occurred.

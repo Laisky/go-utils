@@ -14,8 +14,9 @@ import (
 )
 
 // TestWithEmailRequireTLS_SelectsTLSSender verifies that WithEmailRequireTLS
-// switches the default dialer factory to the TLS-enforcing sender, while the
-// default (no option) keeps using gomail's dialer.
+// selects the TLS-enforcing sender, and that gomail's opportunistic dialer is
+// only reachable through the explicit WithEmailInsecureAllowPlaintext opt-out
+// (the zero-option default requires TLS since issue #58).
 func TestWithEmailRequireTLS_SelectsTLSSender(t *testing.T) {
 	t.Parallel()
 
@@ -28,8 +29,15 @@ func TestWithEmailRequireTLS_SelectsTLSSender(t *testing.T) {
 		require.Equal(t, 587, ts.port)
 	})
 
-	t.Run("default selects gomail dialer", func(t *testing.T) {
+	t.Run("default selects requireTLSSender", func(t *testing.T) {
 		opt := new(mailSendOpt).fillDefault().applyOpts(nil)
+		s := opt.dialerFact("smtp.example.com", 587, "u", "p")
+		_, ok := s.(*requireTLSSender)
+		require.True(t, ok, "expected *requireTLSSender, got %T", s)
+	})
+
+	t.Run("insecure opt-out selects gomail dialer", func(t *testing.T) {
+		opt := new(mailSendOpt).fillDefault().applyOpts([]SendOption{WithEmailInsecureAllowPlaintext()})
 		s := opt.dialerFact("smtp.example.com", 587, "u", "p")
 		_, ok := s.(*gomail.Dialer)
 		require.True(t, ok, "expected *gomail.Dialer, got %T", s)

@@ -105,13 +105,26 @@ type Config struct {
 	//   - API base: https://host[/optional-prefix] or https://host[/optional-prefix]/v1
 	//   - host only: host or host:port (HTTPS is assumed automatically)
 	// The engine normalizes all forms to .../v1/responses.
-	LLMAPIBase         string
-	LLMAPIKey          string
-	LLMModel           string
-	LLMTimeout         time.Duration
-	LLMMaxOutputTokens int
-	HeuristicClient    HeuristicClient
-	TimeNow            func() time.Time
+	//
+	// Security: LLMAPIKey and the current turn plus stored memory facts are
+	// sent to this endpoint, so NewEngine validates it before building the
+	// client: it must use https, have a valid host and port, and must not
+	// contain URL userinfo; other schemes and malformed URLs make NewEngine
+	// fail. Plain http requires LLMAllowInsecureHTTP. The built-in client only
+	// follows redirects that stay on the endpoint's origin.
+	LLMAPIBase string
+	LLMAPIKey  string
+	// LLMAllowInsecureHTTP is an explicit, insecure opt-in that additionally
+	// accepts a cleartext http LLMAPIBase, for local development only. With it
+	// the API key and memory payloads are sent unencrypted. It applies to any
+	// host; there is no implicit loopback exception. Leave it false in
+	// production.
+	LLMAllowInsecureHTTP bool
+	LLMModel             string
+	LLMTimeout           time.Duration
+	LLMMaxOutputTokens   int
+	HeuristicClient      HeuristicClient
+	TimeNow              func() time.Time
 }
 
 // StandardEngine is a storage-backed implementation of Engine.

@@ -13,6 +13,7 @@ import (
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
 
+	"github.com/Laisky/go-utils/v6/agents/internal/securehttp"
 	"github.com/Laisky/go-utils/v6/log"
 )
 
@@ -94,10 +95,40 @@ type HTTPDoer interface {
 }
 
 // MCPClientConfig contains runtime config for MCP JSON-RPC client.
+//
+// Security contract: every request carries APIKey as a bearer credential and
+// JSON-RPC payloads that may contain file contents, so NewMCPClient validates
+// Endpoint before any request is built (see the field docs). The validation
+// applies regardless of Client.
 type MCPClientConfig struct {
+	// Endpoint is the MCP JSON-RPC URL. It must use https, have a valid host
+	// and port, and must not contain URL userinfo; other schemes and malformed
+	// URLs are rejected. A scheme-less value such as "mcp.example.com/mcp" is
+	// normalized to https. Plain http is only accepted when AllowInsecureHTTP
+	// is set.
 	Endpoint string
-	APIKey   string
-	Client   HTTPDoer
+	// APIKey is the bearer credential sent in the Authorization header.
+	APIKey string
+	// Client optionally overrides the HTTP client. When nil, NewMCPClient uses
+	// a bounded client that verifies TLS and only follows redirects that stay
+	// on the endpoint's origin, refusing https-to-http downgrades and
+	// cross-origin hops.
+	//
+	// When Client is supplied, the library still validates Endpoint but cannot
+	// control the client's redirect policy, proxy, or TLS settings. The caller
+	// is then responsible for making it refuse redirects that downgrade to
+	// http or leave the endpoint's origin (for example with an
+	// http.Client.CheckRedirect that returns an error for such hops), because
+	// net/http would otherwise replay the Authorization header to a same-host
+	// http URL, other ports, or subdomains, and replay 307/308 request bodies.
+	Client HTTPDoer
+	// AllowInsecureHTTP is an explicit, insecure opt-in that additionally
+	// accepts a cleartext http Endpoint, for local development only. With it
+	// the API key and every JSON-RPC payload are sent unencrypted, so anyone
+	// on the network path can read or tamper with them. It applies to any
+	// host; there is no implicit loopback exception. Leave it false in
+	// production.
+	AllowInsecureHTTP bool
 }
 
 // MCPClient is a minimal JSON-RPC MCP client with session caching.
@@ -111,7 +142,12 @@ type MCPClient struct {
 	rpcID     int64
 }
 
-// NewMCPClient creates an MCP JSON-RPC client.
+// NewMCPClient creates an MCP JSON-RPC client from conf.
+//
+// It validates conf.Endpoint against the transport-security policy documented
+// on MCPClientConfig before any request is built, so a rejected endpoint never
+// receives the API key or a payload. It returns the client, or an error when
+// the endpoint or API key is missing or the endpoint is not allowed.
 func NewMCPClient(conf MCPClientConfig) (*MCPClient, error) {
 	if strings.TrimSpace(conf.Endpoint) == "" {
 		return nil, errors.Errorf("endpoint is required")
@@ -120,14 +156,24 @@ func NewMCPClient(conf MCPClientConfig) (*MCPClient, error) {
 		return nil, errors.Errorf("api key is required")
 	}
 
-	httpCli := conf.Client
-	if httpCli == nil {
-		// Use a bounded default client so misconfigured callers cannot hang forever on remote MCP calls.
-		httpCli = &http.Client{Timeout: defaultMCPClientTimeout}
+	endpoint, err := securehttp.ParseEndpoint(conf.Endpoint, conf.AllowInsecureHTTP)
+	if err != nil {
+		return nil, errors.Wrap(err, "validate mcp endpoint")
 	}
 
+	httpCli := conf.Client
+	if httpCli == nil {
+		// Use a bounded default client so misconfigured callers cannot hang forever on remote MCP calls,
+		// and refuse redirects that would carry the bearer credential or payload off the endpoint's origin.
+		httpCli = securehttp.NewHTTPClient(defaultMCPClientTimeout)
+	}
+	log.Shared.Debug("mcp client configured",
+		zap.String("scheme", endpoint.Scheme),
+		zap.String("host", endpoint.Host),
+		zap.Bool("custom_http_client", conf.Client != nil))
+
 	return &MCPClient{
-		endpoint: conf.Endpoint,
+		endpoint: endpoint.String(),
 		apiKey:   conf.APIKey,
 		httpCli:  httpCli,
 		rpcID:    1,

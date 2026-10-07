@@ -1,4 +1,33 @@
-// Package email simple email sender
+// Package email is a simple SMTP email sender.
+//
+// # Transport security
+//
+// MailT.Send requires an encrypted, verified SMTP session by default. On the
+// conventional implicit-TLS (SMTPS) port 465 the connection is wrapped in TLS
+// before the SMTP greeting; on every other port the server must advertise
+// STARTTLS and the upgrade must succeed. If encryption cannot be established,
+// Send fails before any AUTH, MAIL, RCPT, or DATA command is transmitted, so
+// neither credentials nor message content ever travel in cleartext. This
+// defeats STARTTLS-stripping downgrade attacks.
+//
+// The default TLS configuration verifies the server certificate against the
+// system roots, checks it against the configured SMTP host name, and requires
+// TLS 1.2 or newer. WithEmailRequireTLS accepts a custom *tls.Config (for
+// example a private CA pool); it is cloned per send, its ServerName defaults
+// to the SMTP host when empty, and its MinVersion is raised to TLS 1.2 when
+// lower. Any InsecureSkipVerify or VerifyConnection setting in a caller
+// supplied config is honored as given and is the caller's responsibility.
+//
+// Migration: before issue #58 the zero-option default was gomail's
+// opportunistic STARTTLS, which silently continued in plaintext when the
+// server did not advertise STARTTLS. Operators of plaintext-only relays must
+// now opt out explicitly with WithEmailInsecureAllowPlaintext, which restores
+// the old opportunistic behavior. When both WithEmailRequireTLS and
+// WithEmailInsecureAllowPlaintext are supplied, the strict mode wins.
+//
+// WithMailSendDialer replaces the transport entirely; a custom dialer factory
+// takes precedence over every TLS option and is responsible for its own
+// transport security.
 package email
 
 import (
@@ -18,9 +47,14 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-// smtpDialTimeout bounds how long the TLS-enforcing sender waits to establish
-// the TCP connection to the SMTP server.
-const smtpDialTimeout = 30 * time.Second
+const (
+	// smtpDialTimeout bounds how long the TLS-enforcing sender waits to establish
+	// the TCP connection to the SMTP server.
+	smtpDialTimeout = 30 * time.Second
+	// smtpsPort is the conventional implicit-TLS (SMTPS) port. Connections to it
+	// are wrapped in TLS before the SMTP greeting instead of using STARTTLS.
+	smtpsPort = 465
+)
 
 // validateHeaderValue rejects values containing CRLF sequences
 // to prevent email header injection attacks.
@@ -95,34 +129,52 @@ type Sender interface {
 	DialAndSend(m ...*gomail.Message) error
 }
 
+// mailSendOpt stores the per-call options resolved for MailT.Send.
 type mailSendOpt struct {
 	dialerFact func(host string, port int, username, passwd string) Sender
+	// requireTLS records an explicit WithEmailRequireTLS; it overrides
+	// allowPlaintext so conflicting options fail closed.
 	requireTLS bool
-	tlsConfig  *tls.Config
+	// allowPlaintext records WithEmailInsecureAllowPlaintext, the explicit
+	// opt-out that restores gomail's opportunistic STARTTLS.
+	allowPlaintext bool
+	tlsConfig      *tls.Config
 }
 
+// fillDefault installs the default dialer factory and returns o. The factory
+// reads the option fields when it is invoked (after applyOpts), selecting the
+// TLS-enforcing requireTLSSender unless the caller explicitly opted out of
+// transport security with WithEmailInsecureAllowPlaintext.
 func (o *mailSendOpt) fillDefault() *mailSendOpt {
 	o.dialerFact = func(host string, port int, username, passwd string) Sender {
-		// Security: when TLS is required, use a sender that guarantees the
-		// session is encrypted and refuses any plaintext fallback, instead of
-		// gomail's default opportunistic-STARTTLS dialer (which can be downgraded
-		// by a STARTTLS-stripping attacker).
-		if o.requireTLS {
-			return &requireTLSSender{
-				host:      host,
-				port:      port,
-				username:  username,
-				password:  passwd,
-				tlsConfig: o.tlsConfig,
-			}
+		// Security: plaintext-capable delivery is only reachable through the
+		// explicit insecure opt-out, and an explicit WithEmailRequireTLS always
+		// wins so conflicting options fail closed.
+		if o.allowPlaintext && !o.requireTLS {
+			log.Shared.Debug("smtp transport security disabled by explicit opt-out",
+				zap.String("host", host), zap.Int("port", port))
+			return gomail.NewDialer(host, port, username, passwd)
 		}
 
-		return gomail.NewDialer(host, port, username, passwd)
+		implicitTLS := port == smtpsPort
+		log.Shared.Debug("smtp transport requires tls",
+			zap.String("host", host), zap.Int("port", port),
+			zap.Bool("implicit_tls", implicitTLS),
+			zap.Bool("custom_tls_config", o.tlsConfig != nil))
+		return &requireTLSSender{
+			host:        host,
+			port:        port,
+			username:    username,
+			password:    passwd,
+			implicitTLS: implicitTLS,
+			tlsConfig:   o.tlsConfig,
+		}
 	}
 
 	return o
 }
 
+// applyOpts applies every SendOption in order to o and returns o.
 func (o *mailSendOpt) applyOpts(optfs []SendOption) *mailSendOpt {
 	for _, optf := range optfs {
 		optf(o)
@@ -133,7 +185,14 @@ func (o *mailSendOpt) applyOpts(optfs []SendOption) *mailSendOpt {
 // SendOption is a function to set option for Mail.Send
 type SendOption func(*mailSendOpt)
 
-// WithMailSendDialer set gomail.Dialer
+// WithMailSendDialer replaces the SMTP transport with a caller-supplied dialer
+// factory, which receives the host, port, and credentials and returns the
+// Sender used for delivery.
+//
+// Security: the supplied factory takes precedence over WithEmailRequireTLS
+// and WithEmailInsecureAllowPlaintext, so it fully owns transport security.
+// The returned Sender must itself refuse plaintext delivery when that is
+// required.
 func WithMailSendDialer(dialerFact func(host string, port int, username, passwd string) Sender) SendOption {
 	return func(opt *mailSendOpt) {
 		opt.dialerFact = dialerFact
@@ -143,16 +202,17 @@ func WithMailSendDialer(dialerFact func(host string, port int, username, passwd 
 // WithEmailRequireTLS enforces an encrypted SMTP connection and refuses to fall
 // back to plaintext.
 //
-// Security: by default delivery uses gomail's opportunistic STARTTLS. A network
-// attacker can defeat that by stripping the STARTTLS capability from the
-// server's EHLO response, causing credentials and message content to be
-// transmitted in cleartext (a STARTTLS-stripping downgrade attack). With this
-// option set, Send requires encryption: for the conventional implicit-TLS port
-// 465 it dials directly over TLS, and for any other port it requires the server
-// to advertise STARTTLS and aborts WITHOUT sending if it does not.
+// Encrypted delivery is already the default (see the package documentation),
+// so this option is only needed to supply a custom *tls.Config, or to make the
+// strict mode explicit: it overrides WithEmailInsecureAllowPlaintext regardless
+// of option order. For the implicit-TLS port 465 Send dials directly over TLS;
+// for any other port it requires the server to advertise STARTTLS and aborts
+// WITHOUT sending credentials or message data if it does not.
 //
-// An optional *tls.Config may be supplied; when nil a config using the SMTP host
-// as ServerName and a TLS 1.2 minimum is used.
+// An optional *tls.Config may be supplied. When nil, a config using the SMTP
+// host as ServerName, the system roots, and a TLS 1.2 minimum is used. A
+// supplied config is cloned per send; its ServerName defaults to the SMTP host
+// when empty and its MinVersion is raised to TLS 1.2 when lower.
 //
 // If WithMailSendDialer is also provided, the explicitly supplied dialer takes
 // precedence and this option has no effect.
@@ -165,23 +225,60 @@ func WithEmailRequireTLS(tlsConfig ...*tls.Config) SendOption {
 	}
 }
 
+// WithEmailInsecureAllowPlaintext is an explicit, insecure opt-out that
+// restores the legacy opportunistic STARTTLS behavior of gomail's dialer.
+//
+// Security: with this option a server that does not advertise STARTTLS (for
+// example because an on-path attacker stripped the capability) receives the
+// message, and possibly credentials for mechanisms gomail permits without TLS,
+// in cleartext. Use it only for trusted plaintext-only relays (such as a local
+// development relay) and migrate to an encrypted relay as soon as possible.
+// WithEmailRequireTLS overrides this option, and WithMailSendDialer replaces
+// the transport entirely.
+func WithEmailInsecureAllowPlaintext() SendOption {
+	return func(opt *mailSendOpt) {
+		opt.allowPlaintext = true
+	}
+}
+
 // requireTLSSender is a Sender that guarantees the SMTP session is encrypted
 // before any credentials or message data are transmitted, defending against
 // STARTTLS-stripping downgrade attacks.
 type requireTLSSender struct {
 	host, username, password string
 	port                     int
-	tlsConfig                *tls.Config
+	// implicitTLS wraps the TCP connection in TLS before the SMTP greeting
+	// (SMTPS); otherwise STARTTLS is mandatory.
+	implicitTLS bool
+	tlsConfig   *tls.Config
+}
+
+// effectiveTLSConfig returns the client TLS configuration used for one send.
+// Without a caller config it returns a config that verifies the server against
+// the system roots under the SMTP host name with a TLS 1.2 minimum. A caller
+// config is cloned (never mutated); its empty ServerName defaults to the SMTP
+// host and a MinVersion below TLS 1.2 is raised to TLS 1.2.
+func (s *requireTLSSender) effectiveTLSConfig() *tls.Config {
+	if s.tlsConfig == nil {
+		return &tls.Config{ServerName: s.host, MinVersion: tls.VersionTLS12}
+	}
+
+	cfg := s.tlsConfig.Clone()
+	if cfg.ServerName == "" {
+		cfg.ServerName = s.host
+	}
+	if cfg.MinVersion < tls.VersionTLS12 {
+		cfg.MinVersion = tls.VersionTLS12
+	}
+	return cfg
 }
 
 // DialAndSend connects to the SMTP server, enforces TLS, optionally
-// authenticates, and sends the messages. It returns an error (without sending)
-// if the connection cannot be encrypted.
+// authenticates, and sends the messages. It returns an error (without sending
+// credentials or message data) if the connection cannot be encrypted and
+// verified.
 func (s *requireTLSSender) DialAndSend(msgs ...*gomail.Message) error {
-	tlsCfg := s.tlsConfig
-	if tlsCfg == nil {
-		tlsCfg = &tls.Config{ServerName: s.host, MinVersion: tls.VersionTLS12}
-	}
+	tlsCfg := s.effectiveTLSConfig()
 
 	addr := net.JoinHostPort(s.host, strconv.Itoa(s.port))
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}
@@ -190,9 +287,9 @@ func (s *requireTLSSender) DialAndSend(msgs ...*gomail.Message) error {
 		return errors.Wrap(err, "dial smtp server")
 	}
 
-	// Port 465 is the conventional implicit-TLS (SMTPS) port: wrap the raw
-	// connection in TLS immediately.
-	if s.port == 465 {
+	// Implicit TLS (SMTPS, conventionally port 465): wrap the raw connection in
+	// TLS immediately; the handshake runs before the SMTP greeting is read.
+	if s.implicitTLS {
 		conn = tls.Client(conn, tlsCfg)
 	}
 
@@ -203,7 +300,7 @@ func (s *requireTLSSender) DialAndSend(msgs ...*gomail.Message) error {
 	}
 	defer func() { _ = c.Close() }()
 
-	if s.port != 465 {
+	if !s.implicitTLS {
 		// Require STARTTLS: if the server does not advertise it, refuse to send
 		// rather than silently transmitting credentials/content in plaintext.
 		if ok, _ := c.Extension("STARTTLS"); !ok {

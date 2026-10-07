@@ -11,8 +11,9 @@ import (
 )
 
 // TestOpenAIResponsesClientExtractAndMergeFacts verifies tool-call parsing and fact normalization.
+// It uses a TLS test server because cleartext API bases are rejected (issue #47).
 func TestOpenAIResponsesClientExtractAndMergeFacts(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		require.Equal(t, http.MethodPost, request.Method)
 		require.Equal(t, "/v1/responses", request.URL.Path)
 		require.NotEmpty(t, request.Header.Get("Authorization"))
@@ -30,9 +31,10 @@ func TestOpenAIResponsesClientExtractAndMergeFacts(t *testing.T) {
 	defer server.Close()
 
 	client, err := newOpenAIResponsesClient(openAIResponsesClientConfig{
-		APIBase: server.URL,
-		APIKey:  "test-key",
-		Model:   "gpt-4.1",
+		APIBase:    server.URL,
+		APIKey:     "test-key",
+		Model:      "gpt-4.1",
+		HTTPClient: server.Client(),
 	})
 	require.NoError(t, err)
 
@@ -89,16 +91,27 @@ func TestExtractHeuristicToolOutputNested(t *testing.T) {
 	require.Equal(t, "user_preference", output.UpdatedFacts[0].FactID)
 }
 
-// TestNormalizeResponsesURL verifies responses endpoint normalization behavior.
+// TestNormalizeResponsesURL verifies responses endpoint normalization behavior
+// of resolveResponsesURL for HTTPS API bases.
 func TestNormalizeResponsesURL(t *testing.T) {
-	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local"))
-	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local/"))
-	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("https://oneapi.local/v1/responses"))
-	require.Equal(t, "https://oneapi.local/v1/responses", normalizeResponsesURL("oneapi.local"))
-	require.Equal(t, "https://oneapi.local:8080/v1/responses", normalizeResponsesURL("oneapi.local:8080"))
-	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai"))
-	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai/v1"))
-	require.Equal(t, "https://oneapi.local/openai/v1/responses", normalizeResponsesURL("https://oneapi.local/openai/v1/responses"))
+	for _, tc := range []struct {
+		apiBase string
+		want    string
+	}{
+		{"https://oneapi.local", "https://oneapi.local/v1/responses"},
+		{"https://oneapi.local/", "https://oneapi.local/v1/responses"},
+		{"https://oneapi.local/v1/responses", "https://oneapi.local/v1/responses"},
+		{"oneapi.local", "https://oneapi.local/v1/responses"},
+		{"oneapi.local:8080", "https://oneapi.local:8080/v1/responses"},
+		{"https://oneapi.local/openai", "https://oneapi.local/openai/v1/responses"},
+		{"https://oneapi.local/openai/v1", "https://oneapi.local/openai/v1/responses"},
+		{"https://oneapi.local/openai/v1/responses", "https://oneapi.local/openai/v1/responses"},
+		{"https://oneapi.local/openai/v1?x=1#frag", "https://oneapi.local/openai/v1/responses"},
+	} {
+		got, err := resolveResponsesURL(tc.apiBase, false)
+		require.NoError(t, err, tc.apiBase)
+		require.Equal(t, tc.want, got, tc.apiBase)
+	}
 }
 
 // TestMergeFactCandidates verifies heuristic candidates override rule candidates by fact key.
