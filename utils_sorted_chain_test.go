@@ -10,6 +10,9 @@ import (
 	"github.com/Laisky/go-utils/v6/common"
 )
 
+// TestCombineSortedChain verifies that CombineSortedChain rejects an empty channel list and merges one or more
+// sorted input channels into a single output that stays sorted in ascending or descending order, including
+// inputs with disjoint ranges and continuously overlapping random streams.
 func TestCombineSortedChain(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +222,9 @@ func TestCombineSortedChain(t *testing.T) {
 	})
 }
 
+// Benchmark_CombineSortedChain measures receiving merged values from CombineSortedChain over three endless,
+// randomly increasing ascending input channels, checking that the output stays ordered.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_CombineSortedChain
 // Benchmark_CombineSortedChain/CombineSortedChain

@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// TestURLMasking verifies that URLMasking replaces only the userinfo password of http and https URLs with the
+// given mask, leaving the scheme, username, host, and path unchanged.
 func TestURLMasking(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +36,7 @@ func TestURLMasking(t *testing.T) {
 	}
 }
 
+// ExampleURLMasking demonstrates replacing the password in a URL's userinfo with "*****".
 func ExampleURLMasking() {
 	originURL := "http://12ijij:3j23irj@jfjlwef.ffe.com"
 	newURL := URLMasking(originURL, "*****")

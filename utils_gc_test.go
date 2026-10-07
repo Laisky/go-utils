@@ -13,11 +13,14 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestTriggerGC verifies that TriggerGC and ForceGC can be called directly without panicking.
 func TestTriggerGC(t *testing.T) {
 	TriggerGC()
 	ForceGC()
 }
 
+// TestAutoGC verifies that AutoGC starts successfully with an 85% memory ratio and a readable memory-limit file,
+// and that it returns an error for memory ratios of -1, 0, or 101 and for a nonexistent memory-limit file path.
 func TestAutoGC(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +65,8 @@ func TestAutoGC(t *testing.T) {
 	}
 }
 
+// ExampleAutoGC demonstrates enabling AutoGC for one second with the default 85% memory ratio and the default
+// cgroup memory-limit file path, logging any setup error.
 func ExampleAutoGC() {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -74,20 +79,27 @@ func ExampleAutoGC() {
 	}
 }
 
+// TestForceGCBlocking verifies that ForceGCBlocking runs a blocking garbage collection without panicking.
 func TestForceGCBlocking(t *testing.T) {
 	t.Parallel()
 
 	ForceGCBlocking()
 }
 
+// ExampleForceGCBlocking demonstrates running a blocking garbage collection that also returns freed memory to
+// the operating system.
 func ExampleForceGCBlocking() {
 	ForceGCBlocking()
 }
 
+// ExampleForceGCUnBlocking demonstrates triggering a garbage collection in the background without blocking the
+// caller.
 func ExampleForceGCUnBlocking() {
 	ForceGCUnBlocking()
 }
 
+// TestForceGCUnBlocking verifies that ForceGCUnBlocking returns without blocking and is safe to call from 1000
+// concurrent goroutines.
 func TestForceGCUnBlocking(t *testing.T) {
 	t.Parallel()
 

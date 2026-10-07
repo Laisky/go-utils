@@ -7,6 +7,8 @@ import (
 	"github.com/Laisky/go-utils/v6/json"
 )
 
+// TestFlattenMap verifies that FlattenMap rewrites a nested JSON-decoded map in place into "."-joined keys such
+// as "b.c" and "b.d.e", keeps top-level scalar values unchanged, and drops keys whose value is an empty map.
 func TestFlattenMap(t *testing.T) {
 	data := map[string]any{}
 	j := []byte(`{"a": "1", "b": {"c": 2, "d": {"e": 3}}, "f": 4, "g": {}}`)
@@ -32,6 +34,8 @@ func TestFlattenMap(t *testing.T) {
 	}
 }
 
+// ExampleFlattenMap demonstrates flattening a nested map in place with the "__" delimiter, producing keys such as
+// "b__c" and "b__d__e".
 func ExampleFlattenMap() {
 	data := map[string]any{
 		"a": "1",

@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestValidateFileHash verifies that the deprecated ValidateFileHash alias rejects malformed sha256 and md5
+// digests, the unsupported "sha254" algorithm, and an empty digest string, and accepts the correct sha256 and md5
+// digests of a temporary file with known content.
 func TestValidateFileHash(t *testing.T) {
 	t.Parallel()
 

@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRemoveEmpty verifies that RemoveEmpty drops empty and whitespace-only strings while preserving the order of
+// the remaining elements.
 func TestRemoveEmpty(t *testing.T) {
 	type args struct {
 		vs []string
@@ -30,6 +32,8 @@ func TestRemoveEmpty(t *testing.T) {
 	}
 }
 
+// TestTrimEleSpaceAndRemoveEmpty verifies that TrimEleSpaceAndRemoveEmpty trims leading and trailing spaces from
+// every element and drops elements that become empty, preserving the order of the rest.
 func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 	type args struct {
 		vs []string
@@ -88,6 +92,8 @@ func TestTrimEleSpaceAndRemoveEmpty(t *testing.T) {
 
 // }
 
+// TestConvert2Map verifies that ConvertMap2StringKey converts maps keyed by any, string, int, or float32 into
+// map[string]any with stringified keys while keeping the original values and their types.
 func TestConvert2Map(t *testing.T) {
 	type args struct {
 		inputMap any
@@ -114,6 +120,8 @@ func TestConvert2Map(t *testing.T) {
 	}
 }
 
+// Benchmark_slice measures storing 128-byte payload structs in slices of structs versus slices of struct
+// pointers, both by growing appends and by assignment into a preallocated 100-element slice.
 func Benchmark_slice(b *testing.B) {
 	type foo struct {
 		val string
@@ -153,6 +161,7 @@ func Benchmark_slice(b *testing.B) {
 	})
 }
 
+// TestContains verifies that Contains reports present and absent elements correctly for string and int slices.
 func TestContains(t *testing.T) {
 	require.True(t, Contains([]string{"1", "2", "3"}, "2"))
 	require.False(t, Contains([]string{"1", "2", "3"}, "4"))
@@ -160,6 +169,8 @@ func TestContains(t *testing.T) {
 	require.False(t, Contains([]int{1, 2, 3}, 4))
 }
 
+// TestReverseSlice verifies that ReverseSlice reverses a slice in place for empty, even-length, and odd-length
+// inputs.
 func TestReverseSlice(t *testing.T) {
 	t.Parallel()
 
@@ -204,6 +215,8 @@ func TestReverseSlice(t *testing.T) {
 	}
 }
 
+// TestUniqueStrings verifies that UniqueStrings removes duplicates while keeping first-occurrence order, and that
+// the result for 100000 random two-character strings contains no duplicates.
 func TestUniqueStrings(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +273,9 @@ func TestUniqueStrings(t *testing.T) {
 	})
 }
 
+// Benchmark_UniqueStrings measures a single UniqueStrings call on a slice built from 100000 random
+// two-character strings per outer benchmark iteration; the sub-benchmark does not loop over b.N.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_UniqueStrings
 // Benchmark_UniqueStrings/100000
@@ -279,6 +295,8 @@ func Benchmark_UniqueStrings(b *testing.B) {
 	})
 }
 
+// TestRemoveEmptyVal verifies that RemoveEmptyVal recursively removes empty strings, nil values, empty slices,
+// and empty nested maps (including maps that become empty after cleaning) while keeping non-empty values.
 func TestRemoveEmptyVal(t *testing.T) {
 	t.Parallel()
 
@@ -377,6 +395,8 @@ func TestRemoveEmptyVal(t *testing.T) {
 	})
 }
 
+// TestFilterSlice verifies that FilterSlice keeps only the elements matching the predicate, in their original
+// order, for int, string, and struct slices.
 func TestFilterSlice(t *testing.T) {
 	t.Parallel()
 

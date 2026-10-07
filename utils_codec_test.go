@@ -12,6 +12,9 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestJSON verifies that the json package round-trips a string through Marshal/Unmarshal and
+// MarshalToString/UnmarshalFromString, that Unmarshal rejects input containing // comments, and that
+// UnmarshalComment accepts the same input and decodes its fields.
 func TestJSON(t *testing.T) {
 	t.Parallel()
 
@@ -61,6 +64,9 @@ func TestJSON(t *testing.T) {
 	})
 }
 
+// Benchmark_Str2Bytes measures converting a 1024-byte random string to bytes and back with standard copying
+// conversions versus the zero-copy Str2Bytes and Bytes2Str helpers. Recorded results are kept below.
+//
 /*
 cpu: Intel(R) Core(TM) i7-4790 CPU @ 3.60GHz
 Benchmark_Str2Bytes/normal_str2bytes-8         	  868298	      1156 ns/op	    1024 B/op	       1 allocs/op
@@ -94,6 +100,9 @@ func Benchmark_Str2Bytes(b *testing.B) {
 	})
 }
 
+// TestBytes2Str verifies that Bytes2Str returns a string equal to the source bytes without copying, so later
+// mutations of the byte slice are visible through the string, and that Str2Bytes on that string yields bytes
+// equal to the mutated slice.
 func TestBytes2Str(t *testing.T) {
 	rawStr := RandomStringWithLength(1024)
 	rawBytes := []byte(rawStr)
@@ -116,6 +125,8 @@ func TestBytes2Str(t *testing.T) {
 	}
 }
 
+// TestJSONMd5 verifies that MD5JSON returns an error for a nil interface and a typed nil pointer, and returns the
+// expected hex MD5 of the JSON encoding for zero-valued struct values and pointers and for a populated struct.
 func TestJSONMd5(t *testing.T) {
 	type args struct {
 		data any
@@ -151,6 +162,9 @@ func TestJSONMd5(t *testing.T) {
 	}
 }
 
+// TestNewHasPrefixWithMagic verifies that the matcher returned by NewHasPrefixWithMagic reports matches and
+// mismatches correctly for the 8-, 4-, and 2-byte magic-number paths, always matches for an empty prefix, and uses
+// the generic path correctly for a 3-byte prefix and a prefix longer than the input.
 func TestNewHasPrefixWithMagic(t *testing.T) {
 	t.Parallel()
 
@@ -227,6 +241,9 @@ func TestNewHasPrefixWithMagic(t *testing.T) {
 	}
 }
 
+// Benchmark_HasPrefix measures bytes.HasPrefix against the matcher returned by NewHasPrefixWithMagic for a
+// 4-byte prefix on a short input. Recorded results are kept below.
+//
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // Benchmark_HasPrefix/std-8         	404345066	         3.031 ns/op	       0 B/op	       0 allocs/op
 // Benchmark_HasPrefix/custom-8      	562408310	         2.133 ns/op	       0 B/op	       0 allocs/op
@@ -249,6 +266,8 @@ func Benchmark_HasPrefix(b *testing.B) {
 	})
 }
 
+// TestDecodeByBase64 verifies that DecodeByBase64 decodes empty and padded inputs to the expected bytes and
+// returns an error for inputs containing invalid characters or missing the required padding.
 func TestDecodeByBase64(t *testing.T) {
 	t.Parallel()
 
@@ -304,6 +323,8 @@ func TestDecodeByBase64(t *testing.T) {
 	}
 }
 
+// TestEncodeByBase64 verifies that EncodeByBase64 produces the expected padded base64 string for empty, ASCII,
+// binary, special-character, and UTF-8 inputs.
 func TestEncodeByBase64(t *testing.T) {
 	t.Parallel()
 
@@ -347,6 +368,8 @@ func TestEncodeByBase64(t *testing.T) {
 	}
 }
 
+// TestBase64RoundTrip verifies that decoding the output of EncodeByBase64 with DecodeByBase64 returns the original
+// bytes without error for empty, ASCII, binary, UTF-8, and 1024-byte random inputs.
 func TestBase64RoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -386,6 +409,7 @@ func TestBase64RoundTrip(t *testing.T) {
 	}
 }
 
+// ExampleEncodeByBase64 demonstrates encoding the bytes of "Hello, World!" into its padded base64 string.
 func ExampleEncodeByBase64() {
 	input := []byte("Hello, World!")
 	encoded := EncodeByBase64(input)
@@ -393,6 +417,8 @@ func ExampleEncodeByBase64() {
 	// Output: SGVsbG8sIFdvcmxkIQ==
 }
 
+// ExampleDecodeByBase64 demonstrates decoding a padded base64 string back to "Hello, World!", logging the error
+// and returning early if decoding fails.
 func ExampleDecodeByBase64() {
 	input := "SGVsbG8sIFdvcmxkIQ=="
 	decoded, err := DecodeByBase64(input)

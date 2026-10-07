@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRunCMD verifies that RunCMD runs "sleep 0.1" successfully, returns an error with output containing
+// "sleep: missing operand" when sleep gets no arguments, and rejects app names that contain command substitution,
+// newlines, or NUL bytes.
 func TestRunCMD(t *testing.T) {
 	ctx := context.Background()
 	type args struct {
@@ -45,7 +48,9 @@ func TestRunCMD(t *testing.T) {
 	}
 }
 
-// linux pipe has 16MB default buffer
+// TestRunCMDForHugeFile verifies that RunCMDWithOptions with an 18MiB MaxOutputBytes limit returns the complete
+// 18MiB output of "cat" on a generated file. The output deliberately dwarfs the Linux pipe buffer (64KiB by
+// default) to prove that large outputs are drained and read completely without deadlocking the child.
 func TestRunCMDForHugeFile(t *testing.T) {
 	dir, err := os.MkdirTemp("", "run_cmd-*")
 	require.NoError(t, err)
@@ -68,6 +73,8 @@ func TestRunCMDForHugeFile(t *testing.T) {
 	require.Equal(t, len(out), 18*1024*1024)
 }
 
+// TestRunCMDWithEnv verifies that RunCMDWithEnv passes the supplied environment variables to the child process, so
+// running "echo $FOO" through /bin/bash with FOO=BAR returns exactly "BAR\n".
 func TestRunCMDWithEnv(t *testing.T) {
 	ctx := context.Background()
 
@@ -100,6 +107,9 @@ func TestRunCMDWithEnv(t *testing.T) {
 	}
 }
 
+// TestRunCMD2 verifies that RunCMD2 streams stdout line by line to the handler: a bash script printing "hello"
+// every 100ms must deliver more than five lines, the first containing "hello", within one second before the
+// context is canceled.
 func TestRunCMD2(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "TestRunCMD2-*")

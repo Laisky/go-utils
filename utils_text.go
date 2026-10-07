@@ -14,11 +14,14 @@ type dedentOpt struct {
 	replaceTabBySpaces int
 }
 
+// fillDefault sets the default dedent options, which replace each leading tab with four spaces, and returns d
+// for chaining.
 func (d *dedentOpt) fillDefault() *dedentOpt {
 	d.replaceTabBySpaces = 4
 	return d
 }
 
+// applyOpts applies each option function in optfs to d in order and returns d for chaining.
 func (d *dedentOpt) applyOpts(optfs ...DedentOptFunc) *dedentOpt {
 	for _, optf := range optfs {
 		optf(d)

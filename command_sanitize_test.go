@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSanitizeCMDArgs verifies that SanitizeCMDArgs trims surrounding whitespace from each argument and keeps a bare
+// "$", while rejecting "$(...)" command substitution and arguments that contain newline, carriage-return, or NUL
+// control characters.
 func TestSanitizeCMDArgs(t *testing.T) {
 	tests := []struct {
 		name        string

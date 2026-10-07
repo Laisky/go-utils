@@ -13,6 +13,8 @@ type prettyBuildInfoOption struct {
 	withDeps bool
 }
 
+// apply invokes every option in fs on o in order, so later options override earlier ones. It returns o itself to
+// allow chaining after allocation; a nil option function in fs would panic when invoked.
 func (o *prettyBuildInfoOption) apply(fs ...PrettyBuildInfoOption) *prettyBuildInfoOption {
 	for _, f := range fs {
 		f(o)

@@ -44,6 +44,9 @@ var (
 	Number2Roman = common.Number2Roman
 )
 
+// init adjusts GOMAXPROCS to the container CPU quota via automaxprocs when the package is loaded. It routes
+// automaxprocs messages to the shared logger at debug level and logs an error if the adjustment fails; it takes no
+// parameters and returns nothing.
 func init() {
 	if _, err := maxprocs.Set(maxprocs.Logger(func(s string, i ...interface{}) {
 		log.Shared.Debug(fmt.Sprintf(s, i...))

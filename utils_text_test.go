@@ -12,6 +12,8 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestRegexNamedSubMatch2 verifies that RegexNamedSubMatch2 extracts named capture groups from a pipe-separated
+// log line, returning "INFO" for the level group and "74" for the line group.
 func TestRegexNamedSubMatch2(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +38,8 @@ func TestRegexNamedSubMatch2(t *testing.T) {
 	}
 }
 
+// TestRegexNamedSubMatch verifies that the deprecated RegexNamedSubMatch fills a caller-provided map with the
+// named capture groups of a pipe-separated log line, yielding "INFO" for level and "74" for line.
 func TestRegexNamedSubMatch(t *testing.T) {
 	t.Parallel()
 
@@ -62,6 +66,8 @@ func TestRegexNamedSubMatch(t *testing.T) {
 	}
 }
 
+// ExampleRegexNamedSubMatch demonstrates extracting a named capture group into a caller-provided map with
+// RegexNamedSubMatch.
 func ExampleRegexNamedSubMatch() {
 	reg := regexp.MustCompile(`(?P<key>\d+.*)`)
 	str := "12345abcde"
@@ -75,6 +81,8 @@ func ExampleRegexNamedSubMatch() {
 
 }
 
+// TestTemplateWithMap verifies that TemplateWithMap substitutes ${key} placeholders with int, string, and float64
+// values, including keys that contain a hyphen.
 func TestTemplateWithMap(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +99,9 @@ func TestTemplateWithMap(t *testing.T) {
 	}
 }
 
+// TestDedent verifies that Dedent strips the smallest common leading indentation, expands leading tabs to the
+// configured number of spaces (four by default), keeps interior blank lines, and drops leading and trailing
+// blank lines.
 func TestDedent(t *testing.T) {
 	// t.Run("normal", func(t *testing.T) {
 	// 	v := `
@@ -154,6 +165,9 @@ func TestDedent(t *testing.T) {
 
 }
 
+// TestParseObjectIdentifier verifies that ParseObjectIdentifier parses dotted decimal strings into
+// asn1.ObjectIdentifier values and rejects negative or non-numeric components and trailing dots with an
+// "invalid oid format" error.
 func TestParseObjectIdentifier(t *testing.T) {
 	t.Parallel()
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFallBack verifies that FallBack recovers from a panicking function and returns the provided fallback value.
 func TestFallBack(t *testing.T) {
 	t.Parallel()
 
@@ -29,6 +30,7 @@ func TestFallBack(t *testing.T) {
 	}
 }
 
+// ExampleFallBack demonstrates FallBack returning the fallback value 10 when the wrapped function panics.
 func ExampleFallBack() {
 	targetFunc := func() any {
 		panic("someting wrong")
@@ -37,6 +39,8 @@ func ExampleFallBack() {
 	FallBack(targetFunc, 10) // got 10
 }
 
+// TestPanicIfErr verifies that PanicIfErr does nothing for a nil error and panics with the exact error value
+// it receives for a non-nil error.
 func TestPanicIfErr(t *testing.T) {
 	PanicIfErr(nil)
 
@@ -50,16 +54,21 @@ func TestPanicIfErr(t *testing.T) {
 
 type testCloseQuitlyStruct struct{}
 
+// Close implements io.Closer for testCloseQuitlyStruct. It takes no parameters and always returns nil.
 func (f *testCloseQuitlyStruct) Close() error {
 	return nil
 }
 
+// TestSilentClose verifies that SilentClose closes a value whose Close method succeeds without panicking.
 func TestSilentClose(t *testing.T) {
 
 	f := new(testCloseQuitlyStruct)
 	SilentClose(f)
 }
 
+// TestCtxKey documents context key semantics: distinct variables of the same empty struct type collide as keys,
+// different string values of one key type do not collide, and equal string values of distinct named key types
+// neither collide nor overwrite each other.
 func TestCtxKey(t *testing.T) {
 	// Warning: should not use empty type as context key
 	t.Run("empty type as key", func(t *testing.T) {
@@ -112,12 +121,15 @@ func TestCtxKey(t *testing.T) {
 	})
 }
 
+// TestCostSecs verifies that CostSecs formats a 351ms duration as "0.35s" with two decimal places.
 func TestCostSecs(t *testing.T) {
 	d := time.Millisecond * 351
 	v := CostSecs(d)
 	require.Equal(t, "0.35s", v)
 }
 
+// TestPipeline verifies that Pipeline applies every function in order to the same pointer value and returns that
+// value with a nil error, so incrementing by 1 then by 2 yields 3.
 func TestPipeline(t *testing.T) {
 	f1 := func(v *int) error { (*v)++; return nil }
 	f2 := func(v *int) error { (*v) += 2; return nil }
@@ -129,6 +141,8 @@ func TestPipeline(t *testing.T) {
 	require.Equal(t, 3, *gotv)
 }
 
+// Test_singleflight verifies that sequential internalSFG.Do calls with the same key each run their function,
+// because singleflight only deduplicates calls that are in flight concurrently.
 func Test_singleflight(t *testing.T) {
 	var n int
 	key := RandomStringWithLength(10)
@@ -138,6 +152,8 @@ func Test_singleflight(t *testing.T) {
 	require.Equal(t, 3, n)
 }
 
+// TestDelayer_Wait verifies that a deferred NewDelay(d).Wait() lets the function body run immediately but
+// blocks the return until at least d has elapsed since NewDelay was called.
 func TestDelayer_Wait(t *testing.T) {
 	startAt := time.Now()
 	delay := 10 * time.Millisecond
@@ -150,6 +166,7 @@ func TestDelayer_Wait(t *testing.T) {
 	require.GreaterOrEqual(t, time.Since(startAt), delay)
 }
 
+// ExampleNewDelay demonstrates deferring NewDelay(d).Wait() so that a function takes at least d to return.
 func ExampleNewDelay() {
 	startAt := time.Now()
 	delay := 10 * time.Millisecond
@@ -162,6 +179,8 @@ func ExampleNewDelay() {
 	// Output: true
 }
 
+// Test_FileHashSharding verifies that FileHashSharding prefixes a file name with two directory levels built from
+// the first and second byte pairs of the hex SHA-1 digest of the name.
 func Test_FileHashSharding(t *testing.T) {
 	type args struct {
 		fname string
@@ -185,6 +204,8 @@ func Test_FileHashSharding(t *testing.T) {
 	}
 }
 
+// Test_Sum verifies that writing "a", "b", and "c" to a SHA-256 hasher yields the digest of "abc", and that
+// writing each chunk twice yields the digest of "aabbcc", showing that Write calls are concatenated.
 func Test_Sum(t *testing.T) {
 	r1 := []byte("a")
 	r2 := []byte("b")
@@ -244,6 +265,8 @@ func (t *tt) Flush() error {
 	return errors.Errorf("flush error")
 }
 
+// TestCloseWithLog verifies that CloseWithLog and FlushWithLog accept a nil logger, and report Close and Flush
+// failures to a provided logger with the messages "close ins" and "flush ins".
 func TestCloseWithLog(t *testing.T) {
 	logger := new(testlog)
 	tc := new(tt)
@@ -257,6 +280,8 @@ func TestCloseWithLog(t *testing.T) {
 	require.Equal(t, "flush ins", logger.content)
 }
 
+// TestIsPanic2 verifies that IsPanic2 returns an error containing the panic message when the function panics,
+// and returns nil when the function completes normally.
 func TestIsPanic2(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		panicMsg := "test panic"
@@ -281,6 +306,8 @@ func TestIsPanic2(t *testing.T) {
 	})
 }
 
+// TestCopy verifies that copying a capacity-limited 11-byte slice into a zeroed 16-byte buffer produces the same
+// bytes as appending zero padding built with bytes.Repeat or make.
 func TestCopy(t *testing.T) {
 	raw := []byte("hello, world")
 	raw = raw[: len(raw)-1 : len(raw)]
@@ -296,6 +323,8 @@ func TestCopy(t *testing.T) {
 	require.Equal(t, padded1, padded3)
 }
 
+// TestGetEnvInsensitive verifies that GetEnvInsensitive returns the values of all environment variables whose
+// names match the key case-insensitively, and returns no values for a key that only partially matches or is unset.
 func TestGetEnvInsensitive(t *testing.T) {
 	t.Parallel()
 

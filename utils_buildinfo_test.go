@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestPrettyBuildInfo verifies that PrettyBuildInfo without options emits the GoVersion and Main keys with
+// "Deps" set to null, and that WithPrettyBuildInfoDeps makes it emit the Deps key as well.
 func TestPrettyBuildInfo(t *testing.T) {
 	t.Parallel()
 

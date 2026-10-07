@@ -24,14 +24,20 @@ type testStCorrect2 struct {
 type testStFail struct {
 }
 
+// PointerMethod is a no-op pointer-receiver method that TestHasMethod looks up by name on testStCorrect1. It takes
+// no parameters and returns nothing.
 func (t *testStCorrect1) PointerMethod() {
 
 }
 
+// Method is a no-op pointer-receiver method that TestHasMethod looks up by name on testStCorrect1. It takes no
+// parameters and returns nothing.
 func (t *testStCorrect1) Method() {
 
 }
 
+// TestHasMethod verifies that HasMethod finds pointer-receiver methods on both a testStCorrect1 value and pointer,
+// and reports false for a testStFail value and pointer, which define no methods.
 func TestHasMethod(t *testing.T) {
 	st1 := testStCorrect1{}
 	st1p := &testStCorrect1{}
@@ -67,6 +73,8 @@ func TestHasMethod(t *testing.T) {
 	}
 }
 
+// TestHasField verifies that HasField finds an embedded field and a named unexported field on struct values and
+// pointers, and reports false for a struct value and pointer that have no such field.
 func TestHasField(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +107,7 @@ func TestHasField(t *testing.T) {
 	}
 }
 
+// TestIsPtr verifies that IsPtr returns true for a pointer to a struct and false for a struct value.
 func TestIsPtr(t *testing.T) {
 	vp := &struct{}{}
 	vt := struct{}{}
@@ -111,8 +120,12 @@ func TestIsPtr(t *testing.T) {
 	}
 }
 
+// testFoo is an empty function whose fully qualified name is resolved by TestGetFuncName and ExampleGetFuncName.
+// It takes no parameters and returns nothing.
 func testFoo() {}
 
+// TestGetFuncName verifies that GetFuncName returns the fully qualified name
+// "github.com/Laisky/go-utils/v6.testFoo" for the testFoo function value.
 func TestGetFuncName(t *testing.T) {
 	t.Parallel()
 
@@ -121,10 +134,13 @@ func TestGetFuncName(t *testing.T) {
 	}
 }
 
+// ExampleGetFuncName demonstrates obtaining the package-qualified name of a function value with GetFuncName.
 func ExampleGetFuncName() {
 	GetFuncName(testFoo) // "github.com/Laisky/go-utils.testFoo"
 }
 
+// TestReflectSet verifies that reflect can assign string values to every field of structs reached through
+// pointers in a slice without panicking, and logs the resulting structs.
 func TestReflectSet(t *testing.T) {
 	t.Parallel()
 
@@ -147,6 +163,8 @@ func TestReflectSet(t *testing.T) {
 	// t.Error()
 }
 
+// ExampleSetStructFieldsBySlice demonstrates filling the fields of a slice of struct pointers, in field order,
+// from a matching slice of string rows, logging the error and returning early if SetStructFieldsBySlice fails.
 func ExampleSetStructFieldsBySlice() {
 	type ST struct{ A, B string }
 	var (
@@ -166,6 +184,9 @@ func ExampleSetStructFieldsBySlice() {
 	// ss = []*ST{{A: "x0", B: "y0"}, {A: "x1", B: "y1"}}
 }
 
+// TestSetStructFieldsBySlice verifies that SetStructFieldsBySlice assigns row values to struct fields in order,
+// leaves fields unset for empty or short rows, ignores values beyond the field count, leaves structs without a
+// matching row untouched, and works for slices of both struct pointers and struct values.
 func TestSetStructFieldsBySlice(t *testing.T) {
 	t.Parallel()
 
@@ -232,6 +253,8 @@ func TestSetStructFieldsBySlice(t *testing.T) {
 	}
 }
 
+// TestGetStructFieldByName verifies that GetStructFieldByName, on both a struct value and a struct pointer, returns
+// the values of string, pointer, and int fields, and returns nil for a missing field and for a nil pointer field.
 func TestGetStructFieldByName(t *testing.T) {
 	t.Parallel()
 
@@ -279,6 +302,8 @@ func TestGetStructFieldByName(t *testing.T) {
 	}
 }
 
+// TestNilInterface verifies that NilInterface reports true for an untyped nil and for an interface holding a typed
+// nil pointer (which is not == nil), and false for a struct value and an int.
 func TestNilInterface(t *testing.T) {
 	type foo struct{}
 	var f *foo
@@ -293,6 +318,8 @@ func TestNilInterface(t *testing.T) {
 	require.True(t, NilInterface(nil))
 }
 
+// TestDeepClone verifies that DeepClone produces independent copies of a nested slice, a struct holding a pointer
+// to a struct with a slice, and a pointer to such a struct, so later mutations of the source do not affect them.
 func TestDeepClone(t *testing.T) {
 	t.Run("slice", func(t *testing.T) {
 		inner := []int{4, 5, 6}
@@ -339,6 +366,9 @@ func TestDeepClone(t *testing.T) {
 	})
 }
 
+// TestStructFieldRequired verifies that NotEmpty accepts a non-empty string, a pointer to it, and a non-zero int,
+// and returns errors mentioning "is empty pointer", "is point to empty elem", or "is empty elem" for a nil
+// pointer, a pointer to an empty string, and an empty string or zero float64 respectively.
 func TestStructFieldRequired(t *testing.T) {
 	v := struct {
 		A  string
@@ -363,6 +393,8 @@ func TestStructFieldRequired(t *testing.T) {
 	require.ErrorContains(t, NotEmpty(v.BB, "BB"), "is empty elem")
 }
 
+// TestOptionalVal verifies that OptionalVal keeps a non-empty string and a non-zero int, and substitutes the
+// optional value for a nil pointer field and a zero float64 field.
 func TestOptionalVal(t *testing.T) {
 	v := struct {
 		A  string

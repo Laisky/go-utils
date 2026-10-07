@@ -11,6 +11,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// TestUUID1 verifies that UUID1 produces 10000 unique values when called from concurrent goroutines, and that
+// sequentially generated values carry timestamps no earlier than that of the first value.
 func TestUUID1(t *testing.T) {
 	t.Run("goroutine", func(t *testing.T) {
 		var (
@@ -60,6 +62,8 @@ func TestUUID1(t *testing.T) {
 	})
 }
 
+// TestUUID4 verifies that UUID4 returns a parseable UUID and produces 10000 unique values across 10 concurrent
+// goroutines.
 func TestUUID4(t *testing.T) {
 	t.Parallel()
 	val := UUID4()
@@ -92,6 +96,8 @@ func TestUUID4(t *testing.T) {
 	})
 }
 
+// TestUUID7 verifies that UUID7 produces 10000 unique values across 10 concurrent goroutines, that every value is
+// accepted by ParseUUID7, and that a value generated one millisecond later sorts after the earlier one.
 func TestUUID7(t *testing.T) {
 	t.Parallel()
 	var (
@@ -130,6 +136,8 @@ func TestUUID7(t *testing.T) {
 	})
 }
 
+// TestUUID7Bytes verifies that UUID7Bytes returns distinct 16-byte values carrying UUID version 7 and the
+// RFC 4122 variant bits.
 func TestUUID7Bytes(t *testing.T) {
 	t.Parallel()
 
