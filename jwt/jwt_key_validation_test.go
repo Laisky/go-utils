@@ -11,6 +11,8 @@ import (
 	"github.com/Laisky/go-utils/v6/crypto"
 )
 
+// TestValidationWithAllSigningMethods runs table-driven HS256 and ES256 cases checking that New accepts valid key
+// material and rejects an empty secret, private key or public key with the matching error message.
 func TestValidationWithAllSigningMethods(t *testing.T) {
 	t.Parallel()
 
@@ -64,6 +66,9 @@ func TestValidationWithAllSigningMethods(t *testing.T) {
 	}
 }
 
+// TestComprehensiveKeyValidationWithGeneratedKeys verifies key validation with freshly generated keys: RS256 accepts a
+// generated RSA PEM pair and rejects either key when empty, ES256 signs and parses a token round trip with a generated
+// P-256 pair, and generated Ed25519 keys encode to PEM while New still rejects an empty private key.
 func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
 	t.Parallel()
 
@@ -173,6 +178,8 @@ func TestComprehensiveKeyValidationWithGeneratedKeys(t *testing.T) {
 	})
 }
 
+// TestDivideOptionsWithGeneratedKeys verifies that a keyless RS256 instance accepts two different generated RSA public
+// keys through WithDividePubKey without a key validation error, and still rejects an empty divide public key.
 func TestDivideOptionsWithGeneratedKeys(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +222,8 @@ func TestDivideOptionsWithGeneratedKeys(t *testing.T) {
 	require.Contains(t, err.Error(), "divide public key cannot be empty")
 }
 
+// TestKeyValidationWithDifferentKeySizes verifies, for 2048, 3072 and 4096-bit RSA keys, that New accepts a generated
+// RS256 PEM key pair and rejects an empty private key.
 func TestKeyValidationWithDifferentKeySizes(t *testing.T) {
 	t.Parallel()
 

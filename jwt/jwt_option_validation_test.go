@@ -10,6 +10,8 @@ import (
 	"github.com/Laisky/go-utils/v6/crypto"
 )
 
+// TestWithSecretByteValidation verifies that New rejects an empty or nil HS256 secret and a secret shorter than 32
+// bytes, and accepts a 32-byte secret.
 func TestWithSecretByteValidation(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +46,8 @@ func TestWithSecretByteValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestWithPriKeyByteValidation verifies that New rejects an empty or nil ES256 private key with a "private key cannot
+// be empty" error and accepts a valid PEM key pair.
 func TestWithPriKeyByteValidation(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +78,8 @@ func TestWithPriKeyByteValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestWithPubKeyByteValidation verifies that New rejects an empty or nil ES256 public key with a "public key cannot be
+// empty" error and accepts a valid PEM key pair.
 func TestWithPubKeyByteValidation(t *testing.T) {
 	t.Parallel()
 
@@ -104,6 +110,9 @@ func TestWithPubKeyByteValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestDivideOptionValidation verifies that per-call divide options are validated at sign time: WithDivideSecret
+// refuses empty, nil and shorter-than-32-byte secrets, WithDividePriKey and WithDividePubKey refuse empty or nil keys,
+// and a valid 32-byte divide secret signs successfully.
 func TestDivideOptionValidation(t *testing.T) {
 	t.Parallel()
 
@@ -156,6 +165,8 @@ func TestDivideOptionValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestParseWithDivideOptionsOnly verifies that New succeeds without any keys and that such an instance parses an HS256
+// token when the secret is supplied per call through WithDivideSecret.
 func TestParseWithDivideOptionsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -191,6 +202,8 @@ func TestParseWithDivideOptionsOnly(t *testing.T) {
 	require.Equal(t, "test-user", parsedClaims.Subject)
 }
 
+// TestParseWithoutKeysFailsGracefully verifies that parsing an HS256 token with a keyless instance and no divide
+// secret returns an "HS256 secret must not be empty" error instead of panicking or accepting the token.
 func TestParseWithoutKeysFailsGracefully(t *testing.T) {
 	t.Parallel()
 
@@ -224,6 +237,9 @@ func TestParseWithoutKeysFailsGracefully(t *testing.T) {
 	require.Contains(t, err.Error(), "HS256 secret must not be empty")
 }
 
+// TestRS256ParsingValidation verifies that ParseClaimsByRS256 on a keyless RS256 instance rejects empty or nil divide
+// public and private keys, and that a valid generated RSA public key passes option validation even though the dummy
+// token itself fails to parse.
 func TestRS256ParsingValidation(t *testing.T) {
 	t.Parallel()
 
@@ -268,6 +284,8 @@ func TestRS256ParsingValidation(t *testing.T) {
 	}
 }
 
+// TestMixedValidationScenarios verifies that an empty divide secret fails signing even when the instance holds a valid
+// main secret, and that New reports the private key error first when the ES256 private key, or both keys, are empty.
 func TestMixedValidationScenarios(t *testing.T) {
 	t.Parallel()
 

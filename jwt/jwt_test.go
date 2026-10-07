@@ -26,10 +26,14 @@ qLW+xXwTysxo/xiZcW8fwQowCyxcGJv8r7OfHYB/FScm3jgOaNhabM6laQ==
 	secret = []byte("4738947328rh3ru23f32hf238f238fh28f")
 )
 
+// testJWTClaims is the claims type the tests sign and parse; it only embeds jwt.RegisteredClaims.
 type testJWTClaims struct {
 	jwt.RegisteredClaims
 }
 
+// requireAudienceValidation validates claims with a jwt/v5 validator that requires audience. When wantErr is nil it
+// asserts that validation succeeds; otherwise it asserts that validation fails with an error matching wantErr through
+// errors.Is. Any mismatch fails the test t.
 func requireAudienceValidation(t *testing.T, claims jwt.Claims, audience string, wantErr error) {
 	t.Helper()
 
@@ -43,6 +47,8 @@ func requireAudienceValidation(t *testing.T, claims jwt.Claims, audience string,
 	require.True(t, stderrors.Is(err, wantErr), "unexpected error: %v", err)
 }
 
+// ExampleJWT demonstrates creating an HS256 JWT helper from a shared secret, signing registered claims that carry a
+// subject, and parsing the signed token back into a claims struct.
 func ExampleJWT() {
 	secret = []byte("4738947328rh3ru23f32hf238f238fh28f")
 	j, err := New(
@@ -76,6 +82,9 @@ func ExampleJWT() {
 	}
 }
 
+// TestJWTSignAndVerify verifies, for both an ES256 and an HS256 instance, that signed claims parse back with the same
+// subject and audience, that an expired token is rejected with jwt.ErrTokenExpired, and that a token issued in the
+// future is rejected with jwt.ErrTokenUsedBeforeIssued.
 func TestJWTSignAndVerify(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +163,8 @@ func TestJWTSignAndVerify(t *testing.T) {
 	}
 }
 
+// TestParseJWTTokenWithoutValidate verifies that ParseTokenWithoutValidate decodes the subject and the array audience
+// of a fixed HS256 token without checking its signature.
 func TestParseJWTTokenWithoutValidate(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +177,13 @@ func TestParseJWTTokenWithoutValidate(t *testing.T) {
 	require.Equal(t, jwt.ClaimStrings([]string{"dune"}), c.Audience)
 }
 
+// TestJWTAudValunerable guards against the jwt-go audience bypass in which an array-valued aud claim skipped audience
+// verification. For a token whose aud is ["dune", "laisky"] it checks that either listed audience is accepted and an
+// empty expected audience is rejected with jwt.ErrTokenInvalidAudience, both after ParseClaims and after
+// ParseTokenWithoutValidate.
+//
+// References:
+//
 // https://snyk.io/vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515?utm_medium=Partner&utm_source=RedHat&utm_campaign=Code-Ready-Analytics-2020&utm_content=vuln/SNYK-GOLANG-GITHUBCOMDGRIJALVAJWTGO-596515
 // https://github.com/dgrijalva/jwt-go/issues/422
 func TestJWTAudValunerable(t *testing.T) {
@@ -201,6 +219,8 @@ func TestJWTAudValunerable(t *testing.T) {
 	}
 }
 
+// TestParseTokenWithoutValidateStillWorks verifies that a token signed with SignByHS256 is still decoded by
+// ParseTokenWithoutValidate, which must stay unaffected by the key validation performed by New and the divide options.
 func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
 	t.Parallel()
 
@@ -230,6 +250,9 @@ func TestParseTokenWithoutValidateStillWorks(t *testing.T) {
 	require.Equal(t, "test-user", parsedClaims.Subject)
 }
 
+// TestHS256RejectsNilSecret verifies that an HS256 instance created without a secret refuses to sign through both
+// SignByHS256 and the Sign dispatcher with an "HS256 secret must not be empty" error, so it never issues tokens that
+// are forgeable with an empty HMAC key.
 func TestHS256RejectsNilSecret(t *testing.T) {
 	t.Parallel()
 
