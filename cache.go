@@ -47,6 +47,10 @@ func (c *TtlCache[T]) Close() {
 	}
 }
 
+// clean runs the background expiration loop of TtlCache until Close closes c.done.
+// It repeatedly inspects the earliest expiration key in the skip list, sleeps for up to one second when the list
+// is empty or that key has not expired yet, and otherwise removes the expired key from the skip-list index only;
+// the matching value in kv is dropped lazily when Get observes that it has expired. It returns nothing.
 func (c *TtlCache[T]) clean() {
 	now := time.Now()
 
@@ -202,6 +206,10 @@ func NewExpCache[T any](ctx context.Context, ttl time.Duration) *ExpCache[T] {
 	return c
 }
 
+// runClean runs the background eviction loop of ExpCache until ctx is canceled.
+// On every pass it ranges over all stored items, deletes those whose expiration time is before the start of the
+// pass, and then sleeps for c.ttl, so cancellation is only noticed after the current sleep. Expired items may stay
+// in memory until the next pass, although Load and LoadAndDelete already treat them as missing. It returns nothing.
 func (c *ExpCache[T]) runClean(ctx context.Context) {
 	for {
 		select {
@@ -270,10 +278,14 @@ type expiredMapItem[T any] struct {
 	t    *int64
 }
 
+// getTime returns the item's last access time as a UTC time.Time with second precision.
+// It atomically loads the Unix timestamp stored in e.t, so it is safe to call concurrently with refreshTime.
 func (e *expiredMapItem[T]) getTime() time.Time {
 	return ParseUnix2UTC(atomic.LoadInt64(e.t))
 }
 
+// refreshTime marks the item as accessed now by atomically storing the current UTC Unix time, in seconds, into e.t.
+// It returns nothing.
 func (e *expiredMapItem[T]) refreshTime() {
 	atomic.StoreInt64(e.t, time.Now().UTC().Unix())
 }
@@ -301,6 +313,10 @@ func NewLRUExpiredMap[T any](ctx context.Context,
 	return el, nil
 }
 
+// clean runs the background eviction loop of LRUExpiredMap until ctx is canceled.
+// Every ttl/2 it scans all items; for each item whose last access time plus ttl is no longer in the future, it
+// takes the item's write lock, re-checks the expiration, and deletes the key only if it is still expired, so the
+// re-check is serialized with a concurrent Get that refreshes the same item. It returns nothing.
 func (e *LRUExpiredMap[T]) clean(ctx context.Context) {
 	for {
 		select {

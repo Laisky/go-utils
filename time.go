@@ -167,6 +167,11 @@ func (c *ClockT) Close() {
 	c.stopChan <- struct{}{}
 }
 
+// runRefresh runs the background refresh loop of ClockT until Close signals stopChan or ctx is canceled.
+// Each iteration sleeps for the current refresh interval, which is re-read atomically so SetInterval takes effect
+// on the next iteration, and then atomically stores the current time in Unix nanoseconds into c.now.
+// Stop and cancellation are checked only between sleeps, so shutdown is observed after the current sleep ends.
+// It returns nothing.
 func (c *ClockT) runRefresh(ctx context.Context) {
 	for {
 		select {
@@ -230,6 +235,8 @@ var (
 	TimeZoneShanghai *time.Location
 )
 
+// init loads the "Asia/Shanghai" location from the time zone database into TimeZoneShanghai.
+// It panics if the location cannot be loaded, for example when no time zone database is available.
 func init() {
 	var err error
 	TimeZoneShanghai, err = time.LoadLocation("Asia/Shanghai")

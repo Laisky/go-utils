@@ -17,6 +17,9 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestMutex verifies Mutex semantics: TryLock succeeds only when unlocked, TryRelease succeeds only when locked,
+// SpinLock acquires a free lock at once and gives up after its 3s timeout when the lock is already held, and
+// ForceRelease unlocks it.
 func TestMutex(t *testing.T) {
 	l := NewMutex()
 	require.True(t, l.TryLock(), "should acquire lock")
@@ -39,6 +42,8 @@ func TestMutex(t *testing.T) {
 	require.False(t, l.IsLocked(), "should not locked")
 }
 
+// ExampleMutex demonstrates acquiring a Mutex with TryLock, returning early when it is already held, and
+// releasing it with a deferred ForceRelease.
 func ExampleMutex() {
 	l := NewMutex()
 	if !l.TryLock() {
@@ -49,6 +54,7 @@ func ExampleMutex() {
 
 }
 
+// BenchmarkMutex measures parallel TryLock and TryRelease pairs on a single shared Mutex.
 func BenchmarkMutex(b *testing.B) {
 	l := NewMutex()
 	// step := 1 * time.Millisecond
@@ -135,6 +141,8 @@ func BenchmarkMutex(b *testing.B) {
 // 	time.Sleep(3 * time.Second) // will auto renewal lock in background
 // }
 
+// TestNewExpiredRLock verifies that NewExpiredRLock succeeds and that the RWMutex returned by GetLock lets two
+// read locks be taken and released while a writer goroutine is waiting on Lock.
 func TestNewExpiredRLock(t *testing.T) {
 	lm, err := NewExpiredRLock(context.Background(), time.Second)
 	if err != nil {
@@ -155,6 +163,8 @@ func TestNewExpiredRLock(t *testing.T) {
 	l.RUnlock()
 }
 
+// ExampleRunWithTimeout demonstrates that RunWithTimeout returns after its 5ms timeout instead of waiting for a
+// function that sleeps for 10 seconds.
 func ExampleRunWithTimeout() {
 	slow := func() error {
 		time.Sleep(10 * time.Second)
@@ -168,6 +178,8 @@ func ExampleRunWithTimeout() {
 	// true
 }
 
+// TestRunWithTimeout verifies that RunWithTimeout with a 5ms timeout returns after at least 5ms but within 50ms
+// when the wrapped function would take 10 seconds.
 func TestRunWithTimeout(t *testing.T) {
 	slow := func() error {
 		time.Sleep(10 * time.Second)
@@ -179,6 +191,8 @@ func TestRunWithTimeout(t *testing.T) {
 	require.Less(t, time.Since(startAt), 50*time.Millisecond)
 }
 
+// ExampleRaceErr demonstrates that RaceErr returns as soon as the fastest of three functions (1ms, 1s and 1min)
+// finishes, well before one second has elapsed.
 func ExampleRaceErr() {
 	startAt := time.Now()
 	_ = RaceErr(
@@ -202,6 +216,8 @@ func ExampleRaceErr() {
 
 }
 
+// TestRace verifies that RaceErr returns once the fastest of three functions (1ms) completes, taking at least
+// 1ms and less than one second.
 func TestRace(t *testing.T) {
 	startAt := time.Now()
 	_ = RaceErr(
@@ -223,6 +239,8 @@ func TestRace(t *testing.T) {
 	require.Less(t, time.Since(startAt), time.Second)
 }
 
+// TestRaceWithCtx verifies that RaceErrWithCtx returns the nil error of the fastest of three context-aware
+// functions (1ms) after at least 1ms and less than one second.
 func TestRaceWithCtx(t *testing.T) {
 	t.Run("fatest task", func(t *testing.T) {
 		startAt := time.Now()
@@ -248,6 +266,8 @@ func TestRaceWithCtx(t *testing.T) {
 	})
 }
 
+// TestNewFlock verifies that a file lock whose path lies in a nonexistent directory fails both Lock and Unlock,
+// and that two file locks on the same file in the same process can both Lock and then Unlock without error.
 func TestNewFlock(t *testing.T) {
 	dir, err := os.MkdirTemp("", "fs*")
 	require.NoError(t, err)
@@ -279,6 +299,8 @@ func TestNewFlock(t *testing.T) {
 	})
 }
 
+// TestRaceErrWithCtx verifies that RaceErrWithCtx returns a non-nil error when all 1000 racing functions fail
+// after random delays of up to one second.
 func TestRaceErrWithCtx(t *testing.T) {
 	var gs []func(context.Context) error
 	for i := 0; i < 1000; i++ {
@@ -294,6 +316,8 @@ func TestRaceErrWithCtx(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestRaceErr verifies that RaceErr returns a non-nil error when all 1000 racing functions fail after random
+// delays of up to one second.
 func TestRaceErr(t *testing.T) {
 	var gs []func() error
 	for i := 0; i < 1000; i++ {
@@ -308,6 +332,8 @@ func TestRaceErr(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestRWManager_Lock verifies that a zero-value RWManager can concurrently acquire read locks and then write
+// locks on 1000 distinct random names without blocking, and that every acquired lock can be released.
 func TestRWManager_Lock(t *testing.T) {
 	var m RWManager
 
@@ -364,6 +390,9 @@ func TestRWManager_Lock(t *testing.T) {
 	})
 }
 
+// TestWaitComplete verifies that WaitComplete returns nil after all 1000 tasks finish when the context stays
+// alive, and that it returns a context deadline error within one second, with only part of the tasks finished,
+// when the context times out after 10ms.
 func TestWaitComplete(t *testing.T) {
 	t.Run("tasks finished before context cancel", func(t *testing.T) {
 		var tasks []func(context.Context) error
@@ -424,6 +453,9 @@ func TestWaitComplete(t *testing.T) {
 	})
 }
 
+// BenchmarkRWManager_RLock measures parallel RLock/RUnlock on an RWMutex already stored in RWManager's map,
+// comparing an unconditional LoadOrStore lookup with a Load-first lookup that falls back to LoadOrStore.
+//
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // BenchmarkRWManager_RLock
 // BenchmarkRWManager_RLock/LoadOrStore

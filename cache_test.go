@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ExampleExpCache demonstrates storing a value in an ExpCache with a 100ms ttl and shows that Load returns the
+// zero value and false once the entry has expired.
 func ExampleExpCache() {
 	cc := NewExpCache[string](context.Background(), 100*time.Millisecond)
 	cc.Store("key", "val")
@@ -26,6 +28,8 @@ func ExampleExpCache() {
 	// false
 }
 
+// TestExpCache_Store verifies that a value stored in an ExpCache with a 100ms ttl is returned by Load while it is
+// younger than the ttl, and that Load reports a miss only after the ttl has elapsed and keeps reporting it.
 func TestExpCache_Store(t *testing.T) {
 	t.Parallel()
 
@@ -54,6 +58,8 @@ func TestExpCache_Store(t *testing.T) {
 	require.False(t, ok)
 }
 
+// BenchmarkExpMap measures parallel LRUExpiredMap.Get calls on random one-character keys with a 10ms ttl.
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils
@@ -76,6 +82,8 @@ func BenchmarkExpMap(b *testing.B) {
 	})
 }
 
+// Benchmark_NewSimpleExpCache measures concurrent access to a SingleItemExpCache with a 1ms ttl, where each
+// iteration randomly either sets a random string of up to 99 characters or reads the cached value.
 func Benchmark_NewSimpleExpCache(b *testing.B) {
 	c := NewSingleItemExpCache[string](time.Millisecond)
 	b.RunParallel(func(pb *testing.PB) {
@@ -89,6 +97,9 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 	})
 }
 
+// TestNewSimpleExpCache verifies, across 30 parallel subtests, that a new SingleItemExpCache with a 10ms ttl
+// reports a miss before any Set, returns the stored value after Set, and reports a miss while still returning
+// the last value once 25ms have elapsed.
 func TestNewSimpleExpCache(t *testing.T) {
 	t.Parallel()
 
@@ -132,6 +143,8 @@ func TestNewSimpleExpCache(t *testing.T) {
 	}
 }
 
+// TestNewExpiredMap verifies that LRUExpiredMap.Get creates a missing key with the constructor's value (666) and
+// returns the same value on a repeated Get of that key.
 func TestNewExpiredMap(t *testing.T) {
 	ctx := context.Background()
 	m, err := NewLRUExpiredMap(ctx, time.Millisecond, func() any { return 666 })
@@ -144,6 +157,8 @@ func TestNewExpiredMap(t *testing.T) {
 	require.Equal(t, 666, v)
 }
 
+// TestNewLruCache verifies that a cache created by NewLruCache with capacity 100 and a 100ms ttl returns each
+// value right after it is set and still returns earlier keys after new keys are added.
 func TestNewLruCache(t *testing.T) {
 	t.Parallel()
 
@@ -173,6 +188,9 @@ func TestNewLruCache(t *testing.T) {
 	require.Equal(t, "val4", v)
 }
 
+// Benchmark_TtlCache measures TtlCache with a 100ms ttl in three sub-benchmarks: sequential Set, sequential Get,
+// and parallel Set followed by Get on random keys.
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v6
@@ -215,6 +233,9 @@ func Benchmark_TtlCache(b *testing.B) {
 	})
 }
 
+// Benchmark_ExpCache measures ExpCache with a 100ms ttl in three sub-benchmarks: sequential Store, sequential
+// Load, and parallel Store followed by Load on random keys.
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v6
@@ -258,6 +279,9 @@ func Benchmark_ExpCache(b *testing.B) {
 	})
 }
 
+// Benchmark_Sieve measures the sieve cache returned by NewLruCache (capacity 100000, 100ms ttl) in three
+// sub-benchmarks: sequential Set, sequential Get, and parallel Set followed by Get on random keys.
+//
 // pkg: github.com/Laisky/go-utils/v6
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // Benchmark_Sieve
@@ -299,6 +323,8 @@ func Benchmark_Sieve(b *testing.B) {
 	})
 }
 
+// TestCacheTimingPrecision verifies that SingleItemExpCache and ExpCache with a 5ms ttl return a value right
+// after it is stored and report a miss once 10ms have elapsed.
 func TestCacheTimingPrecision(t *testing.T) {
 	t.Parallel()
 
