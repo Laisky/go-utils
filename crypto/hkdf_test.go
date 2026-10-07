@@ -9,6 +9,9 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestHKDFWithSHA256 verifies that two HKDFWithSHA256 calls with the same random key and salt fill
+// ten 20-byte result buffers with identical keys, checking the length and value of the first three
+// outputs.
 func TestHKDFWithSHA256(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +42,8 @@ func TestHKDFWithSHA256(t *testing.T) {
 	require.Equal(t, results1[2], results2[2])
 }
 
+// TestSalt_InvalidLength verifies that Salt rejects zero and negative lengths with a "salt length
+// must be positive" error.
 func TestSalt_InvalidLength(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +54,8 @@ func TestSalt_InvalidLength(t *testing.T) {
 	require.ErrorContains(t, err, "salt length must be positive")
 }
 
+// TestDeriveKey verifies DeriveKeyByHKDF with a nil salt against base64-encoded known-answer
+// vectors for several secrets and output lengths, checking both the output length and value.
 func TestDeriveKey(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +88,9 @@ func TestDeriveKey(t *testing.T) {
 	}
 }
 
+// TestDeriveKeyByHKDF verifies DeriveKeyByHKDF against base64-encoded known-answer vectors for
+// combinations of secret, salt (including nil) and output length, showing that identical inputs
+// yield identical keys and that changing the secret or salt changes the key.
 func TestDeriveKeyByHKDF(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +124,9 @@ func TestDeriveKeyByHKDF(t *testing.T) {
 	}
 }
 
+// TestDeriveKeyBySMHF verifies DeriveKeyBySMHF (scrypt) against base64-encoded known-answer vectors
+// for several secret and salt combinations, including a nil salt, so that the derivation stays
+// deterministic and its output is pinned.
 func TestDeriveKeyBySMHF(t *testing.T) {
 	t.Parallel()
 

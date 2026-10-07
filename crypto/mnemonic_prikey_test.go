@@ -16,6 +16,8 @@ import (
 // PrikeyToMnemonic / MnemonicToPrikey
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_Ed25519 verifies that an Ed25519 private key encoded by PrikeyToMnemonic
+// without a passphrase is recovered by MnemonicToPrikey as an equal ed25519.PrivateKey.
 func TestPrikeyToMnemonic_Ed25519(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +36,8 @@ func TestPrikeyToMnemonic_Ed25519(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEd))
 }
 
+// TestPrikeyToMnemonic_ECDSA_P256 verifies that an ECDSA P-256 private key encoded by
+// PrikeyToMnemonic without a passphrase is recovered by MnemonicToPrikey as an equal key.
 func TestPrikeyToMnemonic_ECDSA_P256(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +55,8 @@ func TestPrikeyToMnemonic_ECDSA_P256(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEC))
 }
 
+// TestPrikeyToMnemonic_ECDSA_P384 verifies that an ECDSA P-384 private key encoded by
+// PrikeyToMnemonic without a passphrase is recovered by MnemonicToPrikey as an equal key.
 func TestPrikeyToMnemonic_ECDSA_P384(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +74,8 @@ func TestPrikeyToMnemonic_ECDSA_P384(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEC))
 }
 
+// TestPrikeyToMnemonic_ECDSA_P521 verifies that an ECDSA P-521 private key encoded by
+// PrikeyToMnemonic without a passphrase is recovered by MnemonicToPrikey as an equal key.
 func TestPrikeyToMnemonic_ECDSA_P521(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +93,8 @@ func TestPrikeyToMnemonic_ECDSA_P521(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEC))
 }
 
+// TestPrikeyToMnemonic_RSA2048 verifies that an RSA-2048 private key encoded by PrikeyToMnemonic
+// without a passphrase is recovered by MnemonicToPrikey as an equal *rsa.PrivateKey.
 func TestPrikeyToMnemonic_RSA2048(t *testing.T) {
 	t.Parallel()
 
@@ -102,6 +112,8 @@ func TestPrikeyToMnemonic_RSA2048(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredRSA))
 }
 
+// TestPrikeyToMnemonic_RSA4096 verifies that an RSA-4096 private key encoded by PrikeyToMnemonic
+// without a passphrase is recovered by MnemonicToPrikey as an equal *rsa.PrivateKey.
 func TestPrikeyToMnemonic_RSA4096(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +135,8 @@ func TestPrikeyToMnemonic_RSA4096(t *testing.T) {
 // Passphrase-encrypted PrikeyToMnemonic
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_WithPassphrase_Ed25519 verifies that an Ed25519 key encrypted with
+// WithMnemonicPassphrase is recovered intact by MnemonicToPrikey given the same passphrase.
 func TestPrikeyToMnemonic_WithPassphrase_Ed25519(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +157,8 @@ func TestPrikeyToMnemonic_WithPassphrase_Ed25519(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEd))
 }
 
+// TestPrikeyToMnemonic_WithPassphrase_RSA verifies that an RSA-2048 key encrypted with
+// WithMnemonicPassphrase is recovered intact by MnemonicToPrikey given the same passphrase.
 func TestPrikeyToMnemonic_WithPassphrase_RSA(t *testing.T) {
 	t.Parallel()
 
@@ -162,6 +178,8 @@ func TestPrikeyToMnemonic_WithPassphrase_RSA(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredRSA))
 }
 
+// TestPrikeyToMnemonic_WithPassphrase_ECDSA verifies that an ECDSA P-256 key encrypted with
+// WithMnemonicPassphrase is recovered intact by MnemonicToPrikey given the same passphrase.
 func TestPrikeyToMnemonic_WithPassphrase_ECDSA(t *testing.T) {
 	t.Parallel()
 
@@ -181,6 +199,8 @@ func TestPrikeyToMnemonic_WithPassphrase_ECDSA(t *testing.T) {
 	require.True(t, prikey.Equal(recoveredEC))
 }
 
+// TestPrikeyToMnemonic_WrongPassphrase verifies that MnemonicToPrikey returns an error when a
+// passphrase-encrypted mnemonic is decoded with a different passphrase than the one used to encode it.
 func TestPrikeyToMnemonic_WrongPassphrase(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +214,9 @@ func TestPrikeyToMnemonic_WrongPassphrase(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestPrikeyToMnemonic_NoPassphraseOnEncrypted verifies that MnemonicToPrikey refuses to decode a
+// passphrase-encrypted mnemonic when no passphrase option is given, returning an "encrypted but no
+// passphrase" error.
 func TestPrikeyToMnemonic_NoPassphraseOnEncrypted(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +232,8 @@ func TestPrikeyToMnemonic_NoPassphraseOnEncrypted(t *testing.T) {
 	require.Contains(t, err.Error(), "encrypted but no passphrase")
 }
 
+// TestWithMnemonicPassphrase_Empty verifies that applying WithMnemonicPassphrase with an empty
+// passphrase fails with a "must not be empty" error.
 func TestWithMnemonicPassphrase_Empty(t *testing.T) {
 	t.Parallel()
 
@@ -222,6 +247,8 @@ func TestWithMnemonicPassphrase_Empty(t *testing.T) {
 // Encrypted format: different passphrases produce different mnemonics
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_DifferentPassphrases verifies that encrypting the same Ed25519 key under two
+// different passphrases produces two different mnemonics.
 func TestPrikeyToMnemonic_DifferentPassphrases(t *testing.T) {
 	t.Parallel()
 
@@ -243,6 +270,9 @@ func TestPrikeyToMnemonic_DifferentPassphrases(t *testing.T) {
 // Encrypted vs unencrypted: same key produces different mnemonics
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_EncryptedVsUnencrypted verifies that the plain and passphrase-encrypted
+// mnemonics of the same Ed25519 key differ, yet both decode back to the same key when the matching
+// options are supplied.
 func TestPrikeyToMnemonic_EncryptedVsUnencrypted(t *testing.T) {
 	t.Parallel()
 
@@ -270,6 +300,8 @@ func TestPrikeyToMnemonic_EncryptedVsUnencrypted(t *testing.T) {
 // Stability test: encoding is deterministic (no passphrase)
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_Deterministic verifies that, without a passphrase, encoding the same Ed25519
+// key twice with PrikeyToMnemonic yields the identical mnemonic.
 func TestPrikeyToMnemonic_Deterministic(t *testing.T) {
 	t.Parallel()
 
@@ -290,6 +322,9 @@ func TestPrikeyToMnemonic_Deterministic(t *testing.T) {
 // Verify the encrypted marker byte detection
 // -----------------------------------------------------------------------
 
+// TestEncryptedMarkerDetection verifies that a payload whose first byte equals
+// mnemonicEncryptedMarker round-trips unchanged through BytesToMnemonic and MnemonicToBytes, showing
+// that the byte-level codec gives the marker no special meaning.
 func TestEncryptedMarkerDetection(t *testing.T) {
 	t.Parallel()
 
@@ -313,6 +348,9 @@ func TestEncryptedMarkerDetection(t *testing.T) {
 // Ensure word count is reasonable
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_WordCount verifies that unencrypted key mnemonics have plausible lengths:
+// more than 30 and fewer than 50 words for Ed25519, more than 80 and fewer than 120 for ECDSA P-256,
+// and more than 800 and fewer than 1000 for RSA-2048.
 func TestPrikeyToMnemonic_WordCount(t *testing.T) {
 	t.Parallel()
 
@@ -351,6 +389,7 @@ func TestPrikeyToMnemonic_WordCount(t *testing.T) {
 // Test with nil key
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_NilKey verifies that PrikeyToMnemonic returns an error for a nil private key.
 func TestPrikeyToMnemonic_NilKey(t *testing.T) {
 	t.Parallel()
 

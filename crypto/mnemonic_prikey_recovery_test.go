@@ -16,6 +16,8 @@ import (
 // Signing round-trip: key recovered from mnemonic can sign/verify
 // -----------------------------------------------------------------------
 
+// TestMnemonicKey_CanSign_Ed25519 verifies that an Ed25519 key recovered from its mnemonic produces
+// a signature that ed25519.Verify accepts under the original public key.
 func TestMnemonicKey_CanSign_Ed25519(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +38,8 @@ func TestMnemonicKey_CanSign_Ed25519(t *testing.T) {
 	require.True(t, ed25519.Verify(pubkey, msg, sig))
 }
 
+// TestMnemonicKey_CanSign_RSA verifies that an RSA-2048 key recovered from its mnemonic signs with
+// SignByRSAPKCS1v15WithSHA256 and the signature verifies under the original public key.
 func TestMnemonicKey_CanSign_RSA(t *testing.T) {
 	t.Parallel()
 
@@ -55,6 +59,8 @@ func TestMnemonicKey_CanSign_RSA(t *testing.T) {
 	require.NoError(t, VerifyByRSAPKCS1v15WithSHA256(&prikey.PublicKey, msg, sig))
 }
 
+// TestMnemonicKey_CanSign_ECDSA verifies that an ECDSA P-256 key recovered from its mnemonic signs
+// with SignByECDSAWithSHA256 and the signature verifies under the original public key.
 func TestMnemonicKey_CanSign_ECDSA(t *testing.T) {
 	t.Parallel()
 
@@ -78,6 +84,8 @@ func TestMnemonicKey_CanSign_ECDSA(t *testing.T) {
 // Edge cases for MnemonicToPrikey
 // -----------------------------------------------------------------------
 
+// TestMnemonicToPrikey_InvalidMnemonic verifies that MnemonicToPrikey rejects a three-word phrase
+// that is too short to hold the extended-format header and checksum.
 func TestMnemonicToPrikey_InvalidMnemonic(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +93,8 @@ func TestMnemonicToPrikey_InvalidMnemonic(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMnemonicToPrikey_EmptyMnemonic verifies that MnemonicToPrikey returns an error for an empty
+// mnemonic.
 func TestMnemonicToPrikey_EmptyMnemonic(t *testing.T) {
 	t.Parallel()
 
@@ -92,6 +102,8 @@ func TestMnemonicToPrikey_EmptyMnemonic(t *testing.T) {
 	require.Error(t, err)
 }
 
+// BenchmarkPrikeyToMnemonic_Ed25519 measures PrikeyToMnemonic, without a passphrase, encoding one
+// pre-generated Ed25519 key (PKCS#8 DER serialization plus extended mnemonic encoding).
 func BenchmarkPrikeyToMnemonic_Ed25519(b *testing.B) {
 	_, prikey, _ := ed25519.GenerateKey(rand.Reader)
 	b.ResetTimer()
@@ -104,6 +116,8 @@ func BenchmarkPrikeyToMnemonic_Ed25519(b *testing.B) {
 // Test ECDSA D-value preservation (scalar correctness)
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_ECDSA_ScalarPreserved verifies that an ECDSA P-256 mnemonic round trip
+// preserves the private scalar D and the public point coordinates X and Y exactly.
 func TestPrikeyToMnemonic_ECDSA_ScalarPreserved(t *testing.T) {
 	t.Parallel()
 
@@ -130,6 +144,8 @@ func TestPrikeyToMnemonic_ECDSA_ScalarPreserved(t *testing.T) {
 // Test RSA key component preservation
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_RSA_ComponentsPreserved verifies that an RSA-2048 mnemonic round trip
+// preserves the modulus N, public exponent E, private exponent D and every prime factor.
 func TestPrikeyToMnemonic_RSA_ComponentsPreserved(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +173,8 @@ func TestPrikeyToMnemonic_RSA_ComponentsPreserved(t *testing.T) {
 // Test Ed25519 seed preservation
 // -----------------------------------------------------------------------
 
+// TestPrikeyToMnemonic_Ed25519_SeedPreserved verifies that an Ed25519 mnemonic round trip preserves
+// the private key seed and the derived public key.
 func TestPrikeyToMnemonic_Ed25519_SeedPreserved(t *testing.T) {
 	t.Parallel()
 
@@ -180,6 +198,9 @@ func TestPrikeyToMnemonic_Ed25519_SeedPreserved(t *testing.T) {
 // Cross-validate: key from mnemonic works with existing sign functions
 // -----------------------------------------------------------------------
 
+// TestMnemonicKey_CrossValidate_SignByEd25519WithSHA512 verifies that an Ed25519 key recovered from
+// its mnemonic works with SignByEd25519WithSHA512, and the signature verifies with
+// VerifyByEd25519WithSHA512 under the original public key.
 func TestMnemonicKey_CrossValidate_SignByEd25519WithSHA512(t *testing.T) {
 	t.Parallel()
 
@@ -204,6 +225,9 @@ func TestMnemonicKey_CrossValidate_SignByEd25519WithSHA512(t *testing.T) {
 // Large key round-trip correctness: sign with original, verify with recovered
 // -----------------------------------------------------------------------
 
+// TestMnemonicKey_SignOriginal_VerifyRecovered verifies that a signature made with the original
+// RSA-2048 key via SignByRSAPKCS1v15WithSHA256 verifies under the public key of the key recovered
+// from its mnemonic.
 func TestMnemonicKey_SignOriginal_VerifyRecovered(t *testing.T) {
 	t.Parallel()
 

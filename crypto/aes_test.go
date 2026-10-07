@@ -14,6 +14,9 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestAESEncryptFilesInDir verifies that AESEncryptFilesInDir with default options encrypts every
+// file in a temporary directory into a sibling file with the ".enc" suffix, and that each output
+// decrypts with AesDecrypt and the same 24-byte key back to the original content.
 func TestAESEncryptFilesInDir(t *testing.T) {
 	t.Parallel()
 
@@ -45,6 +48,9 @@ func TestAESEncryptFilesInDir(t *testing.T) {
 	}
 }
 
+// TestEncryptByAes verifies that AesEncrypt output round-trips through AesDecrypt for a valid
+// 32-byte key, and that AesEncrypt fails for empty content, for keys of 31 and 33 bytes, and for an
+// empty key.
 func TestEncryptByAes(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +92,9 @@ func TestEncryptByAes(t *testing.T) {
 	}
 }
 
+// TestNewAesReaderWrapper verifies that NewAesReaderWrapper authenticates and decrypts an
+// AesEncrypt ciphertext read from an io.Reader, and that reading the wrapper to EOF yields the
+// original plaintext.
 func TestNewAesReaderWrapper(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +117,10 @@ func TestNewAesReaderWrapper(t *testing.T) {
 	}
 }
 
+// TestAEADDecrypt verifies that AEADEncrypt output decrypts with AEADDecrypt for plaintexts with
+// and without additional data, that two encryptions of the same input differ because of the random
+// IV, and that decryption with a wrong key or wrong additional data fails with a "message
+// authentication failed" error.
 func TestAEADDecrypt(t *testing.T) {
 	t.Parallel()
 
@@ -155,6 +168,11 @@ func TestAEADDecrypt(t *testing.T) {
 	}
 }
 
+// TestAEADBasic verifies the AEADEncryptBasic and AEADDecryptBasic pair: the ciphertext length
+// equals the plaintext length, a different IV changes ciphertext and tag while the same IV
+// reproduces them, the IV||ciphertext||tag concatenation decrypts with AEADDecrypt, a wrong key or
+// wrong additional data fails authentication, and a wrongly sized IV fails with "iv size not
+// match".
 func TestAEADBasic(t *testing.T) {
 	t.Parallel()
 
@@ -228,6 +246,9 @@ func TestAEADBasic(t *testing.T) {
 	}
 }
 
+// TestAEADDecryptBasicNoMutation verifies that AEADDecryptBasic does not write into the spare
+// capacity of the caller's ciphertext slice: the bytes after the ciphertext in the shared backing
+// buffer, pre-filled with 0xAA, are unchanged after a successful decryption.
 func TestAEADDecryptBasicNoMutation(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +275,8 @@ func TestAEADDecryptBasicNoMutation(t *testing.T) {
 	}
 }
 
+// TestGcmIvLength verifies that for 16-, 24- and 32-byte AES keys the standard library GCM nonce
+// size and overhead equal the package constants AesGcmIvLen (12) and AesGcmTagLen (16).
 func TestGcmIvLength(t *testing.T) {
 	for _, keyLength := range []int{16, 24, 32} {
 		key := []byte(gutils.RandomStringWithLength(keyLength))
@@ -268,6 +291,11 @@ func TestGcmIvLength(t *testing.T) {
 	}
 }
 
+// TestAesCtrStream verifies AesCtrStreamEncrypt and AesCtrStreamDecrypt round trips for normal,
+// empty, long, special-character, NUL-containing and Unicode messages with 16-, 24- and 32-byte
+// keys and checks that the encrypted payload differs from the plaintext; it also verifies that 5-
+// and 33-byte keys are rejected, that two encryptions of the same plaintext use different IVs and
+// ciphertexts, and that decryption with a wrongly sized key fails.
 func TestAesCtrStream(t *testing.T) {
 	t.Parallel()
 
@@ -423,6 +451,10 @@ func TestAesCtrStream(t *testing.T) {
 	})
 }
 
+// TestWithAESFilesInDirFileSuffix verifies that WithAESFilesInDirFileSuffix accepts suffixes
+// starting with "." (including ".test.encrypted") and rejects empty or dotless suffixes with a
+// "suffix should start with `.`" error, and that AESEncryptFilesInDir with a ".custom" suffix
+// writes a test.toml.custom file that AesDecrypt restores.
 func TestWithAESFilesInDirFileSuffix(t *testing.T) {
 	t.Parallel()
 

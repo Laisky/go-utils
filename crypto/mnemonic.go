@@ -54,6 +54,10 @@ var (
 	mnemonicWordIndex map[string]int
 )
 
+// init captures the BIP39 English word list returned by bip39.GetWordList into mnemonicWordList
+// and builds mnemonicWordIndex, the reverse map from each word to its 11-bit index. Holding these
+// references keeps the extended encoding pinned to the English list even if bip39.SetWordList later
+// replaces the bip39 package's global list. It takes no parameters and returns nothing.
 func init() {
 	mnemonicWordList = bip39.GetWordList()
 	mnemonicWordIndex = make(map[string]int, len(mnemonicWordList))
@@ -69,6 +73,9 @@ type mnemonicOption struct {
 	passphrase string
 }
 
+// apply runs each MnemonicOption in opts against o, in order, so that the options can populate
+// fields such as the passphrase. It stops at the first failing option and returns that option's
+// error; it returns nil when opts is empty or every option succeeds.
 func (o *mnemonicOption) apply(opts ...MnemonicOption) error {
 	for _, fn := range opts {
 		if err := fn(o); err != nil {

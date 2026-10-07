@@ -11,6 +11,8 @@ import (
 // Key Exchange behavioral tests
 // ============================================================
 
+// TestExchangeHkdfBehavior_ECDHCrossCurveMismatch verifies that a P-256 ECDH instance fails to
+// derive a shared key from a P-384 peer public key.
 func TestExchangeHkdfBehavior_ECDHCrossCurveMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +29,8 @@ func TestExchangeHkdfBehavior_ECDHCrossCurveMismatch(t *testing.T) {
 	require.Error(t, err, "cross-curve ECDH should fail")
 }
 
+// TestExchangeHkdfBehavior_ECDHKeyUniqueness verifies that two ECDH instances created on the same
+// curve have different public keys, for each of P-256, P-384 and P-521.
 func TestExchangeHkdfBehavior_ECDHKeyUniqueness(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +56,8 @@ func TestExchangeHkdfBehavior_ECDHKeyUniqueness(t *testing.T) {
 	}
 }
 
+// TestExchangeHkdfBehavior_ECDHInvalidPeerPublicKey verifies that ECDH.GenerateKey rejects a peer
+// public key that carries the P-256 curve tag followed by bytes that do not encode a valid point.
 func TestExchangeHkdfBehavior_ECDHInvalidPeerPublicKey(t *testing.T) {
 	t.Parallel()
 
@@ -63,6 +69,9 @@ func TestExchangeHkdfBehavior_ECDHInvalidPeerPublicKey(t *testing.T) {
 	require.Error(t, err, "garbage peer public key should be rejected")
 }
 
+// TestExchangeHkdfBehavior_DHKXDeterminism verifies that repeated DHKX.GenerateKey calls with the
+// same peer public key return the same shared key, and that this key equals the one the peer
+// derives in the opposite direction.
 func TestExchangeHkdfBehavior_DHKXDeterminism(t *testing.T) {
 	t.Parallel()
 
@@ -89,6 +98,8 @@ func TestExchangeHkdfBehavior_DHKXDeterminism(t *testing.T) {
 		"DHKX shared key must be symmetric")
 }
 
+// TestExchangeHkdfBehavior_ECDHSharedKeySymmetry verifies that on the P-384 and P-521 curves both
+// ECDH peers derive the same shared key from each other's public keys.
 func TestExchangeHkdfBehavior_ECDHSharedKeySymmetry(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +134,9 @@ func TestExchangeHkdfBehavior_ECDHSharedKeySymmetry(t *testing.T) {
 // HKDF behavioral tests
 // ============================================================
 
+// TestExchangeHkdfBehavior_HKDFWithInfo verifies that HKDFWithSHA256 with a fixed secret and salt
+// derives different 32-byte keys for different info values and the same key for the same info
+// value.
 func TestExchangeHkdfBehavior_HKDFWithInfo(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +160,8 @@ func TestExchangeHkdfBehavior_HKDFWithInfo(t *testing.T) {
 		"same info value should produce the same derived key")
 }
 
+// TestExchangeHkdfBehavior_HKDFDifferentSalts verifies that HKDFWithSHA256 with a fixed secret and
+// info derives different 32-byte keys for two different salts.
 func TestExchangeHkdfBehavior_HKDFDifferentSalts(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +182,8 @@ func TestExchangeHkdfBehavior_HKDFDifferentSalts(t *testing.T) {
 		"different salts should produce different derived keys")
 }
 
+// TestExchangeHkdfBehavior_HKDFMultipleKeys verifies that filling five 32-byte result buffers in a
+// single HKDFWithSHA256 call yields pairwise different keys.
 func TestExchangeHkdfBehavior_HKDFMultipleKeys(t *testing.T) {
 	t.Parallel()
 
@@ -190,6 +208,8 @@ func TestExchangeHkdfBehavior_HKDFMultipleKeys(t *testing.T) {
 	}
 }
 
+// TestExchangeHkdfBehavior_SaltUniqueness verifies that two Salt(32) calls return different random
+// values.
 func TestExchangeHkdfBehavior_SaltUniqueness(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +222,8 @@ func TestExchangeHkdfBehavior_SaltUniqueness(t *testing.T) {
 		"two Salt calls with same length should produce different values")
 }
 
+// TestExchangeHkdfBehavior_SaltVariousLengths verifies that Salt returns exactly the requested
+// number of bytes for lengths 1, 32 and 1024.
 func TestExchangeHkdfBehavior_SaltVariousLengths(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +240,8 @@ func TestExchangeHkdfBehavior_SaltVariousLengths(t *testing.T) {
 	}
 }
 
+// TestExchangeHkdfBehavior_DeriveKeyByHKDFLengths verifies that DeriveKeyByHKDF returns a key of
+// exactly the requested length for 1, 16, 32 and 64 bytes.
 func TestExchangeHkdfBehavior_DeriveKeyByHKDFLengths(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +261,8 @@ func TestExchangeHkdfBehavior_DeriveKeyByHKDFLengths(t *testing.T) {
 	}
 }
 
+// TestExchangeHkdfBehavior_DeriveKeyBySMHFDifferentInputs verifies that DeriveKeyBySMHF (scrypt)
+// derives different keys from two different raw keys under the same salt.
 func TestExchangeHkdfBehavior_DeriveKeyBySMHFDifferentInputs(t *testing.T) {
 	t.Parallel()
 

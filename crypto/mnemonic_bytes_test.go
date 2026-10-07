@@ -13,6 +13,8 @@ import (
 // Extended BytesToMnemonic / MnemonicToBytes
 // -----------------------------------------------------------------------
 
+// TestBytesToMnemonic_RoundTrip verifies that random byte slices of 13 sizes between 1 and 1024
+// bytes, encoded by BytesToMnemonic, decode back to the identical bytes via MnemonicToBytes.
 func TestBytesToMnemonic_RoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -33,6 +35,8 @@ func TestBytesToMnemonic_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestBytesToMnemonic_Deterministic verifies that encoding the same input twice with
+// BytesToMnemonic produces the identical mnemonic, since the extended format has no random parts.
 func TestBytesToMnemonic_Deterministic(t *testing.T) {
 	t.Parallel()
 
@@ -46,6 +50,8 @@ func TestBytesToMnemonic_Deterministic(t *testing.T) {
 	require.Equal(t, m1, m2)
 }
 
+// TestBytesToMnemonic_DifferentInputs verifies that two 3-byte inputs differing only in their last
+// byte are encoded by BytesToMnemonic into different mnemonics.
 func TestBytesToMnemonic_DifferentInputs(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +66,8 @@ func TestBytesToMnemonic_DifferentInputs(t *testing.T) {
 	require.NotEqual(t, m1, m2)
 }
 
+// TestBytesToMnemonic_EmptyInput verifies that BytesToMnemonic rejects both a nil slice (with a
+// "must not be empty" error) and a non-nil empty slice.
 func TestBytesToMnemonic_EmptyInput(t *testing.T) {
 	t.Parallel()
 
@@ -71,6 +79,8 @@ func TestBytesToMnemonic_EmptyInput(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestBytesToMnemonic_MaxSize verifies that BytesToMnemonic rejects an input one byte longer than
+// maxMnemonicDataLen with a "too large" error.
 func TestBytesToMnemonic_MaxSize(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +91,7 @@ func TestBytesToMnemonic_MaxSize(t *testing.T) {
 	require.Contains(t, err.Error(), "too large")
 }
 
+// TestMnemonicToBytes_Empty verifies that MnemonicToBytes returns an error for an empty mnemonic.
 func TestMnemonicToBytes_Empty(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +99,8 @@ func TestMnemonicToBytes_Empty(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMnemonicToBytes_InvalidWord verifies that MnemonicToBytes rejects a phrase made of words that
+// are absent from the BIP39 English list with a "not found in BIP39 word list" error.
 func TestMnemonicToBytes_InvalidWord(t *testing.T) {
 	t.Parallel()
 
@@ -96,6 +109,9 @@ func TestMnemonicToBytes_InvalidWord(t *testing.T) {
 	require.Contains(t, err.Error(), "not found in BIP39 word list")
 }
 
+// TestMnemonicToBytes_TooManyWords verifies that MnemonicToBytes rejects a phrase containing
+// maxEncodedMnemonicWords+1 valid words with a "mnemonic too long" error raised while the phrase is
+// being tokenized, before any word is decoded.
 func TestMnemonicToBytes_TooManyWords(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +125,8 @@ func TestMnemonicToBytes_TooManyWords(t *testing.T) {
 	require.Contains(t, err.Error(), "mnemonic too long")
 }
 
+// TestMnemonicToBytes_CorruptChecksum verifies that replacing the final word of a mnemonic produced
+// by BytesToMnemonic with a different BIP39 word makes MnemonicToBytes fail with a checksum error.
 func TestMnemonicToBytes_CorruptChecksum(t *testing.T) {
 	t.Parallel()
 
@@ -132,6 +150,9 @@ func TestMnemonicToBytes_CorruptChecksum(t *testing.T) {
 	require.Contains(t, err.Error(), "checksum")
 }
 
+// TestMnemonicToBytes_UnsupportedVersion verifies that a mnemonic whose decoded version byte is
+// rewritten to 0xFF and re-encoded into words is rejected by MnemonicToBytes with an "unsupported
+// mnemonic version" error, because the version check runs before checksum verification.
 func TestMnemonicToBytes_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +175,8 @@ func TestMnemonicToBytes_UnsupportedVersion(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported mnemonic version")
 }
 
+// TestBytesToMnemonic_SingleByte verifies that every possible one-byte input, 0x00 through 0xFF,
+// round-trips unchanged through BytesToMnemonic and MnemonicToBytes.
 func TestBytesToMnemonic_SingleByte(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +191,8 @@ func TestBytesToMnemonic_SingleByte(t *testing.T) {
 	}
 }
 
+// TestBytesToMnemonic_AllZeros verifies that a 32-byte all-zero input round-trips unchanged through
+// BytesToMnemonic and MnemonicToBytes.
 func TestBytesToMnemonic_AllZeros(t *testing.T) {
 	t.Parallel()
 
@@ -180,6 +205,8 @@ func TestBytesToMnemonic_AllZeros(t *testing.T) {
 	require.Equal(t, data, recovered)
 }
 
+// TestBytesToMnemonic_AllOnes verifies that a 32-byte input of 0xFF bytes round-trips unchanged
+// through BytesToMnemonic and MnemonicToBytes.
 func TestBytesToMnemonic_AllOnes(t *testing.T) {
 	t.Parallel()
 
@@ -196,6 +223,8 @@ func TestBytesToMnemonic_AllOnes(t *testing.T) {
 // Large data test for BytesToMnemonic
 // -----------------------------------------------------------------------
 
+// TestBytesToMnemonic_LargeData verifies that a 4096-byte random input round-trips unchanged through
+// BytesToMnemonic and MnemonicToBytes.
 func TestBytesToMnemonic_LargeData(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +244,7 @@ func TestBytesToMnemonic_LargeData(t *testing.T) {
 // Benchmark
 // -----------------------------------------------------------------------
 
+// BenchmarkBytesToMnemonic_32B measures BytesToMnemonic encoding a fixed 32-byte random input.
 func BenchmarkBytesToMnemonic_32B(b *testing.B) {
 	data := make([]byte, 32)
 	_, _ = rand.Read(data)
@@ -224,6 +254,8 @@ func BenchmarkBytesToMnemonic_32B(b *testing.B) {
 	}
 }
 
+// BenchmarkMnemonicToBytes_32B measures MnemonicToBytes decoding the mnemonic of a fixed 32-byte
+// random input, excluding the one-time encoding done before the timer is reset.
 func BenchmarkMnemonicToBytes_32B(b *testing.B) {
 	data := make([]byte, 32)
 	_, _ = rand.Read(data)

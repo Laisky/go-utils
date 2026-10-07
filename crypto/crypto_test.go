@@ -12,6 +12,9 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestRSAEncrypt verifies that 100 KiB of random data encrypted by the deprecated RSAEncrypt alias
+// (chunked PKCS#1 v1.5) under a 3072-bit public key decrypts back to identical bytes with
+// RSADecrypt.
 func TestRSAEncrypt(t *testing.T) {
 	t.Parallel()
 	prikey, err := NewRSAPrikey(RSAPrikeyBits3072)
@@ -30,6 +33,9 @@ func TestRSAEncrypt(t *testing.T) {
 	require.Equal(t, plain, gotPlain)
 }
 
+// TestVerifyHashedPassword verifies that records produced by PasswordHash for several passwords,
+// with both the SHA-256 and SHA-512 hasher arguments, are accepted by VerifyHashedPassword for the
+// same raw password.
 func TestVerifyHashedPassword(t *testing.T) {
 	t.Parallel()
 	type args struct {
@@ -57,6 +63,10 @@ func TestVerifyHashedPassword(t *testing.T) {
 	}
 }
 
+// TestVerifyHashedPassword_LegacyIterationCompatibility verifies that a legacy SHA-256 record built
+// with MinPasswordHashIteration-1 iterations, below the minimum for new hashes, is still accepted
+// by VerifyHashedPassword for the correct password and rejected with "password not match" for a
+// wrong one.
 func TestVerifyHashedPassword_LegacyIterationCompatibility(t *testing.T) {
 	t.Parallel()
 	rawPassword := []byte("legacy-password")
@@ -80,6 +90,9 @@ func TestVerifyHashedPassword_LegacyIterationCompatibility(t *testing.T) {
 	require.ErrorContains(t, err, "password not match")
 }
 
+// TestNewHashedPassword_RejectWeakIterationForNewHashes verifies that
+// newHashedPasswordWithMinIteration refuses an iteration count of MinPasswordHashIteration-1 when
+// the required minimum is MinPasswordHashIteration, returning an "out of range" error.
 func TestNewHashedPassword_RejectWeakIterationForNewHashes(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +106,10 @@ func TestNewHashedPassword_RejectWeakIterationForNewHashes(t *testing.T) {
 	require.ErrorContains(t, err, "out of range")
 }
 
+// TestRsaEncryptByOAEP verifies, for 1-, 1024- and 10240-byte random plaintexts under a 3072-bit
+// key, that RSAEncryptByOAEP output decrypts with RSADecryptByOAEP, that malformed ciphertext and a
+// different private key are rejected (the latter with "decrypt chunk"), and that repeated
+// encryptions of the same plaintext differ.
 func TestRsaEncryptByOAEP(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +163,9 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 	}
 }
 
+// TestVerifyHashedPassword_DoS verifies that VerifyHashedPassword rejects a legacy record claiming
+// 1000001 iterations, one above MaxPasswordHashIteration, with a "too many iterations" error
+// instead of running the expensive hash loop.
 func TestVerifyHashedPassword_DoS(t *testing.T) {
 	t.Parallel()
 	// This should fail quickly once the limit is implemented.
@@ -156,6 +176,8 @@ func TestVerifyHashedPassword_DoS(t *testing.T) {
 	require.ErrorContains(t, err, "too many iterations")
 }
 
+// TestVerifyHashedPassword_HashedPasswordTooLong verifies that VerifyHashedPassword rejects a
+// stored record of MaxHashedPasswordLength+1 bytes with a "hashedPassword is too long" error.
 func TestVerifyHashedPassword_HashedPasswordTooLong(t *testing.T) {
 	t.Parallel()
 	hashedPassword := make([]byte, MaxHashedPasswordLength+1)
@@ -168,6 +190,8 @@ func TestVerifyHashedPassword_HashedPasswordTooLong(t *testing.T) {
 	require.ErrorContains(t, err, "hashedPassword is too long")
 }
 
+// TestVerifyHashedPassword_PasswordTooLong verifies that both PasswordHash and VerifyHashedPassword
+// reject a random password of MaxPasswordLength+1 bytes with a "password is too long" error.
 func TestVerifyHashedPassword_PasswordTooLong(t *testing.T) {
 	t.Parallel()
 	longPassword := make([]byte, MaxPasswordLength+1)
@@ -183,6 +207,9 @@ func TestVerifyHashedPassword_PasswordTooLong(t *testing.T) {
 	require.ErrorContains(t, err, "password is too long")
 }
 
+// TestVerifyHashedPassword_EmptyInputHonorsDelay verifies that VerifyHashedPassword with an empty
+// password and an empty record fails with "rawpassword or hashedPassword is empty" only after about
+// DefaultPasswordDelay (with a 200ms tolerance), so early rejection does not shorten the call.
 func TestVerifyHashedPassword_EmptyInputHonorsDelay(t *testing.T) {
 	startAt := time.Now()
 	err := VerifyHashedPassword(nil, "")
@@ -191,6 +218,9 @@ func TestVerifyHashedPassword_EmptyInputHonorsDelay(t *testing.T) {
 	require.GreaterOrEqual(t, time.Since(startAt), DefaultPasswordDelay-200*time.Millisecond)
 }
 
+// TestPasswordHash_EmptyInputHonorsDelay verifies that PasswordHash with an empty password fails
+// with "password is empty" only after about DefaultPasswordDelay (with a 200ms tolerance), so early
+// rejection does not shorten the call.
 func TestPasswordHash_EmptyInputHonorsDelay(t *testing.T) {
 	startAt := time.Now()
 	_, err := PasswordHash(nil, gutils.HashTypeSha256)

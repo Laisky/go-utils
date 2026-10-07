@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewDHKX verifies that two independent DHKX instances that exchange public keys derive the
+// same shared key on both sides.
 func TestNewDHKX(t *testing.T) {
 	t.Parallel()
 
@@ -33,6 +35,8 @@ func TestNewDHKX(t *testing.T) {
 	require.Equal(t, aliceKey, bobKey)
 }
 
+// ExampleDHKX demonstrates a DHKX key exchange in which Alice and Bob swap public keys and each
+// derives the shared key with GenerateKey; it prints true because both keys are equal.
 func ExampleDHKX() {
 	alice, _ := NewDHKX()
 
@@ -47,6 +51,9 @@ func ExampleDHKX() {
 	// Output: true
 }
 
+// TestNewEcdh verifies that on the P-256, P-384 and P-521 curves two ECDH instances derive the same
+// shared key from each other's public keys, and that NewEcdh rejects an unknown curve name with an
+// "unsupport curve" error.
 func TestNewEcdh(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +88,8 @@ func TestNewEcdh(t *testing.T) {
 	}
 }
 
+// TestECDH_GenerateKey_EmptyInput verifies that ECDH.GenerateKey returns a "peer public key is
+// empty" error instead of panicking when the peer public key is nil or an empty slice.
 func TestECDH_GenerateKey_EmptyInput(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +104,8 @@ func TestECDH_GenerateKey_EmptyInput(t *testing.T) {
 	require.ErrorContains(t, err, "peer public key is empty")
 }
 
+// ExampleNewEcdh demonstrates a P-256 ECDH key exchange in which Alice and Bob swap public keys and
+// each derives the shared key with GenerateKey; it prints true because both keys are equal.
 func ExampleNewEcdh() {
 	alice, _ := NewEcdh(ECDSACurveP256)
 
@@ -109,6 +120,10 @@ func ExampleNewEcdh() {
 	// Output: true
 }
 
+// Benchmark_aggrements measures one complete key agreement, in which both peers call GenerateKey on
+// the other's public key, for the deprecated DHKX (default MODP group 14) and for P-256 ECDH. The
+// pasted result below is from a sample run:
+//
 // cpu: AMD Ryzen 7 5700G with Radeon Graphics
 // Benchmark_aggrements/dhkx-16         	     147	   8003088 ns/op	   25852 B/op	      62 allocs/op
 // Benchmark_aggrements/ecdh-16         	   12034	     99670 ns/op	     752 B/op	      12 allocs/op

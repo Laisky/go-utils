@@ -14,6 +14,9 @@ import (
 // Standard BIP39
 // -----------------------------------------------------------------------
 
+// TestNewMnemonic verifies that NewMnemonic accepts each BIP39 strength of 128, 160, 192, 224 and
+// 256 bits, returns the matching word count (12 to 24 words), and yields a phrase that
+// ValidateMnemonic accepts.
 func TestNewMnemonic(t *testing.T) {
 	t.Parallel()
 
@@ -30,6 +33,8 @@ func TestNewMnemonic(t *testing.T) {
 	}
 }
 
+// TestNewMnemonic_InvalidBits verifies that NewMnemonic returns an error for the unsupported
+// strengths 0, 64, 100, 129 and 512 bits.
 func TestNewMnemonic_InvalidBits(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +44,9 @@ func TestNewMnemonic_InvalidBits(t *testing.T) {
 	}
 }
 
+// TestEntropyToMnemonic_RoundTrip verifies that random entropy of 16, 20, 24, 28 and 32 bytes is
+// encoded by EntropyToMnemonic into a phrase accepted by ValidateMnemonic, and that
+// MnemonicToEntropy recovers the identical entropy.
 func TestEntropyToMnemonic_RoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +67,8 @@ func TestEntropyToMnemonic_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestEntropyToMnemonic_InvalidSize verifies that EntropyToMnemonic rejects 3 bytes of entropy,
+// which is not a valid BIP39 entropy length.
 func TestEntropyToMnemonic_InvalidSize(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +76,8 @@ func TestEntropyToMnemonic_InvalidSize(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMnemonicToEntropy_Invalid verifies that MnemonicToEntropy returns an error for a phrase that
+// is not a valid BIP39 mnemonic.
 func TestMnemonicToEntropy_Invalid(t *testing.T) {
 	t.Parallel()
 
@@ -73,6 +85,9 @@ func TestMnemonicToEntropy_Invalid(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMnemonicToSeed verifies that MnemonicToSeed derives a 64-byte seed from a freshly generated
+// 12-word mnemonic, returns the same seed for the same mnemonic and passphrase, and returns a
+// different seed when a non-empty passphrase is supplied.
 func TestMnemonicToSeed(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +109,8 @@ func TestMnemonicToSeed(t *testing.T) {
 	require.NotEqual(t, seed, seedWithPass)
 }
 
+// TestMnemonicToSeed_InvalidMnemonic verifies that MnemonicToSeed returns an error instead of a
+// seed when the phrase is not a valid BIP39 mnemonic.
 func TestMnemonicToSeed_InvalidMnemonic(t *testing.T) {
 	t.Parallel()
 
@@ -101,6 +118,8 @@ func TestMnemonicToSeed_InvalidMnemonic(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestValidateMnemonic verifies that ValidateMnemonic accepts a freshly generated 24-word mnemonic
+// and rejects an empty string, a three-word phrase, and twelve words outside the BIP39 list.
 func TestValidateMnemonic(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +132,9 @@ func TestValidateMnemonic(t *testing.T) {
 	require.False(t, ValidateMnemonic("notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword"))
 }
 
-// Known test vector from BIP39 spec (English, no passphrase)
+// TestBIP39_KnownVector checks the known test vector from the BIP39 spec (English, no
+// passphrase): 16 zero bytes of entropy must encode to eleven "abandon" words followed by
+// "about", and MnemonicToEntropy must recover the same all-zero entropy.
 func TestBIP39_KnownVector(t *testing.T) {
 	t.Parallel()
 
@@ -132,6 +153,8 @@ func TestBIP39_KnownVector(t *testing.T) {
 // Bit manipulation helpers
 // -----------------------------------------------------------------------
 
+// Test_extract11Bits verifies that extract11Bits reads the leading 11 bits as a big-endian value,
+// yielding 2047 for 0xFFFF, 0 for 0x0000 and 1024 for 0x8000.
 func Test_extract11Bits(t *testing.T) {
 	t.Parallel()
 
@@ -148,6 +171,8 @@ func Test_extract11Bits(t *testing.T) {
 	require.Equal(t, uint16(1024), extract11Bits(data, 0))
 }
 
+// Test_write11Bits verifies that write11Bits stores the values 2047 and 1024 at bit offset 0 of a
+// zeroed two-byte buffer such that extract11Bits reads the same values back.
 func Test_write11Bits(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +185,8 @@ func Test_write11Bits(t *testing.T) {
 	require.Equal(t, uint16(1024), extract11Bits(data, 0))
 }
 
+// Test_bitRoundTrip verifies that four 11-bit values written by write11Bits at consecutive 11-bit
+// offsets of a 6-byte buffer are read back unchanged by extract11Bits.
 func Test_bitRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -178,6 +205,9 @@ func Test_bitRoundTrip(t *testing.T) {
 // bitsToMnemonicWords / mnemonicWordsToBytes round-trip
 // -----------------------------------------------------------------------
 
+// Test_wordsRoundTrip verifies that 32 random bytes converted to words by bitsToMnemonicWords and
+// back by mnemonicWordsToBytes yield a byte slice that starts with the original bytes, allowing for
+// the zero padding added by rounding up to whole 11-bit words.
 func Test_wordsRoundTrip(t *testing.T) {
 	t.Parallel()
 
