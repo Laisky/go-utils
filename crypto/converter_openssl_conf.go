@@ -28,8 +28,36 @@ func sanitizeOpensslConfValue(s string) string {
 	}, s)
 }
 
-// X509Cert2OpensslConf marshal x509
+// X509Cert2OpensslConf marshals a certificate template into the OpenSSL
+// configuration used by Tongsuo.NewX509Cert.
+//
+// Extended key usages are emitted exactly as requested (x509.ExtKeyUsageAny is
+// the single anyExtendedKeyUsage OID); without an explicit request a non-CA
+// certificate gets exactly anyExtendedKeyUsage. It returns nil when the
+// template cannot be represented exactly, for example for an unknown extended
+// key usage.
 func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
+	opensslConf, err := x509Cert2OpensslConf(cert)
+	if err != nil {
+		return nil
+	}
+
+	return opensslConf
+}
+
+// x509Cert2OpensslConf marshals a certificate template into OpenSSL
+// configuration. It returns the configuration, or an error when the template
+// cannot be represented exactly.
+func x509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte, err error) {
+	extKeyUsages, err := tongsuoCertExtKeyUsages(cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "ext key usage")
+	}
+	extKeyUsageLine, err := opensslExtKeyUsageLine(extKeyUsages)
+	if err != nil {
+		return nil, errors.Wrap(err, "ext key usage")
+	}
+
 	// set req & req_distinguished_name
 	// sanitize the attacker-influenceable CommonName to block config injection
 	cnt := fmt.Sprintf(gutils.Dedent(`
@@ -77,8 +105,8 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
 	} else {
 		cnt += "FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
-		cnt += "extendedKeyUsage = anyExtendedKeyUsage\n"
 	}
+	cnt += extKeyUsageLine
 	cnt += "subjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always, issuer\n"
 
 	// set policies
@@ -122,7 +150,7 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 		cnt = strings.ReplaceAll(cnt, "x509_extensions = v3_ca", "x509_extensions = v3_ca\nreq_extensions = req_ext")
 	}
 
-	return []byte(cnt)
+	return []byte(cnt), nil
 }
 
 // X509Csr2OpensslConf marshal x509 csr to openssl conf
@@ -241,37 +269,107 @@ var (
 		"encipherOnly":     x509.KeyUsageEncipherOnly,
 		"decipherOnly":     x509.KeyUsageDecipherOnly,
 	}
-	sortedExtKeyUsages = []string{
-		"serverAuth",
-		"clientAuth",
-		"codeSigning",
-		"emailProtection",
-		"ipsecEndSystem",
-		"ipsecTunnel",
-		"ipsecUser",
-		"timestamping",
-		"ocspSigning",
-		"microsoftServerGatedCrypto",
-		"netscapeServerGatedCrypto",
-		"microsoftCommercialCodeSigning",
-		"microsoftKernelCodeSigning",
-	}
-	extKeyUsagesMap = map[string]x509.ExtKeyUsage{
-		"serverAuth":                     x509.ExtKeyUsageServerAuth,
-		"clientAuth":                     x509.ExtKeyUsageClientAuth,
-		"codeSigning":                    x509.ExtKeyUsageCodeSigning,
-		"emailProtection":                x509.ExtKeyUsageEmailProtection,
-		"ipsecEndSystem":                 x509.ExtKeyUsageIPSECEndSystem,
-		"ipsecTunnel":                    x509.ExtKeyUsageIPSECTunnel,
-		"ipsecUser":                      x509.ExtKeyUsageIPSECUser,
-		"timestamping":                   x509.ExtKeyUsageTimeStamping,
-		"ocspSigning":                    x509.ExtKeyUsageOCSPSigning,
-		"microsoftServerGatedCrypto":     x509.ExtKeyUsageMicrosoftServerGatedCrypto,
-		"netscapeServerGatedCrypto":      x509.ExtKeyUsageNetscapeServerGatedCrypto,
-		"microsoftCommercialCodeSigning": x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
-		"microsoftKernelCodeSigning":     x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+	// opensslExtKeyUsages lists every supported extended key usage, in the
+	// deterministic order it is emitted, with the OpenSSL configuration token
+	// that encodes exactly its OID. Tokens are OpenSSL short names that have
+	// been stable for many releases, or a dotted OID when no such name exists.
+	opensslExtKeyUsages = []struct {
+		usage x509.ExtKeyUsage
+		token string
+	}{
+		{x509.ExtKeyUsageAny, "anyExtendedKeyUsage"},
+		{x509.ExtKeyUsageServerAuth, "serverAuth"},
+		{x509.ExtKeyUsageClientAuth, "clientAuth"},
+		{x509.ExtKeyUsageCodeSigning, "codeSigning"},
+		{x509.ExtKeyUsageEmailProtection, "emailProtection"},
+		{x509.ExtKeyUsageIPSECEndSystem, "ipsecEndSystem"},
+		{x509.ExtKeyUsageIPSECTunnel, "ipsecTunnel"},
+		{x509.ExtKeyUsageIPSECUser, "ipsecUser"},
+		{x509.ExtKeyUsageTimeStamping, "timeStamping"},
+		{x509.ExtKeyUsageOCSPSigning, "OCSPSigning"},
+		{x509.ExtKeyUsageMicrosoftServerGatedCrypto, "msSGC"},
+		{x509.ExtKeyUsageNetscapeServerGatedCrypto, "nsSGC"},
+		{x509.ExtKeyUsageMicrosoftCommercialCodeSigning, "msCodeCom"},
+		{x509.ExtKeyUsageMicrosoftKernelCodeSigning, "1.3.6.1.4.1.311.61.1.1"},
 	}
 )
+
+// opensslExtKeyUsageToken returns the OpenSSL configuration token that
+// encodes exactly the OID of usage, or an error for an unsupported usage.
+func opensslExtKeyUsageToken(usage x509.ExtKeyUsage) (string, error) {
+	for _, known := range opensslExtKeyUsages {
+		if known.usage == usage {
+			return known.token, nil
+		}
+	}
+
+	return "", errors.Errorf("unsupported ext key usage %d", usage)
+}
+
+// canonicalExtKeyUsages validates requested extended key usages and returns
+// them deduplicated in the deterministic emission order of opensslExtKeyUsages.
+// x509.ExtKeyUsageAny is preserved as the single anyExtendedKeyUsage OID and is
+// never expanded into concrete usages. It returns nil for an empty request and
+// an error for any usage that cannot be encoded exactly, so that no requested
+// usage is silently dropped.
+func canonicalExtKeyUsages(requested []x509.ExtKeyUsage) ([]x509.ExtKeyUsage, error) {
+	if len(requested) == 0 {
+		return nil, nil
+	}
+
+	wanted := make(map[x509.ExtKeyUsage]bool, len(requested))
+	for _, usage := range requested {
+		if _, err := opensslExtKeyUsageToken(usage); err != nil {
+			return nil, errors.WithStack(err)
+		}
+		wanted[usage] = true
+	}
+
+	out := make([]x509.ExtKeyUsage, 0, len(wanted))
+	for _, known := range opensslExtKeyUsages {
+		if wanted[known.usage] {
+			out = append(out, known.usage)
+		}
+	}
+
+	return out, nil
+}
+
+// opensslExtKeyUsageLine renders an extendedKeyUsage config line for the
+// canonical usages, or an empty string when usages is empty. It returns an
+// error if a usage has no OpenSSL token.
+func opensslExtKeyUsageLine(usages []x509.ExtKeyUsage) (string, error) {
+	if len(usages) == 0 {
+		return "", nil
+	}
+
+	tokens := make([]string, 0, len(usages))
+	for _, usage := range usages {
+		token, err := opensslExtKeyUsageToken(usage)
+		if err != nil {
+			return "", errors.WithStack(err)
+		}
+		tokens = append(tokens, token)
+	}
+
+	return "extendedKeyUsage = " + strings.Join(tokens, ", ") + "\n", nil
+}
+
+// tongsuoCertExtKeyUsages returns the canonical extended key usages that
+// X509Cert2OpensslConf emits for a self-signed certificate: the explicit
+// request when present, otherwise the legacy default of exactly
+// anyExtendedKeyUsage for non-CA certificates and none for CA certificates.
+// It returns an error for usages that cannot be encoded exactly.
+func tongsuoCertExtKeyUsages(cert *x509.Certificate) ([]x509.ExtKeyUsage, error) {
+	if len(cert.ExtKeyUsage) != 0 {
+		return canonicalExtKeyUsages(cert.ExtKeyUsage)
+	}
+	if cert.IsCA {
+		return nil, nil
+	}
+
+	return []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, nil
+}
 
 // x509SignCsrOptions2OpensslConf marshal x509 csr to openssl conf
 func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, opensslConf []byte, err error) {
@@ -295,7 +393,7 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 		cnt += "FALSE\n"
 	}
 
-	var extKeyUsages, keyUsages []string
+	var keyUsages []string
 	for _, name := range sortedKeyUsages {
 		usage := keyUsagesMap[name]
 		if opt.keyUsage&usage != 0 {
@@ -306,23 +404,16 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 		cnt += fmt.Sprintf("keyUsage = %s\n", strings.Join(keyUsages, ", "))
 	}
 
-	if gutils.Contains(opt.extKeyUsage, x509.ExtKeyUsageAny) {
-		// The main purpose of this function is to cater to the needs of non-compatible national SM2 standards.
-		// Since Tongsuo does not support anyExtendedKeyUsage, so it is better to use enumeration instead.
-		cnt += "extendedKeyUsage = serverAuth, clientAuth, codeSigning, emailProtection, ipsecEndSystem, " +
-			"ipsecTunnel, ipsecUser, timestamping, ocspSigning, microsoftServerGatedCrypto, " +
-			"netscapeServerGatedCrypto, microsoftCommercialCodeSigning, microsoftKernelCodeSigning\n"
-	} else {
-		for _, name := range sortedExtKeyUsages {
-			usage := extKeyUsagesMap[name]
-			if gutils.Contains(opt.extKeyUsage, usage) {
-				extKeyUsages = append(extKeyUsages, name)
-			}
-		}
-		if len(extKeyUsages) != 0 {
-			cnt += fmt.Sprintf("extendedKeyUsage = %s\n", strings.Join(extKeyUsages, ", "))
-		}
+	// emit exactly the requested usages; Any stays the anyExtendedKeyUsage OID
+	extKeyUsages, err := canonicalExtKeyUsages(opt.extKeyUsage)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "ext key usage")
 	}
+	extKeyUsageLine, err := opensslExtKeyUsageLine(extKeyUsages)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "ext key usage")
+	}
+	cnt += extKeyUsageLine
 
 	if len(opt.policies) > 0 {
 		cnt += "certificatePolicies = "

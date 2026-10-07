@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -179,159 +178,20 @@ func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) 
 	return prikeyPem, certDer, nil
 }
 
-// NewX509Cert generate new x509 cert
+// NewX509CertByCSR signs csrDer with the parent CA certificate and private
+// key through the tongsuo binary and returns the issued certificate DER.
 //
-//	tongsuo req -out rootca.crt -outform PEM -key rootca.key \
-//	    -set_serial 123456 \
-//	    -days 3650 -x509 -new -nodes -utf8 -batch \
-//	    -sm3 \
-//	    -copy_extensions copyall \
-//	    -extensions v3_ca \
-//	    -config rootca.cnf
-func (t *Tongsuo) NewX509Cert(ctx context.Context,
-	prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
-	opt, tpl, err := x509CertOption2Template(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509CertOption2Template")
-	}
-
-	opensslConf := X509Cert2OpensslConf(tpl)
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	// write conf
-	confPath := filepath.Join(dir, "rootca.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	outCertPemPath := filepath.Join(dir, "rootca.pem")
-
-	// new root ca
-	if _, err = t.runCMD(ctx, []string{
-		"req", "-outform", "PEM", "-out", outCertPemPath,
-		"-key", "/dev/stdin",
-		"-set_serial", tpl.SerialNumber.String(),
-		"-days", strconv.Itoa(1 + int(time.Until(opt.notAfter)/time.Hour/24)),
-		"-x509", "-new", "-nodes", "-utf8", "-batch",
-		"-sm3",
-		"-copy_extensions", "copyall",
-		"-extensions", "v3_ca",
-		"-config", confPath,
-	}, prikeyPem); err != nil {
-		return nil, errors.Wrap(err, "generate new root ca")
-	}
-
-	certPem, err := os.ReadFile(outCertPemPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read root ca")
-	}
-
-	if certDer, err = Pem2Der(certPem); err != nil {
-		return nil, errors.Wrap(err, "Pem2Der")
-	}
-
-	return certDer, nil
-}
-
-// NewX509CSR generate new x509 csr
-func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509CSROption) (csrDer []byte, err error) {
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	tpl, err := X509CsrOption2Template(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509CsrOption2Template")
-	}
-
-	opensslConf := X509Csr2OpensslConf(tpl)
-	confPath := filepath.Join(dir, "csr.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	outCsrDerPath := filepath.Join(dir, "csr.der")
-
-	if _, err = t.runCMD(ctx, []string{
-		"req", "-new", "-outform", "DER", "-out", outCsrDerPath,
-		"-key", "/dev/stdin",
-		"-sm3",
-		"-config", confPath,
-	}, prikeyPem); err != nil {
-		return nil, errors.Wrap(err, "generate new csr")
-	}
-
-	if csrDer, err = os.ReadFile(outCsrDerPath); err != nil {
-		return nil, errors.Wrap(err, "read csr")
-	}
-
-	return csrDer, nil
-}
-
-// NewX509CertByCSR generate new x509 cert by csr
+// The issued certificate is parsed before it is returned and must carry
+// exactly the requested extended key usages (x509.ExtKeyUsageAny stays the
+// single anyExtendedKeyUsage OID); otherwise an error is returned and no
+// certificate bytes are exposed.
 func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	parentCertDer []byte,
 	parentPrikeyPem []byte,
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
-	opt, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509SignCsrOptions2OpensslConf")
-	}
-
-	// select the digest from the parsed parent key, never from display text
-	digestAlgo := tongsuoDigestSHA256
-	if parentInfo, err := ParseTongsuoCertInfo(parentCertDer); err != nil {
-		return nil, errors.Wrap(err, "parse parent cert")
-	} else if parentInfo.IsSM2() {
-		digestAlgo = tongsuoDigestSM3
-	}
-
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	confPath := filepath.Join(dir, "csr.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	// fmt.Println(string(opensslConf)) // FIXME
-
-	parentCertDerPath := filepath.Join(dir, "ca.der")
-	if err = os.WriteFile(parentCertDerPath, parentCertDer, 0600); err != nil {
-		return nil, errors.Wrap(err, "write parent cert")
-	}
-
-	csrDerPath := filepath.Join(dir, "csr.der")
-	if err = os.WriteFile(csrDerPath, csrDer, 0600); err != nil {
-		return nil, errors.Wrap(err, "write csr")
-	}
-
-	outCertDerPath := filepath.Join(dir, "cert.der")
-
-	if _, err = t.runCMD(ctx, []string{
-		"x509", "-req", "-outform", "DER", "-out", outCertDerPath,
-		"-in", csrDerPath, "-inform", "DER",
-		"-CA", parentCertDerPath, "-CAkey", "/dev/stdin", "-CAcreateserial",
-		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
-		digestAlgo,
-		"-copy_extensions", "copyall",
-		"-extfile", confPath, "-extensions", "v3_ca",
-	}, parentPrikeyPem); err != nil {
+	if certDer, err = t.signX509CSR(ctx, parentCertDer, parentPrikeyPem, csrDer, opts...); err != nil {
 		return nil, errors.Wrap(err, "sign csr")
-	}
-
-	if certDer, err = os.ReadFile(outCertDerPath); err != nil {
-		return nil, errors.Wrap(err, "read signed cert")
 	}
 
 	return certDer, nil

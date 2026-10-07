@@ -914,7 +914,7 @@ func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
 			authorityKeyIdentifier = keyid:always, issuer
 			basicConstraints = critical, CA:FALSE
 			keyUsage = digitalSignature, keyEncipherment
-			extendedKeyUsage = serverAuth, clientAuth, codeSigning, emailProtection, ipsecEndSystem, ipsecTunnel, ipsecUser, timestamping, ocspSigning, microsoftServerGatedCrypto, netscapeServerGatedCrypto, microsoftCommercialCodeSigning, microsoftKernelCodeSigning
+			extendedKeyUsage = anyExtendedKeyUsage
 		`))
 		expectedConf = append(expectedConf, '\n')
 
