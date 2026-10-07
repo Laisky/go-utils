@@ -37,9 +37,8 @@ const (
 )
 
 // init registers the "rsa" command on the root command with its "sign" and "verify" subcommands. It binds the
-// persistent flags --prikey/-p (PEM private key path) and --file/-f (file to sign) of "sign", and the
-// persistent flag --pubkey/-p (PEM public key path) of "verify". Only "sign" registers --file; "verify"
-// reads the same fileWantToSignature variable without a flag of its own.
+// persistent flags --prikey/-p (PEM private key path) of "sign", --pubkey/-p (PEM public key path) of
+// "verify", and --file/-f (the data file to sign or verify) on both.
 func init() {
 	rootCmd.AddCommand(RSA)
 
@@ -49,6 +48,8 @@ func init() {
 
 	RSA.AddCommand(RSAVerify)
 	RSAVerify.PersistentFlags().StringVarP(&rsaPubkeyPemFilepath, "pubkey", "p", "", "filepath of pubkey in PEM format")
+	RSAVerify.PersistentFlags().StringVarP(&fileWantToSignature, "file", "f", "",
+		"file to verify against its <file>.sig signature")
 }
 
 // RSASign sign file by rsa
@@ -56,11 +57,8 @@ var RSASign = &cobra.Command{
 	Use:   "sign",
 	Short: "sign by RSA & SHA256",
 	Args:  NoExtraArgs,
-	Run: func(_ *cobra.Command, _ []string) {
-		err := SignFileByRSA(rsaPrikeyPemFilepath, fileWantToSignature)
-		if err != nil {
-			log.Shared.Panic("sign by rsa", zap.Error(err))
-		}
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return errors.Wrap(SignFileByRSA(rsaPrikeyPemFilepath, fileWantToSignature), "sign by rsa")
 	},
 }
 
@@ -69,11 +67,8 @@ var RSAVerify = &cobra.Command{
 	Use:   "verify",
 	Short: "verify by RSA & SHA256",
 	Args:  NoExtraArgs,
-	Run: func(_ *cobra.Command, _ []string) {
-		err := VerifyFileByRSA(rsaPubkeyPemFilepath, fileWantToSignature)
-		if err != nil {
-			log.Shared.Panic("verify by rsa", zap.Error(err))
-		}
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return errors.Wrap(VerifyFileByRSA(rsaPubkeyPemFilepath, fileWantToSignature), "verify by rsa")
 	},
 }
 
