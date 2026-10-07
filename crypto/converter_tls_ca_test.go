@@ -87,7 +87,7 @@ func startMTLSEchoServer(t *testing.T, serverCert tls.Certificate,
 	clientCAs *x509.CertPool) (addr string, results <-chan mtlsHandshakeResult) {
 	t.Helper()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	tlsLn := tls.NewListener(ln, &tls.Config{
 		MinVersion:   tls.VersionTLS12,
