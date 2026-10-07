@@ -9,11 +9,14 @@ import (
 	"github.com/Laisky/go-utils/v6/common"
 )
 
-// helper function to create items
+// newItem is a test helper that builds a PriorityItem with value val and label name.
 func newItem(val int, name string) PriorityItem[int] {
 	return PriorityItem[int]{Val: val, Name: name}
 }
 
+// TestPriorityQ_AscOrder verifies that an ascending PriorityQ starts empty with a nil Peek,
+// peeks the smallest pushed value, pops values in ascending order, and returns nil from Peek
+// once drained.
 func TestPriorityQ_AscOrder(t *testing.T) {
 	pq := NewPriorityQ[int](common.SortOrderAsc)
 
@@ -44,6 +47,8 @@ func TestPriorityQ_AscOrder(t *testing.T) {
 	assert.Nil(t, pq.Peek())
 }
 
+// TestPriorityQ_DescOrder verifies that a descending PriorityQ peeks the largest pushed value,
+// pops values in descending order, and returns nil from Peek once drained.
 func TestPriorityQ_DescOrder(t *testing.T) {
 	pq := NewPriorityQ[int](common.SortOrderDesc)
 
@@ -69,12 +74,16 @@ func TestPriorityQ_DescOrder(t *testing.T) {
 	assert.Nil(t, pq.Peek())
 }
 
+// TestPriorityItem_GetVal verifies that GetVal returns the value stored in a PriorityItem and
+// that its Name field is preserved.
 func TestPriorityItem_GetVal(t *testing.T) {
 	item := newItem(42, "answer")
 	assert.Equal(t, 42, item.GetVal())
 	assert.Equal(t, "answer", item.Name)
 }
 
+// TestInnerPriorityQ_PushPop verifies that the internal ascending queue satisfies
+// container/heap: heap.Push grows it and heap.Pop returns the smallest value first.
 func TestInnerPriorityQ_PushPop(t *testing.T) {
 	pq := newInnerPriorityQ[int](common.SortOrderAsc)
 
@@ -93,11 +102,14 @@ func TestInnerPriorityQ_PushPop(t *testing.T) {
 	assert.Equal(t, 2, pq.Len())
 }
 
+// TestPeekEmptyQueue verifies that Peek on a newly created PriorityQ returns nil.
 func TestPeekEmptyQueue(t *testing.T) {
 	pq := NewPriorityQ[int](common.SortOrderAsc)
 	assert.Nil(t, pq.Peek())
 }
 
+// TestMixedOperations verifies that interleaved Push, Peek, and Pop calls on an ascending
+// PriorityQ keep Len accurate and still pop the remaining values in ascending order.
 func TestMixedOperations(t *testing.T) {
 	pq := NewPriorityQ[int](common.SortOrderAsc)
 

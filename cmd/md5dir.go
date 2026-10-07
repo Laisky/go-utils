@@ -24,6 +24,8 @@ var md5DirArg struct {
 	RemainSource bool
 }
 
+// init registers the "md5dir" command on the root command and binds its persistent flags --input-dir/-i,
+// --output-dir/-o and --remain/-r (keep the source after a move) to md5DirArg.
 func init() {
 	rootCmd.AddCommand(md5DirCMD)
 	md5DirCMD.PersistentFlags().StringVarP(&md5DirArg.SourceDir,
@@ -228,6 +230,10 @@ func saveExifCaption(ctx context.Context, fpath string, caption string) error {
 	return nil
 }
 
+// checkMd5DirArg validates and normalizes the md5dir arguments stored in md5DirArg. It requires a non-empty
+// source directory, defaults the target directory to the source directory when it is empty, and rewrites both
+// to absolute paths in place. It returns an error when the source directory is missing or an absolute path
+// cannot be resolved, and nil otherwise.
 func checkMd5DirArg() (err error) {
 	if md5DirArg.SourceDir == "" {
 		return errors.Errorf("--intput-dir should not be empty")

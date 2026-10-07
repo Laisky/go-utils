@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestUnmarshal verifies that Unmarshal decodes a JSON object into a struct while ignoring
+// unknown fields, and returns an error for empty input and for values whose JSON type does
+// not match the struct field type.
 func TestUnmarshal(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +71,10 @@ func TestUnmarshal(t *testing.T) {
 	}
 }
 
+// Benchmark_json_v1_v2 compares marshal and unmarshal throughput of encoding/json (v1),
+// github.com/go-json-experiment/json (v2), and this package's Marshal and UnmarshalComment
+// on a small JSON payload generated from a fake person record. Sample results:
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v6/json

@@ -143,6 +143,10 @@ type pusherOption struct {
 // PusherOption pusher option
 type PusherOption func(opts *pusherOption) error
 
+// fillDefault populates o with the pusher defaults: a "log_pusher" child of Shared as the
+// internal logger, the default JSON formatter, a default sender that only logs payloads
+// through a "sender" child logger, a 128-entry send queue, the default per-send timeout
+// and a 64 KiB message limit. It returns o to allow call chaining.
 func (o *pusherOption) fillDefault() *pusherOption {
 	o.logger = Shared.Named("log_pusher")
 	o.formatter = NewDefaultPusherFormatter()
@@ -156,6 +160,8 @@ func (o *pusherOption) fillDefault() *pusherOption {
 	return o
 }
 
+// applyOpts applies each PusherOption in opts to o in order. It returns o on success, or
+// nil and the wrapped error of the first option that fails.
 func (o *pusherOption) applyOpts(opts ...PusherOption) (*pusherOption, error) {
 	for _, opt := range opts {
 		if err := opt(o); err != nil {

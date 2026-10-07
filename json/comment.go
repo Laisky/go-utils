@@ -44,6 +44,10 @@ func UnmarshalCommentFromString(str string, v interface{}) (err error) {
 	return UnmarshalComment([]byte(str), v)
 }
 
+// standardizeJSON parses b as HuJSON (JSON that may contain comments and trailing commas) and
+// returns the equivalent standard JSON with all comments removed. The conversion reuses the
+// memory of b, so its content is modified. If b cannot be parsed, it returns b unchanged together
+// with a wrapped parse error.
 func standardizeJSON(b []byte) ([]byte, error) {
 	ast, err := hujson.Parse(b)
 	if err != nil {

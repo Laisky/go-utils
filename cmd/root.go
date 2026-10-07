@@ -57,6 +57,8 @@ func Execute() {
 	}
 }
 
+// init binds the persistent flags of the root command: --debug, which switches the shared logger to debug
+// level, and --version/-v, which prints the build information and exits before any subcommand runs.
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&cmdDebug, "debug", false, "debug")
 	rootCmd.PersistentFlags().BoolVarP(&cmdVersion, "version", "v", false, "print version")

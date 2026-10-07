@@ -1,20 +1,16 @@
 package log
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"unicode"
 
 	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
-
-	"github.com/Laisky/go-utils/v6/internal/fileguard"
 )
 
 const defaultRotationFilenamePattern = "{logger}-YYYYMMDD.log"
@@ -25,6 +21,8 @@ type rotationConfig struct {
 	filenamePattern string
 }
 
+// ensureRotationConfig lazily allocates the rotation settings on o so rotation options can
+// be applied in any order. It returns the existing or newly created rotationConfig.
 func (o *option) ensureRotationConfig() *rotationConfig {
 	if o.rotation == nil {
 		o.rotation = &rotationConfig{}
@@ -33,6 +31,13 @@ func (o *option) ensureRotationConfig() *rotationConfig {
 	return o.rotation
 }
 
+// configureRotation validates the rotation settings collected from options and, when
+// rotation is enabled, registers the rotation sink and replaces o.OutputPaths with a single
+// "rotate:" URL carrying the path, retention days, filename pattern and sanitized logger
+// name. A blank pattern falls back to defaultRotationFilenamePattern, and an unset or
+// default logger name is replaced by one derived from the log path. It returns nil when
+// rotation is not configured, or an error when the path is empty, the retention is
+// negative, the pattern is invalid or the sink cannot be registered.
 func (o *option) configureRotation() error {
 	if o.rotation == nil {
 		return nil
@@ -89,6 +94,9 @@ var (
 	errRotationSink          error
 )
 
+// ensureRotationSinkRegistered registers createRotationSink with zap for the "rotate" URL
+// scheme exactly once per process. It returns the wrapped registration error, which is
+// remembered and returned again on every later call, or nil on success.
 func ensureRotationSinkRegistered() error {
 	registerRotationSinkOnce.Do(func() {
 		errRotationSink = zap.RegisterSink(rotationScheme, createRotationSink)
@@ -163,58 +171,11 @@ func WithRotationFilenamePattern(pattern string) Option {
 	}
 }
 
-type rotationWriter struct {
-	mu            sync.Mutex
-	file          *os.File
-	baseDir       string
-	retentionDays int
-	loggerName    string
-	pattern       *rotationPattern
-	now           func() time.Time
-	currentStart  time.Time
-	nextRotate    time.Time
-	currentPath   string
-}
-
-func newRotationWriter(path string, retentionDays int, pattern string, loggerName string) (*rotationWriter, error) {
-	if path == "" {
-		return nil, errors.Errorf("rotation path must not be empty")
-	}
-	if retentionDays < 0 {
-		return nil, errors.Errorf("rotation retention days must be >= 0")
-	}
-
-	trimmedPattern := strings.TrimSpace(pattern)
-	if trimmedPattern == "" {
-		trimmedPattern = defaultRotationFilenamePattern
-	}
-
-	compiledPattern, err := compileRotationPattern(trimmedPattern)
-	if err != nil {
-		return nil, errors.Wrap(err, "compile rotation filename pattern")
-	}
-
-	cleaned := filepath.Clean(path)
-	baseDir := filepath.Dir(cleaned)
-
-	if strings.TrimSpace(loggerName) == "" {
-		loggerName = deriveFallbackLoggerName(cleaned)
-	}
-	sanitizedLogger := sanitizeLoggerSegment(loggerName)
-
-	writer := &rotationWriter{
-		baseDir:       baseDir,
-		retentionDays: retentionDays,
-		loggerName:    sanitizedLogger,
-		pattern:       compiledPattern,
-		now: func() time.Time {
-			return time.Now().UTC()
-		},
-	}
-
-	return writer, nil
-}
-
+// createRotationSink is the zap sink factory for "rotate:" URLs. It reads the path (from
+// the query, falling back to the URL path), retention_days, pattern and logger query
+// parameters of u and builds a rotationWriter from them. It returns the writer as a
+// zap.Sink, or an error when the query cannot be parsed, the path is missing,
+// retention_days is not an integer or the writer settings are invalid.
 func createRotationSink(u *url.URL) (zap.Sink, error) {
 	query, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
@@ -250,159 +211,10 @@ func createRotationSink(u *url.URL) (zap.Sink, error) {
 	return writer, nil
 }
 
-func (w *rotationWriter) ensureActiveFile(now time.Time) error {
-	if w.file == nil {
-		start, next := rotationWindow(now)
-		if err := w.openNewFile(start, next); err != nil {
-			return err
-		}
-		return w.cleanup(start)
-	}
-
-	if now.Before(w.nextRotate) {
-		return nil
-	}
-
-	start, next := rotationWindow(now)
-	if err := w.rotateTo(start, next); err != nil {
-		return err
-	}
-	return w.cleanup(start)
-}
-
-func rotationWindow(now time.Time) (time.Time, time.Time) {
-	now = now.UTC()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return start, start.Add(24 * time.Hour)
-}
-
-func (w *rotationWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	now := w.now()
-	if err := w.ensureActiveFile(now); err != nil {
-		return 0, err
-	}
-
-	n, err := w.file.Write(p)
-	if err != nil {
-		return n, errors.Wrap(err, "write log file")
-	}
-	return n, nil
-}
-
-func (w *rotationWriter) Sync() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.file == nil {
-		return nil
-	}
-
-	if err := w.file.Sync(); err != nil {
-		return errors.Wrap(err, "sync log file")
-	}
-
-	return nil
-}
-
-func (w *rotationWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.file == nil {
-		return nil
-	}
-
-	if err := w.file.Close(); err != nil {
-		return errors.Wrap(err, "close log file")
-	}
-	w.file = nil
-	return nil
-}
-
-func (w *rotationWriter) openNewFile(start, next time.Time) error {
-	path, err := w.pattern.Path(w.loggerName, start, w.baseDir)
-	if err != nil {
-		return err
-	}
-
-	if err := ensureDir(filepath.Dir(path)); err != nil {
-		return err
-	}
-
-	// Every first open and rollover uses the same destination policy: no final
-	// link is followed, a FIFO cannot block, and only a regular single-link file
-	// verified through the opened descriptor is appended to.
-	file, err := fileguard.OpenAppend(path, 0o600)
-	if err != nil {
-		return errors.Wrap(err, "open log file")
-	}
-
-	w.file = file
-	w.currentStart = start
-	w.nextRotate = next
-	w.currentPath = filepath.Clean(path)
-	return nil
-}
-
-func (w *rotationWriter) rotateTo(start, next time.Time) error {
-	if w.file != nil {
-		if err := w.file.Sync(); err != nil {
-			return errors.Wrap(err, "sync log file")
-		}
-		if err := w.file.Close(); err != nil {
-			return errors.Wrap(err, "close log file")
-		}
-		w.file = nil
-	}
-
-	return w.openNewFile(start, next)
-}
-
-func (w *rotationWriter) cleanup(current time.Time) error {
-	if w.retentionDays <= 0 {
-		return nil
-	}
-
-	threshold := current.AddDate(0, 0, -w.retentionDays)
-	dir := w.baseDir
-	if dir == "" {
-		dir = "."
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return errors.Wrap(err, "list log directory")
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		path := filepath.Clean(filepath.Join(dir, name))
-		if path == w.currentPath {
-			continue
-		}
-
-		start, ok := w.pattern.Parse(name, w.loggerName)
-		if !ok {
-			continue
-		}
-
-		if start.Before(threshold) {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return errors.Wrap(err, "remove expired log file")
-			}
-		}
-	}
-
-	return nil
-}
-
+// sanitizeLoggerSegment converts raw into a filename-safe logger segment: letters are
+// lowercased, digits, '-', '_' and '.' are kept, every other rune becomes '-', and leading
+// or trailing '-', '_' and '.' are trimmed. It returns defaultLoggerName when raw is blank
+// or nothing remains after sanitizing.
 func sanitizeLoggerSegment(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -430,6 +242,10 @@ func sanitizeLoggerSegment(raw string) string {
 	return res
 }
 
+// deriveFallbackLoggerName derives a logger name from the base name of path without its
+// extension, for example "app" for "/var/log/app.log". It returns defaultLoggerName when
+// the base is "." or the path separator, and the full base name when stripping the
+// extension would leave nothing.
 func deriveFallbackLoggerName(path string) string {
 	base := filepath.Base(path)
 	if base == "." || base == string(os.PathSeparator) {
@@ -442,296 +258,4 @@ func deriveFallbackLoggerName(path string) string {
 	}
 
 	return name
-}
-
-// ensureDir creates missing log directories as private (0700 before the umask).
-// Existing directories keep their permissions, so operators who need shared
-// access can pre-create the directory with broader permissions. It takes the
-// directory and returns an error when it cannot be created.
-func ensureDir(dir string) error {
-	if dir == "" || dir == "." {
-		return nil
-	}
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return errors.Wrap(err, "create log directory")
-	}
-	return nil
-}
-
-type patternElementKind int
-
-const (
-	patternLiteral patternElementKind = iota
-	patternLogger
-	patternYear
-	patternMonth
-	patternDay
-	patternHour
-	patternMinute
-	patternSecond
-)
-
-type patternElement struct {
-	kind    patternElementKind
-	literal string
-}
-
-type rotationPattern struct {
-	raw      string
-	elements []patternElement
-	hasYear  bool
-	hasMonth bool
-	hasDay   bool
-}
-
-// Path resolves a validated filename beneath baseDir without an absolute-path bypass.
-func (rp *rotationPattern) Path(logger string, start time.Time, baseDir string) (string, error) {
-	name := rp.format(logger, start)
-	if err := validateRotationFilename(name); err != nil {
-		return "", errors.Wrap(err, "validate formatted rotation filename")
-	}
-	if baseDir == "" {
-		baseDir = "."
-	}
-	result := filepath.Join(baseDir, name)
-	relative, err := filepath.Rel(baseDir, result)
-	if err != nil {
-		return "", errors.Wrap(err, "resolve rotation filename")
-	}
-	if !filepath.IsLocal(relative) {
-		return "", errors.New("rotation filename escaped its base directory")
-	}
-	return result, nil
-}
-
-func (rp *rotationPattern) format(logger string, start time.Time) string {
-	var b strings.Builder
-	for _, el := range rp.elements {
-		switch el.kind {
-		case patternLiteral:
-			b.WriteString(el.literal)
-		case patternLogger:
-			b.WriteString(logger)
-		case patternYear:
-			_, _ = fmt.Fprintf(&b, "%04d", start.Year())
-		case patternMonth:
-			_, _ = fmt.Fprintf(&b, "%02d", int(start.Month()))
-		case patternDay:
-			_, _ = fmt.Fprintf(&b, "%02d", start.Day())
-		case patternHour:
-			_, _ = fmt.Fprintf(&b, "%02d", start.Hour())
-		case patternMinute:
-			_, _ = fmt.Fprintf(&b, "%02d", start.Minute())
-		case patternSecond:
-			_, _ = fmt.Fprintf(&b, "%02d", start.Second())
-		}
-	}
-
-	return b.String()
-}
-
-func (rp *rotationPattern) Parse(name string, logger string) (time.Time, bool) {
-	pos := 0
-	parts := timeParts{year: -1, month: -1, day: -1, hour: 0, minute: 0, second: 0}
-
-	for _, el := range rp.elements {
-		switch el.kind {
-		case patternLiteral:
-			if !strings.HasPrefix(name[pos:], el.literal) {
-				return time.Time{}, false
-			}
-			pos += len(el.literal)
-		case patternLogger:
-			if !strings.HasPrefix(name[pos:], logger) {
-				return time.Time{}, false
-			}
-			pos += len(logger)
-		case patternYear:
-			value, ok := parseFourDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.year = value
-			pos += 4
-		case patternMonth:
-			value, ok := parseTwoDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.month = value
-			pos += 2
-		case patternDay:
-			value, ok := parseTwoDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.day = value
-			pos += 2
-		case patternHour:
-			value, ok := parseTwoDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.hour = value
-			pos += 2
-		case patternMinute:
-			value, ok := parseTwoDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.minute = value
-			pos += 2
-		case patternSecond:
-			value, ok := parseTwoDigits(name, pos)
-			if !ok {
-				return time.Time{}, false
-			}
-			parts.second = value
-			pos += 2
-		}
-	}
-
-	if pos != len(name) {
-		return time.Time{}, false
-	}
-
-	if parts.year < 0 || parts.month < 1 || parts.day < 1 {
-		return time.Time{}, false
-	}
-
-	if parts.month > 12 || parts.day > 31 || parts.hour > 23 || parts.minute > 59 || parts.second > 59 {
-		return time.Time{}, false
-	}
-
-	result := time.Date(
-		parts.year,
-		time.Month(parts.month),
-		parts.day,
-		parts.hour,
-		parts.minute,
-		parts.second,
-		0,
-		time.UTC,
-	)
-	return result, true
-}
-
-type timeParts struct {
-	year   int
-	month  int
-	day    int
-	hour   int
-	minute int
-	second int
-}
-
-func parseFourDigits(input string, pos int) (int, bool) {
-	if pos+4 > len(input) {
-		return 0, false
-	}
-	return parseDigits(input[pos : pos+4])
-}
-
-func parseTwoDigits(input string, pos int) (int, bool) {
-	if pos+2 > len(input) {
-		return 0, false
-	}
-	return parseDigits(input[pos : pos+2])
-}
-
-func parseDigits(segment string) (int, bool) {
-	value := 0
-	for _, r := range segment {
-		if r < '0' || r > '9' {
-			return 0, false
-		}
-		value = value*10 + int(r-'0')
-	}
-	return value, true
-}
-
-func compileRotationPattern(pattern string) (*rotationPattern, error) {
-	pattern = strings.TrimSpace(pattern)
-	if pattern == "" {
-		return nil, errors.Errorf("rotation filename pattern must not be empty")
-	}
-
-	rp := &rotationPattern{raw: pattern}
-
-	for i := 0; i < len(pattern); {
-		if strings.HasPrefix(pattern[i:], "{logger}") {
-			rp.elements = append(rp.elements, patternElement{kind: patternLogger})
-			i += len("{logger}")
-			continue
-		}
-
-		if token, kind := matchPatternToken(pattern[i:]); token != "" {
-			rp.elements = append(rp.elements, patternElement{kind: kind})
-			i += len(token)
-			switch kind {
-			case patternLiteral:
-			case patternYear:
-				rp.hasYear = true
-			case patternMonth:
-				rp.hasMonth = true
-			case patternDay:
-				rp.hasDay = true
-			case patternLogger:
-			case patternHour:
-			case patternMinute:
-			case patternSecond:
-			}
-			continue
-		}
-
-		j := i + 1
-		for j < len(pattern) {
-			if strings.HasPrefix(pattern[j:], "{logger}") {
-				break
-			}
-			if token, _ := matchPatternToken(pattern[j:]); token != "" {
-				break
-			}
-			j++
-		}
-		literal := pattern[i:j]
-		if strings.ContainsAny(literal, `/\`) {
-			return nil, errors.Errorf("rotation filename pattern must not contain path separators")
-		}
-		rp.elements = append(rp.elements, patternElement{kind: patternLiteral, literal: literal})
-		i = j
-	}
-
-	if !rp.hasYear || !rp.hasMonth || !rp.hasDay {
-		return nil, errors.Errorf("rotation filename pattern must include YYYY, MM, and DD tokens")
-	}
-
-	if err := validateRotationFilename(rp.format("logger", time.Date(2000, 1, 2, 0, 0, 0, 0, time.UTC))); err != nil {
-		return nil, errors.Wrap(err, "validate rotation filename pattern")
-	}
-	return rp, nil
-}
-
-func matchPatternToken(input string) (string, patternElementKind) {
-	tokens := []struct {
-		text string
-		kind patternElementKind
-	}{
-		{"YYYY", patternYear},
-		{"MM", patternMonth},
-		{"DD", patternDay},
-		{"hh", patternHour},
-		{"HH", patternHour},
-		{"mm", patternMinute},
-		{"ss", patternSecond},
-	}
-
-	for _, token := range tokens {
-		if strings.HasPrefix(input, token.text) {
-			return token.text, token.kind
-		}
-	}
-
-	return "", 0
 }

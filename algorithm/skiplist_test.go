@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewSkiplist verifies that 1000 random float64 keys stored with Set in a skiplist created
+// by NewSkiplist can each be read back with Get, skipping keys that are already present.
 func TestNewSkiplist(t *testing.T) {
 	t.Parallel()
 

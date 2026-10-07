@@ -6,6 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestDeque verifies FIFO and LIFO semantics of PushBack, PushFront, PopFront, PopBack, Front,
+// Back, and Len on an int deque, that valid capacity options are accepted while negative
+// capacities are rejected with an error, and that the generic deque works with strings.
 func TestDeque(t *testing.T) {
 	t.Parallel()
 

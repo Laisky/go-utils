@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFilter verifies that a zap.Filter passed through WithZapOptions drops entries whose
+// message is "world", while the other entries are still written to the output file with
+// their caller location and "hello" appears exactly once.
 func TestFilter(t *testing.T) {
 	dir, err := os.MkdirTemp("", "TestWriteToFile*")
 	if err != nil {

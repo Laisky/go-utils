@@ -28,6 +28,8 @@ var jsonArg struct {
 	Insensitive bool
 }
 
+// init registers the "json" command on the root command together with its "sort" subcommand, and binds the
+// sort flags --recursive/-r, --ext, --dry, --sort (asc|desc), --indent and --insensitive/-i to jsonArg.
 func init() {
 	rootCmd.AddCommand(jsonCmd)
 	jsonCmd.AddCommand(jsonSortCmd)

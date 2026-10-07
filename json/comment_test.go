@@ -6,6 +6,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestUnmarshalCommentFromString verifies that UnmarshalComment decodes JSON containing line
+// comments and strips those comments from its input slice, that UnmarshalCommentFromString
+// decodes commented JSON without mutating the caller's string, and that plain Unmarshal rejects
+// commented JSON.
 func TestUnmarshalCommentFromString(t *testing.T) {
 	t.Parallel()
 

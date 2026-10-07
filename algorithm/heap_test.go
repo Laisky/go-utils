@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetLargestNItems verifies that GetLargestNItems consumes a channel of 100000 random ints
+// with five larger values interleaved and returns exactly those five values in descending order.
 func TestGetLargestNItems(t *testing.T) {
 	t.Parallel()
 
@@ -41,6 +43,8 @@ func TestGetLargestNItems(t *testing.T) {
 	require.Equal(t, expected, result)
 }
 
+// TestGetSmallestNItems verifies that GetSmallestNItems consumes a channel of 100000 random ints
+// with five smaller values interleaved and returns exactly those five values in ascending order.
 func TestGetSmallestNItems(t *testing.T) {
 	t.Parallel()
 

@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGzTextScanDecompressionBombProtection verifies that GzText round-trips through Value and
+// Scan for both byte-slice and string inputs, that scanning empty data yields an empty GzText,
+// and that Scan rejects a gzip payload which decompresses beyond the 64 MiB limit.
 func TestGzTextScanDecompressionBombProtection(t *testing.T) {
 	t.Parallel()
 

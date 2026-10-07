@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestBinarySearch verifies that BinarySearch returns the index of a matching element in sorted
+// int and string slices, and returns -1 when the comparator never reports a match.
 func TestBinarySearch(t *testing.T) {
 	t.Parallel()
 

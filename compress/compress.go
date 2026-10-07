@@ -37,10 +37,14 @@ func GzCompress(in io.Reader, out io.Writer) error {
 	return gz.Flush()
 }
 
+// gzDecompressOption holds the settings used by GzDecompress, currently the maximum number of decompressed bytes it
+// may write.
 type gzDecompressOption struct {
 	maxBytes int64
 }
 
+// apply resets o to its defaults (a 1GB decompression limit) and then applies each option in fs in order. It returns o
+// configured with the options, or an error wrapping the first option that fails validation.
 func (o *gzDecompressOption) apply(fs ...GzDecompressOption) (*gzDecompressOption, error) {
 	// set default
 	o.maxBytes = 1 * 1024 * 1024 * 1024 // 1GB

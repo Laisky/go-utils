@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestPusherHTTPSender_Send verifies that a Pusher using NewPusherHTTPSender delivers an
+// entry logged through its zap hook to the HTTP endpoint within three seconds, with the
+// log message contained in the request body.
 func TestPusherHTTPSender_Send(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

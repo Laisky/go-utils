@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRotationWindowDaily verifies that rotationWindow maps both a midday time and an exact
+// midnight boundary to the UTC day containing them, ending at the next midnight.
 func TestRotationWindowDaily(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -43,6 +45,9 @@ func TestRotationWindowDaily(t *testing.T) {
 	}
 }
 
+// TestRotationWriterDailyRotation verifies that the writer creates app-20250101.log on the
+// first day and switches to app-20250102.log when the clock advances by one day, with each
+// entry written to the file of its own day.
 func TestRotationWriterDailyRotation(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
@@ -121,6 +126,8 @@ func TestLoggerWithRotationWrites(t *testing.T) {
 	require.True(t, matched, "expected daily log file to match pattern {logger}-YYYYMMDD.log")
 }
 
+// TestRotationRetention verifies that with a retention of one day, writing on the third
+// day deletes the first day's file while the second day's file is kept.
 func TestRotationRetention(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
@@ -156,6 +163,9 @@ func TestRotationRetention(t *testing.T) {
 	require.FileExists(t, day2Path)
 }
 
+// TestRotationWriterCustomPattern verifies that a custom {logger}-YYYYMMDD-HH.log pattern
+// produces filenames with the lowercased logger name and the window start hour 00, and
+// that advancing the clock by one day writes to the next day's file.
 func TestRotationWriterCustomPattern(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "Service.log")

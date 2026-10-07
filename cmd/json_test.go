@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSortJSONFile verifies that sortJSONFile rewrites a file with keys sorted ascending or descending at every
+// nesting level using the requested indent width, that dry mode leaves the file untouched, and that
+// sortJSONPath in recursive mode sorts files matching any of the given extensions inside subdirectories.
 func TestSortJSONFile(t *testing.T) {
 	dir := t.TempDir()
 
@@ -119,6 +122,9 @@ func TestSortJSONFile(t *testing.T) {
 	})
 }
 
+// TestSortRecursive verifies that sortRecursive wraps a top-level map, whose values include a slice holding a
+// nested map, into a sortedMap carrying exactly the original keys in both ascending and descending modes. The
+// test re-sorts the keys itself, so it checks the key set rather than the emitted order.
 func TestSortRecursive(t *testing.T) {
 	t.Run("ordered keys", func(t *testing.T) {
 		data := map[string]interface{}{
@@ -146,6 +152,10 @@ func TestSortRecursive(t *testing.T) {
 	})
 }
 
+// TestSortJSONKeysOrder verifies the key order sortJSONFile writes for edge cases: byte-wise ordering of
+// digits, upper-case and lower-case letters in both directions, special characters, empty keys, UTF-8 keys
+// and nested objects, plus the case-insensitive mode that groups keys such as "A" and "a" together and keeps
+// "ServerAddress" before the SMTP-prefixed keys.
 func TestSortJSONKeysOrder(t *testing.T) {
 	dir := t.TempDir()
 	fpath := filepath.Join(dir, "keys.json")

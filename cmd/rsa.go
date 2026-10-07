@@ -36,6 +36,10 @@ const (
 	rsaSignPrefixSHA256 = "rsa-sha256::"
 )
 
+// init registers the "rsa" command on the root command with its "sign" and "verify" subcommands. It binds the
+// persistent flags --prikey/-p (PEM private key path) and --file/-f (file to sign) of "sign", and the
+// persistent flag --pubkey/-p (PEM public key path) of "verify". Only "sign" registers --file; "verify"
+// reads the same fileWantToSignature variable without a flag of its own.
 func init() {
 	rootCmd.AddCommand(RSA)
 

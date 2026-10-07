@@ -6,6 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewDiffArray verifies that NewDiffArray stores the expected difference array for empty,
+// single-element, ascending, descending, constant, negative, and mixed-sign inputs, and that
+// ToArray reconstructs the original input exactly.
 func TestNewDiffArray(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -69,6 +72,9 @@ func TestNewDiffArray(t *testing.T) {
 	}
 }
 
+// TestDiffArray_IncrementRange verifies that IncrementRange adds a value to every element of the
+// inclusive range for whole-array, sub-range, repeated, and single-element updates, and that
+// out-of-bounds or inverted ranges and updates on an empty array leave the data unchanged.
 func TestDiffArray_IncrementRange(t *testing.T) {
 	tests := []struct {
 		name  string

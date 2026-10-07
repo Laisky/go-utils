@@ -11,6 +11,9 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// Test_signFileByRSA verifies the RSA-SHA256 file signing round trip: it writes a 3072-bit key pair as PEM
+// files and a 100-byte random data file, signs the data with SignFileByRSA (which writes "<file>.sig"), and
+// checks that VerifyFileByRSA accepts that signature with the public key.
 func Test_signFileByRSA(t *testing.T) {
 	t.Parallel()
 
