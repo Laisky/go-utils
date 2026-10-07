@@ -54,11 +54,11 @@ func (o *kmsOption) fillDefault() *kmsOption {
 }
 
 // applyOpts applies each KMSOption in opts to the receiver in order. It returns the receiver,
-// or the first error reported by an option.
+// or the first error reported by an option, wrapped with context.
 func (o *kmsOption) applyOpts(opts ...KMSOption) (*kmsOption, error) {
 	for i := range opts {
 		if err := opts[i](o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply KMS option")
 		}
 	}
 
@@ -250,7 +250,12 @@ func (m *KMS) DeriveKeyByID(_ context.Context,
 		return nil, errors.Errorf("kek %d in wrong type %T", kekID, keki)
 	}
 
-	return gcrypto.DeriveKeyByHKDF(kek, dekID, length)
+	dek, err = gcrypto.DeriveKeyByHKDF(kek, dekID, length)
+	if err != nil {
+		return nil, errors.Wrapf(err, "derive key by kek %d", kekID)
+	}
+
+	return dek, nil
 }
 
 // DeriveKey derive random key
