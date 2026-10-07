@@ -387,7 +387,7 @@ func validateSm4Key(key []byte) error {
 // It returns a descriptive error for the first invalid argument, or nil.
 func validateSm4KeyAndIV(key, iv []byte) error {
 	if err := validateSm4Key(key); err != nil {
-		return err
+		return errors.Wrap(err, "invalid SM4 key")
 	}
 	if len(iv) != sm4IVSize {
 		return errors.Errorf("iv should be 16 bytes")
@@ -401,7 +401,7 @@ func validateSm4KeyAndIV(key, iv []byte) error {
 // descriptive error for the first invalid argument, or nil.
 func validateSm4DecryptArgs(key, ciphertext, iv, hmac []byte) error {
 	if err := validateSm4KeyAndIV(key, iv); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if len(hmac) != 0 && len(hmac) != sm4MACSize {
 		return errors.Errorf("hmac should be 0 or 32 bytes")

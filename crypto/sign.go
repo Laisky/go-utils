@@ -58,7 +58,12 @@ func SignBySchnorrSha256(suite dediskey.Suite, prikey kyber.Scalar, reader io.Re
 		return nil, errors.Wrap(err, "read content")
 	}
 
-	return schnorr.Sign(suite, prikey, hasher.Sum(nil))
+	sig, err := schnorr.Sign(suite, prikey, hasher.Sum(nil))
+	if err != nil {
+		return nil, errors.Wrap(err, "schnorr sign")
+	}
+
+	return sig, nil
 }
 
 // VerifyBySchnorrSha256 verify signature by schnorr
@@ -68,7 +73,11 @@ func VerifyBySchnorrSha256(suite dediskey.Suite, pubkey kyber.Point, reader io.R
 		return errors.Wrap(err, "read content")
 	}
 
-	return schnorr.Verify(suite, pubkey, hasher.Sum(nil), sig)
+	if err := schnorr.Verify(suite, pubkey, hasher.Sum(nil), sig); err != nil {
+		return errors.Wrap(err, "schnorr verify")
+	}
+
+	return nil
 }
 
 var (
@@ -85,13 +94,22 @@ var (
 // SignByRSAPKCS1v15WithSHA256 generate signature by rsa private key use sha256
 func SignByRSAPKCS1v15WithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
 	hashed := sha256.Sum256(content)
-	return rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hashed[:])
+	sig, err := rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hashed[:])
+	if err != nil {
+		return nil, errors.Wrap(err, "rsa pkcs1v15 sign")
+	}
+
+	return sig, nil
 }
 
 // VerifyByRSAPKCS1v15WithSHA256 verify signature by rsa public key use sha256
 func VerifyByRSAPKCS1v15WithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
 	hash := sha256.Sum256(content)
-	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig)
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig); err != nil {
+		return errors.Wrap(err, "rsa pkcs1v15 verify")
+	}
+
+	return nil
 }
 
 // SignByRSAPSSWithSHA256 generate signature by rsa private key use sha256
@@ -99,13 +117,22 @@ func VerifyByRSAPKCS1v15WithSHA256(pubKey *rsa.PublicKey, content []byte, sig []
 // RSASSA-PSS is not deterministic, so it will return different signature every time.
 func SignByRSAPSSWithSHA256(prikey *rsa.PrivateKey, content []byte) ([]byte, error) {
 	hashed := sha256.Sum256(content)
-	return rsa.SignPSS(rand.Reader, prikey, crypto.SHA256, hashed[:], nil)
+	sig, err := rsa.SignPSS(rand.Reader, prikey, crypto.SHA256, hashed[:], nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "rsa pss sign")
+	}
+
+	return sig, nil
 }
 
 // VerifyByRSAPSSWithSHA256 verify signature by rsa public key use sha256
 func VerifyByRSAPSSWithSHA256(pubKey *rsa.PublicKey, content []byte, sig []byte) error {
 	hash := sha256.Sum256(content)
-	return rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], sig, nil)
+	if err := rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], sig, nil); err != nil {
+		return errors.Wrap(err, "rsa pss verify")
+	}
+
+	return nil
 }
 
 // SignReaderByRSAWithSHA256 generate signature by rsa private key use sha256
@@ -115,7 +142,11 @@ func SignReaderByRSAWithSHA256(prikey *rsa.PrivateKey, reader io.Reader) (sig []
 		return nil, errors.Wrap(err, "read content")
 	}
 
-	return rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hasher.Sum(nil))
+	if sig, err = rsa.SignPKCS1v15(rand.Reader, prikey, crypto.SHA256, hasher.Sum(nil)); err != nil {
+		return nil, errors.Wrap(err, "rsa pkcs1v15 sign")
+	}
+
+	return sig, nil
 }
 
 // VerifyReaderByRSAWithSHA256 verify signature by rsa public key use sha256
@@ -125,7 +156,11 @@ func VerifyReaderByRSAWithSHA256(pubKey *rsa.PublicKey, reader io.Reader, sig []
 		return errors.Wrap(err, "read content")
 	}
 
-	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hasher.Sum(nil), sig)
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hasher.Sum(nil), sig); err != nil {
+		return errors.Wrap(err, "rsa pkcs1v15 verify")
+	}
+
+	return nil
 }
 
 // SignByEd25519WithSHA512 signs the legacy plain-Ed25519-over-SHA512 format.
@@ -149,7 +184,11 @@ func VerifyByEd25519WithSHA512(pubKey ed25519.PublicKey, reader io.Reader, sig [
 // SignByECDSAWithSHA256 generate signature by ecdsa private key use sha256
 func SignByECDSAWithSHA256(prikey *ecdsa.PrivateKey, content []byte) (r, s *big.Int, err error) {
 	hash := sha256.Sum256(content)
-	return ecdsa.Sign(rand.Reader, prikey, hash[:])
+	if r, s, err = ecdsa.Sign(rand.Reader, prikey, hash[:]); err != nil {
+		return nil, nil, errors.Wrap(err, "ecdsa sign")
+	}
+
+	return r, s, nil
 }
 
 // VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
@@ -193,7 +232,11 @@ func SignReaderByECDSAWithSHA256(prikey *ecdsa.PrivateKey, reader io.Reader) (r,
 		return nil, nil, errors.Wrap(err, "read content")
 	}
 
-	return ecdsa.Sign(rand.Reader, prikey, hasher.Sum(nil))
+	if r, s, err = ecdsa.Sign(rand.Reader, prikey, hasher.Sum(nil)); err != nil {
+		return nil, nil, errors.Wrap(err, "ecdsa sign")
+	}
+
+	return r, s, nil
 }
 
 // VerifyReaderByECDSAWithSHA256 verify signature by ecdsa public key use sha256
@@ -235,7 +278,11 @@ func SignReaderByEd25519WithSHA256(prikey ed25519.PrivateKey, reader io.Reader) 
 		}
 	}
 
-	return prikey.Sign(rand.Reader, hasher.Sum(nil), crypto.Hash(0))
+	if sig, err = prikey.Sign(rand.Reader, hasher.Sum(nil), crypto.Hash(0)); err != nil {
+		return nil, errors.Wrap(err, "ed25519 sign")
+	}
+
+	return sig, nil
 }
 
 // VerifyReaderByEd25519WithSHA256 verify signature by ecdsa public key use sha256

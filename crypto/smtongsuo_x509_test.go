@@ -58,7 +58,8 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(certinf))		require.NoError(t, err)
+		require.NoError(t, err)
+		t.Logf("generated CA certificate info: %s", certinfo)
 		require.Contains(t, certinfo, "test-common-name")
 		require.Contains(t, certinfo, "test org")
 		require.Contains(t, certinfo, "CA:TRUE")
@@ -98,8 +99,8 @@ func TestTongsuo_NewPrikeyAndCert(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(certinfo)
 		require.NoError(t, err)
+		t.Logf("generated certificate info: %s", certinfo)
 		require.Contains(t, certinfo, "test-common-name")
 		require.Contains(t, certinfo, "test org")
 		require.Contains(t, certinfo, "CA:FALSE")
@@ -163,8 +164,8 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, cert, err := ins.ShowCertInfo(ctx, interL1)
-		t.Logf("test log test-intermediate: %s", certinfo)
 		require.NoError(t, err)
+		t.Logf("generated intermediate certificate info: %s", certinfo)
 		require.Contains(t, certinfo, "test-intermediate")
 		require.Contains(t, certinfo, "test org")
 		require.Equal(t, "test-intermediate", cert.Subject.CommonName)
@@ -239,8 +240,8 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 
 		// Verify that the generated certificate is valid
 		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
-		// t.Log(certinfo)
 		require.NoError(t, err)
+		t.Logf("generated certificate info: %s", certinfo)
 		require.Contains(t, certinfo, "test-intermediate")
 		require.Equal(t, "test-intermediate", cert.Subject.CommonName)
 		require.Equal(t, []string{"test org"}, cert.Subject.Organization)

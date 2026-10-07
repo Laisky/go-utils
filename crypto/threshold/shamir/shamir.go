@@ -55,5 +55,10 @@ func Combine(parts map[byte][]byte) ([]byte, error) {
 		return nil, errors.Errorf("length of parts should >= 2")
 	}
 
-	return shamir.Combine(parts)
+	secret, err := shamir.Combine(parts)
+	if err != nil {
+		return nil, errors.Wrap(err, "combine parts")
+	}
+
+	return secret, nil
 }

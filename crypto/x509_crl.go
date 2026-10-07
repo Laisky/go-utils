@@ -73,18 +73,24 @@ func WithX509CRLNextUpdate(nextUpdate time.Time) X509CRLOption {
 	}
 }
 
-// NewX509CRL create and sign CRL
+// NewX509CRL creates a CRL and signs it with the issuer CA and its private key.
+// It returns the CRL in DER form, or an error.
 //
 // # Args
 //
-//   - ca: CA to sign CRL.
-//   - prikey: prikey for CA.
+//   - ca: CA to sign CRL. It must assert the cRLSign key usage ([RFC5280 4.2.1.3]).
+//   - prikey: prikey for CA. Its public key must equal ca.PublicKey.
+//   - seriaNumber: the CRL number, required.
 //   - revokeCerts: certifacates that will be revoked.
-//   - WithX509CertSeriaNumber() is required for NewX509CRL.
+//
+// The issuer checks fail closed: a CA without cRLSign, or a private key that does
+// not belong to ca, is refused instead of producing a CRL that relying parties
+// can never verify against ca.
 //
 // according to [RFC5280 5.2.3], X.509 v3 CRL could have a
 // monotonically increasing sequence number as serial number.
 //
+// [RFC5280 4.2.1.3]: https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.3
 // [RFC5280 5.2.3]: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
 func NewX509CRL(ca *x509.Certificate,
 	prikey crypto.PrivateKey,
@@ -96,6 +102,9 @@ func NewX509CRL(ca *x509.Certificate,
 	}
 	if err = validPrikey(prikey); err != nil {
 		return nil, errors.WithStack(err)
+	}
+	if err = validCRLIssuer(ca, Privkey2Signer(prikey)); err != nil {
+		return nil, errors.Wrap(err, "create CRL")
 	}
 
 	if seriaNumber == nil {
@@ -121,7 +130,36 @@ func NewX509CRL(ca *x509.Certificate,
 	return crlDer, nil
 }
 
-// VerifyCRL verify crl by ca
+// validCRLIssuer checks that ca may issue CRLs and that signer holds its key.
+// The ca parameter is the issuer certificate and signer is the CA signer. It
+// returns an error when ca does not assert the cRLSign key usage required by
+// RFC 5280 section 4.2.1.3, or when the signer's public key differs from
+// ca.PublicKey, and nil otherwise.
+func validCRLIssuer(ca *x509.Certificate, signer crypto.Signer) error {
+	if ca.KeyUsage&x509.KeyUsageCRLSign == 0 {
+		return errors.New("issuer certificate does not assert the cRLSign key usage")
+	}
+
+	caPub, ok := ca.PublicKey.(interface{ Equal(crypto.PublicKey) bool })
+	if !ok {
+		return errors.Errorf("issuer certificate has unsupported public key type %T", ca.PublicKey)
+	}
+	if !caPub.Equal(signer.Public()) {
+		return errors.New("private key does not match the issuer certificate public key")
+	}
+
+	return nil
+}
+
+// VerifyCRL checks that crl is signed by ca and that ca may issue CRLs. It
+// returns nil when the signature verifies, or an error describing the failure.
 func VerifyCRL(ca *x509.Certificate, crl *x509.RevocationList) error {
-	return crl.CheckSignatureFrom(ca)
+	if ca == nil || crl == nil {
+		return errors.New("verify CRL: nil issuer or CRL")
+	}
+	if err := crl.CheckSignatureFrom(ca); err != nil {
+		return errors.Wrap(err, "verify CRL signature")
+	}
+
+	return nil
 }

@@ -27,7 +27,7 @@ func WithX509CsrOptions(csrOpts []X509CSROption) X509CertOption {
 	return func(o *x509V3CertOption) error {
 		for _, f := range csrOpts {
 			if err := f(&o.x509CSROption); err != nil {
-				return err
+				return errors.Wrap(err, "apply x509 CSR option")
 			}
 		}
 
@@ -376,12 +376,12 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 
 	// apply options
 	if o.err != nil {
-		return nil, o.err
+		return nil, errors.WithStack(o.err)
 	}
 
 	for _, f := range opts {
 		if err := f(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply x509 certificate option")
 		}
 	}
 

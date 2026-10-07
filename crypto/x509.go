@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/mail"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -165,17 +164,24 @@ type oidContainsOption struct {
 	prefix bool
 }
 
-// applyfs applies the option functions fs to o in order via gutils.Pipeline and returns o.
-// Application stops at the first function that returns an error, and that error is discarded, so
-// callers always receive the (possibly partially configured) option.
-func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) *oidContainsOption {
-	o, _ = gutils.Pipeline(fs, o)
-	return o
+// applyfs applies the option functions fs to o in order via gutils.Pipeline. It
+// returns o on success, or nil and the first option error wrapped with context;
+// application stops at that option.
+func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) (*oidContainsOption, error) {
+	o, err := gutils.Pipeline(fs, o)
+	if err != nil {
+		return nil, errors.Wrap(err, "apply OIDContains option")
+	}
+
+	return o, nil
 }
 
 // MatchPrefix treat prefix inclusion as a match as well
 //
 //	`1.2.3` contains `1.2.3.4`
+//
+// Prefixes are compared arc by arc, so 1.2.3 is not a prefix of 1.2.30, and an
+// empty OID is not a prefix of anything.
 func MatchPrefix() func(o *oidContainsOption) error {
 	return func(o *oidContainsOption) error {
 		o.prefix = true
@@ -183,22 +189,43 @@ func MatchPrefix() func(o *oidContainsOption) error {
 	}
 }
 
-// OIDContains is oid in oids
+// OIDContains reports whether oid is in oids. With MatchPrefix it also reports
+// true when some element of oids lies under oid, compared arc by arc.
+//
+// OIDContains cannot return an error, so it fails closed: when any option
+// returns an error, it logs that error and reports false (no match) instead of
+// evaluating under a partially applied configuration.
 func OIDContains(oids []asn1.ObjectIdentifier,
 	oid asn1.ObjectIdentifier, opts ...func(o *oidContainsOption) error) bool {
-	opt := new(oidContainsOption).applyfs(opts...)
+	opt, err := new(oidContainsOption).applyfs(opts...)
+	if err != nil {
+		glog.Shared.Error("OIDContains option failed, reporting no match",
+			zap.Stringer("oid", oid), zap.Error(err))
+		return false
+	}
 
 	for i := range oids {
 		if oids[i].Equal(oid) {
 			return true
 		}
 
-		if opt.prefix && strings.HasPrefix(oids[i].String(), oid.String()) {
+		if opt.prefix && oidHasPrefix(oids[i], oid) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// oidHasPrefix reports whether oid starts with the non-empty arc sequence
+// prefix, comparing whole arcs rather than dotted strings. It returns false for
+// an empty prefix.
+func oidHasPrefix(oid, prefix asn1.ObjectIdentifier) bool {
+	if len(prefix) == 0 || len(oid) < len(prefix) {
+		return false
+	}
+
+	return oid[:len(prefix)].Equal(prefix)
 }
 
 // X509CertSubjectKeyID generate subject key id for pubkey
@@ -235,7 +262,12 @@ func OidAsn2X509(oid asn1.ObjectIdentifier) (x509oid x509.OID, err error) {
 		oids = append(oids, uint64(oid[i])) //nolint:gosec // G115: integer overflow // impossible
 	}
 
-	return x509.OIDFromInts(oids)
+	x509oid, err = x509.OIDFromInts(oids)
+	if err != nil {
+		return x509oid, errors.Wrapf(err, "convert oid %s", oid)
+	}
+
+	return x509oid, nil
 }
 
 // OidFromString convert string to x509 object identifier

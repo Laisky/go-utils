@@ -1,8 +1,10 @@
 package crypto
 
 import (
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,14 +21,37 @@ func newTestSeriaNo(t *testing.T) *big.Int {
 	return big.NewInt(g.SerialNum())
 }
 
-// TestNewX509CRL verifies NewX509CRL: a CA created with only WithX509CertIsCA can sign a CRL; a nil
-// CRL serial number is rejected; CRLs signed by a WithX509CertIsCRLCA certificate verify with
+// TestNewX509CRL verifies NewX509CRL: a CA certificate that does not assert the cRLSign key usage
+// is refused; a CA created with only WithX509CertIsCA asserts cRLSign and can sign a verifiable
+// CRL; a nil CRL serial number is rejected; CRLs signed by a WithX509CertIsCRLCA certificate verify with
 // VerifyCRL and preserve every revoked serial number and revocation time (at second precision); DER
 // and PEM conversions round-trip; and a revoked entry with a zero revocation time is rejected.
 func TestNewX509CRL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ca without crl sign key usage", func(t *testing.T) {
+		t.Parallel()
+
+		// This package's CA options always add cRLSign, so build the issuer with
+		// crypto/x509 directly to get a CA that asserts only keyCertSign.
+		ca, prikey := newCRLIssuerCertForTest(t, x509.KeyUsageCertSign|x509.KeyUsageDigitalSignature)
+		require.Zero(t, ca.KeyUsage&x509.KeyUsageCRLSign)
+
+		serialNum := newTestSeriaNo(t)
+		crlDer, err := NewX509CRL(ca, prikey, serialNum,
+			[]pkix.RevokedCertificate{
+				{
+					RevocationTime: time.Now().UTC(),
+					SerialNumber:   serialNum,
+				},
+			},
+		)
+		require.Error(t, err, "RFC 5280 4.2.1.3 requires a CRL issuer to assert cRLSign")
+		require.Contains(t, strings.ToLower(err.Error()), "crlsign")
+		require.Nil(t, crlDer)
+	})
+
+	t.Run("ca created by WithX509CertIsCA asserts crl sign", func(t *testing.T) {
 		t.Parallel()
 		prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 			WithX509CertCommonName("laisky-test"),
@@ -38,20 +63,24 @@ func TestNewX509CRL(t *testing.T) {
 
 		ca, err := Der2Cert(certder)
 		require.NoError(t, err)
+		require.NotZero(t, ca.KeyUsage&x509.KeyUsageCRLSign)
 
 		serialNum := newTestSeriaNo(t)
-		revokeTime := time.Now().UTC()
-
-		_, err = NewX509CRL(ca, prikey, serialNum,
+		crlDer, err := NewX509CRL(ca, prikey, serialNum,
 			[]pkix.RevokedCertificate{
 				{
-					RevocationTime: revokeTime,
+					RevocationTime: time.Now().UTC(),
 					SerialNumber:   serialNum,
 				},
 			},
 		)
 		require.NoError(t, err)
+
+		crl, err := Der2CRL(crlDer)
+		require.NoError(t, err)
+		require.NoError(t, VerifyCRL(ca, crl))
 	})
+
 	// Setup CA with CRL signing capability
 	prikeyPem, certder, err := NewRSAPrikeyAndCert(RSAPrikeyBits3072,
 		WithX509CertCommonName("laisky-test"),
@@ -69,7 +98,7 @@ func TestNewX509CRL(t *testing.T) {
 
 	t.Run("without crl serial number", func(t *testing.T) {
 		t.Parallel()
-		_, err = NewX509CRL(ca, prikey, nil,
+		_, err := NewX509CRL(ca, prikey, nil,
 			[]pkix.RevokedCertificate{
 				{
 					RevocationTime: revokeTime,

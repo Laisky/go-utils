@@ -410,6 +410,8 @@ func (r *aesFilesRun) readBounded(ctx context.Context, c aesFilesCandidate) (raw
 		return nil, errors.Wrap(err, "open source")
 	}
 	closeFile := sync.OnceValue(f.Close)
+	// The close result is not dropped: sync.OnceValue caches it, and the deferred
+	// call below returns the same error and joins it into retErr.
 	stop := context.AfterFunc(ctx, func() { _ = closeFile() })
 	defer func() {
 		stop()

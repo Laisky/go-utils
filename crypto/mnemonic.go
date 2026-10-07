@@ -75,11 +75,11 @@ type mnemonicOption struct {
 
 // apply runs each MnemonicOption in opts against o, in order, so that the options can populate
 // fields such as the passphrase. It stops at the first failing option and returns that option's
-// error; it returns nil when opts is empty or every option succeeds.
+// error wrapped with context; it returns nil when opts is empty or every option succeeds.
 func (o *mnemonicOption) apply(opts ...MnemonicOption) error {
 	for _, fn := range opts {
 		if err := fn(o); err != nil {
-			return err
+			return errors.Wrap(err, "apply mnemonic option")
 		}
 	}
 	return nil

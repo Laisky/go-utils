@@ -49,8 +49,19 @@ func Salt(length int) ([]byte, error) {
 	return salt, nil
 }
 
-// DeriveKeyByHKDF derive key by hkdf
+// maxHKDFSHA256KeyLength is the RFC 5869 output limit of HKDF-SHA256, 255 hash blocks.
+const maxHKDFSHA256KeyLength = 255 * sha256.Size
+
+// DeriveKeyByHKDF derives a newKeyLength-byte key from rawKey and salt with
+// HKDF-SHA256. newKeyLength must be between 1 and 8160 (255*32) bytes, the RFC
+// 5869 limit; it is checked before any allocation. It returns the derived key,
+// or an error for an out-of-range length or a failed derivation.
 func DeriveKeyByHKDF(rawKey, salt []byte, newKeyLength int) (newKey []byte, err error) {
+	if newKeyLength < 1 || newKeyLength > maxHKDFSHA256KeyLength {
+		return nil, errors.Errorf("hkdf key length must be between 1 and %d bytes, got %d",
+			maxHKDFSHA256KeyLength, newKeyLength)
+	}
+
 	results := make([][]byte, 1)
 	results[0] = make([]byte, newKeyLength)
 	if err := HKDFWithSHA256(rawKey, salt, nil, results); err != nil {
@@ -64,5 +75,9 @@ func DeriveKeyByHKDF(rawKey, salt []byte, newKeyLength int) (newKey []byte, err 
 //
 // https://pkg.go.dev/golang.org/x/crypto@v0.5.0/scrypt
 func DeriveKeyBySMHF(rawKey, salt []byte) (newKey []byte, err error) {
-	return scrypt.Key(rawKey, salt, 32768, 16, 1, 32)
+	if newKey, err = scrypt.Key(rawKey, salt, 32768, 16, 1, 32); err != nil {
+		return nil, errors.Wrap(err, "derive key by scrypt")
+	}
+
+	return newKey, nil
 }

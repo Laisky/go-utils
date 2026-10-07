@@ -59,11 +59,11 @@ func (o *dhkxOption) fillDefault() *dhkxOption {
 }
 
 // applyOpts applies each DHKXOptionFunc in opts to the receiver in order. It returns the receiver
-// on success, or nil and the first error returned by an option.
+// on success, or nil and the first error returned by an option, wrapped with context.
 func (o *dhkxOption) applyOpts(opts ...DHKXOptionFunc) (*dhkxOption, error) {
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "apply DHKX option")
 		}
 	}
 
@@ -86,7 +86,7 @@ type DHKXOptionFunc func(*dhkxOption) error
 func NewDHKX(optfs ...DHKXOptionFunc) (d *DHKX, err error) {
 	opt, err := new(dhkxOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "new DHKX")
 	}
 
 	d = new(DHKX)

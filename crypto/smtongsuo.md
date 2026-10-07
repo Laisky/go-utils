@@ -104,6 +104,41 @@ Tongsuo subprocesses never inherit the parent environment. They receive only:
 `OPENSSL_CONF` is therefore no longer inherited by default. `ShowCsrInfo` passes
 an explicit empty configuration so it does not depend on the system default file.
 
+### Subprocess output
+
+stdout and stderr are captured separately:
+
+- Only stdout is returned as the command result, so data such as PEM keys is
+  never prefixed with diagnostics like `read EC key` / `writing EC key`.
+- stderr is kept up to 64 KiB. When a command fails, the error carries at most a
+  512-byte, single-line excerpt of stderr with control characters replaced and
+  everything from the first `-----BEGIN` marker replaced by `[PEM redacted]`.
+  stdout, which may hold private keys, is never copied into an error.
+
+### Password-protected private keys (`NewPrikeyWithPassword`)
+
+`NewPrikeyWithPassword` returns a PKCS#8 `ENCRYPTED PRIVATE KEY` PEM using PBES2
+(RFC 8018): PBKDF2 with HMAC-SM3 (Tongsuo's `hmacWithSM3`, OID
+`1.2.156.10197.1.401.3.1` from GM/T 0091-2020), a random 16-byte salt and
+600,000 iterations, and SM4-CBC. The password reaches tongsuo only through the
+`-passout env:` variable and the unencrypted key only through stdin. Generating
+or loading such a key takes about half a second of PBKDF2 work by design.
+
+Earlier versions returned the legacy OpenSSL `EC PRIVATE KEY` format with
+`Proc-Type`/`DEK-Info` headers, whose key is derived with a single MD5 pass
+(`EVP_BytesToKey`). Existing legacy keys still load with tongsuo/OpenSSL
+(`pkey -passin env:VAR`). Upgrade them in place with:
+
+```sh
+tongsuo pkcs8 -topk8 -in legacy.key -passin env:OLD_PASS \
+  -v2 sm4-cbc -v2prf hmacWithSM3 -iter 600000 -saltlen 16 \
+  -passout env:NEW_PASS -out upgraded.key
+```
+
+Parsers that only know the older HMAC-SM3 OID `1.2.156.10197.1.401.2`
+(GmSSL, `github.com/emmansun/gmsm/pkcs8`) do not recognize Tongsuo's PRF OID;
+the key derivation itself is identical.
+
 ### Certificate metadata (`ShowCertInfo`, `ShowCertInfoDetail`, `ParseTongsuoCertInfo`)
 
 - Metadata is parsed from DER, never from the `x509 -text` display text:
@@ -153,6 +188,11 @@ for example with `smx509.RevocationList.CheckSignatureFrom`, before distributing
 - `WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageAny)` now yields only
   `anyExtendedKeyUsage`; request `ServerAuth`, `ClientAuth`, etc. explicitly.
 - `OpensslCertificateOutput` is deprecated and unused.
+- `NewPrikeyWithPassword` now returns `-----BEGIN ENCRYPTED PRIVATE KEY-----`
+  (PKCS#8 PBES2) instead of a legacy `EC PRIVATE KEY` with `Proc-Type`; load it
+  with any PKCS#8-aware reader (`tongsuo pkey -passin ...`).
+- Tongsuo subprocess errors now contain a sanitized stderr excerpt instead of
+  the full combined output; code that matched stdout text in errors must not.
 
 ## All in one
 

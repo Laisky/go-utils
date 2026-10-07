@@ -8,7 +8,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,46 +20,98 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-// TestECDSAKeySerializer verifies that a raw ecdsa.Sign signature over the SHA-256 digest of a
-// fixed message, made with a freshly generated P-256 key, verifies with ecdsa.Verify. The key
-// serialization round-trip the test is named after is currently commented out.
+// TestECDSAKeySerializer verifies that ECDSA keys survive the package's key serializers on every
+// supported curve: the PEM (Prikey2Pem/Pem2Prikey, Pubkey2Pem/Pem2Pubkey) and DER (Prikey2Der/
+// Der2Prikey, Pubkey2Der/Der2Pubkey) round-trips return keys equal to the originals, a signature
+// made by the original private key verifies with the decoded public key and vice versa, the ES256
+// signature encodings round-trip, and truncated or non-PEM serialized keys are rejected.
 func TestECDSAKeySerializer(t *testing.T) {
 	t.Parallel()
 
-	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	for _, curve := range []ECDSACurve{ECDSACurveP256, ECDSACurveP384, ECDSACurveP521} {
+		t.Run(string(curve), func(t *testing.T) {
+			t.Parallel()
+
+			priKey, err := NewECDSAPrikey(curve)
+			require.NoError(t, err)
+
+			priPem, err := Prikey2Pem(priKey)
+			require.NoError(t, err)
+			require.True(t, bytes.HasPrefix(priPem, []byte("-----BEGIN PRIVATE KEY-----")))
+			pubPem, err := Pubkey2Pem(&priKey.PublicKey)
+			require.NoError(t, err)
+			require.True(t, bytes.HasPrefix(pubPem, []byte("-----BEGIN PUBLIC KEY-----")))
+			priDer, err := Prikey2Der(priKey)
+			require.NoError(t, err)
+			pubDer, err := Pubkey2Der(&priKey.PublicKey)
+			require.NoError(t, err)
+
+			decodedPri := requireECDSAPrikey(t, priPem, Pem2Prikey)
+			require.True(t, priKey.Equal(decodedPri), "PEM private key round-trip must be lossless")
+			require.True(t, priKey.Equal(requireECDSAPrikey(t, priDer, Der2Prikey)),
+				"DER private key round-trip must be lossless")
+
+			decodedPub := requireECDSAPubkey(t, pubPem, Pem2Pubkey)
+			require.True(t, priKey.PublicKey.Equal(decodedPub), "PEM public key round-trip must be lossless")
+			require.True(t, priKey.PublicKey.Equal(requireECDSAPubkey(t, pubDer, Der2Pubkey)),
+				"DER public key round-trip must be lossless")
+			require.True(t, priKey.PublicKey.Equal(Prikey2Pubkey(decodedPri)))
+
+			content := []byte("hello, world")
+			r, s, err := SignByECDSAWithSHA256(priKey, content)
+			require.NoError(t, err)
+			require.True(t, VerifyByECDSAWithSHA256(decodedPub, content, r, s))
+			require.False(t, VerifyByECDSAWithSHA256(decodedPub, []byte("hello, world!"), r, s))
+
+			r2, s2, err := SignByECDSAWithSHA256(decodedPri, content)
+			require.NoError(t, err)
+			require.True(t, VerifyByECDSAWithSHA256(&priKey.PublicKey, content, r2, s2))
+
+			gotR, gotS, err := DecodeES256SignByBase64(EncodeES256SignByBase64(r, s))
+			require.NoError(t, err)
+			require.Zero(t, r.Cmp(gotR))
+			require.Zero(t, s.Cmp(gotS))
+			gotR, gotS, err = DecodeES256SignByHex(EncodeES256SignByHex(r, s))
+			require.NoError(t, err)
+			require.Zero(t, r.Cmp(gotR))
+			require.Zero(t, s.Cmp(gotS))
+
+			_, err = Pem2Prikey([]byte("not a pem encoded key"))
+			require.Error(t, err)
+			_, err = Pem2Pubkey([]byte("not a pem encoded key"))
+			require.Error(t, err)
+			_, err = Der2Prikey(priDer[:len(priDer)/2])
+			require.Error(t, err)
+			_, err = Der2Pubkey(pubDer[:len(pubDer)/2])
+			require.Error(t, err)
+		})
+	}
+}
+
+// requireECDSAPrikey decodes encoded with decode and fails the test unless the result is an
+// *ecdsa.PrivateKey. It returns the decoded private key.
+func requireECDSAPrikey(t *testing.T, encoded []byte,
+	decode func([]byte) (crypto.PrivateKey, error)) *ecdsa.PrivateKey {
+	t.Helper()
+
+	decoded, err := decode(encoded)
 	require.NoError(t, err)
+	key, ok := decoded.(*ecdsa.PrivateKey)
+	require.Truef(t, ok, "decoded private key has type %T, want *ecdsa.PrivateKey", decoded)
+	return key
+}
 
-	// var (
-	// 	priByte, pubByte []byte
-	// )
-	// if pubByte, err = EncodeECDSAPublicKey(&priKey.PublicKey); err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
-	// t.Logf("pub: %v", string(pubByte))
-	// if priByte, err = EncodeECDSAPrivateKey(priKey); err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
-	// t.Logf("pri: %v", string(priByte))
+// requireECDSAPubkey decodes encoded with decode and fails the test unless the result is an
+// *ecdsa.PublicKey. It returns the decoded public key.
+func requireECDSAPubkey(t *testing.T, encoded []byte,
+	decode func([]byte) (crypto.PublicKey, error)) *ecdsa.PublicKey {
+	t.Helper()
 
-	// var (
-	// 	priKey2 *ecdsa.PrivateKey
-	// 	pubKey2 *ecdsa.PublicKey
-	// )
-	// if _, err = DecodeECDSAPublicKey(pubByte); err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
-	// if priKey2, err = DecodeECDSAPrivateKey(priByte); err != nil {
-	// 	t.Fatalf("%+v", err)
-	// }
-
-	hash := sha256.Sum256([]byte("hello, world"))
-	r, s, err := ecdsa.Sign(rand.Reader, priKey, hash[:])
+	decoded, err := decode(encoded)
 	require.NoError(t, err)
-
-	t.Logf("generate hash: %x %x", r, s)
-	require.True(t, ecdsa.Verify(&priKey.PublicKey, hash[:], r, s))
-
-	// t.Error()
+	key, ok := decoded.(*ecdsa.PublicKey)
+	require.Truef(t, ok, "decoded public key has type %T, want *ecdsa.PublicKey", decoded)
+	return key
 }
 
 // TestECDSAVerify verifies SignByECDSAWithSHA256 and VerifyByECDSAWithSHA256 with P-256 keys on

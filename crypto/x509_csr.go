@@ -289,7 +289,7 @@ func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest
 // you should set these attributes in NewX509CertByCSR.
 func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte, err error) {
 	if err = validPrikey(prikey); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid CSR private key")
 	}
 
 	csrTpl, err := X509CsrOption2Template(opts...)

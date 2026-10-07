@@ -87,45 +87,6 @@ func NewTongsuo(exePath string, opts ...TongsuoOption) (ins *Tongsuo, err error)
 	return ins, nil
 }
 
-// NewPrikey generate new sm2 private key
-//
-//	tongsuo ecparam -genkey -name SM2 -out rootca.key
-func (t *Tongsuo) NewPrikey(ctx context.Context) (prikeyPem []byte, err error) {
-	prikeyPem, err = t.runCMD(ctx, []string{
-		"ecparam", "-genkey", "-name", "SM2",
-	}, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate new private key")
-	}
-
-	return prikeyPem, nil
-}
-
-// NewPrikeyWithPassword generate new sm2 private key with password
-func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
-	encryptedPrikeyPem []byte, err error) {
-	if len(password) == 0 {
-		return nil, errors.Errorf("password should not be empty")
-	}
-
-	prikeyPem, err := t.NewPrikey(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate new private key")
-	}
-
-	// Pass password via environment variable instead of command-line argument
-	// to avoid exposing it in the process list (ps aux, /proc/*/cmdline).
-	encryptedPrikeyPem, err = t.runCMDWithEnv(ctx, []string{
-		"ec", tongsuoFlagIn, tongsuoStdinPath, tongsuoFlagOut, "/dev/stdout",
-		tongsuoCipherSM4CBC, "-passout", "env:_TONGSUO_PASSOUT",
-	}, prikeyPem, []string{"_TONGSUO_PASSOUT=" + password})
-	if err != nil {
-		return nil, errors.Wrap(err, "encrypt private key")
-	}
-
-	return encryptedPrikeyPem, nil
-}
-
 // removeAll recursively deletes path, typically a temporary working directory, and logs any
 // removal failure instead of returning it, so it can be used directly in defer statements.
 func (t *Tongsuo) removeAll(path string) {
