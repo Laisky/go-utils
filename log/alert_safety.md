@@ -10,6 +10,8 @@ string, bool, integer, float, and duration fields. This is an exact-name allowli
 not a sensitive-key blacklist. Callers must ensure the selected values are safe.
 Objects, arrays, errors, reflection, stringers, and all fields after a namespace
 remain excluded even when their key is listed. Their marshalers are not invoked.
+Binary, byte-string, complex, time, and uintptr fields, skip/unknown fields, and
+field types added by future Zap versions are dropped as well (fail closed).
 Use a reviewed scalar summary to expose selected facts about nested data.
 
 Existing automatic field forwarding is intentionally removed. Callers that
