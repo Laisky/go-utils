@@ -500,8 +500,14 @@ func TestTongsuo_EncryptBySm4Baisc(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, ciphertext)
 
-		_, err = ins.DecryptBySm4CbcBaisc(ctx, incorrectKey, ciphertext, iv, nil)
-		require.ErrorContains(t, err, "got bad decrypt")
+		// Without a MAC a wrong key is only detected by the padding check, and
+		// random garbage has valid PKCS#7 padding with probability ~1/256.
+		decrypted, err := ins.DecryptBySm4CbcBaisc(ctx, incorrectKey, ciphertext, iv, nil)
+		if err != nil {
+			require.ErrorContains(t, err, "bad decrypt")
+		} else {
+			require.NotEqual(t, plaintext, decrypted)
+		}
 	})
 }
 
