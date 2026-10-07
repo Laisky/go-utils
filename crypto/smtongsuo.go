@@ -6,12 +6,8 @@ import (
 	"crypto"
 	cryptohmac "crypto/hmac"
 	"crypto/sha256"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
 	"encoding/hex"
 	"io"
-	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,311 +92,6 @@ func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte
 	}
 
 	return output, nil
-}
-
-// OpensslCertificateOutput output of `openssl x509 -inform DER -text`
-type OpensslCertificateOutput struct {
-	// Raw is the raw output of `openssl x509 -inform DER -text`
-	Raw                                          []byte
-	SerialNumber                                 *big.Int
-	NotBefore, NotAfter                          time.Time
-	IsCa                                         bool
-	Subject                                      pkix.Name
-	Policies                                     []asn1.ObjectIdentifier
-	PublicKeyAlgorithm                           x509.PublicKeyAlgorithm
-	SubjectKeyIdentifier, AuthorityKeyIdentifier []byte
-}
-
-var regexpCertInfo = struct {
-	serialNo,
-	notBefore, notAfter,
-	isCa,
-	subjectCN,
-	pubkeyAlgo,
-	subjectKeyIdentifier, AuthorityKeyIdentifier,
-	keyUsages, extKeyUsages,
-	policies *regexp.Regexp
-}{
-	serialNo:               regexp.MustCompile(`\bSerial Number: {0,}\n? {0,}([\w:]+)\b`),
-	notBefore:              regexp.MustCompile(`\bNot Before: {0,}\n? {0,}(.+)\b`),
-	notAfter:               regexp.MustCompile(`\bNot After : {0,}\n? {0,}(.+)\b`),
-	isCa:                   regexp.MustCompile(`\bCA: {0,}\n? {0,}TRUE\b`),
-	subjectCN:              regexp.MustCompile(`\bSubject:.*CN = (?P<CN>[^,\n]+)\b`),
-	pubkeyAlgo:             regexp.MustCompile(`\bPublic Key Algorithm: {0,}\n? {0,}([\w\-]+)\b`),
-	policies:               regexp.MustCompile(`\bPolicy: {0,}\n? {0,}([\d\.]+)\b`),
-	subjectKeyIdentifier:   regexp.MustCompile(`\bX509v3 Subject Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
-	AuthorityKeyIdentifier: regexp.MustCompile(`\bX509v3 Authority Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
-	keyUsages:              regexp.MustCompile(`\bX509v3 Key Usage: *(?:critical)?\n? *([\w, -]+)\b`),
-	extKeyUsages:           regexp.MustCompile(`\bX509v3 Extended Key Usage: *(?:critical)?\n? *([\w\d \-,\.]+)\b`),
-}
-
-// ShowCertInfo show cert info
-//
-// nolint:gocognit,lll,maintidx // parse cert info part by part LGTM
-//
-// # Raw
-//
-//					Version: 3 (0x2)
-//					Serial Number: 17108345756590001 (0x3cc7f327841fb1)
-//					Serial Number: 51:f5:46:8b:d6:ff:ec:f2:33:e6:38:68:46:4e:9b:19:56:f3:6e:8a
-//					Signature Algorithm: SM2-with-SM3
-//					Issuer: CN = test-common-name, O = test org
-//					Validity
-//						Not Before: Mar 19 07:49:35 2024 GMT
-//						Not After : Mar 25 07:49:35 2024 GMT
-//					Subject: CN = test-common-name, O = test org
-//					Subject Public Key Info:
-//						Public Key Algorithm: id-ecPublicKey
-//							Public-Key: (256 bit)
-//							pub:
-//								04:31:66:dd:ef:4e:31:29:fd:4b:b1:a1:66:0b:c9:
-//								81:9f:6f:a4:e1:bd:44:24:6a:a8:93:62:0b:85:be:
-//								0e:56:14:76:ab:56:0d:7c:cc:26:77:47:d0:fe:77:
-//								38:31:ab:3d:b8:01:60:96:ae:07:72:e4:3d:df:4c:
-//								9d:02:98:9f:d3
-//							ASN1 OID: SM2
-//					X509v3 extensions:
-//						X509v3 Basic Constraints: critical
-//							CA:TRUE
-//		         X509v3 Key Usage: critical
-//		             Digital Signature, Non Repudiation, Key Encipherment, Data Encipherment, Key Agreement, Certificate Sign, CRL Sign, Encipher Only, Decipher Only
-//	          X509v3 Extended Key Usage:
-//	              Any Extended Key Usage, TLS Web Server Authentication, TLS Web Client Authentication, Code Signing, E-mail Protection, IPSec End System, IPSec Tunnel, IPSec User, Time Stamping, OCSP Signing, Microsoft Server Gated Crypto, Netscape Server Gated Crypto, Microsoft Commercial Code Signing, 1.3.6.1.4.1.311.61.1.1
-//					X509v3 Subject Key Identifier:
-//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//					X509v3 Authority Key Identifier:
-//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//					X509v3 Certificate Policies:
-//						Policy: 1.3.6.1.4.1.59936.1.1.3
-//			Signature Algorithm: SM2-with-SM3
-//			Signature Value:
-//				30:45:02:21:00:a8:a6:db:d5:8c:b4:d2:58:ff:1e:1f:9d:c1:
-//				e7:0b:eb:ba:4b:50:99:2c:c4:b9:3b:50:9d:6f:5f:1f:32:40:
-//				17:02:20:38:91:fb:16:41:80:52:d8:28:f8:ee:34:0f:f9:ab:
-//				c5:c8:1a:1f:31:d9:05:13:04:12:4d:0c:3d:fd:52:fe:51
-//		-----BEGIN CERTIFICATE-----
-//		MIIByzCCAXGgAwIBAgIHPMfzJ4QfsTAKBggqgRzPVQGDdTAuMRkwFwYDVQQDDBB0
-//		ZXN0LWNvbW1vbi1uYW1lMREwDwYDVQQKDAh0ZXN0IG9yZzAeFw0yNDAzMTkwNzQ5
-//		MzVaFw0yNDAzMjUwNzQ5MzVaMC4xGTAXBgNVBAMMEHRlc3QtY29tbW9uLW5hbWUx
-//		ETAPBgNVBAoMCHRlc3Qgb3JnMFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAEMWbd
-//		704xKf1LsaFmC8mBn2+k4b1EJGqok2ILhb4OVhR2q1YNfMwmd0fQ/nc4Mas9uAFg
-//		lq4HcuQ930ydApif06N6MHgwDwYDVR0TAQH/BAUwAwEB/zALBgNVHQ8EBAMCAQYw
-//		HQYDVR0OBBYEFK+aMzc/3j7dd2GhyD/VDDnw1qZ7MB8GA1UdIwQYMBaAFK+aMzc/
-//		3j7dd2GhyD/VDDnw1qZ7MBgGA1UdIAQRMA8wDQYLKwYBBAGD1CABAQMwCgYIKoEc
-//		z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
-//		kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
-//		-----END CERTIFICATE-----
-func (t *Tongsuo) ShowCertInfo(ctx context.Context,
-	certDer []byte) (
-	certinfo string, cert *x509.Certificate, err error) {
-	output, err := t.runCMD(ctx,
-		[]string{"x509", "-inform", "DER", "-text"},
-		certDer)
-	if err != nil {
-		return "", nil, errors.Wrap(err, "run cmd to show cert info")
-	}
-	output = bytes.ReplaceAll(output, []byte{'\t'}, []byte(" "))
-
-	// fmt.Println(string(output)) // FIXME
-
-	cert = new(x509.Certificate)
-	cert.Raw = certDer
-
-	// parse serial no
-	var ok bool
-	if matched := regexpCertInfo.serialNo.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf(
-			"cert info should contain serial number, got %q", output)
-	} else {
-		sno := string(matched[0][1])
-
-		if strings.Contains(sno, ":") {
-			cert.SerialNumber, ok = big.NewInt(0).SetString(strings.ReplaceAll(sno, ":", ""), 16)
-			if !ok {
-				return "", nil, errors.Errorf("cannot parse serial number as hex %q", sno)
-			}
-		} else {
-			cert.SerialNumber, ok = big.NewInt(0).SetString(sno, 10)
-			if !ok {
-				return "", nil, errors.Errorf("cannot parse serial number as decimal %q", sno)
-			}
-		}
-	}
-
-	// parse not before and not after
-	if matched := regexpCertInfo.notBefore.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain not before")
-	} else {
-		cert.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse not before")
-		}
-	}
-	if matched := regexpCertInfo.notAfter.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain not after")
-	} else {
-		cert.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse not after")
-		}
-	}
-
-	// parse isCA
-	if regexpCertInfo.isCa.Match(output) {
-		cert.IsCA = true
-	}
-
-	// parse subject's common name
-	if matched := regexpCertInfo.subjectCN.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain common name")
-	} else {
-		cert.Subject.CommonName = string(matched[0][1])
-	}
-
-	// parse policies
-	if matched := regexpCertInfo.policies.
-		FindAllSubmatch(output, -1); len(matched) != 0 {
-		for _, m := range matched {
-			if len(m) != 2 {
-				return "", nil, errors.Errorf("invalid policy")
-			}
-
-			oid, err := OidFromString(string(m[1]))
-			if err != nil {
-				return "", nil, errors.Wrap(err, "parse policy")
-			}
-
-			cert.Policies = append(cert.Policies, oid)
-		}
-	}
-
-	// parse pubkey algorithm
-	if matched := regexpCertInfo.pubkeyAlgo.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain pubkey algo")
-	} else {
-		switch string(matched[0][1]) {
-		case "id-ecPublicKey":
-			cert.PublicKeyAlgorithm = x509.ECDSA
-		case "rsaEncryption":
-			cert.PublicKeyAlgorithm = x509.RSA
-		case "ED25519":
-			cert.PublicKeyAlgorithm = x509.Ed25519
-		default:
-			glog.Shared.Warn("unsupported pubkey algo", zap.ByteString("algo", matched[0][1]))
-		}
-	}
-
-	// parse SubjectKeyIdentifier
-	if matched := regexpCertInfo.subjectKeyIdentifier.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain subject key identifier")
-	} else {
-		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
-		cert.SubjectKeyId, err = hex.DecodeString(val)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse subject key identifier")
-		}
-	}
-
-	// parse AuthorityKeyIdentifier, optional
-	if matched := regexpCertInfo.AuthorityKeyIdentifier.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
-		cert.AuthorityKeyId, err = hex.DecodeString(val)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse authority key identifier")
-		}
-	}
-
-	// parse key usages
-	if matched := regexpCertInfo.keyUsages.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		usages := strings.Split(string(matched[0][1]), ",")
-		for _, usage := range usages {
-			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
-			switch usage {
-			case "digitalsignature":
-				cert.KeyUsage |= x509.KeyUsageDigitalSignature
-			case "nonrepudiation":
-				cert.KeyUsage |= x509.KeyUsageContentCommitment
-			case "keyencipherment":
-				cert.KeyUsage |= x509.KeyUsageKeyEncipherment
-			case "dataencipherment":
-				cert.KeyUsage |= x509.KeyUsageDataEncipherment
-			case "keyagreement":
-				cert.KeyUsage |= x509.KeyUsageKeyAgreement
-			case "certificatesign":
-				cert.KeyUsage |= x509.KeyUsageCertSign
-			case "crlsign":
-				cert.KeyUsage |= x509.KeyUsageCRLSign
-			case "encipheronly":
-				cert.KeyUsage |= x509.KeyUsageEncipherOnly
-			case "decipheronly":
-				cert.KeyUsage |= x509.KeyUsageDecipherOnly
-			default:
-				glog.Shared.Warn("unsupported key usage", zap.String("usage", usage))
-			}
-		}
-	}
-
-	// parse ext key usages
-	if matched := regexpCertInfo.extKeyUsages.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		usages := strings.Split(string(matched[0][1]), ",")
-		for _, usage := range usages {
-			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
-			switch usage {
-			case "anyextendedkeyusage":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageAny)
-			case "tlswebserverauthentication":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
-			case "tlswebclientauthentication":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
-			case "codesigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageCodeSigning)
-			case "e-mailprotection":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageEmailProtection)
-			case "ipsecendsystem":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECEndSystem)
-			case "ipsectunnel":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECTunnel)
-			case "ipsecuser":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECUser)
-			case "timestamping":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageTimeStamping)
-			case "ocspsigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning)
-			case "microsoftservergatedcrypto":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftServerGatedCrypto)
-			case "netscapeservergatedcrypto":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageNetscapeServerGatedCrypto)
-			case "microsoftcommercialcodesigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftCommercialCodeSigning)
-			case "microsoftkernelcodesigning", "1.3.6.1.4.1.311.61.1.1":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftKernelCodeSigning)
-			default:
-				glog.Shared.Warn("unsupported ext key usage", zap.String("usage", usage))
-			}
-		}
-	}
-
-	return string(output), cert, nil
-}
-
-// ShowCsrInfo show csr info
-func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (
-	output string, err error) {
-	out, err := t.runCMD(ctx, []string{"req", "-inform", "DER", "-text"}, csrDer)
-	if err != nil {
-		return "", errors.Wrap(err, "run cmd to show csr info")
-	}
-
-	return string(out), nil
 }
 
 // NewPrikey generate new sm2 private key
@@ -594,11 +285,12 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 		return nil, errors.Wrap(err, "X509SignCsrOptions2OpensslConf")
 	}
 
-	digestAlgo := "-sha256"
-	if certinfo, _, err := t.ShowCertInfo(ctx, parentCertDer); err != nil {
-		return nil, errors.Wrap(err, "show parent cert info")
-	} else if strings.Contains(certinfo, "ASN1 OID: SM2") {
-		digestAlgo = "-sm3"
+	// select the digest from the parsed parent key, never from display text
+	digestAlgo := tongsuoDigestSHA256
+	if parentInfo, err := ParseTongsuoCertInfo(parentCertDer); err != nil {
+		return nil, errors.Wrap(err, "parse parent cert")
+	} else if parentInfo.IsSM2() {
+		digestAlgo = tongsuoDigestSM3
 	}
 
 	dir, err := os.MkdirTemp("", "tongsuo*")
@@ -631,7 +323,6 @@ func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 		"-in", csrDerPath, "-inform", "DER",
 		"-CA", parentCertDerPath, "-CAkey", "/dev/stdin", "-CAcreateserial",
 		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
-		"-utf8", "-batch",
 		digestAlgo,
 		"-copy_extensions", "copyall",
 		"-extfile", confPath, "-extensions", "v3_ca",

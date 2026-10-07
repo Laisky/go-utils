@@ -338,12 +338,16 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		certinfo, cert, err := ins.ShowCertInfo(ctx, interL1)
 		t.Logf("test log test-intermediate: %s", certinfo)
 		require.NoError(t, err)
-		require.Contains(t, certinfo, "Subject: CN = test-intermediate")
+		require.Contains(t, certinfo, "test-intermediate")
 		require.Contains(t, certinfo, "test org")
-		require.Contains(t, certinfo, "CA:TRUE")
-		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
-		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, certinfo, "Issuer: CN = test-rootca")
+		require.Equal(t, "test-intermediate", cert.Subject.CommonName)
+		require.Equal(t, []string{"test org"}, cert.Subject.Organization)
+		require.Equal(t, "test-rootca", cert.Issuer.CommonName)
+		require.True(t, cert.IsCA)
+		require.Equal(t, []asn1.ObjectIdentifier{
+			{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3},
+			{1, 3, 6, 1, 4, 1, 59936, 1, 1, 4},
+		}, cert.PolicyIdentifiers)
 		require.NotEmpty(t, cert.SerialNumber)
 
 		t.Run("verify with multiple intermediates and roots", func(t *testing.T) {
@@ -410,12 +414,14 @@ func TestTongsuo_NewIntermediaCaByCsr(t *testing.T) {
 		certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
 		// t.Log(certinfo)
 		require.NoError(t, err)
-		require.Contains(t, certinfo, "Subject: CN = test-intermediate")
-		require.Contains(t, certinfo, "test org")
-		require.Contains(t, certinfo, "CA:FALSE")
-		require.Contains(t, certinfo, "1.3.6.1.4.1.59936.1.1.3")
-		require.NotContains(t, certinfo, "1.3.6.1.4.1.59936.1.1.4")
-		require.Contains(t, certinfo, "Issuer: CN = test-rootca")
+		require.Contains(t, certinfo, "test-intermediate")
+		require.Equal(t, "test-intermediate", cert.Subject.CommonName)
+		require.Equal(t, []string{"test org"}, cert.Subject.Organization)
+		require.Equal(t, "test-rootca", cert.Issuer.CommonName)
+		require.False(t, cert.IsCA)
+		require.Equal(t, []asn1.ObjectIdentifier{
+			{1, 3, 6, 1, 4, 1, 59936, 1, 1, 3},
+		}, cert.PolicyIdentifiers)
 		require.NotEmpty(t, cert.SerialNumber)
 	})
 
@@ -746,8 +752,16 @@ func TestTongsuo_ShowCertInfo(t *testing.T) {
 			_, cert, err := ins.ShowCertInfo(ctx, certDer)
 			require.NoError(t, err)
 
-			require.Equal(t, x509.ECDSA, cert.PublicKeyAlgorithm)
+			// SM2 is never labelled as plain ECDSA (issue #61)
+			require.Equal(t, x509.UnknownPublicKeyAlgorithm, cert.PublicKeyAlgorithm)
+			require.Nil(t, cert.PublicKey)
 			require.Equal(t, sno, cert.SerialNumber, certinfo)
+
+			detail, err := ins.ShowCertInfoDetail(ctx, certDer)
+			require.NoError(t, err)
+			require.True(t, detail.IsSM2())
+			require.Equal(t, TongsuoPublicKeyAlgorithmSM2, detail.PublicKeyAlgorithm)
+			require.Equal(t, "SM2-SM3", detail.SignatureAlgorithm)
 		})
 	})
 }
