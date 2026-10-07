@@ -13,30 +13,38 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
-// RaceErr return when any goroutine returned
+// RaceErr runs every function in gs concurrently and returns the error of the
+// first one to finish (nil when it succeeded); the others keep running in the
+// background and their results are discarded. It returns an error when gs is
+// empty instead of blocking forever.
 func RaceErr(gs ...func() error) (err error) {
-	var once sync.Once
-	cond := sync.NewCond(&sync.Mutex{})
+	if len(gs) == 0 {
+		return errors.New("no functions to race")
+	}
+
+	// A buffered channel cannot lose the first result, unlike a condition
+	// variable signaled before the waiter starts waiting. Slower functions
+	// still run to completion and drop their results into the buffer.
+	results := make(chan error, len(gs))
 	for _, g := range gs {
-		g := g
 		go func() {
-			ierr := g()
-			cond.L.Lock()
-			once.Do(func() { err = ierr })
-			cond.Signal()
-			cond.L.Unlock()
+			results <- g()
 		}()
 	}
 
-	cond.L.Lock()
-	cond.Wait()
-	cond.L.Unlock()
-
-	return errors.WithStack(err)
+	return errors.WithStack(<-results)
 }
 
-// RaceErrWithCtx return when any goroutine returned or ctx canceled
+// RaceErrWithCtx runs every function in gs concurrently with a context that is
+// canceled once the first one finishes, and returns that first result. It
+// returns the wrapped context error when ctx ends before any function
+// finishes, and an error when gs is empty instead of blocking forever.
 func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) error {
+	if len(gs) == 0 {
+		return errors.New("no functions to race")
+	}
+
+	parent := ctx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resultCh := make(chan error, 1)
@@ -59,7 +67,19 @@ func RaceErrWithCtx(ctx context.Context, gs ...func(context.Context) error) erro
 		}()
 	}
 
-	return <-resultCh
+	// Racers skip running once ctx is done, so also stop waiting when the
+	// caller's context ends; a result that is already available wins.
+	select {
+	case err := <-resultCh:
+		return err
+	case <-parent.Done():
+		select {
+		case err := <-resultCh:
+			return err
+		default:
+		}
+		return errors.Wrap(parent.Err(), "race canceled")
+	}
 }
 
 // RunWithTimeout run func with timeout
