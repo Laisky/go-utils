@@ -652,8 +652,22 @@ func OpenURLInDefaultBrowser(ctx context.Context, rawURL string) error {
 		zap.Bool("is_wsl", runningInWSL),
 	)
 
-	//nolint:gosec //G204: Subprocess launched with variable
-	return exec.CommandContext(ctx, cmd, args...).Start()
+	//nolint:gosec // G204: cmd comes from a fixed per-OS allowlist and the URL is validated above.
+	launcher := exec.CommandContext(ctx, cmd, args...)
+	if err := launcher.Start(); err != nil {
+		return errors.Wrapf(err, "start %s", cmd)
+	}
+
+	// Reap the launcher once it exits so repeated calls never accumulate zombie
+	// processes; the launcher's exit status is informational only.
+	go func() {
+		if err := launcher.Wait(); err != nil {
+			log.Shared.Debug("default browser launcher exited with error",
+				zap.String("command", cmd), zap.Error(err))
+		}
+	}()
+
+	return nil
 }
 
 // validateOpenBrowserURL validates URL format and enforces scheme allowlist.
