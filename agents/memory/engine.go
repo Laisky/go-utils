@@ -72,6 +72,8 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 			Model:           conf.LLMModel,
 			Timeout:         conf.LLMTimeout,
 			MaxOutputTokens: conf.LLMMaxOutputTokens,
+			// Cleartext http is only accepted through the explicit opt-in.
+			AllowInsecureHTTP: conf.LLMAllowInsecureHTTP,
 		})
 		if err != nil {
 			return nil, errors.Wrap(err, "build heuristic client")

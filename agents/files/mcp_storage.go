@@ -57,6 +57,12 @@ func NewMCPStorage(conf MCPStorageConfig) (*MCPStorage, error) {
 }
 
 // NewMCPStorageFromConfig creates MCP storage using direct endpoint/apikey config.
+//
+// The endpoint is validated by NewMCPClient (https required, no URL userinfo)
+// before the bootstrap request, and the default redirect-restricted HTTP
+// client is used. For a cleartext local-development endpoint, build the client
+// with NewMCPClient and MCPClientConfig.AllowInsecureHTTP, then wrap it with
+// NewMCPStorage instead.
 func NewMCPStorageFromConfig(ctx context.Context, endpoint, apiKey string) (*MCPStorage, error) {
 	client, err := NewMCPClient(MCPClientConfig{
 		Endpoint: endpoint,

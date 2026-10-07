@@ -281,11 +281,27 @@ Root path usage:
 | Field          | Required    | Default                  | Description                                                                 |
 | -------------- | ----------- | ------------------------ | --------------------------------------------------------------------------- |
 | `Caller`       | Conditional | `nil`                    | Prebuilt MCP tool caller. If set, `Endpoint` and `APIKey` are not required. |
-| `Endpoint`     | Conditional | None                     | MCP endpoint URL. Required when `Caller` is `nil`.                          |
+| `Endpoint`     | Conditional | None                     | HTTPS MCP endpoint URL. Required when `Caller` is `nil`.                    |
 | `APIKey`       | Conditional | None                     | MCP API key. Required when `Caller` is `nil`.                               |
 | `RetryDelays`  | No          | `[200ms, 500ms, 1s, 2s]` | Retry backoff sequence for retryable MCP errors (caller mode).              |
 | `DefaultDepth` | No          | `1`                      | Default `List` depth for MCP file operations (caller mode).                 |
 | `DefaultLimit` | No          | `50`                     | Default `List` limit for MCP file operations (caller mode).                 |
+
+Endpoint transport security (applies to `mcpstorage.Config.Endpoint`, `files.MCPClientConfig.Endpoint`, and
+`files.NewMCPStorageFromConfig`):
+
+1. The endpoint is parsed and validated before any request carrying the API key is built. It must use `https`,
+   have a valid host and port (1-65535), and must not contain URL userinfo (`https://user:pass@host`). Other schemes
+   and malformed URLs are rejected. A scheme-less value such as `mcp.example.com/mcp` is normalized to `https`.
+2. Cleartext `http` is rejected by default for every host, including loopback. For local development only, build
+   the client with `files.NewMCPClient(files.MCPClientConfig{..., AllowInsecureHTTP: true})` and pass it as `Caller`.
+   With that opt-in the API key and all file payloads travel unencrypted.
+3. The default HTTP client only follows redirects that stay on the endpoint's origin (scheme, host, port). It refuses
+   `https` to `http` downgrades and cross-origin hops (other hosts, subdomains, or ports), so the bearer credential and
+   replayed request bodies never leave the configured origin.
+4. A caller-supplied `files.MCPClientConfig.Client` is still subject to endpoint validation, but the library cannot
+   control its redirect, proxy, or TLS policy. Configure such clients to refuse downgrade and cross-origin redirects
+   (for example with an `http.Client.CheckRedirect` that returns an error).
 
 ### 5.5 Storage return model fields
 
@@ -453,8 +469,9 @@ Non-positive numeric values are normalized to defaults.
 | `CompactionMinAge`       | No       | `24h`                 | Minimum shard age before archive compaction.                          |
 | `SummaryRefreshInterval` | No       | `1h`                  | Summary refresh interval used in policy metadata.                     |
 | `MaxProcessedTurns`      | No       | `1024`                | Max remembered turn IDs for idempotency dedup.                        |
-| `LLMAPIBase`             | No       | Empty                 | OpenAI-compatible API base/endpoint for heuristic fact extraction.    |
+| `LLMAPIBase`             | No       | Empty                 | HTTPS OpenAI-compatible API base/endpoint for heuristic extraction.   |
 | `LLMAPIKey`              | No       | Empty                 | API key for LLM heuristic extractor.                                  |
+| `LLMAllowInsecureHTTP`   | No       | `false`               | Insecure opt-in accepting an `http` `LLMAPIBase` (local dev only).    |
 | `LLMModel`               | No       | `openai/gpt-oss-120b` | Model name for heuristic extraction.                                  |
 | `LLMTimeout`             | No       | `12s`                 | Timeout for heuristic LLM requests.                                   |
 | `LLMMaxOutputTokens`     | No       | `800`                 | Max output tokens for heuristic LLM response.                         |
@@ -466,6 +483,13 @@ Heuristic client activation rules:
 1. If `HeuristicClient` is provided, engine uses it directly.
 2. If `HeuristicClient` is nil and both `LLMAPIBase` and `LLMAPIKey` are non-empty, engine auto-builds an OpenAI-compatible client.
 3. If neither condition is met, only rule-based fact extraction is used.
+
+`LLMAPIBase` transport security: the API key, the current turn, and stored memory facts are sent to this endpoint,
+so `NewEngine` validates it with the same policy as MCP endpoints (section 5.4). It must use `https` (scheme-less
+values are normalized to `https`), have a valid host and port, and must not contain URL userinfo; otherwise
+`NewEngine` returns an error. A cleartext `http` base is only accepted with `LLMAllowInsecureHTTP: true`, for any
+host (there is no implicit loopback exception). The built-in client only follows same-origin redirects and refuses
+`https` to `http` downgrades.
 
 ### 6.2 Turn lifecycle input/output parameters
 
@@ -803,6 +827,10 @@ Required env for E2E:
 4. Unexpected duplicate prompts: prefer explicit `ConversationItems` boundaries instead of the legacy fallback path
 5. Missing folder abstracts: run `RunMaintenance` or call `ListDirWithAbstract`
 6. No E2E execution: confirm `-tags e2e` and required env variables
+7. `validate mcp endpoint` or `validate llm api base` errors: use an `https` URL without userinfo; for a local
+   cleartext server, set `files.MCPClientConfig.AllowInsecureHTTP` or `memory.Config.LLMAllowInsecureHTTP` explicitly
+8. `refusing redirect` errors: the server redirected to another origin or downgraded to `http`; point the endpoint
+   at the final HTTPS URL instead
 
 ## 14) Minimal Adoption Checklist
 

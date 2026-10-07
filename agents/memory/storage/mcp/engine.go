@@ -13,8 +13,16 @@ import (
 
 // Config controls MCP-backed memory storage engine initialization.
 type Config struct {
-	Caller       files.ToolCaller
-	Endpoint     string
+	// Caller is a prebuilt MCP tool caller. When set, Endpoint and APIKey are
+	// ignored. To reach a cleartext http MCP server during local development,
+	// build the caller with files.NewMCPClient and its explicit
+	// AllowInsecureHTTP opt-in and pass it here.
+	Caller files.ToolCaller
+	// Endpoint is the MCP endpoint used when Caller is nil. It must use https,
+	// have a valid host and port, and must not contain URL userinfo (see
+	// files.MCPClientConfig); otherwise NewEngine fails before any request.
+	Endpoint string
+	// APIKey is the bearer credential used when Caller is nil.
 	APIKey       string
 	RetryDelays  []time.Duration
 	DefaultDepth int
