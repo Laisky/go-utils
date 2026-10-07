@@ -2,19 +2,12 @@
 package compress
 
 import (
-	"archive/zip"
 	"bufio"
 	"compress/gzip"
 	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/zap"
 	"github.com/klauspost/pgzip"
-
-	gutils "github.com/Laisky/go-utils/v6"
-	"github.com/Laisky/go-utils/v6/log"
 )
 
 const (
@@ -311,111 +304,5 @@ func (c *PGZip) WriteFooter() (err error) {
 		return errors.Wrap(err, "close pgzip writer for footer")
 	}
 	c.gzWriter.Reset(c.buf)
-	return nil
-}
-
-// ZipFiles compresses one or many files into a single zip archive file.
-//
-// Args:
-//   - output: is the output zip file's name.
-//   - files: is a list of files to add to the zip.
-//     files can be directory.
-//
-// https://golangcode.com/create-zip-files-in-go/
-func ZipFiles(output string, files []string) (err error) {
-	var newZipFile *os.File
-	if newZipFile, err = os.Create(output); err != nil {
-		return errors.Wrapf(err, "create zip file %q", output)
-	}
-	defer gutils.SilentClose(newZipFile)
-
-	zipWriter := zip.NewWriter(newZipFile)
-	defer gutils.SilentClose(zipWriter)
-
-	// Add files to zip
-	for _, file := range files {
-		if err = AddFileToZip(zipWriter, file, ""); err != nil {
-			return errors.Wrapf(err, "AddFileToZip: %s", file)
-		}
-	}
-
-	return nil
-}
-
-// AddFileToZip add file tp zip.Writer
-//
-// https://golangcode.com/create-zip-files-in-go/
-func AddFileToZip(zipWriter *zip.Writer, filename, basedir string) error {
-	// An empty archive prefix denotes its explicitly trusted virtual root.
-	if basedir == "" {
-		basedir = "."
-	}
-	finfo, err := os.Stat(filename)
-	if err != nil {
-		return errors.Wrapf(err, "get file stat: %s", filename)
-	}
-
-	if finfo.IsDir() {
-		fs, err := os.ReadDir(filename)
-		if err != nil {
-			return errors.Wrapf(err, "list files in `%s`", filename)
-		}
-
-		for _, finfoInDir := range fs {
-			_, childDir := filepath.Split(finfoInDir.Name())
-
-			nextFilename, err := gutils.JoinFilepath(filename, finfoInDir.Name())
-			if err != nil {
-				return errors.Wrapf(err, "join nextFilename filepath `%s`", finfoInDir.Name())
-			}
-			nextBasedir, err := gutils.JoinFilepath(basedir, finfo.Name())
-			if err != nil {
-				return errors.Wrapf(err, "join nextBasedir filepath `%s`", childDir)
-			}
-
-			if err = AddFileToZip(zipWriter, nextFilename, nextBasedir); err != nil {
-				return errors.Wrapf(err, "zip sub basedir `%s`", childDir)
-			}
-		}
-
-		return nil
-	}
-
-	fileToZip, err := os.Open(filename)
-	if err != nil {
-		return errors.Wrapf(err, "open file: %s", filename)
-	}
-	defer gutils.SilentClose(fileToZip)
-
-	var header *zip.FileHeader
-	if header, err = zip.FileInfoHeader(finfo); err != nil {
-		return errors.Wrap(err, "get file header")
-	}
-
-	// Using FileInfoHeader() above only uses the basename of the file. If we want
-	// to preserve the folder structure we can overwrite this with the full path.
-	if basedir != "" {
-		if header.Name, err = gutils.JoinFilepath(basedir, finfo.Name()); err != nil {
-			return errors.Wrapf(err, "join filepath `%s`", finfo.Name())
-		}
-	}
-
-	// ZIP member separators are always forward slashes, including on Windows.
-	header.Name = filepath.ToSlash(header.Name)
-
-	// Change to deflate to gain better compression
-	// see http://golang.org/pkg/archive/zip/#pkg-constants
-	header.Method = zip.Deflate
-
-	var writer io.Writer
-	if writer, err = zipWriter.CreateHeader(header); err != nil {
-		return errors.Wrap(err, "create writer header")
-	}
-
-	if _, err = io.Copy(writer, fileToZip); err != nil {
-		return errors.Wrap(err, "copy data")
-	}
-
-	log.Shared.Debug("add file to zip", zap.String("file", filename))
 	return nil
 }
