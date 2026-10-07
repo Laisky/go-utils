@@ -358,10 +358,14 @@ func sortRecursive(data interface{}, desc bool, insensitive bool) interface{} {
 		}
 		return sm
 	case []interface{}:
+		// Build a new slice: rewriting v in place would mutate the caller's
+		// data, so a second call (e.g. with another order) would see the
+		// sortedMap values from the first call instead of the original maps.
+		sorted := make([]interface{}, len(v))
 		for i, val := range v {
-			v[i] = sortRecursive(val, desc, insensitive)
+			sorted[i] = sortRecursive(val, desc, insensitive)
 		}
-		return v
+		return sorted
 	default:
 		return v
 	}

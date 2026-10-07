@@ -11,21 +11,6 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
-// Test_switch is a sanity check of Go switch semantics: a value that matches one entry of a comma-separated
-// case list, as used for image extensions in checkDupByImageSimilar, selects that case instead of default.
-func Test_switch(t *testing.T) {
-	t.Parallel()
-	v := "a"
-	switch v {
-	case "a", "b", "c":
-		v = "c"
-	default:
-		v = "213"
-	}
-
-	require.Equal(t, v, "c")
-}
-
 // Test_removeDuplicate runs removeDuplicate in non-dry mode ten times in parallel, each on a fresh temporary
 // tree holding four copies of one content and two copies of another spread over a directory and its
 // subdirectory, and verifies that exactly one file of each content survives. It guards against the earlier

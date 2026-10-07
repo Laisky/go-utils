@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -136,19 +136,16 @@ func TestSortRecursive(t *testing.T) {
 			},
 		}
 
-		// test asc
-		sorted := sortRecursive(data, false, false)
-		sm := sorted.(sortedMap)
-		sort.Strings(sm.keys)
-		require.Equal(t, []string{"a", "b", "c"}, sm.keys)
+		// sortedMap orders keys when it is marshaled, so assert the emitted
+		// JSON instead of re-sorting the keys in the test, which would hide an
+		// ordering bug.
+		asc, err := json.Marshal(sortRecursive(data, false, false))
+		require.NoError(t, err)
+		require.Equal(t, `{"a":1,"b":2,"c":[{"x":1,"y":2},3]}`, string(asc))
 
-		// test desc
-		sortedDesc := sortRecursive(data, true, false)
-		smDesc := sortedDesc.(sortedMap)
-		sort.Slice(smDesc.keys, func(i, j int) bool {
-			return smDesc.keys[i] > smDesc.keys[j]
-		})
-		require.Equal(t, []string{"c", "b", "a"}, smDesc.keys)
+		desc, err := json.Marshal(sortRecursive(data, true, false))
+		require.NoError(t, err)
+		require.Equal(t, `{"c":[{"y":2,"x":1},3],"b":2,"a":1}`, string(desc))
 	})
 }
 
