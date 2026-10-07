@@ -212,7 +212,11 @@ func (e *Type) SignByHS256(claims jwt.Claims, opts ...DivideOption) (string, err
 	}
 
 	token := jwt.NewWithClaims(SignMethodHS256, claims)
-	return token.SignedString(opt.secret)
+	signed, err := token.SignedString(opt.secret)
+	if err != nil {
+		return "", errors.Wrap(err, "sign token by HS256")
+	}
+	return signed, nil
 }
 
 // SignByES256 signing claims by ES256
@@ -233,7 +237,11 @@ func (e *Type) SignByES256(claims jwt.Claims, opts ...DivideOption) (string, err
 		return "", errors.Wrap(err, "parse private key")
 	}
 
-	return token.SignedString(priKey)
+	signed, err := token.SignedString(priKey)
+	if err != nil {
+		return "", errors.Wrap(err, "sign token by ES256")
+	}
+	return signed, nil
 }
 
 // ParseClaims parse token to claims

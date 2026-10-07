@@ -188,12 +188,16 @@ func NewGZip(writer io.Writer, opts ...Option) (*Gzip, error) {
 
 // Write write bytes via compressor
 func (c *Gzip) Write(d []byte) (int, error) {
-	return c.gzWriter.Write(d)
+	n, err := c.gzWriter.Write(d)
+	if err != nil {
+		return n, errors.Wrap(err, "write compressed data")
+	}
+	return n, nil
 }
 
 // WriteString write string via compressor
 func (c *Gzip) WriteString(d string) (int, error) {
-	return c.gzWriter.Write([]byte(d))
+	return c.Write([]byte(d))
 }
 
 // Flush flush buffer bytes into bottom writer with gz meta footer
@@ -282,12 +286,16 @@ func NewPGZip(writer io.Writer, opts ...Option) (*PGZip, error) {
 
 // Write write bytes via compressor
 func (c *PGZip) Write(d []byte) (int, error) {
-	return c.gzWriter.Write(d)
+	n, err := c.gzWriter.Write(d)
+	if err != nil {
+		return n, errors.Wrap(err, "write compressed data")
+	}
+	return n, nil
 }
 
 // WriteString write string via compressor
 func (c *PGZip) WriteString(d string) (int, error) {
-	return c.gzWriter.Write([]byte(d))
+	return c.Write([]byte(d))
 }
 
 // Flush flush buffer bytes into bottom writer with gz meta footer
