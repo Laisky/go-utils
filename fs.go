@@ -18,6 +18,7 @@ import (
 	"github.com/Laisky/zap"
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/Laisky/go-utils/v6/internal/fileguard"
 	"github.com/Laisky/go-utils/v6/log"
 )
 
@@ -165,6 +166,9 @@ func ReplaceFileAtomic(path string, in io.ReadCloser, perm os.FileMode) error {
 //
 // sometimes move file by `rename` not work.
 // for example, you can not move file between docker volumes by `rename`.
+//
+// dst must not exist: it is created exclusively, so an existing entry or a
+// dangling link is a collision and src is kept. See CopyFile.
 func MoveFile(src, dst string) (err error) {
 	if err = CopyFile(src, dst); err != nil {
 		return errors.Wrapf(err, "copy file from %q to %q", src, dst)
@@ -187,15 +191,26 @@ func IsDir(path string) (bool, error) {
 	return st.IsDir(), nil
 }
 
-// IsDirWritable if dir is writable
+// IsDirWritable reports whether new files can be created in dir. An empty dir
+// means the current working directory. It exclusively creates an unpredictable
+// private probe file, closes it and removes only that probe; existing entries,
+// including links and any file named .touch, are never opened, truncated or
+// removed. It returns nil when the probe was created and removed, or an error.
 func IsDirWritable(dir string) (err error) {
-	f := filepath.Join(dir, ".touch")
-	if err = os.WriteFile(f, []byte(""), 0600); err != nil {
-		return errors.Wrapf(err, "write test file %q", f)
+	if dir == "" {
+		dir = "."
 	}
-
-	if err = os.Remove(f); err != nil {
-		return errors.Wrapf(err, "remove file `%s`", f)
+	probe, err := os.CreateTemp(dir, ".writable-probe-*")
+	if err != nil {
+		return errors.Wrapf(err, "create writability probe in %q", dir)
+	}
+	name := probe.Name()
+	closeErr := probe.Close()
+	if err = os.Remove(name); err != nil {
+		return errors.Join(errors.Wrapf(err, "remove writability probe %q", name), closeErr)
+	}
+	if closeErr != nil {
+		return errors.Wrapf(closeErr, "close writability probe %q", name)
 	}
 
 	return nil
@@ -255,7 +270,9 @@ func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption
 // CopyFileOptionFunc set options for copy file
 type CopyFileOptionFunc func(o *copyFileOption) error
 
-// WithFileMode if create new dst file, set the file's mode
+// WithFileMode sets the creation mode, before the umask, of the file CopyFile
+// creates. With Overwrite the replacement file also receives this mode; the
+// previous destination's mode is not preserved.
 func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.mode = perm
@@ -263,7 +280,9 @@ func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
 	}
 }
 
-// WithFileFlag how to write dst file
+// WithFileFlag adds open flags, such as os.O_SYNC, for the file CopyFile creates.
+// Creation is always exclusive (os.O_CREATE|os.O_EXCL) and os.O_TRUNC is ignored,
+// because CopyFile never opens an existing destination for writing.
 func WithFileFlag(flag int) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.flag |= flag
@@ -271,7 +290,11 @@ func WithFileFlag(flag int) CopyFileOptionFunc {
 	}
 }
 
-// Overwrite overwrite file if target existed
+// Overwrite allows CopyFile to replace an existing regular destination file.
+// The content is written to a private temporary file beside dst and published
+// with rename, so the destination entry is replaced rather than written through.
+// A destination that exists but is not a regular file, such as a symbolic link,
+// directory or FIFO, is rejected and left unchanged.
 func Overwrite() CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.overwrite = true
@@ -280,7 +303,14 @@ func Overwrite() CopyFileOptionFunc {
 	}
 }
 
-// CopyFile copy file content from src to dst
+// CopyFile copies the content of src to dst, creating dst's parent directories.
+//
+// Without Overwrite, dst is created atomically with exclusive-create semantics:
+// any existing entry, including a symbolic link whose target is missing, is a
+// collision and produces an error matching fs.ErrExist. With Overwrite, an
+// existing regular dst is replaced through a temporary file and rename; links and
+// special files are rejected. A failed copy never leaves a partial destination.
+// It returns nil on success or an error describing the first failure.
 func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 	opt, err := new(copyFileOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
@@ -297,23 +327,21 @@ func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 	}
 	defer SilentClose(srcFp)
 
-	if !opt.overwrite {
-		if ok, err := FileExists(dst); err != nil {
-			return errors.Wrapf(err, "check file %q", dst)
-		} else if ok {
-			return errors.Errorf("file %q exists", dst)
-		}
-	}
-
-	dstFp, err := os.OpenFile(dst, opt.flag, opt.mode)
-	if err != nil {
-		return errors.Wrapf(err, "open file `%s`", dst)
-	}
-	defer SilentClose(dstFp)
-
 	var n int64
-	if n, err = io.Copy(dstFp, srcFp); err != nil {
-		return errors.Wrap(err, "copy file")
+	copyInto := func(dstFp *os.File) error {
+		var copyErr error
+		if n, copyErr = io.Copy(dstFp, srcFp); copyErr != nil {
+			return errors.Wrap(copyErr, "copy file")
+		}
+		return nil
+	}
+	if opt.overwrite {
+		err = fileguard.Replace(dst, opt.flag, opt.mode, copyInto)
+	} else {
+		err = fileguard.WriteNew(dst, opt.flag, opt.mode, copyInto)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "write destination %q", dst)
 	}
 
 	log.Shared.Debug("file copied",

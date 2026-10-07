@@ -1,4 +1,5 @@
-// Package fileguard opens checked source objects through anchored directory handles.
+// Package fileguard opens checked source objects through anchored directory handles
+// and creates, replaces or appends to destinations without following final links.
 package fileguard
 
 import (
