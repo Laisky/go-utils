@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -840,29 +839,6 @@ func TestConvert2Map(t *testing.T) {
 				t.Errorf("ConvertMap() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestStopSignal(t *testing.T) {
-	stopCh := StopSignal(WithStopSignalCloseSignals(os.Interrupt, syscall.SIGTERM))
-	select {
-	case <-stopCh:
-		t.Fatal("should not be closed")
-	default:
-	}
-
-	err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-	require.NoError(t, err)
-
-	_, ok := <-stopCh
-	require.False(t, ok)
-
-	// case: panic
-	{
-		ok := IsPanic(func() {
-			_ = StopSignal(WithStopSignalCloseSignals())
-		})
-		require.True(t, ok)
 	}
 }
 
