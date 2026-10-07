@@ -62,6 +62,7 @@ linters:
     - usestdlibvars
     - wastedassign
     - whitespace
+    - wrapcheck
     - zerologlint
 
   settings:
@@ -100,6 +101,23 @@ linters:
     whitespace:
       multi-if: false
       multi-func: false
+    wrapcheck:
+      # AGENTS.md: never return bare errors from other packages. Constructors and
+      # wrappers of github.com/Laisky/errors/v2 already attach stack and context.
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+        - .WithMessagef(
+        - .WithStack(
+        - github.com/Laisky/errors/v2.New(
+        - github.com/Laisky/errors/v2.Join(
+      ignore-package-globs:
+        - github.com/Laisky/go-utils/v6*
 
   exclusions:
     generated: strict
