@@ -25,6 +25,9 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// init registers three commands on the root command and binds their flags: "certinfo" with --remote/-r (TCP
+// endpoint) and --file/-f (certificate file) bound to tlsInfoCMDArgs, "csrinfo" with --file/-f bound to
+// csrfilepath, and "gencsr" with --common-name/-c, --out/-o and --prikey/-p bound to genCsrArgs.
 func init() {
 	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgs.remote, "remote", "r", "", "remote tcp endpoint")
 	tlsInfoCMD.Flags().StringVarP(&tlsInfoCMDArgs.filepath, "file", "f", "", "certificates file in PEM")
@@ -91,6 +94,11 @@ var tlsInfoCMD = &cobra.Command{
 	},
 }
 
+// showRemoteX509CertInfo dials addr over TLS, honoring ctx for cancellation, and prints the certificate chain
+// presented by the peer as indented JSON. Certificate verification is deliberately skipped so that
+// self-signed, expired or otherwise untrusted chains can still be inspected; the SNI server name is the host
+// part of addr when it carries a port, or addr itself otherwise. It returns an error when the dial fails, the
+// connection is not TLS, or the certificates cannot be rendered.
 func showRemoteX509CertInfo(ctx context.Context, addr string) error {
 	serverName := addr
 	if host, _, err := net.SplitHostPort(addr); err == nil {
@@ -117,6 +125,10 @@ func showRemoteX509CertInfo(ctx context.Context, addr string) error {
 	return prettyPrintCerts(tlsConn.ConnectionState().PeerCertificates)
 }
 
+// showFileX509CertInfo reads the certificate file at fpath and prints every certificate it contains as
+// indented JSON. The content is parsed as PEM first and, when it is not valid PEM, as DER. It returns an
+// error when the file cannot be read, the certificates cannot be parsed in either format, or they cannot be
+// rendered.
 func showFileX509CertInfo(fpath string) error {
 	certsPem, err := os.ReadFile(fpath)
 	if err != nil {
@@ -138,6 +150,9 @@ func showFileX509CertInfo(fpath string) error {
 	return prettyPrintCerts(certs)
 }
 
+// prettyPrintCerts converts each certificate in certs into a human-readable map with
+// gcrypto.ReadableX509Cert and prints the resulting list to stdout as JSON indented with four spaces. It
+// returns an error when a certificate cannot be converted or the list cannot be marshaled.
 func prettyPrintCerts(certs []*x509.Certificate) error {
 	parsedCerts := make([]map[string]any, 0, len(certs))
 	for i := range certs {

@@ -16,6 +16,9 @@ import (
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
+// init registers the "rename" command on the root command with two subcommands: "av", whose flags --dir/-d,
+// --dry, --exts/-e and --recurse are bound to renameAvCmdArgs, and "flat", whose flags --dir/-d and --dry are
+// bound to renameFlatCmdArgs.
 func init() {
 	rootCmd.AddCommand(renameCMD)
 

@@ -17,6 +17,9 @@ import (
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
+// Test_showPemFileX509CertInfo verifies that the certinfo command prints a self-signed PEM certificate read
+// from a file: it parses the -f flag into tlsInfoCMDArgs and runs tlsInfoCMD.RunE without error. It does not
+// run in parallel because it mutates the shared command flags.
 func Test_showPemFileX509CertInfo(t *testing.T) {
 	// This test cannot run in parallel.
 
@@ -43,6 +46,10 @@ func Test_showPemFileX509CertInfo(t *testing.T) {
 	})
 }
 
+// Test_showRemoteX509CertInfo verifies that showRemoteX509CertInfo fetches and prints the self-signed
+// certificate chain of a local TLS listener bound to an ephemeral 127.0.0.1 port, which also confirms that
+// untrusted certificates are inspected without verification. The listener is closed when the test context is
+// canceled.
 func Test_showRemoteX509CertInfo(t *testing.T) {
 	// This test cannot run in parallel.
 

@@ -46,6 +46,10 @@ var renameAvTestCases = []struct {
 		"Manufactured.Landscapes.2006.1080p.BluRay.x264-HANDJOB.mkv"},
 }
 
+// Test_convertAvFilename verifies that convertAvFilename maps every source name in renameAvTestCases to its
+// expected target: site prefixes and suffixes such as "-C" or "_full" are stripped, codes are lower-cased
+// with studio names expanded (caribbean, 1pondo, heyzo, fc2, tokyo-hot), the directory is kept and the
+// extension is lower-cased, and unrecognized names are returned unchanged.
 func Test_convertAvFilename(t *testing.T) {
 	t.Parallel()
 

@@ -14,6 +14,9 @@ import (
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
+// Test_tlsInfoCMD verifies that tlsInfoCMD.RunE prints certificate information for a 4096-bit self-signed
+// certificate supplied as a DER file, as a PEM file, and by a local HTTPS server on an ephemeral port reached
+// through the remote argument, restoring the shared tlsInfoCMDArgs afterwards.
 func Test_tlsInfoCMD(t *testing.T) {
 	t.Parallel()
 
@@ -98,6 +101,8 @@ func Test_tlsInfoCMD(t *testing.T) {
 	})
 }
 
+// Test_csrInfo verifies that csrInfoCMD.RunE accepts a certificate signing request stored in a file as
+// base64-encoded DER rather than PEM, falling back from PEM parsing to base64 decoding and DER parsing.
 func Test_csrInfo(t *testing.T) {
 	t.Parallel()
 

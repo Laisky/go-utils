@@ -36,6 +36,8 @@ type dupFile struct {
 	sizeBytes int64
 }
 
+// init registers the "remove-dup" command on the root command and binds its persistent flags --dir/-d (the
+// directory to scan) and --dry (report duplicates without deleting them) to removeDupArg.
 func init() {
 	rootCmd.AddCommand(removeDupCMD)
 	removeDupCMD.PersistentFlags().StringVarP(&removeDupArg.Dir,
@@ -63,6 +65,12 @@ var removeDupCMD = &cobra.Command{
 	},
 }
 
+// removeDuplicate recursively scans dir and removes duplicate files. Each file is first checked by verified
+// identical content (checkDupByHash) and, when it was not removed, by perceptual image similarity
+// (checkDupByImageSimilar). Files are processed concurrently by at most runtime.NumCPU workers and scan
+// progress is logged every 30 seconds. When dry is true duplicates are only reported. Per-file check failures
+// are logged as warnings and do not abort the scan. It returns an error when dir cannot be listed or the
+// worker pool reports a failure, and nil otherwise.
 func removeDuplicate(dry bool, dir string) error {
 	files, err := gutils.ListFilesInDir(dir, gutils.ListFilesInDirRecursive())
 	if err != nil {
@@ -114,6 +122,13 @@ func removeDuplicate(dry bool, dir string) error {
 	return nil
 }
 
+// checkDupByImageSimilar decodes fpath as a JPEG, PNG or GIF image, chosen by its lower-cased extension
+// (other extensions are skipped), and queries store for the closest perceptual match. A best match scoring
+// above -60 is treated as not similar. Otherwise the larger file is kept and the other one is removed (the
+// current file is removed on a size tie, and nothing is removed when dry is true); when the current file is
+// kept it replaces the match in store. Images without a close enough match are not added to store. It takes
+// the dry flag, the shared duplo store and the file path, and returns whether a similar image was found,
+// together with any open, decode, size comparison or removal error.
 func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted bool, err error) {
 	fp, err := os.Open(fpath)
 	if err != nil {
@@ -189,6 +204,9 @@ func checkDupByImageSimilar(dry bool, store *duplo.Store, fpath string) (deleted
 	return deleted, nil
 }
 
+// fileSizeBiggerThan reports whether the file at fp1 is strictly larger than the file at fp2. It takes the
+// two file paths and returns true when the size of fp1 exceeds the size of fp2, or an error when either file
+// cannot be inspected with os.Stat.
 func fileSizeBiggerThan(fp1, fp2 string) (bool, error) {
 	finfo1, err := os.Stat(fp1)
 	if err != nil {
@@ -262,6 +280,8 @@ func checkDupByHash(dry bool, hashes *sync.Map, fpath string) (deleted bool, err
 	return true, nil
 }
 
+// removeFile deletes the file at fpath. It returns an error naming the path when the removal fails, and nil
+// otherwise.
 func removeFile(fpath string) error {
 	if err := os.Remove(fpath); err != nil {
 		return errors.Wrapf(err, "remove file %q", fpath)
