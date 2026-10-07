@@ -3,16 +3,12 @@ package utils
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
-	"encoding/binary"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -90,129 +86,6 @@ type httpClientOption struct {
 
 // HTTPClientOptFunc http client options
 type HTTPClientOptFunc func(*httpClientOption) error
-
-// NewJaegerTracingID generate jaeger tracing id
-//
-// Args:
-//   - traceID: trace id, 64bit number, will encode to hex string
-//   - spanID: span id, 64bit number, will encode to hex string
-//   - parentSpanID: parent span id, 64bit number, will encode to hex string
-//   - flag: 8bit number, one byte bitmap, as one or two hex digits (leading zero may be omitted)
-//
-// Even if some of the parameters have incorrect formatting,
-// it won't result in an error; instead, it will generate a new random value.
-func NewJaegerTracingID(traceID, spanID, parentSpanID uint64, flag byte) (traceVal JaegerTracingID, err error) {
-	if traceID == 0 {
-		if traceID, err = RandomNonZeroUint64(); err != nil {
-			return "", errors.Wrapf(err, "generate random trace id")
-		}
-	}
-	if spanID == 0 {
-		if spanID, err = RandomNonZeroUint64(); err != nil {
-			return "", errors.Wrapf(err, "generate random span id")
-		}
-	}
-	if flag == 0 {
-		flag = 0x04 // default to not used
-	}
-
-	traceIDVal := strconv.FormatUint(traceID, 16)
-	spanIDVal := strconv.FormatUint(spanID, 16)
-	parentSpanIDVal := strings.TrimLeft(fmt.Sprintf("%016x", parentSpanID), "0")
-	flagVal := strconv.FormatUint(uint64(flag), 16)
-
-	return JaegerTracingID(fmt.Sprintf("%s:%s:%s:%s", traceIDVal, spanIDVal, parentSpanIDVal, flagVal)), nil
-}
-
-// PaddingLeft padding string to left
-func PaddingLeft(s string, padStr string, pLen int) string {
-	if len(s) >= pLen {
-		return s
-	}
-
-	return strings.Repeat(padStr, pLen-len(s)) + s
-}
-
-// JaegerTracingID jaeger tracing id
-type JaegerTracingID string
-
-// String implement fmt.Stringer
-func (t JaegerTracingID) String() string {
-	return string(t)
-}
-
-// Parse decodes this API's 64-bit Jaeger IDs and one-byte flags. It rejects input
-// exceeding the fixed 53-byte format before splitting or decoding. An empty
-// parent ID remains accepted as zero for IDs emitted by older versions.
-func (t JaegerTracingID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
-	if len(t) > 53 {
-		return 0, 0, 0, 0, errors.New("invalid trace value: too long")
-	}
-	var fields [4]string
-	remaining := string(t)
-	for i := 0; i < 3; i++ {
-		var found bool
-		fields[i], remaining, found = strings.Cut(remaining, ":")
-		if !found {
-			return 0, 0, 0, 0, errors.New("invalid trace value: expected four components")
-		}
-	}
-	fields[3] = remaining
-	if fields[2] == "" {
-		fields[2] = "0"
-	}
-	var values [4]uint64
-	for i, field := range fields {
-		width := 16
-		if i == 3 {
-			width = 2
-		}
-		if len(field) == 0 || len(field) > width {
-			return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: width", i)
-		}
-		for j := range len(field) {
-			c := field[j]
-			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
-				return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: hexadecimal syntax", i)
-			}
-		}
-		value, parseErr := strconv.ParseUint(field, 16, width*4)
-		if parseErr != nil {
-			return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: range", i)
-		}
-		values[i] = value
-	}
-	return values[0], values[1], values[2], byte(values[3]), nil
-}
-
-// RandomNonZeroUint64 generate random uint64 number
-func RandomNonZeroUint64() (uint64, error) {
-	var num uint64
-	for {
-		if err := binary.Read(rand.Reader, binary.BigEndian, &num); err != nil {
-			return 0, errors.Wrap(err, "generate random number")
-		}
-
-		if num != 0 {
-			return num, nil
-		}
-	}
-}
-
-// NewSpan generate new span
-func (t JaegerTracingID) NewSpan() (JaegerTracingID, error) {
-	traceID, spanID, _, flag, err := t.Parse()
-	if err != nil {
-		return "", errors.Wrapf(err, "parse traceID")
-	}
-
-	newSpanID, err := RandomNonZeroUint64()
-	if err != nil {
-		return "", errors.Wrapf(err, "generate new spanID")
-	}
-
-	return NewJaegerTracingID(traceID, newSpanID, spanID, flag)
-}
 
 // WithHTTPClientTimeout set http client timeout
 //
@@ -431,7 +304,9 @@ func RequestJSONWithClient(httpClient *http.Client,
 		return errors.Wrap(err, "new request options")
 	}
 
-	log.Shared.Debug("try to request with json", zap.String("method", method), zap.String("endpoint", netdiag.Endpoint(url)))
+	log.Shared.Debug("try to request with json",
+		zap.String("method", method),
+		zap.String("endpoint", netdiag.Endpoint(url)))
 
 	var (
 		jsonBytes []byte
