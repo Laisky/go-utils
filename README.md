@@ -32,10 +32,10 @@ Add `$HOME/.go/bin` to your PATH.
 
 ```sh
 # find and delete duplicate files/ similar images
-gutils remove-dup examples/images --dry
+gutils remove-dup -d examples/images --dry
 
 # move files to hash-based hierach directories
-gutils md5dir -i examples/md5dir/ --dry
+gutils md5dir -i examples/md5dir/
 
 # show x509 certificate details
 gutils certinfo -r blog.laisky.com:443

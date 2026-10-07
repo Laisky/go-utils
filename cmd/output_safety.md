@@ -10,3 +10,22 @@
 
 The output directory itself must be trusted; only the final path component is
 protected.
+
+## Digest matches are only candidates (issue #52)
+
+- `remove-dup` uses SHA-1 to find candidate duplicates, then compares file sizes
+  and all bytes (streamed in 32 KiB chunks) before deleting. Different content,
+  a comparison or read failure, or a file that changed after comparison keeps
+  both files and logs a warning. Two names of the same inode are not treated as
+  removable duplicates. `--dry` reports proven duplicates without deleting.
+- `md5dir` never replaces an existing destination. Moves publish with a
+  no-replace hard link and then remove the source (falling back to an exclusive
+  copy when hard links are unavailable, for example across devices); `--remain`
+  copies with exclusive creation. When the destination exists, identical bytes
+  are deduplicated (a moved source is removed, a copy is skipped); different
+  bytes keep both files, log a warning and make the command exit with an error
+  after processing all other files. A file already stored at its own content
+  address is left alone.
+
+Similar-image removal in `remove-dup` is a separate, intentionally fuzzy policy
+and is not covered by the byte-equality guarantee.
