@@ -10,152 +10,117 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The behavioral tests in this file run the real background refill. A loaded host can delay or starve that
+// goroutine, and this test goroutine, for an unbounded time, so instead of comparing counts at fixed sleep
+// deadlines every test checks two load-independent properties: the bucket never hands out tokens faster than
+// NPerSec over the measured elapsed time (requireWithinRefillRate), and it eventually delivers the expected tokens
+// (awaitTokens, consumeUntil). Exact refill arithmetic is covered with a driven clock in
+// ratelimiter_refill_regression_test.go and by the "driven" subtests below.
+
 // ============================================================
 // Behavioral Tests – Token refill accuracy
 // ============================================================
 
-// TestRateLimiterRefillAccuracy verifies that limiters starting with zero tokens refill at the configured rate:
-// about 6 tokens (within 1) after 2s at 3/s, about 100 (within 15) after 1s at 100/s, and about 50000
-// (within 5000) after 1s at 50000/s.
+// TestRateLimiterRefillAccuracy verifies that limiters starting with zero tokens refill toward the configured rate
+// and never faster: they reach 5 tokens at 3/s, 85 at 100/s and 45000 at 50000/s, and at that point hold no more
+// than NPerSec times the measured time since their creation.
 func TestRateLimiterRefillAccuracy(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	t.Run("low rate: refill 3 per sec", func(t *testing.T) {
-		t.Parallel()
-		rl, err := NewRateLimiter(ctx,
-			RateLimiterArgs{NPerSec: 3, Max: 30},
-			WithAvailableTokens(0))
-		require.NoError(t, err)
-		defer rl.Close()
+	tests := []struct {
+		name string
+		args RateLimiterArgs
+		want int
+	}{
+		{"low rate: refill 3 per sec", RateLimiterArgs{NPerSec: 3, Max: 30}, 5},
+		{"medium rate: refill 100 per sec", RateLimiterArgs{NPerSec: 100, Max: 1000}, 85},
+		{"high rate: refill 50000 per sec", RateLimiterArgs{NPerSec: 50000, Max: 200000}, 45000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			start := time.Now()
+			rl, err := NewRateLimiter(context.Background(), tt.args, WithAvailableTokens(0))
+			require.NoError(t, err)
+			defer rl.Close()
 
-		// Wait 2 seconds, expect ~6 tokens (allow ±1 for timing)
-		time.Sleep(2050 * time.Millisecond)
-		tokens := rl.Len()
-		require.InDelta(t, 6, tokens, 1,
-			"expected ~6 tokens after 2s at 3/s, got %d", tokens)
-	})
-
-	t.Run("medium rate: refill 100 per sec", func(t *testing.T) {
-		t.Parallel()
-		rl, err := NewRateLimiter(ctx,
-			RateLimiterArgs{NPerSec: 100, Max: 1000},
-			WithAvailableTokens(0))
-		require.NoError(t, err)
-		defer rl.Close()
-
-		time.Sleep(1050 * time.Millisecond)
-		tokens := rl.Len()
-		require.InDelta(t, 100, tokens, 15,
-			"expected ~100 tokens after 1s at 100/s, got %d", tokens)
-	})
-
-	t.Run("high rate: refill 50000 per sec", func(t *testing.T) {
-		t.Parallel()
-		rl, err := NewRateLimiter(ctx,
-			RateLimiterArgs{NPerSec: 50000, Max: 200000},
-			WithAvailableTokens(0))
-		require.NoError(t, err)
-		defer rl.Close()
-
-		time.Sleep(1050 * time.Millisecond)
-		tokens := rl.Len()
-		require.InDelta(t, 50000, tokens, 5000,
-			"expected ~50000 tokens after 1s at 50000/s, got %d", tokens)
-	})
+			awaitTokens(t, rl, tt.want)
+			requireWithinRefillRate(t, rl, 0, 0, start)
+		})
+	}
 }
 
-// TestRateLimiterMaxCap verifies tokens never exceed Max even after long refill periods.
+// TestRateLimiterMaxCap verifies tokens never exceed Max: a 10/s limiter capped at 15 fills up to exactly 15 and
+// stays there while further refills keep arriving.
 func TestRateLimiterMaxCap(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	rl, err := NewRateLimiter(ctx,
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: 10, Max: 15},
 		WithAvailableTokens(0))
 	require.NoError(t, err)
 	defer rl.Close()
 
-	// Wait long enough for tokens to far exceed Max if uncapped
-	time.Sleep(3050 * time.Millisecond)
-	tokens := rl.Len()
-	require.LessOrEqual(t, tokens, 15,
-		"tokens %d should never exceed Max=15", tokens)
-	require.GreaterOrEqual(t, tokens, 13,
-		"tokens %d should be near Max=15 after 3s", tokens)
+	awaitTokens(t, rl, 15)
+	require.Never(t, func() bool { return rl.Len() > 15 }, 500*time.Millisecond, 10*time.Millisecond,
+		"tokens should never exceed Max=15")
+	require.Equal(t, 15, rl.Len())
 }
 
 // ============================================================
 // Behavioral Tests – Sustained throughput over time
 // ============================================================
 
-// TestRateLimiterSustainedThroughput verifies that a limiter at 50 tokens per second that starts empty and is
-// polled with Allow roughly every millisecond for 3 seconds admits about 150 requests, within a 15% tolerance.
+// TestRateLimiterSustainedThroughput verifies that a limiter at 50 tokens per second that starts empty serves a
+// consumer polling about every millisecond at no more than that rate: all 150 requests are eventually admitted,
+// and admitting them takes at least the time 50/s allows.
 func TestRateLimiterSustainedThroughput(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	// Use tier2 (NPerSec>10) for smoother refill (100ms interval) so that
-	// sustained throughput measurement is more accurate.
 	const nPerSec = 50
-	rl, err := NewRateLimiter(ctx,
+	start := time.Now()
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: nPerSec, Max: nPerSec * 10},
 		WithAvailableTokens(0))
 	require.NoError(t, err)
 	defer rl.Close()
 
-	// Continuously consume tokens for 3 seconds and count total allowed
-	var allowed int64
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if rl.Allow() {
-			allowed++
-		}
-		time.Sleep(time.Millisecond)
-	}
-
-	// Over 3 seconds at 50/s, expect ~150 allowed
-	expected := int64(nPerSec * 3)
-	require.InDelta(t, expected, allowed, float64(expected)*0.15,
-		"sustained throughput should be ~%d over 3s at %d/s, got %d", expected, nPerSec, allowed)
+	elapsed := consumeUntil(t, rl, 3*nPerSec, start)
+	t.Logf("admitted %d requests in %s at %d/s", 3*nPerSec, elapsed, nPerSec)
+	requireWithinRefillRate(t, rl, 0, 3*nPerSec, start)
 }
 
 // ============================================================
 // Behavioral Tests – Burst and recovery
 // ============================================================
 
-// TestRateLimiterBurstAndRecovery verifies that a full limiter (10/s, Max 20) allows exactly 20 back-to-back
-// requests and then rejects, recovers about 10 tokens (within 2) after one second, and lets those recovered
-// tokens be consumed again.
+// TestRateLimiterBurstAndRecovery verifies that a full limiter (10/s, Max 20) admits a back-to-back burst of its
+// 20 tokens (plus at most what was refilled meanwhile) and then rejects, recovers tokens through the background
+// refill, and lets the recovered tokens be consumed again, never exceeding the refill rate over measured time.
 func TestRateLimiterBurstAndRecovery(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	rl, err := NewRateLimiter(ctx,
+	start := time.Now()
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: 10, Max: 20},
 		WithAvailableTokens(20))
 	require.NoError(t, err)
 	defer rl.Close()
 
-	// Burst: consume all 20 tokens immediately
-	for i := 0; i < 20; i++ {
-		require.True(t, rl.Allow(), "burst token %d should be allowed", i)
-	}
-	require.False(t, rl.Allow(), "should be exhausted after burst")
-
-	// Recovery: wait 1 second, should get ~10 tokens back
-	time.Sleep(1050 * time.Millisecond)
-	tokens := rl.Len()
-	require.InDelta(t, 10, tokens, 2,
-		"should recover ~10 tokens after 1s, got %d", tokens)
-
-	// Can burst again with recovered tokens
-	consumed := 0
+	burst := 0
 	for rl.Allow() {
-		consumed++
+		burst++
 	}
-	require.InDelta(t, 10, consumed, 2,
-		"should consume ~10 recovered tokens, got %d", consumed)
+	require.GreaterOrEqual(t, burst, 20, "the full bucket must be available as one burst")
+	requireWithinRefillRate(t, rl, 20, burst, start)
+
+	awaitTokens(t, rl, 8)
+	recovered := 0
+	for rl.Allow() {
+		recovered++
+	}
+	require.GreaterOrEqual(t, recovered, 8, "recovered tokens must be consumable again")
+	requireWithinRefillRate(t, rl, 20, burst+recovered, start)
 }
 
 // ============================================================
@@ -163,14 +128,14 @@ func TestRateLimiterBurstAndRecovery(t *testing.T) {
 // ============================================================
 
 // TestRateLimiterConcurrentAccess verifies that 50 goroutines each calling Allow 100 times against a limiter
-// pre-filled with 1000 tokens get at least one request admitted and at most 1200 in total, so concurrent
-// consumption never noticeably exceeds the initial tokens plus refill.
+// pre-filled with 1000 tokens get every initial token, and never more than the initial tokens plus what the
+// refill could add over the measured time, so concurrent consumption cannot over-spend the bucket.
 func TestRateLimiterConcurrentAccess(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	const maxTokens = 1000
-	rl, err := NewRateLimiter(ctx,
+	start := time.Now()
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: 100, Max: maxTokens},
 		WithAvailableTokens(maxTokens))
 	require.NoError(t, err)
@@ -194,23 +159,21 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Total allowed should not exceed initial tokens + whatever was refilled
-	// during the test. With 1000 initial tokens and a very brief test,
-	// we mainly check no over-consumption happened.
-	allowed := totalAllowed.Load()
+	// 5000 attempts against 1000 tokens: every attempt succeeds while tokens remain, so all initial tokens go.
+	allowed := int(totalAllowed.Load())
 	t.Logf("concurrent test: %d/%d requests allowed", allowed, numGoroutines*100)
-	require.LessOrEqual(t, allowed, int64(maxTokens+200),
-		"allowed %d should not wildly exceed initial tokens + minor refill", allowed)
-	require.Greater(t, allowed, int64(0), "some requests should have been allowed")
+	require.GreaterOrEqual(t, allowed, maxTokens)
+	requireWithinRefillRate(t, rl, maxTokens, allowed, start)
 }
 
 // TestRateLimiterConcurrentAllowN verifies that goroutines concurrently calling AllowN with mixed sizes
-// (1, 2, 3, 5, 7, and 10) against a limiter pre-filled with 500 tokens consume at most 600 tokens in total.
+// (1, 2, 3, 5, 7, and 10) against a limiter pre-filled with 500 tokens consume some tokens and never more than
+// the initial tokens plus what the refill could add over the measured time.
 func TestRateLimiterConcurrentAllowN(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	rl, err := NewRateLimiter(ctx,
+	start := time.Now()
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: 50, Max: 500},
 		WithAvailableTokens(500))
 	require.NoError(t, err)
@@ -221,7 +184,6 @@ func TestRateLimiterConcurrentAllowN(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for _, n := range []int{1, 2, 5, 10, 3, 7} {
-		n := n
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -234,11 +196,10 @@ func TestRateLimiterConcurrentAllowN(t *testing.T) {
 	}
 	wg.Wait()
 
-	consumed := totalConsumed.Load()
+	consumed := int(totalConsumed.Load())
 	t.Logf("concurrent AllowN: consumed %d tokens", consumed)
-	// Consumed should not exceed initial + refill
-	require.LessOrEqual(t, consumed, int64(600),
-		"consumed %d should not wildly exceed 500 initial + refill", consumed)
+	require.Positive(t, consumed)
+	requireWithinRefillRate(t, rl, 500, consumed, start)
 }
 
 // ============================================================
@@ -271,22 +232,28 @@ func TestRateLimiterTokensNeverNegative(t *testing.T) {
 // ============================================================
 
 // TestRateLimiterContextCancellation verifies that canceling the context passed to NewRateLimiter stops the
-// limiter: a limiter created with zero tokens still rejects Allow 500ms after the cancellation.
+// limiter: it rejects Allow afterwards, and the shared token pool, read directly from its state manager, gains no
+// tokens after the cancellation, so 500ms later it holds no more than the refill could add before it.
 func TestRateLimiterContextCancellation(t *testing.T) {
 	t.Parallel()
+	args := RateLimiterArgs{NPerSec: 10, Max: 100}
+	manager := NewMemoryRateLimiterStateManager()
 
+	start := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
-	rl, err := NewRateLimiter(ctx,
-		RateLimiterArgs{NPerSec: 10, Max: 100},
-		WithAvailableTokens(0))
+	rl, err := NewRateLimiter(ctx, args, WithAvailableTokens(0), WithRateLimiterStateManager(manager))
 	require.NoError(t, err)
 
 	cancel()
+	canceled := time.Now()
+	require.False(t, rl.Allow(), "a canceled limiter must reject requests")
 
-	// After context cancel, refill stops – wait and confirm no tokens appear
+	// A refill still running after the cancellation would add about 5 tokens over this window.
 	time.Sleep(500 * time.Millisecond)
-	// Allow should return false (no refill happened)
-	require.False(t, rl.Allow())
+	tokens, err := manager.AvailableTokens(context.Background())
+	require.NoError(t, err)
+	require.LessOrEqual(t, float64(tokens), float64(args.NPerSec)*canceled.Sub(start).Seconds()+1,
+		"tokens were added after the context was canceled")
 }
 
 // ============================================================
@@ -313,11 +280,10 @@ func TestRateLimiterRapidCreateDestroy(t *testing.T) {
 // ============================================================
 
 // TestRateLimiterAllTiers verifies that limiters starting empty accumulate roughly NPerSec tokens (within 15%,
-// and at least 2) for rates from 1/s to 20000/s, covering both the 100ms refill interval and the 10ms interval
+// and at least 1) for rates from 1/s to 20000/s, covering both the 100ms refill interval and the 10ms interval
 // used above 10000/s, and never hold more tokens than NPerSec times the measured time since their creation.
 func TestRateLimiterAllTiers(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	// Test each tier: <=10, <=10000, >10000
 	tests := []struct {
@@ -333,32 +299,18 @@ func TestRateLimiterAllTiers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			created := time.Now()
-			rl, err := NewRateLimiter(ctx,
+			start := time.Now()
+			rl, err := NewRateLimiter(context.Background(),
 				RateLimiterArgs{NPerSec: tt.nPerSec, Max: tt.max},
 				WithAvailableTokens(0))
 			require.NoError(t, err)
 			defer rl.Close()
 
-			// The background refill must reach about one second's worth of tokens. How long that takes
-			// depends on when the refill goroutine gets scheduled, so it is awaited rather than timed.
-			tolerance := float64(tt.nPerSec) * 0.15
-			if tolerance < 2 {
-				tolerance = 2
-			}
-			want := max(tt.nPerSec-int(tolerance), 1)
-			require.Eventually(t, func() bool { return rl.Len() >= want }, 30*time.Second, 10*time.Millisecond,
-				"tier %s: expected at least %d tokens", tt.name, want)
-
-			// Refill is proportional to elapsed time, so it can never run ahead of NPerSec over the time that
-			// actually passed since the limiter was created, however long the host stalled this test.
-			tokens := rl.Len()
-			ceiling := float64(tt.nPerSec) * time.Since(created).Seconds()
-			require.LessOrEqual(t, float64(tokens), ceiling+1,
-				"tier %s: %d tokens exceed %d/s over the measured elapsed time", tt.name, tokens, tt.nPerSec)
+			tolerance := max(int(float64(tt.nPerSec)*0.15), 2)
+			awaitTokens(t, rl, max(tt.nPerSec-tolerance, 1))
+			requireWithinRefillRate(t, rl, 0, 0, start)
 		})
 	}
 }
@@ -377,7 +329,7 @@ func TestRateLimiterNPerSecEqualsMax(t *testing.T) {
 
 	t.Run("driven refill", func(t *testing.T) {
 		t.Parallel()
-		rl, refill := newManuallyRefilledLimiter(t, args, args.NPerSec)
+		rl, refill := newManuallyRefilledLimiter(t, args)
 
 		for i := 0; i < 5; i++ {
 			require.True(t, rl.Allow(), i)
@@ -413,42 +365,60 @@ func TestRateLimiterNPerSecEqualsMax(t *testing.T) {
 // Behavioral Tests – Partial refill timing (tier-aware)
 // ============================================================
 
-// TestRateLimiterLowRateRefillGranularity verifies that low-rate limiters
-// (NPerSec<=10) refill smoothly at sub-second intervals, not in 1s batches.
+// TestRateLimiterLowRateRefillGranularity verifies that low-rate limiters (NPerSec<=10) refill in proportion to
+// elapsed time at sub-second steps, not in 1s batches: with a driven clock, 100ms at 10/s yields exactly one token
+// and 500ms in total yields five; the real background refill delivers tokens without exceeding the rate.
 func TestRateLimiterLowRateRefillGranularity(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	args := RateLimiterArgs{NPerSec: 10, Max: 100}
 
-	rl, err := NewRateLimiter(ctx,
-		RateLimiterArgs{NPerSec: 10, Max: 100},
-		WithAvailableTokens(0))
-	require.NoError(t, err)
-	defer rl.Close()
+	t.Run("driven", func(t *testing.T) {
+		t.Parallel()
+		rl, refill := newManuallyRefilledLimiter(t, args, WithAvailableTokens(0))
+		refill.advance(100 * time.Millisecond)
+		require.Equal(t, 1, rl.Len())
+		refill.advance(400 * time.Millisecond)
+		require.Equal(t, 5, rl.Len())
+	})
 
-	// After 500ms at 10/s with 100ms interval, ~5 ticks * 1 token = ~5
-	time.Sleep(550 * time.Millisecond)
-	tokens := rl.Len()
-	require.InDelta(t, 5, tokens, 2,
-		"expected ~5 tokens after 500ms at 10/s, got %d", tokens)
+	t.Run("real", func(t *testing.T) {
+		t.Parallel()
+		start := time.Now()
+		rl, err := NewRateLimiter(context.Background(), args, WithAvailableTokens(0))
+		require.NoError(t, err)
+		defer rl.Close()
+
+		awaitTokens(t, rl, 3)
+		requireWithinRefillRate(t, rl, 0, 0, start)
+	})
 }
 
-// TestRateLimiterTier2RefillGranularity checks that tier2 (10 < NPerSec <= 10000)
-// refills every 100ms, providing smoother token delivery.
+// TestRateLimiterTier2RefillGranularity checks that tier2 (10 < NPerSec <= 10000) refills in proportion to elapsed
+// time at 100ms steps: with a driven clock, 100ms at 100/s yields exactly 10 tokens and 500ms in total yields 50;
+// the real background refill delivers tokens without exceeding the rate.
 func TestRateLimiterTier2RefillGranularity(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	args := RateLimiterArgs{NPerSec: 100, Max: 1000}
 
-	rl, err := NewRateLimiter(ctx,
-		RateLimiterArgs{NPerSec: 100, Max: 1000},
-		WithAvailableTokens(0))
-	require.NoError(t, err)
-	defer rl.Close()
+	t.Run("driven", func(t *testing.T) {
+		t.Parallel()
+		rl, refill := newManuallyRefilledLimiter(t, args, WithAvailableTokens(0))
+		refill.advance(100 * time.Millisecond)
+		require.Equal(t, 10, rl.Len())
+		refill.advance(400 * time.Millisecond)
+		require.Equal(t, 50, rl.Len())
+	})
 
-	// After 500ms at 100/s with 100ms interval, ~5 ticks * 10 tokens = ~50
-	time.Sleep(550 * time.Millisecond)
-	tokens := rl.Len()
-	require.InDelta(t, 50, tokens, 15,
-		"expected ~50 tokens after 500ms at 100/s tier2, got %d", tokens)
+	t.Run("real", func(t *testing.T) {
+		t.Parallel()
+		start := time.Now()
+		rl, err := NewRateLimiter(context.Background(), args, WithAvailableTokens(0))
+		require.NoError(t, err)
+		defer rl.Close()
+
+		awaitTokens(t, rl, 35)
+		requireWithinRefillRate(t, rl, 0, 0, start)
+	})
 }
 
 // ============================================================
@@ -456,37 +426,20 @@ func TestRateLimiterTier2RefillGranularity(t *testing.T) {
 // ============================================================
 
 // TestRateLimiterMediumRateContinuousConsumption verifies that a limiter at 100 tokens per second that starts
-// empty and is polled with Allow on a 1ms ticker for 2 seconds admits about 200 requests (within 30).
+// empty serves a consumer polling about every millisecond at no more than that rate: all 200 requests are
+// eventually admitted, and admitting them takes at least the time 100/s allows.
 func TestRateLimiterMediumRateContinuousConsumption(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	const nPerSec = 100
-	rl, err := NewRateLimiter(ctx,
+	start := time.Now()
+	rl, err := NewRateLimiter(context.Background(),
 		RateLimiterArgs{NPerSec: nPerSec, Max: nPerSec * 10},
 		WithAvailableTokens(0))
 	require.NoError(t, err)
 	defer rl.Close()
 
-	// Continuously consume for 2 seconds at a rate slightly below nPerSec
-	var allowed int64
-	done := time.After(2 * time.Second)
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-
-loop:
-	for {
-		select {
-		case <-done:
-			break loop
-		case <-ticker.C:
-			if rl.Allow() {
-				allowed++
-			}
-		}
-	}
-
-	// Should get roughly 200 tokens over 2 seconds
-	require.InDelta(t, 200, allowed, 30,
-		"expected ~200 allowed over 2s at 100/s, got %d", allowed)
+	elapsed := consumeUntil(t, rl, 2*nPerSec, start)
+	t.Logf("admitted %d requests in %s at %d/s", 2*nPerSec, elapsed, nPerSec)
+	requireWithinRefillRate(t, rl, 0, 2*nPerSec, start)
 }
