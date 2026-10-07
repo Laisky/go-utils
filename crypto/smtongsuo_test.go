@@ -5,11 +5,11 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"math/big"
-	"math/rand"
 	"os/exec"
 	"testing"
 	"time"
 
+	"github.com/emmansun/gmsm/smx509"
 	"github.com/stretchr/testify/require"
 )
 
@@ -653,119 +653,6 @@ func TestTongsuo_HashBySm3(t *testing.T) {
 	require.NotEqual(t, hash, hash3)
 }
 
-func TestTongsuo_ShowCertInfo(t *testing.T) {
-	t.Parallel()
-	if testSkipSmTongsuo(t) {
-		return
-	}
-
-	ctx := context.Background()
-	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
-	require.NoError(t, err)
-
-	sno := big.NewInt(0).SetInt64(rand.Int63())
-
-	t.Run("test pubkey algorithm", func(t *testing.T) {
-		t.Run("rsa", func(t *testing.T) {
-			_, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
-				WithX509CertCommonName("test-rsa"),
-				WithX509CertSeriaNumber(sno),
-				WithX509CertKeyUsage(
-					x509.KeyUsageDigitalSignature,
-					x509.KeyUsageContentCommitment,
-					x509.KeyUsageKeyEncipherment,
-					x509.KeyUsageDataEncipherment,
-					x509.KeyUsageKeyAgreement,
-					x509.KeyUsageCertSign,
-					x509.KeyUsageCRLSign,
-					x509.KeyUsageEncipherOnly,
-					x509.KeyUsageDecipherOnly,
-				),
-				WithX509CertExtKeyUsage(
-					x509.ExtKeyUsageAny,
-					x509.ExtKeyUsageServerAuth,
-					x509.ExtKeyUsageClientAuth,
-					x509.ExtKeyUsageCodeSigning,
-					x509.ExtKeyUsageEmailProtection,
-					x509.ExtKeyUsageIPSECEndSystem,
-					x509.ExtKeyUsageIPSECTunnel,
-					x509.ExtKeyUsageIPSECUser,
-					x509.ExtKeyUsageTimeStamping,
-					x509.ExtKeyUsageOCSPSigning,
-					x509.ExtKeyUsageMicrosoftServerGatedCrypto,
-					x509.ExtKeyUsageNetscapeServerGatedCrypto,
-					x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
-					x509.ExtKeyUsageMicrosoftKernelCodeSigning,
-				),
-			)
-
-			rawCert, err := Der2Cert(certDer)
-			require.NoError(t, err)
-
-			certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
-			require.NoError(t, err, certinfo)
-
-			t.Log(certinfo)
-			require.Equal(t, x509.RSA, cert.PublicKeyAlgorithm)
-			require.Equal(t, sno, cert.SerialNumber)
-			require.Equal(t, rawCert.SubjectKeyId, cert.SubjectKeyId)
-			require.Equal(t, rawCert.AuthorityKeyId, cert.AuthorityKeyId)
-			require.Equal(t, rawCert.KeyUsage, cert.KeyUsage)
-			require.Equal(t, rawCert.ExtKeyUsage, cert.ExtKeyUsage)
-		})
-
-		t.Run("ecdsa", func(t *testing.T) {
-			_, certDer, err := NewECDSAPrikeyAndCert(ECDSACurveP256,
-				WithX509CertCommonName("test-ecdsa"),
-				WithX509CertSeriaNumber(sno),
-			)
-			require.NoError(t, err)
-
-			_, cert, err := ins.ShowCertInfo(ctx, certDer)
-			require.NoError(t, err)
-
-			require.Equal(t, x509.ECDSA, cert.PublicKeyAlgorithm)
-			require.Equal(t, sno, cert.SerialNumber)
-		})
-
-		t.Run("ed25519", func(t *testing.T) {
-			_, certDer, err := NewEd25519PrikeyAndCert(
-				WithX509CertCommonName("test-ed25519"),
-				WithX509CertSeriaNumber(sno),
-			)
-			require.NoError(t, err)
-
-			_, cert, err := ins.ShowCertInfo(ctx, certDer)
-			require.NoError(t, err)
-
-			require.Equal(t, x509.Ed25519, cert.PublicKeyAlgorithm)
-			require.Equal(t, sno, cert.SerialNumber)
-		})
-
-		t.Run("sm2", func(t *testing.T) {
-			certinfo, certDer, err := ins.NewPrikeyAndCert(ctx,
-				WithX509CertCommonName("test-sm2"),
-				WithX509CertSeriaNumber(sno),
-			)
-			require.NoError(t, err)
-
-			_, cert, err := ins.ShowCertInfo(ctx, certDer)
-			require.NoError(t, err)
-
-			// SM2 is never labelled as plain ECDSA (issue #61)
-			require.Equal(t, x509.UnknownPublicKeyAlgorithm, cert.PublicKeyAlgorithm)
-			require.Nil(t, cert.PublicKey)
-			require.Equal(t, sno, cert.SerialNumber, certinfo)
-
-			detail, err := ins.ShowCertInfoDetail(ctx, certDer)
-			require.NoError(t, err)
-			require.True(t, detail.IsSM2())
-			require.Equal(t, TongsuoPublicKeyAlgorithmSM2, detail.PublicKeyAlgorithm)
-			require.Equal(t, "SM2-SM3", detail.SignatureAlgorithm)
-		})
-	})
-}
-
 func TestTongsuo_EncryptBySm2(t *testing.T) {
 	t.Parallel()
 	if testSkipSmTongsuo(t) {
@@ -832,55 +719,55 @@ func TestTongsuo_EncryptBySm2(t *testing.T) {
 	})
 }
 
-// func TestTongsuo_NewX509CRL(t *testing.T) {
-// 	t.Parallel()
-// 	if testSkipSmTongsuo(t) {
-// 		return
-// 	}
+// TestTongsuo_NewX509CRL issues an SM2 leaf certificate, revokes it in a CRL
+// signed by the SM2 CA through SignX509CRL and verifies the DER CRL under the
+// CA certificate. It revives the formerly commented-out CRL test (issue #41).
+func TestTongsuo_NewX509CRL(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
 
-// 	ctx := context.Background()
-// 	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
-// 	require.NoError(t, err)
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
 
-// 	// Generate a CA certificate
-// 	caPrikeyPem, caCertDer, err := ins.NewPrikeyAndCert(ctx,
-// 		WithX509CertCommonName("test-ca"),
-// 		WithX509CertIsCA(),
-// 	)
-// 	require.NoError(t, err)
+	// Generate a CA certificate
+	caPrikeyPem, caCertDer, err := ins.NewPrikeyAndCert(ctx,
+		WithX509CertCommonName("test-ca"),
+		WithX509CertIsCA(),
+	)
+	require.NoError(t, err)
+	caCert, err := smx509.ParseCertificate(caCertDer)
+	require.NoError(t, err)
 
-// 	// Generate a revoked certificate
-// 	certPrikeyPem, err := ins.NewPrikey(ctx)
-// 	require.NoError(t, err)
+	// Generate a certificate to revoke
+	certPrikeyPem, err := ins.NewPrikey(ctx)
+	require.NoError(t, err)
+	certCsrDer, err := ins.NewX509CSR(ctx, certPrikeyPem,
+		WithX509CSRCommonName("test-cert"),
+	)
+	require.NoError(t, err)
+	certDer, err := ins.NewX509CertByCSR(ctx, caCertDer, caPrikeyPem, certCsrDer)
+	require.NoError(t, err)
+	_, cert, err := ins.ShowCertInfo(ctx, certDer)
+	require.NoError(t, err)
 
-// 	certCsrDer, err := ins.NewX509CSR(ctx, certPrikeyPem,
-// 		WithX509CSRCommonName("test-cert"),
-// 	)
-// 	require.NoError(t, err)
+	// Build the CRL structure, then sign it with the SM2 CA key
+	now := time.Now().UTC().Truncate(time.Second)
+	crlNo := big.NewInt(1)
+	unsignedCrlDer := newGoRevocationFixtureForTest(t, caCert.RawSubject, caCert.SubjectKeyId,
+		crlNo, []x509.RevocationListEntry{{SerialNumber: cert.SerialNumber, RevocationTime: now}},
+		now, now.Add(24*time.Hour))
+	crlDer, err := ins.SignX509CRL(ctx, unsignedCrlDer, caPrikeyPem)
+	require.NoError(t, err)
+	require.NotNil(t, crlDer)
 
-// 	certDer, err := ins.NewX509CertByCSR(ctx, caCertDer, caPrikeyPem, certCsrDer)
-// 	require.NoError(t, err)
-
-// 	certInfo, err := ins.ShowCertInfo(ctx, certDer)
-// 	require.NoError(t, err,certinfo)
-
-// 	// Generate the CRL
-// 	revokedCert := pkix.RevokedCertificate{
-// 		SerialNumber:   certInfo.SerialNumber,
-// 		RevocationTime: time.Now(),
-// 	}
-// 	revokeCerts := []pkix.RevokedCertificate{revokedCert}
-
-// 	// Generate the CRL
-// 	crlNo := big.NewInt(1)
-// 	crlDer, err := ins.NewX509CRL(ctx, caCertDer, caPrikeyPem, crlNo, revokeCerts)
-// 	require.NoError(t, err)
-// 	require.NotNil(t, crlDer)
-
-// 	// Verify the generated CRL
-// 	crl, err := x509.ParseRevocationList(crlDer)
-// 	require.NoError(t, err)
-// 	require.Equal(t, crlNo, crl.Number)
-// 	require.Len(t, crl.RevokedCertificateEntries, 1)
-// 	require.Equal(t, certInfo.SerialNumber, crl.RevokedCertificateEntries[0].SerialNumber)
-// }
+	// Verify the generated CRL
+	crl, err := smx509.ParseRevocationList(crlDer)
+	require.NoError(t, err)
+	require.NoError(t, crl.CheckSignatureFrom(caCert))
+	require.Equal(t, 0, crlNo.Cmp(crl.Number))
+	require.Len(t, crl.RevokedCertificateEntries, 1)
+	require.Equal(t, 0, cert.SerialNumber.Cmp(crl.RevokedCertificateEntries[0].SerialNumber))
+}

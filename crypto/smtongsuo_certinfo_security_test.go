@@ -1,11 +1,14 @@
 package crypto
 
 import (
+	"context"
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"math"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -318,4 +321,120 @@ func TestParseTongsuoCertInfoFailsClosed(t *testing.T) {
 		require.Error(t, err, name)
 		require.Nil(t, info, name)
 	}
+}
+
+// TestTongsuo_ShowCertInfo checks ShowCertInfo against native parsing for
+// RSA, ECDSA and Ed25519 and the explicit SM2 contract (issue #61).
+func TestTongsuo_ShowCertInfo(t *testing.T) {
+	t.Parallel()
+	if testSkipSmTongsuo(t) {
+		return
+	}
+
+	ctx := context.Background()
+	ins, err := NewTongsuo("/usr/local/bin/tongsuo")
+	require.NoError(t, err)
+
+	sno, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	require.NoError(t, err)
+
+	t.Run("test pubkey algorithm", func(t *testing.T) {
+		t.Run("rsa", func(t *testing.T) {
+			_, certDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
+				WithX509CertCommonName("test-rsa"),
+				WithX509CertSeriaNumber(sno),
+				WithX509CertKeyUsage(
+					x509.KeyUsageDigitalSignature,
+					x509.KeyUsageContentCommitment,
+					x509.KeyUsageKeyEncipherment,
+					x509.KeyUsageDataEncipherment,
+					x509.KeyUsageKeyAgreement,
+					x509.KeyUsageCertSign,
+					x509.KeyUsageCRLSign,
+					x509.KeyUsageEncipherOnly,
+					x509.KeyUsageDecipherOnly,
+				),
+				WithX509CertExtKeyUsage(
+					x509.ExtKeyUsageAny,
+					x509.ExtKeyUsageServerAuth,
+					x509.ExtKeyUsageClientAuth,
+					x509.ExtKeyUsageCodeSigning,
+					x509.ExtKeyUsageEmailProtection,
+					x509.ExtKeyUsageIPSECEndSystem,
+					x509.ExtKeyUsageIPSECTunnel,
+					x509.ExtKeyUsageIPSECUser,
+					x509.ExtKeyUsageTimeStamping,
+					x509.ExtKeyUsageOCSPSigning,
+					x509.ExtKeyUsageMicrosoftServerGatedCrypto,
+					x509.ExtKeyUsageNetscapeServerGatedCrypto,
+					x509.ExtKeyUsageMicrosoftCommercialCodeSigning,
+					x509.ExtKeyUsageMicrosoftKernelCodeSigning,
+				),
+			)
+
+			rawCert, err := Der2Cert(certDer)
+			require.NoError(t, err)
+
+			certinfo, cert, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err, certinfo)
+
+			t.Log(certinfo)
+			require.Equal(t, x509.RSA, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
+			require.Equal(t, rawCert.SubjectKeyId, cert.SubjectKeyId)
+			require.Equal(t, rawCert.AuthorityKeyId, cert.AuthorityKeyId)
+			require.Equal(t, rawCert.KeyUsage, cert.KeyUsage)
+			require.Equal(t, rawCert.ExtKeyUsage, cert.ExtKeyUsage)
+		})
+
+		t.Run("ecdsa", func(t *testing.T) {
+			_, certDer, err := NewECDSAPrikeyAndCert(ECDSACurveP256,
+				WithX509CertCommonName("test-ecdsa"),
+				WithX509CertSeriaNumber(sno),
+			)
+			require.NoError(t, err)
+
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.ECDSA, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
+		})
+
+		t.Run("ed25519", func(t *testing.T) {
+			_, certDer, err := NewEd25519PrikeyAndCert(
+				WithX509CertCommonName("test-ed25519"),
+				WithX509CertSeriaNumber(sno),
+			)
+			require.NoError(t, err)
+
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			require.Equal(t, x509.Ed25519, cert.PublicKeyAlgorithm)
+			require.Equal(t, sno, cert.SerialNumber)
+		})
+
+		t.Run("sm2", func(t *testing.T) {
+			certinfo, certDer, err := ins.NewPrikeyAndCert(ctx,
+				WithX509CertCommonName("test-sm2"),
+				WithX509CertSeriaNumber(sno),
+			)
+			require.NoError(t, err)
+
+			_, cert, err := ins.ShowCertInfo(ctx, certDer)
+			require.NoError(t, err)
+
+			// SM2 is never labelled as plain ECDSA (issue #61)
+			require.Equal(t, x509.UnknownPublicKeyAlgorithm, cert.PublicKeyAlgorithm)
+			require.Nil(t, cert.PublicKey)
+			require.Equal(t, sno, cert.SerialNumber, certinfo)
+
+			detail, err := ins.ShowCertInfoDetail(ctx, certDer)
+			require.NoError(t, err)
+			require.True(t, detail.IsSM2())
+			require.Equal(t, TongsuoPublicKeyAlgorithmSM2, detail.PublicKeyAlgorithm)
+			require.Equal(t, "SM2-SM3", detail.SignatureAlgorithm)
+		})
+	})
 }
