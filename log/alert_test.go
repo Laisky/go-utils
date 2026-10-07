@@ -93,6 +93,9 @@ func TestAlert_SendAfterClose(t *testing.T) {
 	require.NotPanics(t, func() { a.Close() })
 }
 
+// ExampleAlert demonstrates creating an Alert with a type, a token and an info hook level,
+// attaching its zap hook to a logger so that info and higher entries are pushed to the
+// alert API, and closing the Alert when done.
 func ExampleAlert() {
 	pusher, err := NewAlert(
 		context.Background(),

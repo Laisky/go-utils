@@ -55,6 +55,9 @@ func (rp *rotationPattern) Path(logger string, start time.Time, baseDir string) 
 	return result, nil
 }
 
+// format renders the pattern for logger and start, replacing {logger} with logger and each
+// date or time token with the matching zero-padded field of start. It returns the
+// resulting filename without validating it.
 func (rp *rotationPattern) format(logger string, start time.Time) string {
 	var b strings.Builder
 	for _, el := range rp.elements {
@@ -81,6 +84,10 @@ func (rp *rotationPattern) format(logger string, start time.Time) string {
 	return b.String()
 }
 
+// Parse matches name against the pattern for the given logger and extracts the encoded
+// timestamp; hour, minute and second default to zero when the pattern omits them. It
+// returns the UTC time and true when name matches exactly and every field is in range, or
+// the zero time and false otherwise.
 func (rp *rotationPattern) Parse(name string, logger string) (time.Time, bool) {
 	pos := 0
 	parts := timeParts{year: -1, month: -1, day: -1, hour: 0, minute: 0, second: 0}
@@ -176,6 +183,9 @@ type timeParts struct {
 	second int
 }
 
+// parseFourDigits parses the four bytes of input starting at pos as a decimal number. It
+// returns the value and true, or 0 and false when fewer than four bytes remain or any of
+// them is not an ASCII digit.
 func parseFourDigits(input string, pos int) (int, bool) {
 	if pos+4 > len(input) {
 		return 0, false
@@ -183,6 +193,9 @@ func parseFourDigits(input string, pos int) (int, bool) {
 	return parseDigits(input[pos : pos+4])
 }
 
+// parseTwoDigits parses the two bytes of input starting at pos as a decimal number. It
+// returns the value and true, or 0 and false when fewer than two bytes remain or either of
+// them is not an ASCII digit.
 func parseTwoDigits(input string, pos int) (int, bool) {
 	if pos+2 > len(input) {
 		return 0, false
@@ -190,6 +203,8 @@ func parseTwoDigits(input string, pos int) (int, bool) {
 	return parseDigits(input[pos : pos+2])
 }
 
+// parseDigits parses segment as an unsigned decimal number. It returns the value and true,
+// or 0 and false when segment contains a rune that is not an ASCII digit.
 func parseDigits(segment string) (int, bool) {
 	value := 0
 	for _, r := range segment {
@@ -201,6 +216,10 @@ func parseDigits(segment string) (int, bool) {
 	return value, true
 }
 
+// compileRotationPattern tokenizes the trimmed pattern into {logger}, date and time tokens
+// and literal runs. Literal runs must not contain path separators, the YYYY, MM and DD
+// tokens are mandatory, and a sample rendering must be a valid portable filename. It
+// returns the compiled pattern, or an error when pattern is blank or breaks these rules.
 func compileRotationPattern(pattern string) (*rotationPattern, error) {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
@@ -263,6 +282,9 @@ func compileRotationPattern(pattern string) (*rotationPattern, error) {
 	return rp, nil
 }
 
+// matchPatternToken reports which date or time token, if any, starts input; recognized
+// tokens are YYYY, MM, DD, hh or HH, mm and ss. It returns the matched token text and its
+// element kind, or an empty string and zero when input does not start with a token.
 func matchPatternToken(input string) (string, patternElementKind) {
 	tokens := []struct {
 		text string

@@ -104,6 +104,9 @@ const (
 	LevelPanic Level = "panic"
 )
 
+// zapLoggerItf is the subset of the zap.Logger method set that Logger embeds: the leveled
+// logging methods from Debug through Fatal, Sync for flushing buffered entries, and Core
+// for access to the underlying zapcore.Core.
 type zapLoggerItf interface {
 	Debug(msg string, fields ...zapcore.Field)
 	Info(msg string, fields ...zapcore.Field)
@@ -154,6 +157,9 @@ type option struct {
 	rotation   *rotationConfig
 }
 
+// fillDefault resets o to the package defaults: the default logger name, info level,
+// console encoding to stdout with errors to stderr, short caller paths, a "message" key,
+// RFC3339 timestamps and capitalized level names. It returns o to allow call chaining.
 func (o *option) fillDefault() *option {
 	o.Name = defaultLoggerName
 	o.Config = zap.Config{
@@ -171,6 +177,8 @@ func (o *option) fillDefault() *option {
 	return o
 }
 
+// applyOpts applies each Option in optfs to o in order. It returns o on success, or nil
+// and the wrapped error of the first Option that fails.
 func (o *option) applyOpts(optfs ...Option) (*option, error) {
 	for _, optf := range optfs {
 		if err := optf(o); err != nil {
@@ -433,6 +441,9 @@ const (
 	EnvNameLoggerLevel = "GUTILS_LOGGER_LEVEL"
 )
 
+// init builds the package-level Shared console logger named "go-utils". Its level is read
+// from the GUTILS_LOGGER_LEVEL environment variable and falls back to info when the value
+// is unset or unrecognized; init panics if the logger cannot be constructed.
 func init() {
 	level := Level(os.Getenv(EnvNameLoggerLevel))
 	switch level {

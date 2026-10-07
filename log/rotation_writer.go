@@ -25,6 +25,13 @@ type rotationWriter struct {
 	currentPath   string
 }
 
+// newRotationWriter builds a daily rotationWriter for the log file path. Rotated files are
+// created in the directory of path and named by pattern (defaultRotationFilenamePattern
+// when blank), retentionDays limits how many days of history are kept (0 keeps all), and
+// loggerName fills the {logger} token, falling back to a name derived from path when blank.
+// The clock defaults to the current UTC time and no file is opened before the first write.
+// It returns the writer, or an error when path is empty, retentionDays is negative or the
+// pattern is invalid.
 func newRotationWriter(path string, retentionDays int, pattern string, loggerName string) (*rotationWriter, error) {
 	if path == "" {
 		return nil, errors.Errorf("rotation path must not be empty")
@@ -64,6 +71,10 @@ func newRotationWriter(path string, retentionDays int, pattern string, loggerNam
 	return writer, nil
 }
 
+// ensureActiveFile makes sure the writer has an open file for the rotation window that
+// contains now. It opens the first file lazily, rolls over to a new file once now reaches
+// nextRotate, and runs retention cleanup after each open or rollover. The caller must hold
+// w.mu. It returns an error when opening, rotating or cleaning up fails.
 func (w *rotationWriter) ensureActiveFile(now time.Time) error {
 	if w.file == nil {
 		start, next := rotationWindow(now)
@@ -84,12 +95,18 @@ func (w *rotationWriter) ensureActiveFile(now time.Time) error {
 	return w.cleanup(start)
 }
 
+// rotationWindow computes the daily rotation window that contains now. It returns the start
+// of that window, midnight UTC of the day, and its exclusive end, midnight UTC of the
+// following day.
 func rotationWindow(now time.Time) (time.Time, time.Time) {
 	now = now.UTC()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	return start, start.Add(24 * time.Hour)
 }
 
+// Write appends p to the log file of the current rotation window, opening or rotating the
+// file first when needed. It is safe for concurrent use. It returns the number of bytes
+// written, and an error when the file cannot be prepared or the write fails.
 func (w *rotationWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -106,6 +123,8 @@ func (w *rotationWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// Sync flushes the active log file to stable storage. It is safe for concurrent use. It
+// returns nil when no file has been opened yet, or the wrapped error from the file sync.
 func (w *rotationWriter) Sync() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -121,6 +140,9 @@ func (w *rotationWriter) Sync() error {
 	return nil
 }
 
+// Close closes the active log file and forgets it, so a later Write opens a file again. It
+// is safe for concurrent use. It returns nil when no file is open, or the wrapped error
+// from closing the file.
 func (w *rotationWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -136,6 +158,11 @@ func (w *rotationWriter) Close() error {
 	return nil
 }
 
+// openNewFile opens the rotation file for the window beginning at start and records next
+// as the next rollover time. The filename is resolved from the pattern beneath baseDir,
+// missing directories are created as private, and the file is opened for append through
+// fileguard without following a final link. It returns an error when the filename is
+// invalid, the directory cannot be created or the file cannot be opened safely.
 func (w *rotationWriter) openNewFile(start, next time.Time) error {
 	path, err := w.pattern.Path(w.loggerName, start, w.baseDir)
 	if err != nil {
@@ -161,6 +188,8 @@ func (w *rotationWriter) openNewFile(start, next time.Time) error {
 	return nil
 }
 
+// rotateTo syncs and closes the current file, if any, and then opens the file for the
+// window from start until next. It returns an error when syncing, closing or opening fails.
 func (w *rotationWriter) rotateTo(start, next time.Time) error {
 	if w.file != nil {
 		if err := w.file.Sync(); err != nil {
@@ -175,6 +204,11 @@ func (w *rotationWriter) rotateTo(start, next time.Time) error {
 	return w.openNewFile(start, next)
 }
 
+// cleanup removes rotated files in baseDir whose names match the pattern for this logger
+// and whose window start is earlier than current minus retentionDays days. The active
+// file, directories and non-matching names are skipped. It returns nil when retention is
+// disabled (retentionDays <= 0), or an error when the directory cannot be listed or an
+// expired file cannot be removed.
 func (w *rotationWriter) cleanup(current time.Time) error {
 	if w.retentionDays <= 0 {
 		return nil

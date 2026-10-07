@@ -14,6 +14,9 @@ import (
 	// zap "github.com/Laisky/zap"
 )
 
+// TestNewLogger verifies that New without options yields an info-level logger, that a
+// second New call also succeeds, and that the sampled debug, info and warn helpers of a
+// named child logger can be called repeatedly.
 func TestNewLogger(t *testing.T) {
 	logger, err := New()
 	require.NoError(t, err)
@@ -32,6 +35,8 @@ func TestNewLogger(t *testing.T) {
 	}
 }
 
+// TestWriteToFile verifies that a logger configured with a file output path writes the
+// message to that file together with a short caller location in log/logger_test.go.
 func TestWriteToFile(t *testing.T) {
 	dir, err := os.MkdirTemp("", "TestWriteToFile*")
 	if err != nil {
@@ -57,6 +62,9 @@ func TestWriteToFile(t *testing.T) {
 	require.Contains(t, content, "yoo\n")
 }
 
+// TestLoggerWritesEntriesToFile verifies JSON file output end to end: root and named child
+// entries carry their level, message, logger name and fields, and once ChangeLevel raises
+// the level to error the lower-level entries of both loggers are dropped.
 func TestLoggerWritesEntriesToFile(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "app.log")
@@ -128,6 +136,9 @@ func TestLoggerWritesEntriesToFile(t *testing.T) {
 	}
 }
 
+// TestSetupLogger verifies that NewConsoleWithName builds a working console logger, that
+// ChangeLevel accepts every supported level and rejects an unknown one, and that a logger
+// derived with With can still emit entries.
 func TestSetupLogger(t *testing.T) {
 	var err error
 	Logger, err := NewConsoleWithName("test", "debug")
@@ -216,6 +227,8 @@ func TestSetupLogger(t *testing.T) {
 // 	})
 // }
 
+// BenchmarkLogger measures the cost of a Debug call on the Shared logger while its level is
+// error, so every entry is filtered out by the level check.
 func BenchmarkLogger(b *testing.B) {
 	var err error
 	if err = Shared.ChangeLevel("error"); err != nil {
@@ -237,6 +250,8 @@ func BenchmarkLogger(b *testing.B) {
 	// })
 }
 
+// BenchmarkSampleLogger measures the cost of a DebugSample call with a 100/1000 sample
+// rate on the Shared logger while its level is error, so sampled entries are still dropped.
 func BenchmarkSampleLogger(b *testing.B) {
 	var err error
 	if err = Shared.ChangeLevel("error"); err != nil {
@@ -274,6 +289,8 @@ func BenchmarkSampleLogger(b *testing.B) {
 // 	t.Error()
 // }
 
+// randomString returns a pseudo-random string of n ASCII letters, used as a unique log
+// message in tests.
 func randomString(n int) string {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, n)
@@ -283,6 +300,9 @@ func randomString(n int) string {
 	return string(b)
 }
 
+// TestChangeLevel verifies through a zap hook that debug entries are recorded at debug
+// level and suppressed after ChangeLevel to info, and that changing the level of a named
+// child logger also applies to its parent while info entries still pass.
 func TestChangeLevel(t *testing.T) {
 	var allLogs []string
 	logger, err := New(
