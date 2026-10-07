@@ -23,6 +23,8 @@ import (
 // 	}
 // }
 
+// TestUnzipAndZipFiles verifies that ZipFiles archives a directory tree containing a nested child directory and that
+// Unzip extracts exactly the expected files, each with its original content.
 func TestUnzipAndZipFiles(t *testing.T) {
 	t.Parallel()
 	var err error
@@ -106,6 +108,9 @@ func TestUnzipAndZipFiles(t *testing.T) {
 	// t.Error()
 }
 
+// TestUnzipWithMaxBytes verifies that the UnzipWithMaxBytes budget is not clamped to the internal copy chunk size,
+// that a budget smaller than an entry fails with an aggregate-limit error instead of silently truncating the output,
+// and that zero or negative budgets are rejected.
 func TestUnzipWithMaxBytes(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("", "*")

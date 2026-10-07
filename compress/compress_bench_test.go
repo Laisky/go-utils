@@ -10,6 +10,13 @@ import (
 )
 
 /*
+BenchmarkGzip measures the standard library gzip writer at the default level against plain buffer writes for 1kB to
+100kB payloads, 50kB payloads at the best compression, best speed and Huffman-only levels, and repeated 50kB writes
+to a temporary file both plain and through a default-level gzip writer (the best speed and best compression "to
+file" cases write into the in-memory buffer).
+
+Recorded results:
+
 goos: darwin
 goarch: amd64
 pkg: github.com/Laisky/go-utils
@@ -226,6 +233,12 @@ func BenchmarkGzip(b *testing.B) {
 }
 
 /*
+BenchmarkCompressor measures the package Compressor implementations, a gzip compressor and parallel gzip compressors
+with 2 or 4 blocks of 250000 or 500000 bytes, writing a 1K, 10K, 50K or 100K payload followed by the gzip footer,
+compared with plain buffer writes of the same payload.
+
+Recorded results:
+
 goos: darwin
 goarch: amd64
 pkg: github.com/Laisky/go-utils

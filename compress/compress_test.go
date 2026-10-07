@@ -17,6 +17,8 @@ const (
 	testCompressraw = "fj2f32f9jp9wsif0weif20if320fi23if"
 )
 
+// TestGZCompressor verifies that a string written to a default NewGZip compressor and flushed is decoded by the
+// standard library gzip reader back to the original text.
 func TestGZCompressor(t *testing.T) {
 	t.Parallel()
 	originText := testCompressraw
@@ -47,6 +49,8 @@ func TestGZCompressor(t *testing.T) {
 	}
 }
 
+// ExampleNewGZip demonstrates creating a gzip compressor with explicit (default) level and buffer size options,
+// writing and flushing a string, and reading the original text back with the standard gzip reader.
 func ExampleNewGZip() {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
@@ -93,6 +97,8 @@ func ExampleNewGZip() {
 	}
 }
 
+// TestPGZCompressor verifies that a NewPGZip compressor configured with the default level, buffer size, block size and
+// block count produces a stream the standard gzip reader decodes back to the original text.
 func TestPGZCompressor(t *testing.T) {
 	t.Parallel()
 	originText := testCompressraw
@@ -130,6 +136,8 @@ func TestPGZCompressor(t *testing.T) {
 	}
 }
 
+// ExamplePGZip demonstrates compressing a string with a default parallel gzip compressor and decoding the flushed
+// output with the standard gzip reader.
 func ExamplePGZip() {
 	originText := testCompressraw
 	writer := &bytes.Buffer{}
@@ -172,6 +180,8 @@ func ExamplePGZip() {
 	}
 }
 
+// TestGzCompress verifies that GzCompress and GzDecompress round-trip 10MiB of random data unchanged, and that
+// GzDecompress fails with an "exceed limit" error when WithGzDecompressMaxBytes caps the output at one byte.
 func TestGzCompress(t *testing.T) {
 	t.Parallel()
 
