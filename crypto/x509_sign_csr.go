@@ -306,6 +306,9 @@ func NewX509CertByCSR(
 	prikey crypto.PrivateKey,
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
+	if parent == nil {
+		return nil, errors.New("parent certificate is required")
+	}
 	if err = validPrikey(prikey); err != nil {
 		return nil, errors.Wrap(err, "invalid CA private key")
 	}
