@@ -107,18 +107,17 @@ func TestRunCMDWithEnv(t *testing.T) {
 	}
 }
 
-// TestRunCMD2 verifies that RunCMD2 streams stdout line by line to the handler: a bash script printing "hello"
-// every 100ms must deliver more than five lines, the first containing "hello", within one second before the
-// context is canceled.
+// TestRunCMD2 verifies that RunCMD2 streams stdout line by line to the handler while the command is still
+// running: a bash script printing "hello" every 100ms must deliver more than five lines, the first containing
+// "hello", before the context is canceled, and RunCMD2 must return once it is canceled. Delivery is awaited with
+// require.Eventually rather than a fixed one-second window, so a slow process start on a loaded host cannot fail it.
 func TestRunCMD2(t *testing.T) {
 	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestRunCMD2-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write shell file
 	execFile := filepath.Join(dir, "test.sh")
-	err = os.WriteFile(execFile, []byte(Dedent(
+	err := os.WriteFile(execFile, []byte(Dedent(
 		`#!/bin/bash
 
 		while true; do
@@ -128,7 +127,7 @@ func TestRunCMD2(t *testing.T) {
 	require.NoError(t, err)
 
 	// run shell file
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	var (
@@ -140,12 +139,26 @@ func TestRunCMD2(t *testing.T) {
 		defer stdoutMu.Unlock()
 		stdout = append(stdout, msg)
 	}
-	go RunCMD2(ctx, "/bin/bash", []string{execFile}, nil, stdoutHandler, nil)
-	time.Sleep(time.Second)
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		_ = RunCMD2(ctx, "/bin/bash", []string{execFile}, nil, stdoutHandler, nil) // ends by cancellation
+	}()
+
+	require.Eventually(t, func() bool {
+		stdoutMu.Lock()
+		defer stdoutMu.Unlock()
+		return len(stdout) > 5
+	}, 30*time.Second, 10*time.Millisecond, "stdout lines must be streamed while the command runs")
 	cancel()
 
+	select {
+	case <-returned:
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "RunCMD2 did not return after its context was canceled")
+	}
+
 	stdoutMu.Lock()
-	require.Greater(t, len(stdout), 5)
+	defer stdoutMu.Unlock()
 	require.Contains(t, stdout[0], "hello")
-	stdoutMu.Unlock()
 }

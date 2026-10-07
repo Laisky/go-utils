@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -90,29 +91,58 @@ func TestCopyFile(t *testing.T) {
 	})
 }
 
-// TestIsDirWritable verifies that IsDirWritable returns nil for two freshly created 0751 directories.
-// The directory named "notwritable" keeps owner write permission, so both probes are expected to
-// succeed.
+// TestIsDirWritable verifies that IsDirWritable returns nil for a directory the caller may create files in and an
+// error for one it may not (mode 0500), and that it leaves no probe file behind in either case. The negative case
+// is skipped when running as root, which bypasses directory permissions, and on Windows, where a directory's mode
+// bits do not prevent creating files in it.
 func TestIsDirWritable(t *testing.T) {
 	t.Parallel()
-	dir, err := os.MkdirTemp("", "TestIsDirWritable-*")
-	require.NoError(t, err)
-	t.Logf("create directory: %v", dir)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
-	dirWritable := filepath.Join(dir, "writable")
-	err = os.Mkdir(dirWritable, 0751)
-	require.NoError(t, err)
+	t.Run("writable", func(t *testing.T) {
+		t.Parallel()
+		dirWritable := filepath.Join(dir, "writable")
+		require.NoError(t, os.Mkdir(dirWritable, 0o751))
 
-	dirNotWritable := filepath.Join(dir, "notwritable")
-	err = os.Mkdir(dirNotWritable, 0751)
-	require.NoError(t, err)
+		require.NoError(t, IsDirWritable(dirWritable))
+		requireDirEmpty(t, dirWritable)
+	})
 
-	err = IsDirWritable(dirWritable)
-	require.NoError(t, err)
+	t.Run("not writable", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("directory mode bits do not restrict file creation on Windows")
+		}
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory permissions, so no directory is unwritable")
+		}
 
-	err = IsDirWritable(dirNotWritable)
+		dirNotWritable := filepath.Join(dir, "notwritable")
+		require.NoError(t, os.Mkdir(dirNotWritable, 0o700))
+		require.NoError(t, os.Chmod(dirNotWritable, 0o500))
+		t.Cleanup(func() {
+			// Restore write permission so t.TempDir can remove the tree, even if an assertion failed.
+			require.NoError(t, os.Chmod(dirNotWritable, 0o700))
+		})
+
+		err := IsDirWritable(dirNotWritable)
+		require.Error(t, err)
+		require.ErrorIs(t, err, os.ErrPermission)
+		requireDirEmpty(t, dirNotWritable)
+	})
+}
+
+// requireDirEmpty fails the test unless dir exists and contains no entries, which proves that IsDirWritable
+// removed (or never created) its probe file. It takes the test handle and the directory path and returns nothing.
+func requireDirEmpty(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	require.Empty(t, names, "IsDirWritable must not leave files in %s", dir)
 }
 
 // TestIsDir verifies that IsDir returns false with an error for a nonexistent path and true without an
