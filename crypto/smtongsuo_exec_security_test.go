@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"encoding/asn1"
 	"encoding/pem"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emmansun/gmsm/pkcs8"
 	"github.com/stretchr/testify/require"
 )
 
@@ -152,6 +154,127 @@ func TestTongsuoNewPrikeyWithPasswordOutputIsPurePEM(t *testing.T) {
 func firstLineForTest(b []byte) string {
 	line, _, _ := bytes.Cut(b, []byte("\n"))
 	return string(line)
+}
+
+// tongsuoPBES2ParamsForTest mirrors the PBES2-params of RFC 8018 section A.4.
+type tongsuoPBES2ParamsForTest struct {
+	KeyDerivationFunc tongsuoAlgorithmIdentifierForTest
+	EncryptionScheme  tongsuoAlgorithmIdentifierForTest
+}
+
+// tongsuoAlgorithmIdentifierForTest is an AlgorithmIdentifier with raw parameters.
+type tongsuoAlgorithmIdentifierForTest struct {
+	Algorithm  asn1.ObjectIdentifier
+	Parameters asn1.RawValue `asn1:"optional"`
+}
+
+// tongsuoPBKDF2ParamsForTest mirrors the PBKDF2-params of RFC 8018 section A.2.
+type tongsuoPBKDF2ParamsForTest struct {
+	Salt           []byte
+	IterationCount int
+	KeyLength      int                               `asn1:"optional"`
+	PRF            tongsuoAlgorithmIdentifierForTest `asn1:"optional"`
+}
+
+// tongsuoEncryptedPrivateKeyInfoForTest mirrors EncryptedPrivateKeyInfo of RFC 5958.
+type tongsuoEncryptedPrivateKeyInfoForTest struct {
+	EncryptionAlgorithm tongsuoAlgorithmIdentifierForTest
+	EncryptedData       []byte
+}
+
+// tongsuoHMACWithSM3OIDForTest is the HMAC-SM3 PBKDF2 PRF OID that Tongsuo
+// emits (hmacWithSM3, GM/T 0091-2020).
+var tongsuoHMACWithSM3OIDForTest = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 401, 3, 1}
+
+// withPRFOIDForTest re-encodes the parsed EncryptedPrivateKeyInfo info, with
+// PBES2 parameters pbes2 and PBKDF2 parameters kdf, after replacing only the
+// PBKDF2 PRF OID by prf. It returns the new DER, failing t on any error.
+func withPRFOIDForTest(t *testing.T, info tongsuoEncryptedPrivateKeyInfoForTest,
+	pbes2 tongsuoPBES2ParamsForTest, kdf tongsuoPBKDF2ParamsForTest, prf asn1.ObjectIdentifier) []byte {
+	t.Helper()
+
+	kdf.PRF.Algorithm = prf
+	kdfDer, err := asn1.Marshal(kdf)
+	require.NoError(t, err)
+	pbes2.KeyDerivationFunc.Parameters = asn1.RawValue{FullBytes: kdfDer}
+	pbes2Der, err := asn1.Marshal(pbes2)
+	require.NoError(t, err)
+	info.EncryptionAlgorithm.Parameters = asn1.RawValue{FullBytes: pbes2Der}
+	der, err := asn1.Marshal(info)
+	require.NoError(t, err)
+	return der
+}
+
+// TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2 verifies with the real
+// tongsuo binary that NewPrikeyWithPassword encrypts the SM2 key as a PKCS#8
+// EncryptedPrivateKeyInfo with PBES2: PBKDF2 with HMAC-SM3, at least 10,000
+// iterations (the project's password-hashing floor) and a 16-byte salt, and
+// SM4-CBC. Legacy OpenSSL PEM encryption ("Proc-Type"/"DEK-Info") derived the
+// key with a single MD5 pass. The result must decrypt with the password, both
+// with Tongsuo and with the independent gmsm PKCS#8 parser, and must not
+// decrypt with a wrong password. Regression for the coordinator finding that
+// the legacy format fell far below the 10,000-iteration password rule.
+func TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2(t *testing.T) {
+	t.Parallel()
+	ins := newSecurityTestTongsuo(t)
+	ctx := t.Context()
+	const password = "synthetic-password"
+
+	out, err := ins.NewPrikeyWithPassword(ctx, password)
+	require.NoError(t, err)
+	require.NotContains(t, string(out), "Proc-Type")
+	require.NotContains(t, string(out), "DEK-Info")
+
+	block, _ := pem.Decode(out)
+	require.NotNil(t, block)
+	require.Equal(t, "ENCRYPTED PRIVATE KEY", block.Type)
+	require.Empty(t, block.Headers)
+
+	var info tongsuoEncryptedPrivateKeyInfoForTest
+	rest, err := asn1.Unmarshal(block.Bytes, &info)
+	require.NoError(t, err)
+	require.Empty(t, rest)
+	require.True(t, info.EncryptionAlgorithm.Algorithm.Equal(asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 13}),
+		"encryption must be PBES2, got %s", info.EncryptionAlgorithm.Algorithm)
+
+	var pbes2 tongsuoPBES2ParamsForTest
+	_, err = asn1.Unmarshal(info.EncryptionAlgorithm.Parameters.FullBytes, &pbes2)
+	require.NoError(t, err)
+	require.True(t, pbes2.KeyDerivationFunc.Algorithm.Equal(asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 5, 12}),
+		"KDF must be PBKDF2, got %s", pbes2.KeyDerivationFunc.Algorithm)
+	require.True(t, pbes2.EncryptionScheme.Algorithm.Equal(asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 104, 2}),
+		"cipher must be SM4-CBC, got %s", pbes2.EncryptionScheme.Algorithm)
+
+	var kdf tongsuoPBKDF2ParamsForTest
+	_, err = asn1.Unmarshal(pbes2.KeyDerivationFunc.Parameters.FullBytes, &kdf)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, kdf.IterationCount, 10000)
+	require.Equal(t, tongsuoPrikeyPBKDF2Iterations, kdf.IterationCount)
+	require.GreaterOrEqual(t, len(kdf.Salt), 16)
+	require.True(t, kdf.PRF.Algorithm.Equal(tongsuoHMACWithSM3OIDForTest),
+		"PRF must be HMAC-SM3, got %s", kdf.PRF.Algorithm)
+
+	// Decrypt with the independent gmsm implementation to prove the KDF really
+	// is PBKDF2-HMAC-SM3 with these parameters. gmsm names HMAC-SM3 with the
+	// older OID 1.2.156.10197.1.401.2, so only the PRF OID is re-encoded.
+	gmsmDer := withPRFOIDForTest(t, info, pbes2, kdf, asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 401, 2})
+	sm2Key, err := pkcs8.ParsePKCS8PrivateKeySM2(gmsmDer, []byte(password))
+	require.NoError(t, err)
+	require.NotNil(t, sm2Key)
+	_, err = pkcs8.ParsePKCS8PrivateKeySM2(gmsmDer, []byte("wrong-password"))
+	require.Error(t, err)
+
+	plain, err := ins.runCMDWithEnv(ctx, []string{
+		"pkey", tongsuoFlagIn, tongsuoStdinPath, "-passin", "env:_TONGSUO_TEST_PASSIN",
+	}, out, []string{"_TONGSUO_TEST_PASSIN=" + password})
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(plain, []byte("-----BEGIN PRIVATE KEY-----")))
+
+	_, err = ins.runCMDWithEnv(ctx, []string{
+		"pkey", tongsuoFlagIn, tongsuoStdinPath, "-passin", "env:_TONGSUO_TEST_PASSIN",
+	}, out, []string{"_TONGSUO_TEST_PASSIN=wrong-password"})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "BEGIN")
 }
 
 // TestTongsuoExactValidityProbeReadsHelpFromStderr verifies that the exact
