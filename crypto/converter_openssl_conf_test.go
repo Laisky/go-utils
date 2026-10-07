@@ -12,6 +12,10 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// TestX509Cert2OpensslConf verifies the exact OpenSSL configuration rendered by
+// X509Cert2OpensslConf for a CA certificate (CA:TRUE with cRLSign and keyCertSign) and for a non-CA
+// certificate (CA:FALSE with the default leaf key usages and anyExtendedKeyUsage), including the
+// distinguished name, the certificate policy sections and the DNS and IP SANs.
 func TestX509Cert2OpensslConf(t *testing.T) {
 	t.Parallel()
 
@@ -149,6 +153,9 @@ func TestX509Cert2OpensslConf(t *testing.T) {
 	})
 }
 
+// TestX509Csr2OpensslConf verifies the exact OpenSSL configuration rendered by X509Csr2OpensslConf
+// for a CSR, covering the distinguished name and the DNS and IP subject alternative names in the
+// req_ext section.
 func TestX509Csr2OpensslConf(t *testing.T) {
 	csr := &x509.CertificateRequest{
 		Subject: pkix.Name{
@@ -287,6 +294,10 @@ func TestX509Csr2OpensslConf_ConfigInjection(t *testing.T) {
 	require.Contains(t, string(X509Csr2OpensslConf(benign)), "commonName = example.com\n")
 }
 
+// TestX509SignCsrOptions2OpensslConf verifies the v3_ca extension section that
+// x509SignCsrOptions2OpensslConf renders from SignCSROption values: a CA with explicit key usages,
+// server and client extended key usages and two policies, and a non-CA with only ExtKeyUsageAny,
+// which keeps the default digitalSignature and keyEncipherment key usages.
 func TestX509SignCsrOptions2OpensslConf(t *testing.T) {
 	t.Parallel()
 

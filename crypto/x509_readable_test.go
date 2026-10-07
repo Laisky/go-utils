@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestReadableX509Cert verifies that ReadableX509Cert converts a certificate generated with a full
+// set of subject, SAN, usage, validity, CRL, OCSP and policy options into a map whose "subject"
+// entry reports the expected common name.
 func TestReadableX509Cert(t *testing.T) {
 	t.Parallel()
 
@@ -47,6 +50,11 @@ func TestReadableX509Cert(t *testing.T) {
 	require.Equal(t, "laisky", m["subject"].(map[string]any)["common_name"])
 }
 
+// Test_ExtKeyUsage verifies how extended key usages set through WithX509CertExtKeyUsage and
+// WithX509SignCSRExtKeyUsage affect x509 chain verification for ServerAuth. A certificate created
+// without an explicit extended key usage, with ServerAuth, or with one of several requested usages
+// verifies; a mismatching usage, or a CA in the chain restricted to CodeSigning, fails with
+// "incompatible key usage", while a chain whose CA has no restriction verifies.
 func Test_ExtKeyUsage(t *testing.T) {
 	t.Parallel()
 

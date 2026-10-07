@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestOidAsn2X509 verifies that OidAsn2X509 converts asn1.ObjectIdentifier values to x509.OID with
+// the same dotted string form for a normal, an empty and a ten-arc OID, and that it rejects an OID
+// containing a negative arc.
 func TestOidAsn2X509(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +61,10 @@ func TestOidAsn2X509(t *testing.T) {
 	}
 }
 
+// Test_OIDs verifies OID handling in generated certificates: equality of asn1.ObjectIdentifier
+// values, that policy OIDs passed to WithX509CertPolicies appear in both PolicyIdentifiers and
+// Policies, that OIDContains matches exact OIDs and, with MatchPrefix, OID prefixes, and that a
+// certificate created without policies carries none.
 func Test_OIDs(t *testing.T) {
 	t.Parallel()
 
@@ -165,6 +172,8 @@ func Test_OIDs(t *testing.T) {
 	})
 }
 
+// TestOidFromString verifies that OidFromString parses the dotted string "1.2.3.4" into an x509.OID
+// equal to asn1.ObjectIdentifier{1, 2, 3, 4}.
 func TestOidFromString(t *testing.T) {
 	t.Parallel()
 

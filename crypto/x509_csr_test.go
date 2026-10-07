@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewX509CSR verifies issuing certificates from CSRs built by NewX509CSR. Signing with a non-CA
+// certificate fails. Using an RSA root CA with a zero max path length, a CSR with only a common
+// name yields a non-CA certificate without any of the optional fields; a CSR and signing options
+// that set every subject, SAN, extension, key usage, validity, CRL, OCSP and policy field are all
+// reflected in the issued certificate, which is signed with SHA256WithRSA even though the CSR
+// requested SHA512WithRSA; and a leaf certificate with a DNS SAN verifies against the root for
+// ServerAuth and matches its private key.
 func TestNewX509CSR(t *testing.T) {
 	t.Parallel()
 
@@ -245,6 +252,8 @@ func TestNewX509CSR(t *testing.T) {
 	})
 }
 
+// TestReadableX509CSR verifies that ReadableX509CSR converts a CSR generated from an RSA-4096 key
+// into a map whose "subject" entry reports the CSR's common name.
 func TestReadableX509CSR(t *testing.T) {
 	t.Parallel()
 

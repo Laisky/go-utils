@@ -206,7 +206,9 @@ func WithX509CSRURIs(uris ...*url.URL) X509CSROption {
 	}
 }
 
-// WithX509CertSANS set certificate SANs
+// WithX509CSRSANS returns an X509CSROption that adds the subject alternative names in sans to the
+// CSR. Each value is classified by parseSans as an IP address, email address, URI or DNS name and
+// appended to the matching field. The returned option never fails.
 //
 // refer to RFC-5280 4.2.1.6
 //
@@ -223,10 +225,14 @@ func WithX509CSRSANS(sans ...string) X509CSROption {
 	}
 }
 
+// fillDefault fills default values into o and returns o for chaining. No CSR option currently has a
+// default value, so it leaves o unchanged.
 func (o *x509CSROption) fillDefault() *x509CSROption {
 	return o
 }
 
+// applyOpts applies opts to o in order. It returns o on success, the previously recorded o.err if
+// one is set, or the first option error wrapped with context.
 func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error) {
 	if o.err != nil {
 		return nil, errors.WithStack(o.err)

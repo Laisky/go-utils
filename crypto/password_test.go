@@ -10,6 +10,8 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestPassword verifies that a hash produced by GeneratePasswordHash validates with
+// ValidatePasswordHash for the original password and is rejected for a different password.
 func TestPassword(t *testing.T) {
 	t.Parallel()
 
@@ -23,6 +25,8 @@ func TestPassword(t *testing.T) {
 	require.False(t, ValidatePasswordHash(hp, []byte("dj23fij2f32")))
 }
 
+// ExampleGeneratePasswordHash demonstrates hashing a raw password with GeneratePasswordHash and
+// checking the password against the stored hash with ValidatePasswordHash.
 func ExampleGeneratePasswordHash() {
 	// generate hashed password
 	rawPassword := []byte("1234567890")
@@ -40,6 +44,10 @@ func ExampleGeneratePasswordHash() {
 	}
 }
 
+// BenchmarkGeneratePasswordHash measures GeneratePasswordHash for a fixed password, and
+// ValidatePasswordHash both against that password's hash and against the hash of a different
+// password.
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v6/crypto

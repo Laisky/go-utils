@@ -32,6 +32,9 @@ var (
 	internalCertSerialNumGenerator X509CertSerialNumberGenerator
 )
 
+// init creates the package-level default X509CertSerialNumberGenerator that certificate builders
+// use when no serial number is supplied. It takes no parameters, returns nothing, and panics if the
+// generator cannot be constructed.
 func init() {
 	var err error
 	if internalCertSerialNumGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
@@ -112,6 +115,11 @@ type sansTemp struct {
 	URIs           []*url.URL
 }
 
+// parseSans classifies each subject alternative name in sans for a certificate template. Each entry
+// is tried, in order, as an IP address (net.ParseIP), an email address (net/mail.ParseAddress,
+// keeping only the bare address), and a request URI (url.ParseRequestURI); any entry that matches
+// none of these is treated as a DNS name. It returns a sansTemp whose DNSNames, EmailAddresses,
+// IPAddresses and URIs fields hold the classified values in their original order.
 func parseSans(sans []string) (tpl sansTemp) {
 	for i := range sans {
 		if ip := net.ParseIP(sans[i]); ip != nil {
@@ -142,6 +150,9 @@ func Privkey2Signer(privkey crypto.PrivateKey) crypto.Signer {
 	}
 }
 
+// validPrikey checks whether prikey is a private key type this package can sign with, namely
+// *rsa.PrivateKey, *ecdsa.PrivateKey or ed25519.PrivateKey as accepted by Privkey2Signer. It
+// returns nil for a supported key and an error for any other type, including nil.
 func validPrikey(prikey crypto.PrivateKey) error {
 	if v := Privkey2Signer(prikey); v == nil {
 		return errors.Errorf("not support this type of private key")
@@ -154,6 +165,9 @@ type oidContainsOption struct {
 	prefix bool
 }
 
+// applyfs applies the option functions fs to o in order via gutils.Pipeline and returns o.
+// Application stops at the first function that returns an error, and that error is discarded, so
+// callers always receive the (possibly partially configured) option.
 func (o *oidContainsOption) applyfs(fs ...func(o *oidContainsOption) error) *oidContainsOption {
 	o, _ = gutils.Pipeline(fs, o)
 	return o

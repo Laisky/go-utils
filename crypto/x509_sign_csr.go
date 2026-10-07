@@ -42,6 +42,11 @@ type signCSROption struct {
 	maxPathLen *int
 }
 
+// applyOpts fills the signing defaults into o and then applies opts in order. The defaults are a
+// seven-day validity period starting now in UTC, digital-signature and key-encipherment key usage,
+// and the package-level serial number generator. When csr is not nil, its ExtraExtensions are
+// appended to o.extraExtensions before the options run. Afterwards a serial number is drawn from
+// o.serialNumGenerator if none was set. It returns o on success, or the first option error.
 func (o *signCSROption) applyOpts(
 	// parent *x509.Certificate,
 	csr *x509.CertificateRequest,

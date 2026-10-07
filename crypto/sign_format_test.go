@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestFormatBig2Hex verifies that FormatBig2Hex renders a big.Int as the same lowercase hexadecimal
+// string as the fmt %x verb.
 func TestFormatBig2Hex(t *testing.T) {
 	t.Parallel()
 
@@ -19,6 +21,8 @@ func TestFormatBig2Hex(t *testing.T) {
 	require.Equal(t, hex, fmt.Sprintf("%x", b))
 }
 
+// TestFormatBig2Base64 verifies that FormatBig2Base64 encodes the big-endian bytes of
+// 490348974827092350 as the URL-safe Base64 string "Bs4Ry2yLuX4=".
 func TestFormatBig2Base64(t *testing.T) {
 	t.Parallel()
 
@@ -28,6 +32,8 @@ func TestFormatBig2Base64(t *testing.T) {
 	require.Equal(t, r, "Bs4Ry2yLuX4=")
 }
 
+// TestParseHex2Big verifies that ParseHex2Big parses the hex string "6ce11cb6c8bb97e" and that the
+// result formats back to the same string with %x.
 func TestParseHex2Big(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +45,8 @@ func TestParseHex2Big(t *testing.T) {
 	require.Equal(t, hex, fmt.Sprintf("%x", b))
 }
 
+// TestParseBase642Big verifies that ParseBase642Big decodes the URL-safe Base64 string
+// "Bs4Ry2yLuX4=" to the integer 490348974827092350.
 func TestParseBase642Big(t *testing.T) {
 	t.Parallel()
 
@@ -50,6 +58,8 @@ func TestParseBase642Big(t *testing.T) {
 	require.Equal(t, "490348974827092350", b.String())
 }
 
+// TestECDSASignFormatAndParseByHex verifies that an (r, s) pair encoded by EncodeES256SignByHex
+// decodes back to equal values with DecodeES256SignByHex.
 func TestECDSASignFormatAndParseByHex(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +78,8 @@ func TestECDSASignFormatAndParseByHex(t *testing.T) {
 	require.Equal(t, 0, b2.Cmp(b))
 }
 
+// TestECDSASignFormatAndParseByBase64 verifies that an (r, s) pair encoded by
+// EncodeES256SignByBase64 decodes back to equal values with DecodeES256SignByBase64.
 func TestECDSASignFormatAndParseByBase64(t *testing.T) {
 	t.Parallel()
 

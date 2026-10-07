@@ -13,6 +13,10 @@ import (
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
+// Test_UseCaAsClientTlsCert verifies that a CA certificate issued by NewX509CertByCSR with
+// WithX509SignCSRIsCA can be used as a TLS client certificate: the client presents it, chained to
+// the root, to an echo TLS server on an ephemeral loopback port that requires client certificates,
+// with server verification skipped, and the dial and a write must succeed.
 func Test_UseCaAsClientTlsCert(t *testing.T) {
 	t.Parallel()
 
@@ -129,6 +133,10 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 	})
 }
 
+// Test_UseCaAsServerTlsCert verifies that a CA certificate issued by NewX509CertByCSR with
+// WithX509SignCSRIsCA can be used as a TLS server certificate: a client presenting a leaf
+// certificate from the same root dials the echo server on an ephemeral loopback port, with server
+// verification skipped, and the dial and a write must succeed.
 func Test_UseCaAsServerTlsCert(t *testing.T) {
 	t.Parallel()
 

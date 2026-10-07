@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestHMAC verifies that HMACSha256 is deterministic for every combination of 16, 1024 and 10240
+// byte random keys and messages, and that changing either the message or the key produces a
+// different MAC.
 func TestHMAC(t *testing.T) {
 	t.Parallel()
 
@@ -61,6 +64,9 @@ func TestHMAC(t *testing.T) {
 	}
 }
 
+// TestVerifyHMACSha256 verifies that VerifyHMACSha256 accepts the MAC computed by HMACSha256 for
+// the same key and data, and returns "hmac verification failed" for different data, a different
+// key, or an all-zero MAC.
 func TestVerifyHMACSha256(t *testing.T) {
 	t.Parallel()
 

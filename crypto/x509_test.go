@@ -15,6 +15,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// TestCrossAlgorithmSign verifies that an RSA-2048 root CA can issue a certificate for a P-256
+// ECDSA CSR via NewX509CertByCSR, and that the resulting ECDSA leaf certificate verifies against a
+// pool containing only that RSA root.
 func TestCrossAlgorithmSign(t *testing.T) {
 	rootcaPrikeyPem, rootcaCertDer, err := NewRSAPrikeyAndCert(RSAPrikeyBits2048,
 		WithX509CertCommonName("rootca"),
@@ -55,6 +58,9 @@ func TestCrossAlgorithmSign(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestNewECDSAPrikeyAndCert verifies NewECDSAPrikeyAndCert for the P-256, P-384 and P-521 curves:
+// the returned PEM key parses to an *ecdsa.PrivateKey whose public key matches the certificate, and
+// the certificate carries the "ca" common name and the CA flag.
 func TestNewECDSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -84,6 +90,8 @@ func TestNewECDSAPrikeyAndCert(t *testing.T) {
 	}
 }
 
+// TestX509CertSubjectKeyID verifies that X509CertSubjectKeyID returns the SHA-1 digest of the
+// public key's PKIX DER encoding (as produced by Pubkey2Der) for an RSA-2048 key.
 func TestX509CertSubjectKeyID(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +108,11 @@ func TestX509CertSubjectKeyID(t *testing.T) {
 	require.Equal(t, expected[:], got)
 }
 
+// TestNewRSAPrikeyAndCert verifies the certificate produced by NewRSAPrikeyAndCert with RSA-3072
+// keys. With only a common name, none of the optional subject fields, SANs, CA flag, custom serial
+// number, extra key usages, CRL or OCSP endpoints, or policies are present; with the full option
+// set, every one of them, including the validity window and the policy OID in both
+// PolicyIdentifiers and Policies, is reflected in the parsed certificate.
 func TestNewRSAPrikeyAndCert(t *testing.T) {
 	t.Parallel()
 
@@ -191,6 +204,9 @@ func TestNewRSAPrikeyAndCert(t *testing.T) {
 	})
 }
 
+// BenchmarkRSA_bits measures NewX509CSR when creating a CSR with only a common name from
+// pre-generated RSA keys of 2048, 3072 and 4096 bits, with one sub-benchmark per key size.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // BenchmarkRSA_bits/2048-16         	     116	  10240150 ns/op	   27944 B/op	     221 allocs/op
 // BenchmarkRSA_bits/3072-16         	      46	  25347501 ns/op	   40680 B/op	     249 allocs/op
@@ -227,6 +243,10 @@ func BenchmarkRSA_bits(b *testing.B) {
 	})
 }
 
+// Test_CrossSign verifies cross-signing: one intermediate CSR is signed as a CA by two independent
+// RSA root CAs (the first with a zero max path length, which is asserted), and a leaf certificate
+// issued with the intermediate key validates through either root and intermediate pair alone, and
+// yields two chains when both pairs are available.
 func Test_CrossSign(t *testing.T) {
 	t.Parallel()
 
@@ -320,6 +340,8 @@ func Test_CrossSign(t *testing.T) {
 	})
 }
 
+// TestRandomSerialNumber verifies that DefaultX509CertSerialNumGenerator is safe for concurrent use
+// and produces positive, unique serial numbers across 10,000 calls made from concurrent goroutines.
 func TestRandomSerialNumber(t *testing.T) {
 	t.Parallel()
 
@@ -365,6 +387,9 @@ func TestRandomSerialNumber(t *testing.T) {
 	})
 }
 
+// BenchmarkRandomSerialNumber measures the cost of a single SerialNum call on
+// DefaultX509CertSerialNumGenerator.
+//
 // cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
 // BenchmarkRandomSerialNumber/gen-16         	  718527	      1553 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkRandomSerialNumber(b *testing.B) {
@@ -377,6 +402,10 @@ func BenchmarkRandomSerialNumber(b *testing.B) {
 		}
 	})
 }
+
+// TestNewEd25519PrikeyAndCert verifies that NewEd25519PrikeyAndCert produces a parseable
+// certificate whose common name is reported by ReadableX509Cert, and that the WithX509CertIsCA
+// option sets the CA flag on the generated certificate.
 func TestNewEd25519PrikeyAndCert(t *testing.T) {
 	t.Parallel()
 

@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newTestSeriaNo returns a fresh random serial number from a new DefaultX509CertSerialNumGenerator
+// for use in CRL tests. The t parameter is used to fail the calling test if the generator cannot be
+// created.
 func newTestSeriaNo(t *testing.T) *big.Int {
 	g, err := NewDefaultX509CertSerialNumGenerator()
 	require.NoError(t, err)
@@ -16,6 +19,10 @@ func newTestSeriaNo(t *testing.T) *big.Int {
 	return big.NewInt(g.SerialNum())
 }
 
+// TestNewX509CRL verifies NewX509CRL: a CA created with only WithX509CertIsCA can sign a CRL; a nil
+// CRL serial number is rejected; CRLs signed by a WithX509CertIsCRLCA certificate verify with
+// VerifyCRL and preserve every revoked serial number and revocation time (at second precision); DER
+// and PEM conversions round-trip; and a revoked entry with a zero revocation time is rejected.
 func TestNewX509CRL(t *testing.T) {
 	t.Parallel()
 

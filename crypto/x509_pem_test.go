@@ -6,6 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test_Pem2Certs verifies that Pem2Certs parses a bundle of four certificates, including blocks
+// whose END and BEGIN markers are run together on one line, and that it rejects a certificate using
+// the SM2 curve with an "unsupported elliptic curve" error.
 func Test_Pem2Certs(t *testing.T) {
 	t.Parallel()
 

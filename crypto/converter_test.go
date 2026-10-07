@@ -70,6 +70,11 @@ emCoppSZz2o5Go8jmqJYBJJEv0lst+cGTuUErhx08DoADfUveAQkgzVdE9/z
 `
 )
 
+// TestTLSPrivatekey verifies private key conversions. NewRSAPrikey and NewECDSAPrikey reject an
+// unsupported size and curve. For every key from testAsymmetricPrikeys, DER and PEM forms
+// round-trip through Prikey2Der, Prikey2Pem, Pem2Der, Pem2Ders, PrikeyDer2Pem, Pem2Prikey and
+// Der2Prikey (plus RSADer2Prikey and RSAPem2Prikey for PKCS#1 RSA keys), PEM output ends with a
+// newline, and a certificate created from the key round-trips through Cert2Pem and Pem2Cert.
 func TestTLSPrivatekey(t *testing.T) {
 	t.Parallel()
 	t.Run("err", func(t *testing.T) {
@@ -155,6 +160,10 @@ func TestTLSPrivatekey(t *testing.T) {
 	}
 }
 
+// testAsymmetricPrikeys generates one private key of each supported type for table-driven tests:
+// RSA-2048, RSA-3072, ECDSA P-256, P-384 and P-521, and Ed25519. The t parameter is used to fail
+// the calling test if key generation fails. It returns the keys indexed by a short algorithm name
+// such as "rsa2048" or "es256".
 func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) {
 	t.Helper()
 
@@ -181,6 +190,9 @@ func testAsymmetricPrikeys(t *testing.T) (prikeys map[string]crypto.PrivateKey) 
 	}
 }
 
+// TestTLSPublickey verifies that Pubkey2Der rejects a nil key and that, for the public key of each
+// key from testAsymmetricPrikeys, DER and PEM forms round-trip through Pubkey2Der, Pubkey2Pem,
+// Pem2Der, PubkeyDer2Pem, Pem2Pubkey and Der2Pubkey, with PEM output ending in a newline.
 func TestTLSPublickey(t *testing.T) {
 	t.Parallel()
 
@@ -220,6 +232,9 @@ func TestTLSPublickey(t *testing.T) {
 	}
 }
 
+// TestPem2Der_multi_certs verifies that Pem2Der concatenates the DER of a two-certificate PEM
+// chain, that Der2Certs parses it back in order, and that Cert2Der and Cert2Pem over the parsed
+// certificates reproduce the same DER.
 func TestPem2Der_multi_certs(t *testing.T) {
 	t.Parallel()
 
@@ -239,6 +254,8 @@ func TestPem2Der_multi_certs(t *testing.T) {
 	require.Equal(t, der, gotder)
 }
 
+// TestSecureCipherSuites verifies that SecureCipherSuites returns every secure suite when the
+// filter is nil or always true, and none when the filter always returns false.
 func TestSecureCipherSuites(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +271,9 @@ func TestSecureCipherSuites(t *testing.T) {
 	require.Zero(t, len(filtered))
 }
 
+// TestVerifyCertByPrikey verifies that VerifyCertByPrikey accepts a PEM certificate together with
+// its own PEM private key, that CertDer2Pem output ends with a newline, and that a certificate
+// generated for a different key is rejected.
 func TestVerifyCertByPrikey(t *testing.T) {
 	t.Parallel()
 
@@ -279,6 +299,9 @@ func TestVerifyCertByPrikey(t *testing.T) {
 	})
 }
 
+// TestDer2CSR verifies that CSRs created by NewX509CSR for each key from testAsymmetricPrikeys
+// parse identically from DER (Der2CSR) and from PEM (CSRDer2Pem and Pem2CSR), and that an
+// OpenSSL-generated CSR with an empty subject parses successfully.
 func TestDer2CSR(t *testing.T) {
 	t.Parallel()
 
@@ -311,6 +334,8 @@ func TestDer2CSR(t *testing.T) {
 	})
 }
 
+// TestSplitCertsPemChain verifies that SplitCertsPemChain splits a PEM chain into one trimmed block
+// per certificate for single and multiple certificates, and returns nil for an empty chain.
 func TestSplitCertsPemChain(t *testing.T) {
 	t.Parallel()
 

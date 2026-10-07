@@ -22,6 +22,9 @@ type x509CRLOption struct {
 	nextUpdate time.Time
 }
 
+// applyOpts sets the CRL defaults on o (thisUpdate is the current UTC time and nextUpdate is 30
+// days later) and then applies opts in order. It returns o on success, or the first option error
+// wrapped with a stack trace.
 func (o *x509CRLOption) applyOpts(opts ...X509CRLOption) (*x509CRLOption, error) {
 	// fill default
 	o.thisUpdate = time.Now().UTC()

@@ -21,6 +21,9 @@ import (
 	"github.com/Laisky/go-utils/v6/log"
 )
 
+// TestECDSAKeySerializer verifies that a raw ecdsa.Sign signature over the SHA-256 digest of a
+// fixed message, made with a freshly generated P-256 key, verifies with ecdsa.Verify. The key
+// serialization round-trip the test is named after is currently commented out.
 func TestECDSAKeySerializer(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +63,9 @@ func TestECDSAKeySerializer(t *testing.T) {
 	// t.Error()
 }
 
+// TestECDSAVerify verifies SignByECDSAWithSHA256 and VerifyByECDSAWithSHA256 with P-256 keys on
+// random messages of 1, 1024 and 10240 bytes: verification succeeds with the signing key and fails
+// for a modified message or for a signature made by a different key.
 func TestECDSAVerify(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +103,10 @@ func TestECDSAVerify(t *testing.T) {
 	}
 }
 
+// TestRSAVerify verifies SignByRSAPKCS1v15WithSHA256 and VerifyByRSAPKCS1v15WithSHA256 with
+// RSA-2048 keys on random messages of 1, 1024 and 10240 bytes: verification succeeds with the
+// signing key and returns a "verification error" for a modified message or for a signature made by
+// a different key.
 func TestRSAVerify(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +151,10 @@ func TestRSAVerify(t *testing.T) {
 	}
 }
 
+// TestRSAPSSVerify verifies SignByRSAPSSWithSHA256 and VerifyByRSAPSSWithSHA256 with RSA-2048 keys
+// on random messages of 1, 1024 and 10240 bytes: verification succeeds with the signing key,
+// returns a "verification error" for a modified message or a different key, and two signatures of
+// the same message differ because PSS signing is randomized.
 func TestRSAPSSVerify(t *testing.T) {
 	t.Parallel()
 
@@ -193,6 +207,10 @@ func TestRSAPSSVerify(t *testing.T) {
 	}
 }
 
+// ExampleSignByECDSAWithSHA256 demonstrates signing content with SignByECDSAWithSHA256, verifying
+// it with VerifyByECDSAWithSHA256, and encoding the signature with EncodeES256SignByBase64 and
+// decoding it back, and shows that verification fails for altered content or for a signature made
+// with another key.
 func ExampleSignByECDSAWithSHA256() {
 	priKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -284,6 +302,9 @@ func ExampleSignByECDSAWithSHA256() {
 // 	}
 // }
 
+// TestSignReaderByEd25519WithSHA256 verifies that SignReaderByEd25519WithSHA256 and
+// VerifyReaderByEd25519WithSHA256 round-trip over a 100 MiB random stream, and that verification
+// fails for a different public key or a malformed signature.
 func TestSignReaderByEd25519WithSHA256(t *testing.T) {
 	t.Parallel()
 
@@ -323,6 +344,10 @@ func TestSignReaderByEd25519WithSHA256(t *testing.T) {
 	})
 }
 
+// TestVerifyBySchnorrSha256 verifies Schnorr signing over the edwards25519 suite: public and
+// private keys survive binary marshal and unmarshal, a signature from the unmarshaled private key
+// verifies with VerifyBySchnorrSha256, and verification returns "invalid signature" whenever the
+// public key does not match the signing key.
 func TestVerifyBySchnorrSha256(t *testing.T) {
 	t.Parallel()
 
@@ -380,6 +405,10 @@ func TestVerifyBySchnorrSha256(t *testing.T) {
 	})
 }
 
+// Benchmark_Sign measures signing a 4 KiB random message with RSA-2048 and RSA-4096 (PKCS#1 v1.5
+// with SHA-256), ECDSA P-256 and P-384 (SHA-256), pure Ed25519, and Schnorr over edwards25519
+// (SHA-256), excluding key generation from the timings.
+//
 // goos: linux
 // goarch: amd64
 // pkg: github.com/Laisky/go-utils/v6/crypto
@@ -472,6 +501,9 @@ func Benchmark_Sign(b *testing.B) {
 
 }
 
+// TestVerifyByEd25519 verifies that a legacy Ed25519-over-SHA512 signature from
+// SignByEd25519WithSHA512 verifies with VerifyByEd25519WithSHA512, and that a malformed signature
+// is rejected with "invalid signature" under both the signing key and an unrelated key.
 func TestVerifyByEd25519(t *testing.T) {
 	t.Parallel()
 

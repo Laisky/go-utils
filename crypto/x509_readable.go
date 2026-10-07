@@ -145,7 +145,8 @@ func ReadableX509ExtKeyUsage(usages []x509.ExtKeyUsage) (usageNames []string) {
 	return usageNames
 }
 
-// ReadableX509ExtKeyUsage convert objectids to readable strings
+// ReadableOIDs converts oids to their dotted-decimal string form (for example "1.2.3.4"),
+// preserving order. It returns nil when oids is empty.
 func ReadableOIDs(oids []asn1.ObjectIdentifier) (names []string) {
 	for i := range oids {
 		names = append(names, oids[i].String())

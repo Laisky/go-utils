@@ -359,6 +359,12 @@ func WithX509CertPubkey(pubkey crypto.PublicKey) X509CertOption {
 	}
 }
 
+// applyOpts fills defaults into o and then applies opts in order. The defaults come from the
+// embedded signCSROption (a seven-day validity period starting now in UTC, digital-signature and
+// key-encipherment key usage, and a generated serial number) and from the embedded x509CSROption. A
+// previously recorded o.err is returned before any option runs, and a serial number is drawn from
+// o.serialNumGenerator if none is set after the options run. It returns o on success, or an error
+// if filling the defaults or any option fails, or if the subject common name is empty.
 func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 	*x509V3CertOption, error) {
 	// fill default
