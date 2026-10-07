@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,9 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 	rootcapool := x509.NewCertPool()
 	rootcapool.AppendCertsFromPEM(CertDer2Pem(rootcaDer))
 
+	// addrCh carries the ephemeral address the TLS server bound to, so that
+	// concurrently running packages or worktrees never collide on a fixed port.
+	addrCh := make(chan *net.TCPAddr, 1)
 	gt := gutils.NewGoroutineTest(t, cancel)
 	go func(t testing.TB) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
@@ -44,7 +48,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
 		require.NoError(t, err)
 
-		ln, err := tls.Listen("tcp", "localhost:38443", &tls.Config{
+		ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
 			RootCAs:    rootcapool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 			Certificates: []tls.Certificate{
@@ -55,6 +59,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		addrCh <- ln.Addr().(*net.TCPAddr)
 
 		for {
 			conn, err := ln.Accept()
@@ -86,7 +91,13 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 		}
 	}(gt)
 
-	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38443))
+	var serverAddr *net.TCPAddr
+	select {
+	case serverAddr = <-addrCh:
+	case <-ctx.Done():
+		t.Fatal("tls server goroutine failed before listening")
+	}
+	require.NoError(t, gutils.WaitTCPOpen(ctx, serverAddr.IP.String(), serverAddr.Port))
 
 	t.Run("use ca as client tls cert", func(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
@@ -100,7 +111,7 @@ func Test_UseCaAsClientTlsCert(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		conn, err := tls.Dial("tcp", "localhost:38443", &tls.Config{
+		conn, err := tls.Dial("tcp", serverAddr.String(), &tls.Config{
 			RootCAs:            rootcapool,
 			InsecureSkipVerify: true,
 			Certificates: []tls.Certificate{
@@ -139,6 +150,9 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 	rootcapool := x509.NewCertPool()
 	rootcapool.AppendCertsFromPEM(CertDer2Pem(rootcaDer))
 
+	// addrCh carries the ephemeral address the TLS server bound to, so that
+	// concurrently running packages or worktrees never collide on a fixed port.
+	addrCh := make(chan *net.TCPAddr, 1)
 	gt := gutils.NewGoroutineTest(t, cancel)
 	go func(t testing.TB) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
@@ -156,7 +170,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		// require.NoError(t, err)
 		// t.Logf("cert: %+v", cert)
 
-		ln, err := tls.Listen("tcp", "localhost:38444", &tls.Config{
+		ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
 			RootCAs:    rootcapool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
 			Certificates: []tls.Certificate{
@@ -167,6 +181,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		addrCh <- ln.Addr().(*net.TCPAddr)
 
 		for {
 			conn, err := ln.Accept()
@@ -198,7 +213,13 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		}
 	}(gt)
 
-	require.NoError(t, gutils.WaitTCPOpen(ctx, "localhost", 38444))
+	var serverAddr *net.TCPAddr
+	select {
+	case serverAddr = <-addrCh:
+	case <-ctx.Done():
+		t.Fatal("tls server goroutine failed before listening")
+	}
+	require.NoError(t, gutils.WaitTCPOpen(ctx, serverAddr.IP.String(), serverAddr.Port))
 
 	t.Run("use leaf cert as client tls cert", func(t *testing.T) {
 		prikey, err := NewRSAPrikey(RSAPrikeyBits4096)
@@ -210,7 +231,7 @@ func Test_UseCaAsServerTlsCert(t *testing.T) {
 		certDer, err := NewX509CertByCSR(rootca, rootcaPrikey, csrDer)
 		require.NoError(t, err)
 
-		conn, err := tls.Dial("tcp", "localhost:38444", &tls.Config{
+		conn, err := tls.Dial("tcp", serverAddr.String(), &tls.Config{
 			RootCAs:            rootcapool,
 			InsecureSkipVerify: true,
 			Certificates: []tls.Certificate{
