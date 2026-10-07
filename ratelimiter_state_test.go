@@ -211,15 +211,16 @@ func TestMemoryStateManagerSetAvailableTokensBounds(t *testing.T) {
 // ============================================================
 
 // TestRateLimiterWithSharedStateManager verifies that two limiters sharing one MemoryRateLimiterStateManager
-// draw from a single token pool: the initial 2 tokens run out after one Allow on each limiter, and after about
-// one second the pool holds only 2 tokens again (refill is not doubled), so one request per limiter succeeds
-// and a third is rejected.
+// draw from a single token pool and that only the first one runs a refill loop, so the shared pool refills at
+// NPerSec rather than at twice that rate. Every bound is checked against counted refills or measured time, so a
+// stalled refill goroutine on a loaded host cannot fail the test.
 func TestRateLimiterWithSharedStateManager(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	manager := NewMemoryRateLimiterStateManager()
-	args := RateLimiterArgs{NPerSec: 2, Max: 4}
+	manager := &countingStateManager{MemoryRateLimiterStateManager: NewMemoryRateLimiterStateManager()}
+	args := RateLimiterArgs{NPerSec: 10, Max: 20}
 
+	start := time.Now()
 	limiterA, err := NewRateLimiter(ctx, args, WithRateLimiterStateManager(manager))
 	require.NoError(t, err)
 	t.Cleanup(limiterA.Close)
@@ -228,17 +229,33 @@ func TestRateLimiterWithSharedStateManager(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(limiterB.Close)
 
-	require.True(t, limiterA.Allow())
-	require.True(t, limiterB.Allow())
+	refillers, _ := manager.counts()
+	require.Equal(t, 1, refillers, "only the first limiter sharing a manager may run a refill loop")
 
-	require.False(t, limiterA.Allow())
-	require.False(t, limiterB.Allow())
+	// One pool: both limiters together get the initial NPerSec tokens plus whatever was refilled, never more.
+	consumed := 0
+	for limiterA.Allow() {
+		consumed++
+	}
+	for limiterB.Allow() {
+		consumed++
+	}
+	_, requested := manager.counts()
+	require.GreaterOrEqual(t, consumed, args.NPerSec)
+	require.LessOrEqual(t, consumed, args.NPerSec+requested, "the limiters must not have separate pools")
 
-	time.Sleep(1100 * time.Millisecond)
+	// limiterB runs no refill loop of its own, so tokens it sees again come from limiterA's loop.
+	awaitTokens(t, limiterB, 2)
+	require.True(t, limiterB.AllowN(2))
 
-	require.True(t, limiterA.Allow())
-	require.True(t, limiterB.Allow())
-	require.False(t, limiterA.Allow())
+	// A single refill loop requests at most NPerSec tokens per measured second; a doubled one would not.
+	require.Eventually(t, func() bool {
+		_, requested := manager.counts()
+		return requested >= 2*args.NPerSec
+	}, 30*time.Second, 10*time.Millisecond, "the shared pool must keep refilling")
+	_, requested = manager.counts()
+	require.LessOrEqual(t, float64(requested), float64(args.NPerSec)*time.Since(start).Seconds()+1,
+		"refill of the shared pool must not exceed NPerSec")
 }
 
 // TestWithRateLimiterStateManagerNilRejected verifies that NewRateLimiter returns an error when the

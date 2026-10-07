@@ -15,9 +15,9 @@ import (
 // ============================================================
 
 // TestRateLimiter verifies NewRateLimiter argument validation (zero or negative NPerSec, Max below NPerSec, and
-// a nil context are rejected), that limiters can be stopped via Close or context cancellation, and that Allow and
-// AllowN admit the initial 10 tokens, reject further requests, and admit requests again after about one second
-// of refill.
+// a nil context are rejected), that limiters can be stopped via Close or context cancellation, that Allow and
+// AllowN admit the initial 10 tokens, reject further requests, and admit exactly the tokens refilled for the
+// elapsed time of a driven refill loop, and that the real background refill restores tokens.
 func TestRateLimiter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -77,6 +77,38 @@ func TestRateLimiter(t *testing.T) {
 	t.Run("allow", func(t *testing.T) {
 		t.Parallel()
 
+		// The refill is driven explicitly, so the exact token counts below cannot be disturbed by a
+		// background refill that happens to run while the test is descheduled on a loaded host.
+		args := RateLimiterArgs{NPerSec: 10, Max: 100}
+		ratelimiter, refill := newManuallyRefilledLimiter(t, args)
+
+		for i := 0; i < 20; i++ {
+			require.Equal(t, i < 10, ratelimiter.Allow(), i)
+		}
+
+		// 1050ms at 10/s refills 10.5 tokens: 10 whole tokens now, the half token stays pending.
+		refill.advance(1050 * time.Millisecond)
+		require.Equal(t, 10, ratelimiter.Len())
+		for i := 0; i < 5; i++ {
+			require.True(t, ratelimiter.Allow(), i)
+		}
+		require.Equal(t, 5, ratelimiter.Len())
+		require.False(t, ratelimiter.AllowN(20))
+		require.Equal(t, 5, ratelimiter.Len(), "a rejected AllowN must not consume tokens")
+		require.True(t, ratelimiter.AllowN(5))
+
+		for i := 0; i < 100; i++ {
+			require.False(t, ratelimiter.Allow(), i)
+		}
+
+		// The pending half token completes with the next 50ms.
+		refill.advance(50 * time.Millisecond)
+		require.Equal(t, 1, ratelimiter.Len())
+	})
+
+	t.Run("allow with real refill", func(t *testing.T) {
+		t.Parallel()
+
 		ratelimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
 			NPerSec: 10,
 			Max:     100,
@@ -84,28 +116,15 @@ func TestRateLimiter(t *testing.T) {
 		require.NoError(t, err)
 		defer ratelimiter.Close()
 
-		for i := 0; i < 20; i++ {
-			allowed := ratelimiter.Allow()
-			if i < 10 {
-				require.True(t, allowed, i)
-			} else if i >= 10 {
-				require.False(t, allowed, i)
-			}
-		}
-
-		time.Sleep(1050 * time.Millisecond)
-		require.GreaterOrEqual(t, ratelimiter.Len(), 10)
-		for i := 0; i < 5; i++ {
+		// A new limiter starts with NPerSec tokens; refills can only add to them.
+		for i := 0; i < 10; i++ {
 			require.True(t, ratelimiter.Allow(), i)
 		}
-		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
-		require.False(t, ratelimiter.AllowN(20))
-		require.GreaterOrEqual(t, ratelimiter.Len(), 5)
-		require.True(t, ratelimiter.AllowN(5))
 
-		for i := 0; i < 100; i++ {
-			require.False(t, ratelimiter.Allow(), i)
-		}
+		// The background ticker refills tokens again, however late the refill goroutine gets scheduled.
+		require.Eventually(t, func() bool { return ratelimiter.Len() >= 5 },
+			30*time.Second, 10*time.Millisecond, "the background refill must restore tokens")
+		require.True(t, ratelimiter.AllowN(5))
 	})
 }
 
@@ -115,18 +134,17 @@ func TestRateLimiter(t *testing.T) {
 
 // TestRateLimiterAllowNEdgeCases verifies that AllowN always succeeds for zero or negative n, always fails for n
 // greater than Max, can consume exactly Max tokens, and leaves the balance unchanged when it rejects a request.
+// The limiters never refill on their own, so the exact balances cannot be changed by a background refill.
 func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	t.Run("allow zero always succeeds", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx, RateLimiterArgs{NPerSec: 1, Max: 1})
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 1, Max: 1})
 
 		// Drain all tokens
-		rl.Allow()
+		require.True(t, rl.Allow())
+		require.False(t, rl.Allow())
 
 		// AllowN(0) should always return true even when empty
 		require.True(t, rl.AllowN(0))
@@ -135,9 +153,7 @@ func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 
 	t.Run("allow n exceeding max always fails", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx, RateLimiterArgs{NPerSec: 5, Max: 10})
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 5, Max: 10})
 
 		// Even with full tokens, requesting more than Max should fail
 		require.False(t, rl.AllowN(11))
@@ -147,10 +163,7 @@ func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 
 	t.Run("allow exactly max tokens", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx, RateLimiterArgs{NPerSec: 10, Max: 10},
-			WithAvailableTokens(10))
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 10, Max: 10}, WithAvailableTokens(10))
 
 		require.True(t, rl.AllowN(10))
 		require.Equal(t, 0, rl.Len())
@@ -158,10 +171,7 @@ func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 
 	t.Run("tokens not consumed on insufficient balance", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx, RateLimiterArgs{NPerSec: 5, Max: 10},
-			WithAvailableTokens(3))
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 5, Max: 10}, WithAvailableTokens(3))
 
 		// Try to consume more than available but within Max
 		require.False(t, rl.AllowN(4))
@@ -176,28 +186,21 @@ func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 
 // TestWithAvailableTokensOption verifies that WithAvailableTokens sets the initial token count (including zero,
 // which makes Allow fail immediately) and that a negative count or a count above Max makes NewRateLimiter fail.
+// The limiters whose balance is checked never refill on their own, so the exact balances are stable.
 func TestWithAvailableTokensOption(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("set initial tokens", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx,
-			RateLimiterArgs{NPerSec: 5, Max: 20},
-			WithAvailableTokens(15))
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 5, Max: 20}, WithAvailableTokens(15))
 
 		require.Equal(t, 15, rl.Len())
 	})
 
 	t.Run("zero initial tokens", func(t *testing.T) {
 		t.Parallel()
-		rl, err := NewRateLimiter(ctx,
-			RateLimiterArgs{NPerSec: 5, Max: 20},
-			WithAvailableTokens(0))
-		require.NoError(t, err)
-		defer rl.Close()
+		rl := newNoRefillLimiter(t, RateLimiterArgs{NPerSec: 5, Max: 20}, WithAvailableTokens(0))
 
 		require.Equal(t, 0, rl.Len())
 		require.False(t, rl.Allow())
@@ -226,24 +229,21 @@ func TestWithAvailableTokensOption(t *testing.T) {
 
 // TestRateLimiterStateLifecycle verifies that ExportState reports the tokens remaining after consumption, that
 // RestoreState overwrites the token count when the args match, and that RestoreState rejects a state whose args
-// differ from the limiter's.
+// differ from the limiter's. The limiter never refills on its own, so the exact balances are stable.
 func TestRateLimiterStateLifecycle(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	limiter, err := NewRateLimiter(ctx, RateLimiterArgs{
+	limiter := newNoRefillLimiter(t, RateLimiterArgs{
 		NPerSec: 5,
 		Max:     10,
 	})
-	require.NoError(t, err)
-	t.Cleanup(limiter.Close)
 
 	require.True(t, limiter.AllowN(3))
 
 	state := limiter.ExportState()
 	require.Equal(t, 2, state.AvailableTokens)
 
-	err = limiter.RestoreState(RateLimiterState{
+	err := limiter.RestoreState(RateLimiterState{
 		Args:            limiter.RateLimiterArgs,
 		AvailableTokens: 7,
 	})
@@ -283,31 +283,34 @@ func TestRateLimiterRestoreStateBounds(t *testing.T) {
 }
 
 // TestRateLimiterClone verifies that Clone copies the args and current token count into an independent limiter,
-// so consuming a token on the clone does not change the original's balance.
+// so consuming a token on the clone does not change the original's balance. The original never refills on its
+// own, so its balance is exact; the clone refills in the background, so its balance is checked against the
+// tokens it may have gained over the measured time since it was cloned.
 func TestRateLimiterClone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	limiter, err := NewRateLimiter(ctx, RateLimiterArgs{
+	limiter := newNoRefillLimiter(t, RateLimiterArgs{
 		NPerSec: 4,
 		Max:     8,
 	})
-	require.NoError(t, err)
-	t.Cleanup(limiter.Close)
 
 	require.True(t, limiter.AllowN(2))
+	require.Equal(t, 2, limiter.Len())
 
+	cloned := time.Now()
 	clone, err := limiter.Clone(ctx)
 	require.NoError(t, err)
 	t.Cleanup(clone.Close)
 
 	require.Equal(t, limiter.RateLimiterArgs, clone.RateLimiterArgs)
-	require.Equal(t, limiter.Len(), clone.Len())
+	require.GreaterOrEqual(t, clone.Len(), 2, "the clone starts from the exported balance")
+	requireWithinRefillRate(t, clone, 2, 0, cloned)
 
 	// Clone is independent – consuming on clone doesn't affect original
 	require.True(t, clone.Allow())
 	require.Equal(t, 2, limiter.Len()) // original unchanged
-	require.Equal(t, 1, clone.Len())
+	requireWithinRefillRate(t, clone, 2, 1, cloned)
 }
 
 // TestNewRateLimiterWithStateOption verifies that the WithRateLimiterState option seeds a new limiter with the
@@ -325,13 +328,10 @@ func TestNewRateLimiterWithStateOption(t *testing.T) {
 		AvailableTokens: 1,
 	}
 
-	limiter, err := NewRateLimiter(ctx, state.Args, WithRateLimiterState(state))
-	require.NoError(t, err)
-	t.Cleanup(limiter.Close)
-
+	limiter := newNoRefillLimiter(t, state.Args, WithRateLimiterState(state))
 	require.Equal(t, 1, limiter.Len())
 
-	_, err = NewRateLimiter(ctx, state.Args, WithAvailableTokens(7))
+	_, err := NewRateLimiter(ctx, state.Args, WithAvailableTokens(7))
 	require.Error(t, err)
 
 	// Mismatched args

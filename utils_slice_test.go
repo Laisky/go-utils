@@ -2,6 +2,7 @@ package utils
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -273,25 +274,31 @@ func TestUniqueStrings(t *testing.T) {
 	})
 }
 
-// Benchmark_UniqueStrings measures a single UniqueStrings call on a slice built from 100000 random
-// two-character strings per outer benchmark iteration; the sub-benchmark does not loop over b.N.
-//
-// cpu: Intel(R) Xeon(R) Gold 5320 CPU @ 2.20GHz
-// Benchmark_UniqueStrings
-// Benchmark_UniqueStrings/100000
-// Benchmark_UniqueStrings/100000-104         	1000000000	         0.003633 ns/op	       0 B/op	       0 allocs/op
+// Benchmark_UniqueStrings measures UniqueStrings on a slice of 100000 random two-character strings. The input
+// is built once; because UniqueStrings deduplicates in place, every iteration first restores an untimed copy of
+// it, so each timed call sees the same 100000 elements.
 func Benchmark_UniqueStrings(b *testing.B) {
-	orig := []string{}
-	for i := 0; i < b.N; i++ {
-		for i := 0; i < 100000; i++ {
-			orig = append(orig, RandomStringWithLength(2))
-		}
-
-		b.ResetTimer()
+	const size = 100000
+	orig := make([]string, size)
+	for i := range orig {
+		orig[i] = RandomStringWithLength(2)
 	}
 
-	b.Run("100000", func(b *testing.B) {
-		orig = UniqueStrings(orig)
+	b.Run(strconv.Itoa(size), func(b *testing.B) {
+		b.ReportAllocs()
+		work := make([]string, size)
+		var unique []string
+		for b.Loop() {
+			b.StopTimer()
+			copy(work, orig)
+			b.StartTimer()
+
+			unique = UniqueStrings(work)
+		}
+
+		if len(unique) == 0 || len(unique) > size {
+			b.Fatalf("unexpected unique count %d", len(unique))
+		}
 	})
 }
 

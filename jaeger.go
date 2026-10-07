@@ -64,6 +64,11 @@ func (t JaegerTracingID) String() string {
 // Parse decodes this API's 64-bit Jaeger IDs and one-byte flags. It rejects input
 // exceeding the fixed 53-byte format before splitting or decoding. An empty
 // parent ID remains accepted as zero for IDs emitted by older versions.
+//
+// A zero trace ID or a zero span ID is rejected, because the uber-trace-id
+// format defines both as invalid and NewJaegerTracingID never emits them; a
+// zero parent span ID (a root span) and a zero flags byte stay valid. On any
+// error all returned values are zero.
 func (t JaegerTracingID) Parse() (traceID, spanID, parentSpanID uint64, flag byte, err error) {
 	if len(t) > 53 {
 		return 0, 0, 0, 0, errors.New("invalid trace value: too long")
@@ -88,6 +93,12 @@ func (t JaegerTracingID) Parse() (traceID, spanID, parentSpanID uint64, flag byt
 			return 0, 0, 0, 0, parseErr
 		}
 		ids[i] = value
+	}
+	// Positions 0 (trace ID) and 1 (span ID) must be non-zero; position 2 (parent) may be zero.
+	for i := range 2 {
+		if ids[i] == 0 {
+			return 0, 0, 0, 0, errors.Errorf("invalid trace component %d: zero", i)
+		}
 	}
 	flagValue, parseErr := parseJaegerComponent(fields[3], 3, 2)
 	if parseErr != nil {
@@ -142,6 +153,11 @@ func RandomNonZeroUint64() (uint64, error) {
 }
 
 // NewSpan generate new span
+//
+// The new span keeps the trace ID and flags of t, records the span ID of t as
+// its parent and gets a fresh random span ID. It returns an error when t does
+// not parse, including when its trace or span ID is zero, instead of starting
+// an unrelated trace.
 func (t JaegerTracingID) NewSpan() (JaegerTracingID, error) {
 	traceID, spanID, _, flag, err := t.Parse()
 	if err != nil {

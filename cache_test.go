@@ -28,30 +28,79 @@ func ExampleExpCache() {
 	// false
 }
 
-// TestExpCache_Store verifies that a value stored in an ExpCache with a 100ms ttl is returned by Load while it is
-// younger than the ttl, and that Load reports a miss only after the ttl has elapsed and keeps reporting it.
+// cacheWallNow returns the current wall-clock time in UTC without a monotonic reading. The caches stamp and check
+// expirations with time.Now().UTC(), so timestamps taken with this helper live in the same clock domain and can
+// bracket a cache decision exactly. It takes no parameters and returns the current time.
+func cacheWallNow() time.Time {
+	return time.Now().UTC()
+}
+
+// requireHitThenExpiry checks the expiring-cache contract against measured time instead of assumed sleep lengths:
+// a value read back before ttl has elapsed since it was stored is returned, and once ttl has elapsed it is reported
+// as missing. It takes the test handle, the cache ttl, the stored value, and store and load closures over the cache
+// under test; it returns nothing and fails the test on a contract violation. Because a loaded host may stall the
+// test for longer than ttl between store and load, an attempt whose read-back finished ttl or more after the store
+// began proves nothing and is retried with a fresh store until a deadline passes.
+func requireHitThenExpiry[T any](t *testing.T, ttl time.Duration, want T, store func(T), load func() (T, bool)) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		beforeStore := cacheWallNow()
+		store(want)
+		afterStore := cacheWallNow()
+		got, ok := load()
+		if cacheWallNow().Sub(beforeStore) >= ttl {
+			require.True(t, time.Now().Before(deadline),
+				"never managed to read a value back within its %s ttl", ttl)
+			continue
+		}
+
+		// The value expires no earlier than beforeStore+ttl, and load ended before that.
+		require.True(t, ok, "value read back within its ttl must be returned")
+		require.Equal(t, want, got)
+
+		// The value expires no later than afterStore+ttl; wait until that moment has certainly passed.
+		expiredBy := afterStore.Add(ttl)
+		for now := cacheWallNow(); !now.After(expiredBy); now = cacheWallNow() {
+			time.Sleep(expiredBy.Sub(now) + time.Millisecond)
+		}
+		_, ok = load()
+		require.False(t, ok, "value must be reported missing once its ttl has elapsed")
+		return
+	}
+}
+
+// TestExpCache_Store verifies that a value stored in an ExpCache with a 100ms ttl is returned by Load only while
+// it is younger than the ttl, that Load reports a miss only after the ttl has elapsed, and that the miss persists.
+// Every assertion compares against timestamps that bracket the cache operations, so it holds on a loaded host.
 func TestExpCache_Store(t *testing.T) {
 	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	Clock.SetInterval(1 * time.Millisecond)
-	time.Sleep(time.Second) // wait for clock's interval to take effect
-
-	startAt := time.Now().UTC()
-	ttl := 100 * time.Millisecond
-	cm := NewExpCache[string](context.Background(), ttl)
+	const ttl = 100 * time.Millisecond
+	cm := NewExpCache[string](ctx, ttl)
 	key := "key"
 	val := "val"
+
+	beforeStore := cacheWallNow()
 	cm.Store(key, val)
+	afterStore := cacheWallNow()
 	for {
-		now := time.Now().UTC()
-		if gotV, ok := cm.Load(key); ok {
+		beforeLoad := cacheWallNow()
+		gotV, ok := cm.Load(key)
+		afterLoad := cacheWallNow()
+		if ok {
 			require.Equal(t, val, gotV)
-			require.Less(t, now.Sub(startAt)-time.Millisecond, ttl) // -time.Millisecond to avoid clock precision issue
+			// A hit means Load ran before the entry expired, which happens no later than afterStore+ttl.
+			require.Less(t, beforeLoad.Sub(afterStore), ttl, "Load returned a value older than its ttl")
 			time.Sleep(10 * time.Millisecond)
-		} else {
-			require.Greater(t, now.Sub(startAt), ttl)
-			break
+			continue
 		}
+
+		// A miss means Load ran after the entry expired, which happens no earlier than beforeStore+ttl.
+		require.GreaterOrEqual(t, afterLoad.Sub(beforeStore), ttl, "Load dropped a value before its ttl")
+		break
 	}
 
 	_, ok := cm.Load(key)
@@ -98,25 +147,17 @@ func Benchmark_NewSimpleExpCache(b *testing.B) {
 }
 
 // TestNewSimpleExpCache verifies, across 30 parallel subtests, that a new SingleItemExpCache with a 10ms ttl
-// reports a miss before any Set, returns the stored value after Set, and reports a miss while still returning
-// the last value once 25ms have elapsed.
+// reports a miss before any Set, returns the stored value when it is read back within the ttl, and reports a miss
+// while still returning the last value once the ttl has elapsed.
 func TestNewSimpleExpCache(t *testing.T) {
 	t.Parallel()
 
-	// another test may change the clock's interval.
-	// default interval is 10ms, so we need to set interval bigger than 10ms.
-	//
-	// time.clock's test set interval to 100ms.
-	fmt.Println("interval", Clock.Interval())
-	Clock.SetInterval(1 * time.Millisecond)
-	time.Sleep(time.Second) // wait for clock's interval to take effect
-
-	// This test case used to have a small chance of failure
 	for i := 0; i < 30; i++ {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			c := NewSingleItemExpCache[string](10 * time.Millisecond)
+			const ttl = 10 * time.Millisecond
+			c := NewSingleItemExpCache[string](ttl)
 
 			_, ok := c.Get()
 			require.False(t, ok)
@@ -126,17 +167,9 @@ func TestNewSimpleExpCache(t *testing.T) {
 			require.False(t, ok)
 
 			data := "yo"
-			c.Set(data)
+			requireHitThenExpiry(t, ttl, data, c.Set, c.Get)
+
 			v, ok := c.Get()
-			require.True(t, ok)
-			require.Equal(t, data, v)
-
-			ret, ok := c.Get()
-			require.True(t, ok)
-			require.Equal(t, data, ret)
-
-			time.Sleep(25 * time.Millisecond)
-			v, ok = c.Get()
 			require.False(t, ok)
 			require.Equal(t, data, v)
 		})
@@ -323,53 +356,27 @@ func Benchmark_Sieve(b *testing.B) {
 	})
 }
 
-// TestCacheTimingPrecision verifies that SingleItemExpCache and ExpCache with a 5ms ttl return a value right
-// after it is stored and report a miss once 10ms have elapsed.
+// TestCacheTimingPrecision verifies that SingleItemExpCache and ExpCache with a 5ms ttl return a value read back
+// within the ttl and report a miss once the ttl has elapsed, measured against timestamps that bracket each call.
 func TestCacheTimingPrecision(t *testing.T) {
 	t.Parallel()
+	const ttl = 5 * time.Millisecond
 
-	// Test SingleItemExpCache with precise timing
 	t.Run("SingleItemExpCache", func(t *testing.T) {
 		t.Parallel()
 
-		cache := NewSingleItemExpCache[string](5 * time.Millisecond)
-
-		// Set a value
-		cache.Set("test-value")
-
-		// Should be available immediately
-		val, ok := cache.Get()
-		require.True(t, ok)
-		require.Equal(t, "test-value", val)
-
-		// Wait for expiration + buffer
-		time.Sleep(10 * time.Millisecond)
-
-		// Should be expired now
-		_, ok = cache.Get()
-		require.False(t, ok, "cache item should have expired")
+		cache := NewSingleItemExpCache[string](ttl)
+		requireHitThenExpiry(t, ttl, "test-value", cache.Set, cache.Get)
 	})
 
-	// Test ExpCache with precise timing
 	t.Run("ExpCache", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		ctx := context.Background()
-		cache := NewExpCache[string](ctx, 5*time.Millisecond)
-
-		// Set a value
-		cache.Store("test-key", "test-value")
-
-		// Should be available immediately
-		val, ok := cache.Load("test-key")
-		require.True(t, ok)
-		require.Equal(t, "test-value", val)
-
-		// Wait for expiration + buffer
-		time.Sleep(10 * time.Millisecond)
-
-		// Should be expired now
-		_, ok = cache.Load("test-key")
-		require.False(t, ok, "cache item should have expired")
+		cache := NewExpCache[string](ctx, ttl)
+		requireHitThenExpiry(t, ttl, "test-value",
+			func(v string) { cache.Store("test-key", v) },
+			func() (string, bool) { return cache.Load("test-key") })
 	})
 }

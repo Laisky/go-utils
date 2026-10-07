@@ -161,102 +161,80 @@ func ExampleClock() {
 	// change clock refresh step
 	SetInternalClock(10 * time.Millisecond)
 
-	// create new clock
+	// create new clock, and stop it when it is no longer needed
 	c := NewClock(context.Background(), 1*time.Second)
+	defer c.Close()
 	c.GetUTCNow()
 }
 
-// TestClock verifies that a ClockT with a 100ms interval reports that interval, returns a cached time that stays
-// unchanged within one interval and advances after it, produces hex and nanosecond-hex strings that decode back
-// to the cached time, returns no error from GetDate, and can be stopped by canceling its context or by Close.
+// TestClock verifies the ClockT contract without depending on when the refresh loop happens to run: a clock
+// whose one-hour interval has not elapsed keeps returning the time it was created with, and its string, hex,
+// nanosecond-hex and date views all decode back to that cached time; a clock with a one-millisecond interval
+// advances and never reports a time ahead of the real clock; SetInterval updates Interval; and a clock can be
+// stopped by canceling its context, by Close, or by both.
 func TestClock(t *testing.T) {
-	ctx := context.Background()
-	c := NewClock(ctx, 100*time.Millisecond)
-	ts := c.GetUTCNow()
-	var err error
-	t.Logf("ts: %v", ts.Format(time.RFC3339Nano))
+	t.Parallel()
+	// The subtests are parallel and run after this function returns, so their clocks must not share a context
+	// that a deferred cancel would end early; the test context lives until every subtest has finished.
+	ctx := t.Context()
 
-	c.SetInterval(100 * time.Millisecond)
-	require.Equal(t, 100*time.Millisecond, c.Interval())
+	t.Run("cached value is stable until the interval elapses", func(t *testing.T) {
+		t.Parallel()
+		beforeCreate := time.Now()
+		c := NewClock(ctx, time.Hour)
+		defer c.Close()
+		require.Equal(t, time.Hour, c.Interval())
 
-	// test ts
-	time.Sleep(10 * time.Millisecond) // first refresh
-	if c.GetUTCNow().After(ts) {
-		t.Fatalf("should got same ts")
-	}
-	if c.GetUTCNow().After(ts) {
-		t.Fatalf("should got same ts")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if c.GetUTCNow().After(ts) {
-		t.Fatalf("should got same ts")
-	}
-	if c.GetUTCNow().After(ts) {
-		t.Fatalf("should got same ts")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if c.GetUTCNow().Sub(ts) < 50*time.Millisecond {
-		t.Fatalf("should not got same ts, got: %+v", c.GetUTCNow().Format(time.RFC3339Nano))
-	}
+		ts := c.GetUTCNow()
+		require.Equal(t, time.UTC, ts.Location())
+		require.False(t, ts.Before(beforeCreate), "cached time predates NewClock")
+		require.False(t, ts.After(time.Now()), "cached time is ahead of the real clock")
 
-	// test ts string
-	timeStr := c.GetTimeInRFC3339Nano()
-	if c.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	if c.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if c.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	if c.GetTimeInRFC3339Nano() != timeStr {
-		t.Fatalf("should got same time string")
-	}
-	time.Sleep(50 * time.Millisecond)
-	if c.GetTimeInRFC3339Nano() == timeStr {
-		t.Fatalf("should not got same time string")
-	}
+		// The loop waits out the hour before its first refresh, so every read below sees the same instant.
+		for range 3 {
+			require.True(t, c.GetUTCNow().Equal(ts))
+			require.Equal(t, ts.Format(time.RFC3339Nano), c.GetTimeInRFC3339Nano())
+		}
 
-	// test hex
-	timeStr = c.GetTimeInHex()
-	if ts, err = ParseHex2UTC(timeStr); err != nil {
-		t.Fatalf("try to parse timeStr got error: %+v", err)
-	}
-	if ts.Format(time.RFC3339) != c.GetUTCNow().Format(time.RFC3339) {
-		t.Errorf("ts: %v", ts.Format(time.RFC3339))
-		t.Errorf("c.get: %v", c.GetUTCNow().Format(time.RFC3339))
-		t.Fatalf("hex time must equal to time")
-	}
-
-	timeStr = c.GetNanoTimeInHex()
-	if ts, err = ParseHexNano2UTC(timeStr); err != nil {
-		t.Fatalf("try to parse timeStr got error: %+v", err)
-	}
-	if ts.Format(time.RFC3339Nano) != c.GetUTCNow().Format(time.RFC3339Nano) {
-		t.Errorf("ts: %v", ts.Format(time.RFC3339Nano))
-		t.Errorf("c.get: %v", c.GetTimeInRFC3339Nano())
-		t.Fatalf("hex time must equal to time")
-	}
-
-	// test date
-	{
-		_, err := c.GetDate()
+		hexTime, err := ParseHex2UTC(c.GetTimeInHex())
 		require.NoError(t, err)
-	}
+		require.True(t, hexTime.Equal(ts.Truncate(time.Second)), "hex time %s != %s", hexTime, ts)
 
-	// case: close clock
-	{
-		ctx2, cancel := context.WithCancel(ctx)
-		_ = NewClock(ctx2, time.Second)
-		cancel()
+		nanoTime, err := ParseHexNano2UTC(c.GetNanoTimeInHex())
+		require.NoError(t, err)
+		require.True(t, nanoTime.Equal(ts), "nano hex time %s != %s", nanoTime, ts)
 
-		ctx2, cancel = context.WithCancel(ctx)
-		defer cancel()
-		c2 := NewClock(ctx2, time.Second)
+		date, err := c.GetDate()
+		require.NoError(t, err)
+		require.True(t, date.Equal(ts.Truncate(24*time.Hour)))
+	})
+
+	t.Run("refreshing clock advances and never runs ahead", func(t *testing.T) {
+		t.Parallel()
+		c := NewClock(ctx, time.Millisecond)
+		defer c.Close()
+		ts := c.GetUTCNow()
+
+		require.Eventually(t, func() bool {
+			got := c.GetUTCNow()
+			return got.After(ts) && !got.After(time.Now())
+		}, 10*time.Second, time.Millisecond, "clock must refresh to a time no later than the real clock")
+
+		c.SetInterval(100 * time.Millisecond)
+		require.Equal(t, 100*time.Millisecond, c.Interval())
+	})
+
+	t.Run("stop by context cancel, Close, or both", func(t *testing.T) {
+		t.Parallel()
+		ctx2, cancel2 := context.WithCancel(ctx)
+		c1 := NewClock(ctx2, time.Second)
+		cancel2()
+		c1.Close()
+
+		c2 := NewClock(ctx, time.Second)
 		c2.Close()
-	}
+		c2.Close()
+	})
 }
 
 // Benchmark_time measures the baseline cost of time.Now, time.Now().UTC, time.Unix, time.Unix(...).UTC, and
@@ -392,7 +370,12 @@ func BenchmarkClock(b *testing.B) {
 // TestSetupClock verifies that SetInternalClock accepts a 100ms interval and panics for a 1ns interval, and that
 // NewClock and ClockT.SetInterval panic with "interval must greater than 1us" for sub-microsecond intervals.
 func TestSetupClock(t *testing.T) {
+	// The package-level Clock is shared by the whole test binary, so restore its interval afterwards.
+	previous := Clock.Interval()
+	t.Cleanup(func() { SetInternalClock(previous) })
+
 	SetInternalClock(100 * time.Millisecond)
+	require.Equal(t, 100*time.Millisecond, Clock.Interval())
 
 	// case: invalid interval
 	{

@@ -139,7 +139,13 @@ var (
 // ClockT high performance ClockT with lazy refreshing
 type ClockT struct {
 	sync.RWMutex
+	// stopChan is closed exactly once by Close to ask the refresh loop to exit.
 	stopChan chan struct{}
+	stopOnce sync.Once
+	// doneChan is closed by the refresh loop when it exits, for any reason.
+	doneChan chan struct{}
+	// wakeChan carries at most one pending SetInterval notification to the refresh loop.
+	wakeChan chan struct{}
 
 	intervalNanos int64
 	now           int64
@@ -156,34 +162,51 @@ func NewClock(ctx context.Context, refreshInterval time.Duration) *ClockT {
 		intervalNanos: int64(refreshInterval),
 		now:           UTCNow().UnixNano(),
 		stopChan:      make(chan struct{}),
+		doneChan:      make(chan struct{}),
+		wakeChan:      make(chan struct{}, 1),
 	}
 	go c.runRefresh(ctx)
 
 	return c
 }
 
-// Close stop Clock update
+// Close stops the clock's refresh loop and waits until the loop has exited, so the cached time never changes
+// after Close returns. It does not wait for the current refresh interval to elapse, and it is safe to call
+// more than once and after the context passed to NewClock was canceled. It takes no parameters and returns
+// nothing; on a zero-value ClockT, which has no refresh loop, it does nothing.
 func (c *ClockT) Close() {
-	c.stopChan <- struct{}{}
+	if c.stopChan == nil {
+		return
+	}
+
+	c.stopOnce.Do(func() { close(c.stopChan) })
+	<-c.doneChan
 }
 
-// runRefresh runs the background refresh loop of ClockT until Close signals stopChan or ctx is canceled.
-// Each iteration sleeps for the current refresh interval, which is re-read atomically so SetInterval takes effect
-// on the next iteration, and then atomically stores the current time in Unix nanoseconds into c.now.
-// Stop and cancellation are checked only between sleeps, so shutdown is observed after the current sleep ends.
+// runRefresh runs the background refresh loop of ClockT until Close closes stopChan or ctx is canceled, and
+// closes doneChan when it exits. It waits for the current refresh interval on a timer and then atomically
+// stores the current time in Unix nanoseconds into c.now. A SetInterval call wakes the loop at once, which
+// refreshes the time immediately and restarts the wait with the new interval, so a shortened interval never
+// waits out the old one. Stop and cancellation interrupt the wait, so shutdown is observed promptly.
 // It returns nothing.
 func (c *ClockT) runRefresh(ctx context.Context) {
+	defer close(c.doneChan)
+
+	timer := time.NewTimer(c.Interval())
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-c.stopChan:
 			return
 		case <-ctx.Done():
 			return
-		default:
-			time.Sleep(time.Duration(atomic.LoadInt64(&c.intervalNanos)))
+		case <-c.wakeChan:
+		case <-timer.C:
 		}
 
 		atomic.StoreInt64(&c.now, time.Now().UnixNano())
+		timer.Reset(c.Interval())
 	}
 }
 
@@ -203,13 +226,19 @@ func (c *ClockT) GetTimeInRFC3339Nano() string {
 }
 
 // SetInterval updates the refresh interval used by ClockT.
-// It takes interval as the update period and does not return a value.
+// It takes interval as the update period and does not return a value. The running refresh loop is woken at
+// once, so the cached time is refreshed immediately and the new interval applies without waiting for the
+// previous one to elapse. It panics when interval is shorter than one microsecond.
 func (c *ClockT) SetInterval(interval time.Duration) {
 	if interval < time.Microsecond {
 		panic("interval must greater than 1us")
 	}
 
 	atomic.StoreInt64(&c.intervalNanos, int64(interval))
+	select {
+	case c.wakeChan <- struct{}{}:
+	default: // a wake-up is already pending, or the clock has no refresh loop
+	}
 }
 
 // GetTimeInHex return current time in hex
