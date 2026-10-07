@@ -14,6 +14,9 @@ import (
 // Behavioral Tests – Token refill accuracy
 // ============================================================
 
+// TestRateLimiterRefillAccuracy verifies that limiters starting with zero tokens refill at the configured rate:
+// about 6 tokens (within 1) after 2s at 3/s, about 100 (within 15) after 1s at 100/s, and about 50000
+// (within 5000) after 1s at 50000/s.
 func TestRateLimiterRefillAccuracy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -86,6 +89,8 @@ func TestRateLimiterMaxCap(t *testing.T) {
 // Behavioral Tests – Sustained throughput over time
 // ============================================================
 
+// TestRateLimiterSustainedThroughput verifies that a limiter at 50 tokens per second that starts empty and is
+// polled with Allow roughly every millisecond for 3 seconds admits about 150 requests, within a 15% tolerance.
 func TestRateLimiterSustainedThroughput(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -119,6 +124,9 @@ func TestRateLimiterSustainedThroughput(t *testing.T) {
 // Behavioral Tests – Burst and recovery
 // ============================================================
 
+// TestRateLimiterBurstAndRecovery verifies that a full limiter (10/s, Max 20) allows exactly 20 back-to-back
+// requests and then rejects, recovers about 10 tokens (within 2) after one second, and lets those recovered
+// tokens be consumed again.
 func TestRateLimiterBurstAndRecovery(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -154,6 +162,9 @@ func TestRateLimiterBurstAndRecovery(t *testing.T) {
 // Behavioral Tests – Concurrent access correctness
 // ============================================================
 
+// TestRateLimiterConcurrentAccess verifies that 50 goroutines each calling Allow 100 times against a limiter
+// pre-filled with 1000 tokens get at least one request admitted and at most 1200 in total, so concurrent
+// consumption never noticeably exceeds the initial tokens plus refill.
 func TestRateLimiterConcurrentAccess(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -193,6 +204,8 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 	require.Greater(t, allowed, int64(0), "some requests should have been allowed")
 }
 
+// TestRateLimiterConcurrentAllowN verifies that goroutines concurrently calling AllowN with mixed sizes
+// (1, 2, 3, 5, 7, and 10) against a limiter pre-filled with 500 tokens consume at most 600 tokens in total.
 func TestRateLimiterConcurrentAllowN(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -232,6 +245,8 @@ func TestRateLimiterConcurrentAllowN(t *testing.T) {
 // Behavioral Tests – Token count never goes negative
 // ============================================================
 
+// TestRateLimiterTokensNeverNegative verifies that repeatedly calling AllowN(3) on a limiter that starts with a
+// single token never drives Len below zero.
 func TestRateLimiterTokensNeverNegative(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -255,6 +270,8 @@ func TestRateLimiterTokensNeverNegative(t *testing.T) {
 // Behavioral Tests – Context cancellation
 // ============================================================
 
+// TestRateLimiterContextCancellation verifies that canceling the context passed to NewRateLimiter stops the
+// limiter: a limiter created with zero tokens still rejects Allow 500ms after the cancellation.
 func TestRateLimiterContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -276,6 +293,8 @@ func TestRateLimiterContextCancellation(t *testing.T) {
 // Behavioral Tests – Rapid creation and destruction
 // ============================================================
 
+// TestRateLimiterRapidCreateDestroy verifies that creating, using, and closing 100 limiters in quick succession
+// succeeds every time without errors or panics.
 func TestRateLimiterRapidCreateDestroy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -293,6 +312,9 @@ func TestRateLimiterRapidCreateDestroy(t *testing.T) {
 // Behavioral Tests – Different NPerSec tiers
 // ============================================================
 
+// TestRateLimiterAllTiers verifies that limiters starting empty accumulate roughly NPerSec tokens after about
+// one second (within 15%, and at least 2) for rates from 1/s to 20000/s, covering both the 100ms refill interval
+// and the 10ms interval used above 10000/s.
 func TestRateLimiterAllTiers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -338,6 +360,8 @@ func TestRateLimiterAllTiers(t *testing.T) {
 // Behavioral Tests – NPerSec equals Max boundary
 // ============================================================
 
+// TestRateLimiterNPerSecEqualsMax verifies the boundary where NPerSec equals Max (5): the limiter starts with 5
+// tokens, rejects the sixth Allow after five succeed, and holds exactly 5 tokens again after about one second.
 func TestRateLimiterNPerSecEqualsMax(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -406,6 +430,8 @@ func TestRateLimiterTier2RefillGranularity(t *testing.T) {
 // Behavioral Tests – Medium rate with continuous consumption
 // ============================================================
 
+// TestRateLimiterMediumRateContinuousConsumption verifies that a limiter at 100 tokens per second that starts
+// empty and is polled with Allow on a 1ms ticker for 2 seconds admits about 200 requests (within 30).
 func TestRateLimiterMediumRateContinuousConsumption(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

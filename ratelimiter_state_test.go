@@ -12,6 +12,10 @@ import (
 // Unit Tests – MemoryRateLimiterStateManager
 // ============================================================
 
+// TestMemoryRateLimiterStateManager verifies the MemoryRateLimiterStateManager lifecycle: the first Setup asks
+// the caller to refill, AddTokens is capped at Max, TryConsume rejects a request larger than Max,
+// SetAvailableTokens overwrites the count, and a second Setup with the same args keeps the existing count
+// (ignoring its initial tokens) and reports that no refill loop is needed.
 func TestMemoryRateLimiterStateManager(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -53,6 +57,8 @@ func TestMemoryRateLimiterStateManager(t *testing.T) {
 	require.Equal(t, 7, tokens)
 }
 
+// TestMemoryStateManagerUninitialized verifies that TryConsume, AddTokens, AvailableTokens, and
+// SetAvailableTokens all return errors when called on a manager that has not been set up.
 func TestMemoryStateManagerUninitialized(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -72,6 +78,8 @@ func TestMemoryStateManagerUninitialized(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMemoryStateManagerCancelledContext verifies that Setup fails with an already canceled context, and that
+// after a successful Setup every other manager method also returns an error when given a canceled context.
 func TestMemoryStateManagerCancelledContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -100,6 +108,8 @@ func TestMemoryStateManagerCancelledContext(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMemoryStateManagerAddTokensEdgeCases verifies that AddTokens adds nothing and returns no error when the
+// manager is already at Max or when the requested amount is zero or negative.
 func TestMemoryStateManagerAddTokensEdgeCases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -124,6 +134,8 @@ func TestMemoryStateManagerAddTokensEdgeCases(t *testing.T) {
 	require.Equal(t, 0, added)
 }
 
+// TestMemoryStateManagerTryConsumeEdgeCases verifies that TryConsume succeeds for zero and negative amounts
+// without changing the available token count.
 func TestMemoryStateManagerTryConsumeEdgeCases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -149,6 +161,8 @@ func TestMemoryStateManagerTryConsumeEdgeCases(t *testing.T) {
 	require.Equal(t, 5, tokens)
 }
 
+// TestMemoryStateManagerSetupMismatchedArgs verifies that calling Setup again with args that differ from those
+// of the first Setup returns an error.
 func TestMemoryStateManagerSetupMismatchedArgs(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -163,6 +177,8 @@ func TestMemoryStateManagerSetupMismatchedArgs(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMemoryStateManagerSetAvailableTokensBounds verifies that SetAvailableTokens rejects -1 and Max+1 while
+// accepting and storing the boundary values 0 and Max.
 func TestMemoryStateManagerSetAvailableTokensBounds(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -194,6 +210,10 @@ func TestMemoryStateManagerSetAvailableTokensBounds(t *testing.T) {
 // Unit Tests – Shared state manager
 // ============================================================
 
+// TestRateLimiterWithSharedStateManager verifies that two limiters sharing one MemoryRateLimiterStateManager
+// draw from a single token pool: the initial 2 tokens run out after one Allow on each limiter, and after about
+// one second the pool holds only 2 tokens again (refill is not doubled), so one request per limiter succeeds
+// and a third is rejected.
 func TestRateLimiterWithSharedStateManager(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -221,6 +241,8 @@ func TestRateLimiterWithSharedStateManager(t *testing.T) {
 	require.False(t, limiterA.Allow())
 }
 
+// TestWithRateLimiterStateManagerNilRejected verifies that NewRateLimiter returns an error when the
+// WithRateLimiterStateManager option is given a nil manager.
 func TestWithRateLimiterStateManagerNilRejected(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

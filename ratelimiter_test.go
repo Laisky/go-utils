@@ -14,6 +14,10 @@ import (
 // Unit Tests – constructor & argument validation
 // ============================================================
 
+// TestRateLimiter verifies NewRateLimiter argument validation (zero or negative NPerSec, Max below NPerSec, and
+// a nil context are rejected), that limiters can be stopped via Close or context cancellation, and that Allow and
+// AllowN admit the initial 10 tokens, reject further requests, and admit requests again after about one second
+// of refill.
 func TestRateLimiter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -109,6 +113,8 @@ func TestRateLimiter(t *testing.T) {
 // Unit Tests – AllowN edge cases
 // ============================================================
 
+// TestRateLimiterAllowNEdgeCases verifies that AllowN always succeeds for zero or negative n, always fails for n
+// greater than Max, can consume exactly Max tokens, and leaves the balance unchanged when it rejects a request.
 func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -168,6 +174,8 @@ func TestRateLimiterAllowNEdgeCases(t *testing.T) {
 // Unit Tests – WithAvailableTokens option
 // ============================================================
 
+// TestWithAvailableTokensOption verifies that WithAvailableTokens sets the initial token count (including zero,
+// which makes Allow fail immediately) and that a negative count or a count above Max makes NewRateLimiter fail.
 func TestWithAvailableTokensOption(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -216,6 +224,9 @@ func TestWithAvailableTokensOption(t *testing.T) {
 // Unit Tests – State lifecycle (export / restore / clone)
 // ============================================================
 
+// TestRateLimiterStateLifecycle verifies that ExportState reports the tokens remaining after consumption, that
+// RestoreState overwrites the token count when the args match, and that RestoreState rejects a state whose args
+// differ from the limiter's.
 func TestRateLimiterStateLifecycle(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -246,6 +257,8 @@ func TestRateLimiterStateLifecycle(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestRateLimiterRestoreStateBounds verifies that RestoreState rejects a negative token count and a count above
+// Max even when the state's args match the limiter's.
 func TestRateLimiterRestoreStateBounds(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -269,6 +282,8 @@ func TestRateLimiterRestoreStateBounds(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestRateLimiterClone verifies that Clone copies the args and current token count into an independent limiter,
+// so consuming a token on the clone does not change the original's balance.
 func TestRateLimiterClone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -295,6 +310,9 @@ func TestRateLimiterClone(t *testing.T) {
 	require.Equal(t, 1, clone.Len())
 }
 
+// TestNewRateLimiterWithStateOption verifies that the WithRateLimiterState option seeds a new limiter with the
+// saved token count, that WithAvailableTokens above Max is rejected, and that a state whose args differ from the
+// limiter's args makes NewRateLimiter fail.
 func TestNewRateLimiterWithStateOption(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -329,6 +347,10 @@ func TestNewRateLimiterWithStateOption(t *testing.T) {
 // Benchmarks
 // ============================================================
 
+// BenchmarkRateLimiter measures the per-call cost of Allow under b.RunParallel for this package's RateLimiter and
+// for golang.org/x/time/rate.Limiter, both configured for 10 tokens per second with a burst of 100. The recorded
+// output below is from an earlier run.
+//
 /*
 goos: linux
 goarch: amd64
@@ -364,6 +386,8 @@ func BenchmarkRateLimiter(b *testing.B) {
 	})
 }
 
+// ExampleRateLimiter demonstrates creating a RateLimiter that refills 10 tokens per second up to 100 and using
+// Allow to drop messages read from a channel whenever no token is available.
 func ExampleRateLimiter() {
 	ctx := context.Background()
 	RateLimiter, err := NewRateLimiter(ctx, RateLimiterArgs{
