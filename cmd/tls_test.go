@@ -55,10 +55,12 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 	prikey, err := gcrypto.Pem2Prikey(prikeyPem)
 	require.NoError(t, err)
 
+	// Bind an ephemeral port up front so parallel runs never collide.
+	listenAddr := make(chan string, 1)
 	readyCtx, readyCancel := context.WithCancel(ctx)
 	go func() {
 		t := gutils.NewGoroutineTest(t, cancel)
-		listener, err := tls.Listen("tcp", "127.0.0.1:39481", &tls.Config{
+		listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
 			Certificates: []tls.Certificate{
 				{
 					Certificate: [][]byte{certDer},
@@ -73,6 +75,7 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 			listener.Close()
 		}()
 
+		listenAddr <- listener.Addr().String()
 		readyCancel()
 		for {
 			conn, err := listener.Accept()
@@ -98,6 +101,6 @@ func Test_showRemoteX509CertInfo(t *testing.T) {
 	}()
 
 	<-readyCtx.Done()
-	err = showRemoteX509CertInfo(context.Background(), "127.0.0.1:39481")
+	err = showRemoteX509CertInfo(context.Background(), <-listenAddr)
 	require.NoError(t, err)
 }

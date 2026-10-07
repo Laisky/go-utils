@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"context"
 	"crypto/tls"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gutils "github.com/Laisky/go-utils/v6"
 	gcrypto "github.com/Laisky/go-utils/v6/crypto"
 )
 
@@ -28,8 +27,10 @@ func Test_tlsInfoCMD(t *testing.T) {
 	prikey, err := gcrypto.Pem2Prikey(prikeypem)
 	require.NoError(t, err)
 
-	// cert, err := gcrypto.Der2Cert(certder)
-	// require.NoError(t, err)
+	// tlsInfoCMDArgs is package state shared by every subtest; restore it so
+	// repeated runs (-count>1) start from a clean command configuration.
+	originalArgs := tlsInfoCMDArgs
+	t.Cleanup(func() { tlsInfoCMDArgs = originalArgs })
 
 	t.Run("der cert in file", func(t *testing.T) {
 		dir, err := os.MkdirTemp("", "certinfo")
@@ -40,6 +41,7 @@ func Test_tlsInfoCMD(t *testing.T) {
 		require.NoError(t, os.WriteFile(certpath, certder, 0600))
 
 		tlsInfoCMDArgs.filepath = certpath
+		tlsInfoCMDArgs.remote = ""
 		err = tlsInfoCMD.RunE(nil, nil)
 		require.NoError(t, err)
 	})
@@ -53,6 +55,7 @@ func Test_tlsInfoCMD(t *testing.T) {
 		require.NoError(t, os.WriteFile(certpath, certPem, 0600))
 
 		tlsInfoCMDArgs.filepath = certpath
+		tlsInfoCMDArgs.remote = ""
 		err = tlsInfoCMD.RunE(nil, nil)
 		require.NoError(t, err)
 	})
@@ -75,22 +78,21 @@ func Test_tlsInfoCMD(t *testing.T) {
 			},
 		}
 
+		// Bind an ephemeral port up front so parallel runs never collide.
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
 		server := &http.Server{
-			Addr:      "127.0.0.1:29381",
-			TLSConfig: tlscfg,
+			TLSConfig:         tlscfg,
+			ReadHeaderTimeout: 10 * time.Second,
 		}
 		defer server.Close()
 
 		go func() {
-			_ = server.ListenAndServeTLS("", "")
+			_ = server.ServeTLS(listener, "", "")
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		gutils.WaitTCPOpen(ctx, "127.0.0.1", 29381)
-
 		tlsInfoCMDArgs.filepath = ""
-		tlsInfoCMDArgs.remote = "127.0.0.1:29381"
+		tlsInfoCMDArgs.remote = listener.Addr().String()
 		err = tlsInfoCMD.RunE(nil, nil)
 		require.NoError(t, err)
 	})
