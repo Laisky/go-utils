@@ -8,7 +8,6 @@ import (
 
 	"github.com/Laisky/golang-fifo/sieve"
 
-	"github.com/Laisky/go-utils/v6/algorithm"
 	"github.com/Laisky/go-utils/v6/log"
 )
 
@@ -17,19 +16,22 @@ func NewLruCache[K comparable, V any](size int, ttl time.Duration) *sieve.Sieve[
 	return sieve.New[K, V](size, ttl)
 }
 
+// ttlCacheCleanInterval is how often TtlCache sweeps expired entries.
+const ttlCacheCleanInterval = time.Second
+
 // TtlCache cache with ttl
 type TtlCache[T any] struct {
 	done   chan struct{}
 	closed atomic.Bool
-	sk     algorithm.SkipList[int64]
-	kv     sync.Map
+	// kv maps keys to *expCacheItem; entries are compared by pointer so an
+	// expired item is only ever removed if it is still the stored one.
+	kv sync.Map
 }
 
 // NewTtlCache new cache with ttl
 func NewTtlCache[T any]() *TtlCache[T] {
 	c := &TtlCache[T]{
 		done: make(chan struct{}),
-		sk:   algorithm.NewSkiplist[int64](),
 	}
 
 	go c.clean()
@@ -47,35 +49,28 @@ func (c *TtlCache[T]) Close() {
 	}
 }
 
-// clean runs the background expiration loop of TtlCache until Close closes c.done.
-// It repeatedly inspects the earliest expiration key in the skip list, sleeps for up to one second when the list
-// is empty or that key has not expired yet, and otherwise removes the expired key from the skip-list index only;
-// the matching value in kv is dropped lazily when Get observes that it has expired. It returns nothing.
+// clean runs the background expiration loop of TtlCache until Close closes
+// c.done. Every ttlCacheCleanInterval it removes each expired entry from kv,
+// using CompareAndDelete so a fresh value stored concurrently under the same
+// key is never dropped. It returns nothing.
 func (c *TtlCache[T]) clean() {
-	now := time.Now()
+	ticker := time.NewTicker(ttlCacheCleanInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-c.done:
 			return
-		default:
+		case <-ticker.C:
 		}
 
-		if c.sk.Len() == 0 {
-			time.Sleep(time.Second)
-			now = time.Now()
-			continue
-		}
-
-		ele := c.sk.Front()
-
-		if ele.Key() > now.UnixNano() {
-			time.Sleep(min(time.Duration(ele.Key()-now.UnixNano()), time.Second))
-			now = time.Now()
-			continue
-		}
-
-		c.sk.Remove(ele.Key())
+		now := time.Now()
+		c.kv.Range(func(key, item any) bool {
+			if item.(*expCacheItem).exp.Before(now) { //nolint:forcetypeassert // kv only holds *expCacheItem
+				c.kv.CompareAndDelete(key, item)
+			}
+			return true
+		})
 	}
 }
 
@@ -87,9 +82,9 @@ func (c *TtlCache[T]) Set(key string, val T, ttl time.Duration) {
 	default:
 	}
 
-	exp := time.Now().Add(ttl)
-	c.sk.Set(exp.UnixNano(), key)
-	c.kv.Store(key, expCacheItem{exp, val})
+	// time.Now keeps the monotonic clock reading, so wall-clock jumps cannot
+	// expire entries early or late.
+	c.kv.Store(key, &expCacheItem{exp: time.Now().Add(ttl), data: val})
 }
 
 // Get get data
@@ -105,14 +100,15 @@ func (c *TtlCache[T]) Get(key string) (val T, ok bool) {
 		return
 	}
 
-	exp := v.(expCacheItem).exp //nolint:forcetypeassert
-	if exp.Before(time.Now()) {
-		c.kv.Delete(key)
-		c.sk.Remove(exp.UnixNano())
-		return
+	item := v.(*expCacheItem) //nolint:forcetypeassert // kv only holds *expCacheItem
+	if item.exp.Before(time.Now()) {
+		// Only remove the exact expired item; a concurrent Set may already
+		// have replaced it with a fresh value.
+		c.kv.CompareAndDelete(key, v)
+		return val, false
 	}
 
-	return v.(expCacheItem).data.(T), true //nolint:forcetypeassert
+	return item.data.(T), true //nolint:forcetypeassert // Set only stores T
 }
 
 // Delete remove key
@@ -123,11 +119,7 @@ func (c *TtlCache[T]) Delete(key string) {
 	default:
 	}
 
-	vi, ok := c.kv.LoadAndDelete(key)
-
-	if ok {
-		c.sk.Remove(vi.(expCacheItem).exp.UnixNano()) //nolint:forcetypeassert
-	}
+	c.kv.Delete(key)
 }
 
 // SingleItemExpCache single item with expires
@@ -149,7 +141,9 @@ func NewSingleItemExpCache[T any](ttl time.Duration) *SingleItemExpCache[T] {
 func (c *SingleItemExpCache[T]) Set(data T) {
 	c.mu.Lock()
 	c.data = data
-	c.expiredAt = time.Now().UTC().Add(c.ttl)
+	// time.Now keeps the monotonic reading; UTC() would strip it and make
+	// expiry follow wall-clock jumps.
+	c.expiredAt = time.Now().Add(c.ttl)
 	c.mu.Unlock()
 }
 
@@ -160,7 +154,7 @@ func (c *SingleItemExpCache[T]) Get() (data T, ok bool) {
 	c.mu.RLock()
 	data = c.data
 
-	ok = time.Now().UTC().Before(c.expiredAt)
+	ok = time.Now().Before(c.expiredAt)
 	c.mu.RUnlock()
 
 	return
@@ -238,7 +232,7 @@ func (c *ExpCache[T]) runClean(ctx context.Context) {
 func (c *ExpCache[T]) Store(key string, val T) {
 	c.data.Store(key, &expCacheItem{
 		data: val,
-		exp:  time.Now().UTC().Add(c.ttl),
+		exp:  time.Now().Add(c.ttl), // monotonic; see SingleItemExpCache.Set
 	})
 }
 
@@ -250,7 +244,7 @@ func (c *ExpCache[T]) Delete(key string) {
 // LoadAndDelete load and delete val from cache
 func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 	//nolint:forcetypeassert
-	if datai, ok := c.data.LoadAndDelete(key); ok && time.Now().UTC().Before(datai.(*expCacheItem).exp) {
+	if datai, ok := c.data.LoadAndDelete(key); ok && time.Now().Before(datai.(*expCacheItem).exp) {
 		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	}
 
@@ -263,7 +257,7 @@ func (c *ExpCache[T]) LoadAndDelete(key string) (data T, ok bool) {
 // so a fresh value stored concurrently under the same key is kept.
 func (c *ExpCache[T]) Load(key string) (data T, ok bool) {
 	//nolint:forcetypeassert
-	if datai, ok := c.data.Load(key); ok && time.Now().UTC().Before(datai.(*expCacheItem).exp) {
+	if datai, ok := c.data.Load(key); ok && time.Now().Before(datai.(*expCacheItem).exp) {
 		return datai.(*expCacheItem).data.(T), ok //nolint:forcetypeassert
 	} else if ok {
 		// delete expired, unless a concurrent Store already replaced it
