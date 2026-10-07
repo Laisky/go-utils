@@ -5,24 +5,18 @@ import (
 	"context"
 	"crypto"
 	"crypto/sha256"
-	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/hex"
 	"io"
-	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
+	"github.com/emmansun/gmsm/smx509"
 
-	gutils "github.com/Laisky/go-utils/v6"
 	glog "github.com/Laisky/go-utils/v6/log"
 )
 
@@ -32,21 +26,51 @@ import (
 type Tongsuo struct {
 	exePath         string
 	serialGenerator *DefaultX509CertSerialNumGenerator
+	// validityCaps caches whether both `x509` and `req` accept
+	// -not_before/-not_after; it is probed lazily on first issuance.
+	validityCaps tongsuoValidityCaps
+	// inheritedEnv names extra parent environment variables passed to
+	// subprocesses, configured by WithTongsuoInheritedEnv.
+	inheritedEnv []string
 }
 
-// NewTongsuo new tongsuo wrapper
+// NewTongsuo creates a wrapper around the tongsuo executable at exePath and
+// returns it, or an error when the binary cannot be run or is not Tongsuo.
 //
-// Notice, only support
-//   - github.com/tongsuo-project/tongsuo-go-sdk v0.0.0-20231225081335-82a881b9b3d3
-//   - https://github.com/Tongsuo-Project/Tongsuo 8.4.0-pre3
+// # Supported versions
 //
-// #Args
+//   - Tongsuo 8.5.x (OpenSSL 3.5 based) is tested. Its `x509`/`req` commands
+//     accept -not_before/-not_after, so certificate validity is encoded exactly.
+//   - Tongsuo 8.4.x (OpenSSL 3.0 based, e.g. 8.4.0-pre3) lacks those options.
+//     Validity then falls back to whole days computed conservatively; requests
+//     that cannot be represented without extending NotAfter, or that start in
+//     the future, fail before issuance. Support is probed once, lazily, on the
+//     first certificate issuance (`x509 -help` and `req -help`).
+//
+// Every issued certificate is parsed and checked against the request before
+// it is returned, so toolchain differences fail closed.
+//
+// # Environment
+//
+// Subprocesses receive only a minimal environment: the dynamic loader
+// variables listed in tongsuoInheritedEnvAllowlist (plus PATH on Windows), any
+// names allowed with WithTongsuoInheritedEnv, and the explicit variables used
+// internally to pass secrets. OPENSSL_CONF and all other parent variables are
+// not inherited.
+//
+// # Args
 //   - exePath: path of tongsuo executable binary
-func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
+//   - opts: optional settings such as WithTongsuoInheritedEnv
+func NewTongsuo(exePath string, opts ...TongsuoOption) (ins *Tongsuo, err error) {
+	ins = &Tongsuo{exePath: exePath}
+	for _, opt := range opts {
+		if err = opt(ins); err != nil {
+			return nil, errors.Wrap(err, "apply tongsuo option")
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-
-	ins = &Tongsuo{exePath: exePath}
 
 	// check tongsuo executable binary
 	if out, err := ins.runCMD(ctx, []string{"version"}, nil); err != nil {
@@ -61,345 +85,6 @@ func NewTongsuo(exePath string) (ins *Tongsuo, err error) {
 	}
 
 	return ins, nil
-}
-
-func (t *Tongsuo) runCMD(ctx context.Context, args []string, stdin []byte) (
-	output []byte, err error) {
-	return t.runCMDWithEnv(ctx, args, stdin, nil)
-}
-
-// runCMDWithEnv runs a tongsuo command with optional extra environment variables.
-//
-// Use extraEnv to pass sensitive values (keys, passwords) via process environment
-// instead of command-line arguments, which would be visible in the process list.
-func (t *Tongsuo) runCMDWithEnv(ctx context.Context, args []string, stdin []byte, extraEnv []string) (
-	output []byte, err error) {
-	if args, err = gutils.SanitizeCMDArgs(args); err != nil {
-		return nil, errors.Wrap(err, "sanitize cmd args")
-	}
-
-	//nolint: gosec
-	// G204: Subprocess launched with a potential tainted input or cmd arguments
-	cmd := exec.CommandContext(ctx, t.exePath, args...)
-	if len(extraEnv) != 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
-	if len(stdin) != 0 {
-		var stdinBuf bytes.Buffer
-		stdinBuf.Write(stdin)
-		cmd.Stdin = &stdinBuf
-	}
-
-	if output, err = cmd.CombinedOutput(); err != nil {
-		return nil, errors.Wrapf(err, "run cmd failed, got %s", output)
-	}
-
-	return output, nil
-}
-
-// OpensslCertificateOutput output of `openssl x509 -inform DER -text`
-type OpensslCertificateOutput struct {
-	// Raw is the raw output of `openssl x509 -inform DER -text`
-	Raw                                          []byte
-	SerialNumber                                 *big.Int
-	NotBefore, NotAfter                          time.Time
-	IsCa                                         bool
-	Subject                                      pkix.Name
-	Policies                                     []asn1.ObjectIdentifier
-	PublicKeyAlgorithm                           x509.PublicKeyAlgorithm
-	SubjectKeyIdentifier, AuthorityKeyIdentifier []byte
-}
-
-var regexpCertInfo = struct {
-	serialNo,
-	notBefore, notAfter,
-	isCa,
-	subjectCN,
-	pubkeyAlgo,
-	subjectKeyIdentifier, AuthorityKeyIdentifier,
-	keyUsages, extKeyUsages,
-	policies *regexp.Regexp
-}{
-	serialNo:               regexp.MustCompile(`\bSerial Number: {0,}\n? {0,}([\w:]+)\b`),
-	notBefore:              regexp.MustCompile(`\bNot Before: {0,}\n? {0,}(.+)\b`),
-	notAfter:               regexp.MustCompile(`\bNot After : {0,}\n? {0,}(.+)\b`),
-	isCa:                   regexp.MustCompile(`\bCA: {0,}\n? {0,}TRUE\b`),
-	subjectCN:              regexp.MustCompile(`\bSubject:.*CN = (?P<CN>[^,\n]+)\b`),
-	pubkeyAlgo:             regexp.MustCompile(`\bPublic Key Algorithm: {0,}\n? {0,}([\w\-]+)\b`),
-	policies:               regexp.MustCompile(`\bPolicy: {0,}\n? {0,}([\d\.]+)\b`),
-	subjectKeyIdentifier:   regexp.MustCompile(`\bX509v3 Subject Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
-	AuthorityKeyIdentifier: regexp.MustCompile(`\bX509v3 Authority Key Identifier: {0,}\n? {0,}([\w:]+)\b`),
-	keyUsages:              regexp.MustCompile(`\bX509v3 Key Usage: *(?:critical)?\n? *([\w, -]+)\b`),
-	extKeyUsages:           regexp.MustCompile(`\bX509v3 Extended Key Usage: *(?:critical)?\n? *([\w\d \-,\.]+)\b`),
-}
-
-// ShowCertInfo show cert info
-//
-// nolint:gocognit,lll,maintidx // parse cert info part by part LGTM
-//
-// # Raw
-//
-//					Version: 3 (0x2)
-//					Serial Number: 17108345756590001 (0x3cc7f327841fb1)
-//					Serial Number: 51:f5:46:8b:d6:ff:ec:f2:33:e6:38:68:46:4e:9b:19:56:f3:6e:8a
-//					Signature Algorithm: SM2-with-SM3
-//					Issuer: CN = test-common-name, O = test org
-//					Validity
-//						Not Before: Mar 19 07:49:35 2024 GMT
-//						Not After : Mar 25 07:49:35 2024 GMT
-//					Subject: CN = test-common-name, O = test org
-//					Subject Public Key Info:
-//						Public Key Algorithm: id-ecPublicKey
-//							Public-Key: (256 bit)
-//							pub:
-//								04:31:66:dd:ef:4e:31:29:fd:4b:b1:a1:66:0b:c9:
-//								81:9f:6f:a4:e1:bd:44:24:6a:a8:93:62:0b:85:be:
-//								0e:56:14:76:ab:56:0d:7c:cc:26:77:47:d0:fe:77:
-//								38:31:ab:3d:b8:01:60:96:ae:07:72:e4:3d:df:4c:
-//								9d:02:98:9f:d3
-//							ASN1 OID: SM2
-//					X509v3 extensions:
-//						X509v3 Basic Constraints: critical
-//							CA:TRUE
-//		         X509v3 Key Usage: critical
-//		             Digital Signature, Non Repudiation, Key Encipherment, Data Encipherment, Key Agreement, Certificate Sign, CRL Sign, Encipher Only, Decipher Only
-//	          X509v3 Extended Key Usage:
-//	              Any Extended Key Usage, TLS Web Server Authentication, TLS Web Client Authentication, Code Signing, E-mail Protection, IPSec End System, IPSec Tunnel, IPSec User, Time Stamping, OCSP Signing, Microsoft Server Gated Crypto, Netscape Server Gated Crypto, Microsoft Commercial Code Signing, 1.3.6.1.4.1.311.61.1.1
-//					X509v3 Subject Key Identifier:
-//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//					X509v3 Authority Key Identifier:
-//						AF:9A:33:37:3F:DE:3E:DD:77:61:A1:C8:3F:D5:0C:39:F0:D6:A6:7B
-//					X509v3 Certificate Policies:
-//						Policy: 1.3.6.1.4.1.59936.1.1.3
-//			Signature Algorithm: SM2-with-SM3
-//			Signature Value:
-//				30:45:02:21:00:a8:a6:db:d5:8c:b4:d2:58:ff:1e:1f:9d:c1:
-//				e7:0b:eb:ba:4b:50:99:2c:c4:b9:3b:50:9d:6f:5f:1f:32:40:
-//				17:02:20:38:91:fb:16:41:80:52:d8:28:f8:ee:34:0f:f9:ab:
-//				c5:c8:1a:1f:31:d9:05:13:04:12:4d:0c:3d:fd:52:fe:51
-//		-----BEGIN CERTIFICATE-----
-//		MIIByzCCAXGgAwIBAgIHPMfzJ4QfsTAKBggqgRzPVQGDdTAuMRkwFwYDVQQDDBB0
-//		ZXN0LWNvbW1vbi1uYW1lMREwDwYDVQQKDAh0ZXN0IG9yZzAeFw0yNDAzMTkwNzQ5
-//		MzVaFw0yNDAzMjUwNzQ5MzVaMC4xGTAXBgNVBAMMEHRlc3QtY29tbW9uLW5hbWUx
-//		ETAPBgNVBAoMCHRlc3Qgb3JnMFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAEMWbd
-//		704xKf1LsaFmC8mBn2+k4b1EJGqok2ILhb4OVhR2q1YNfMwmd0fQ/nc4Mas9uAFg
-//		lq4HcuQ930ydApif06N6MHgwDwYDVR0TAQH/BAUwAwEB/zALBgNVHQ8EBAMCAQYw
-//		HQYDVR0OBBYEFK+aMzc/3j7dd2GhyD/VDDnw1qZ7MB8GA1UdIwQYMBaAFK+aMzc/
-//		3j7dd2GhyD/VDDnw1qZ7MBgGA1UdIAQRMA8wDQYLKwYBBAGD1CABAQMwCgYIKoEc
-//		z1UBg3UDSAAwRQIhAKim29WMtNJY/x4fncHnC+u6S1CZLMS5O1Cdb18fMkAXAiA4
-//		kfsWQYBS2Cj47jQP+avFyBofMdkFEwQSTQw9/VL+UQ==
-//		-----END CERTIFICATE-----
-func (t *Tongsuo) ShowCertInfo(ctx context.Context,
-	certDer []byte) (
-	certinfo string, cert *x509.Certificate, err error) {
-	output, err := t.runCMD(ctx,
-		[]string{"x509", "-inform", "DER", "-text"},
-		certDer)
-	if err != nil {
-		return "", nil, errors.Wrap(err, "run cmd to show cert info")
-	}
-	output = bytes.ReplaceAll(output, []byte{'\t'}, []byte(" "))
-
-	// fmt.Println(string(output)) // FIXME
-
-	cert = new(x509.Certificate)
-	cert.Raw = certDer
-
-	// parse serial no
-	var ok bool
-	if matched := regexpCertInfo.serialNo.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf(
-			"cert info should contain serial number, got %q", output)
-	} else {
-		sno := string(matched[0][1])
-
-		if strings.Contains(sno, ":") {
-			cert.SerialNumber, ok = big.NewInt(0).SetString(strings.ReplaceAll(sno, ":", ""), 16)
-			if !ok {
-				return "", nil, errors.Errorf("cannot parse serial number as hex %q", sno)
-			}
-		} else {
-			cert.SerialNumber, ok = big.NewInt(0).SetString(sno, 10)
-			if !ok {
-				return "", nil, errors.Errorf("cannot parse serial number as decimal %q", sno)
-			}
-		}
-	}
-
-	// parse not before and not after
-	if matched := regexpCertInfo.notBefore.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain not before")
-	} else {
-		cert.NotBefore, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse not before")
-		}
-	}
-	if matched := regexpCertInfo.notAfter.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain not after")
-	} else {
-		cert.NotAfter, err = time.Parse("Jan 2 15:04:05 2006 MST", string(matched[0][1]))
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse not after")
-		}
-	}
-
-	// parse isCA
-	if regexpCertInfo.isCa.Match(output) {
-		cert.IsCA = true
-	}
-
-	// parse subject's common name
-	if matched := regexpCertInfo.subjectCN.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain common name")
-	} else {
-		cert.Subject.CommonName = string(matched[0][1])
-	}
-
-	// parse policies
-	if matched := regexpCertInfo.policies.
-		FindAllSubmatch(output, -1); len(matched) != 0 {
-		for _, m := range matched {
-			if len(m) != 2 {
-				return "", nil, errors.Errorf("invalid policy")
-			}
-
-			oid, err := OidFromString(string(m[1]))
-			if err != nil {
-				return "", nil, errors.Wrap(err, "parse policy")
-			}
-
-			cert.Policies = append(cert.Policies, oid)
-		}
-	}
-
-	// parse pubkey algorithm
-	if matched := regexpCertInfo.pubkeyAlgo.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain pubkey algo")
-	} else {
-		switch string(matched[0][1]) {
-		case "id-ecPublicKey":
-			cert.PublicKeyAlgorithm = x509.ECDSA
-		case "rsaEncryption":
-			cert.PublicKeyAlgorithm = x509.RSA
-		case "ED25519":
-			cert.PublicKeyAlgorithm = x509.Ed25519
-		default:
-			glog.Shared.Warn("unsupported pubkey algo", zap.ByteString("algo", matched[0][1]))
-		}
-	}
-
-	// parse SubjectKeyIdentifier
-	if matched := regexpCertInfo.subjectKeyIdentifier.
-		FindAllSubmatch(output, 1); len(matched) != 1 || len(matched[0]) != 2 {
-		return "", nil, errors.Errorf("cert info should contain subject key identifier")
-	} else {
-		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
-		cert.SubjectKeyId, err = hex.DecodeString(val)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse subject key identifier")
-		}
-	}
-
-	// parse AuthorityKeyIdentifier, optional
-	if matched := regexpCertInfo.AuthorityKeyIdentifier.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		val := strings.ReplaceAll(string(matched[0][1]), ":", "")
-		cert.AuthorityKeyId, err = hex.DecodeString(val)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "parse authority key identifier")
-		}
-	}
-
-	// parse key usages
-	if matched := regexpCertInfo.keyUsages.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		usages := strings.Split(string(matched[0][1]), ",")
-		for _, usage := range usages {
-			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
-			switch usage {
-			case "digitalsignature":
-				cert.KeyUsage |= x509.KeyUsageDigitalSignature
-			case "nonrepudiation":
-				cert.KeyUsage |= x509.KeyUsageContentCommitment
-			case "keyencipherment":
-				cert.KeyUsage |= x509.KeyUsageKeyEncipherment
-			case "dataencipherment":
-				cert.KeyUsage |= x509.KeyUsageDataEncipherment
-			case "keyagreement":
-				cert.KeyUsage |= x509.KeyUsageKeyAgreement
-			case "certificatesign":
-				cert.KeyUsage |= x509.KeyUsageCertSign
-			case "crlsign":
-				cert.KeyUsage |= x509.KeyUsageCRLSign
-			case "encipheronly":
-				cert.KeyUsage |= x509.KeyUsageEncipherOnly
-			case "decipheronly":
-				cert.KeyUsage |= x509.KeyUsageDecipherOnly
-			default:
-				glog.Shared.Warn("unsupported key usage", zap.String("usage", usage))
-			}
-		}
-	}
-
-	// parse ext key usages
-	if matched := regexpCertInfo.extKeyUsages.
-		FindAllSubmatch(output, 1); len(matched) == 1 && len(matched[0]) == 2 {
-		usages := strings.Split(string(matched[0][1]), ",")
-		for _, usage := range usages {
-			usage = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(usage), " ", ""))
-			switch usage {
-			case "anyextendedkeyusage":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageAny)
-			case "tlswebserverauthentication":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
-			case "tlswebclientauthentication":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
-			case "codesigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageCodeSigning)
-			case "e-mailprotection":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageEmailProtection)
-			case "ipsecendsystem":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECEndSystem)
-			case "ipsectunnel":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECTunnel)
-			case "ipsecuser":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageIPSECUser)
-			case "timestamping":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageTimeStamping)
-			case "ocspsigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning)
-			case "microsoftservergatedcrypto":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftServerGatedCrypto)
-			case "netscapeservergatedcrypto":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageNetscapeServerGatedCrypto)
-			case "microsoftcommercialcodesigning":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftCommercialCodeSigning)
-			case "microsoftkernelcodesigning", "1.3.6.1.4.1.311.61.1.1":
-				cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageMicrosoftKernelCodeSigning)
-			default:
-				glog.Shared.Warn("unsupported ext key usage", zap.String("usage", usage))
-			}
-		}
-	}
-
-	return string(output), cert, nil
-}
-
-// ShowCsrInfo show csr info
-func (t *Tongsuo) ShowCsrInfo(ctx context.Context, csrDer []byte) (
-	output string, err error) {
-	out, err := t.runCMD(ctx, []string{"req", "-inform", "DER", "-text"}, csrDer)
-	if err != nil {
-		return "", errors.Wrap(err, "run cmd to show csr info")
-	}
-
-	return string(out), nil
 }
 
 // NewPrikey generate new sm2 private key
@@ -431,8 +116,8 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
 	// Pass password via environment variable instead of command-line argument
 	// to avoid exposing it in the process list (ps aux, /proc/*/cmdline).
 	encryptedPrikeyPem, err = t.runCMDWithEnv(ctx, []string{
-		"ec", "-in", "/dev/stdin", "-out", "/dev/stdout",
-		"-sm4-cbc", "-passout", "env:_TONGSUO_PASSOUT",
+		"ec", tongsuoFlagIn, tongsuoStdinPath, tongsuoFlagOut, "/dev/stdout",
+		tongsuoCipherSM4CBC, "-passout", "env:_TONGSUO_PASSOUT",
 	}, prikeyPem, []string{"_TONGSUO_PASSOUT=" + password})
 	if err != nil {
 		return nil, errors.Wrap(err, "encrypt private key")
@@ -459,7 +144,7 @@ func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (
 	pubkeyPath := filepath.Join(dir, "pubkey")
 	if _, err = t.runCMD(ctx,
 		[]string{
-			"ec", "-in", "/dev/stdin", "-pubout", "-out", pubkeyPath,
+			"ec", tongsuoFlagIn, tongsuoStdinPath, "-pubout", tongsuoFlagOut, pubkeyPath,
 		}, prikeyPem); err != nil {
 		return nil, errors.Wrap(err, "convert private key to public key")
 	}
@@ -471,238 +156,97 @@ func (t *Tongsuo) Prikey2Pubkey(ctx context.Context, prikeyPem []byte) (
 	return pubkeyPem, nil
 }
 
-// NewPrikeyAndCert generate new private key and root ca
-func (t *Tongsuo) NewPrikeyAndCert(ctx context.Context, opts ...X509CertOption) (
-	prikeyPem, certDer []byte, err error) {
-	// new private key
-	if prikeyPem, err = t.NewPrikey(ctx); err != nil {
-		return nil, nil, errors.Wrap(err, "new private key")
-	}
-
-	certDer, err = t.NewX509Cert(ctx, prikeyPem, opts...)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "new root ca")
-	}
-
-	return prikeyPem, certDer, nil
-}
-
-// NewX509Cert generate new x509 cert
+// NewX509CertByCSR signs csrDer with the parent CA certificate and private
+// key through the tongsuo binary and returns the issued certificate DER.
 //
-//	tongsuo req -out rootca.crt -outform PEM -key rootca.key \
-//	    -set_serial 123456 \
-//	    -days 3650 -x509 -new -nodes -utf8 -batch \
-//	    -sm3 \
-//	    -copy_extensions copyall \
-//	    -extensions v3_ca \
-//	    -config rootca.cnf
-func (t *Tongsuo) NewX509Cert(ctx context.Context,
-	prikeyPem []byte, opts ...X509CertOption) (certDer []byte, err error) {
-	opt, tpl, err := x509CertOption2Template(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509CertOption2Template")
-	}
-
-	opensslConf := X509Cert2OpensslConf(tpl)
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	// write conf
-	confPath := filepath.Join(dir, "rootca.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	outCertPemPath := filepath.Join(dir, "rootca.pem")
-
-	// new root ca
-	if _, err = t.runCMD(ctx, []string{
-		"req", "-outform", "PEM", "-out", outCertPemPath,
-		"-key", "/dev/stdin",
-		"-set_serial", tpl.SerialNumber.String(),
-		"-days", strconv.Itoa(1 + int(time.Until(opt.notAfter)/time.Hour/24)),
-		"-x509", "-new", "-nodes", "-utf8", "-batch",
-		"-sm3",
-		"-copy_extensions", "copyall",
-		"-extensions", "v3_ca",
-		"-config", confPath,
-	}, prikeyPem); err != nil {
-		return nil, errors.Wrap(err, "generate new root ca")
-	}
-
-	certPem, err := os.ReadFile(outCertPemPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read root ca")
-	}
-
-	if certDer, err = Pem2Der(certPem); err != nil {
-		return nil, errors.Wrap(err, "Pem2Der")
-	}
-
-	return certDer, nil
-}
-
-// NewX509CSR generate new x509 csr
-func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509CSROption) (csrDer []byte, err error) {
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	tpl, err := X509CsrOption2Template(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509CsrOption2Template")
-	}
-
-	opensslConf := X509Csr2OpensslConf(tpl)
-	confPath := filepath.Join(dir, "csr.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	outCsrDerPath := filepath.Join(dir, "csr.der")
-
-	if _, err = t.runCMD(ctx, []string{
-		"req", "-new", "-outform", "DER", "-out", outCsrDerPath,
-		"-key", "/dev/stdin",
-		"-sm3",
-		"-config", confPath,
-	}, prikeyPem); err != nil {
-		return nil, errors.Wrap(err, "generate new csr")
-	}
-
-	if csrDer, err = os.ReadFile(outCsrDerPath); err != nil {
-		return nil, errors.Wrap(err, "read csr")
-	}
-
-	return csrDer, nil
-}
-
-// NewX509CertByCSR generate new x509 cert by csr
+// The validity window is validated before issuance (zero, past, empty and
+// inverted windows are rejected) and encoded exactly with -not_before and
+// -not_after when the binary supports them, or as conservative whole days
+// otherwise; NotAfter is never extended. The issued certificate is parsed
+// before it is returned and must lie within the requested validity and carry
+// exactly the requested extended key usages (x509.ExtKeyUsageAny stays the
+// single anyExtendedKeyUsage OID); otherwise an error is returned and no
+// certificate bytes are exposed.
 func (t *Tongsuo) NewX509CertByCSR(ctx context.Context,
 	parentCertDer []byte,
 	parentPrikeyPem []byte,
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
-	opt, opensslConf, err := x509SignCsrOptions2OpensslConf(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "X509SignCsrOptions2OpensslConf")
-	}
-
-	digestAlgo := "-sha256"
-	if certinfo, _, err := t.ShowCertInfo(ctx, parentCertDer); err != nil {
-		return nil, errors.Wrap(err, "show parent cert info")
-	} else if strings.Contains(certinfo, "ASN1 OID: SM2") {
-		digestAlgo = "-sm3"
-	}
-
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	confPath := filepath.Join(dir, "csr.cnf")
-	if err = os.WriteFile(confPath, opensslConf, 0600); err != nil {
-		return nil, errors.Wrap(err, "write openssl conf")
-	}
-
-	// fmt.Println(string(opensslConf)) // FIXME
-
-	parentCertDerPath := filepath.Join(dir, "ca.der")
-	if err = os.WriteFile(parentCertDerPath, parentCertDer, 0600); err != nil {
-		return nil, errors.Wrap(err, "write parent cert")
-	}
-
-	csrDerPath := filepath.Join(dir, "csr.der")
-	if err = os.WriteFile(csrDerPath, csrDer, 0600); err != nil {
-		return nil, errors.Wrap(err, "write csr")
-	}
-
-	outCertDerPath := filepath.Join(dir, "cert.der")
-
-	if _, err = t.runCMD(ctx, []string{
-		"x509", "-req", "-outform", "DER", "-out", outCertDerPath,
-		"-in", csrDerPath, "-inform", "DER",
-		"-CA", parentCertDerPath, "-CAkey", "/dev/stdin", "-CAcreateserial",
-		"-days", strconv.Itoa(int(time.Until(opt.notAfter) / time.Hour / 24)),
-		"-utf8", "-batch",
-		digestAlgo,
-		"-copy_extensions", "copyall",
-		"-extfile", confPath, "-extensions", "v3_ca",
-	}, parentPrikeyPem); err != nil {
+	if certDer, err = t.signX509CSR(ctx, parentCertDer, parentPrikeyPem, csrDer, opts...); err != nil {
 		return nil, errors.Wrap(err, "sign csr")
-	}
-
-	if certDer, err = os.ReadFile(outCertDerPath); err != nil {
-		return nil, errors.Wrap(err, "read signed cert")
 	}
 
 	return certDer, nil
 }
 
 var (
-	reX509Subject = regexp.MustCompile(`(?s)Subject: ([\S ]+)`)
-	reX509Sans    = regexp.MustCompile(`(?m)X509v3 Subject Alternative Name: ?\n +(.+)\b`)
+	// csrCloneSubjectAttributes lists the subject attribute types that
+	// ParseCsr2Opts reproduces; any other attribute fails closed.
+	csrCloneSubjectAttributes = []asn1.ObjectIdentifier{
+		{2, 5, 4, 3}, {2, 5, 4, 5}, {2, 5, 4, 6}, {2, 5, 4, 7}, {2, 5, 4, 8},
+		{2, 5, 4, 9}, {2, 5, 4, 10}, {2, 5, 4, 11}, {2, 5, 4, 17},
+	}
 )
 
-// ParseCsr2Opts parse csr to opts
-func (t *Tongsuo) ParseCsr2Opts(ctx context.Context, csrDer []byte) ([]X509CSROption, error) {
-	csrinfo, err := t.ShowCsrInfo(ctx, csrDer)
+// ParseCsr2Opts parses csrDer structurally and returns the options that
+// reproduce its subject and subject alternative names.
+//
+// The subject (CN, serialNumber, C, ST, L, street, postalCode, O, OU, with
+// every value of multi-valued attributes) and the DNS, email, IP and URI SANs
+// are copied from the DER structure with their types preserved; display text
+// is never parsed. Other requested extensions are not copied. It returns an
+// error for malformed DER, for subject attribute types outside
+// csrCloneSubjectAttributes and for repeated CN or serialNumber attributes,
+// which the options cannot reproduce.
+func (t *Tongsuo) ParseCsr2Opts(_ context.Context, csrDer []byte) ([]X509CSROption, error) {
+	csr, err := smx509.ParseCertificateRequest(csrDer)
 	if err != nil {
-		return nil, errors.Wrap(err, "show csr info")
+		return nil, errors.Wrap(err, "parse csr")
 	}
 
-	var opts []X509CSROption
-
-	// extract subjects
-	// Subject: C = CN, ST = Shanghai, L = Shanghai, O = BBT, CN = Intermediate CA
-	matched := reX509Subject.FindStringSubmatch(csrinfo)
-	if len(matched) != 2 {
-		return nil, errors.Errorf("invalid csr info")
-	}
-	sbjs := strings.Split(matched[1], ", ")
-	for _, sbj := range sbjs {
-		kv := strings.Split(sbj, " = ")
-		if len(kv) != 2 {
-			return nil, errors.Errorf("invalid subject info %q", sbj)
-		}
-
-		switch kv[0] {
-		case "C":
-			opts = append(opts, WithX509CSRCountry(kv[1]))
-		case "ST":
-			opts = append(opts, WithX509CSRProvince(kv[1]))
-		case "L":
-			opts = append(opts, WithX509CSRLocality(kv[1]))
-		case "O":
-			opts = append(opts, WithX509CSROrganization(kv[1]))
-		case "CN":
-			opts = append(opts, WithX509CSRCommonName(kv[1]))
-		}
-	}
-
-	// extract SANs
-	// X509v3 Subject Alternative Name:
-	//     DNS:www.example.com, DNS:www.example.net, DNS:www.example.origin
-	matched = reX509Sans.FindStringSubmatch(csrinfo)
-	if len(matched) == 2 {
-		sans := strings.Split(matched[1], ", ")
-		for _, san := range sans {
-			kv := strings.Split(san, ":")
-			if len(kv) != 2 {
-				return nil, errors.Errorf("invalid csr info %q", san)
+	var commonNames, serialNumbers int
+	for _, atv := range csr.Subject.Names {
+		supported := false
+		for _, oid := range csrCloneSubjectAttributes {
+			if atv.Type.Equal(oid) {
+				supported = true
+				break
 			}
+		}
+		if !supported {
+			return nil, errors.Errorf("unsupported csr subject attribute %s", atv.Type.String())
+		}
 
-			opts = append(opts, WithX509CSRSANS(kv[1]))
+		switch {
+		case atv.Type.Equal(csrCloneSubjectAttributes[0]):
+			commonNames++
+		case atv.Type.Equal(csrCloneSubjectAttributes[1]):
+			serialNumbers++
 		}
 	}
+	if commonNames > 1 || serialNumbers > 1 {
+		return nil, errors.New("csr subject repeats commonName or serialNumber")
+	}
 
-	return opts, nil
+	subject := pkix.Name{
+		CommonName:         csr.Subject.CommonName,
+		SerialNumber:       csr.Subject.SerialNumber,
+		Country:            csr.Subject.Country,
+		Province:           csr.Subject.Province,
+		Locality:           csr.Subject.Locality,
+		StreetAddress:      csr.Subject.StreetAddress,
+		PostalCode:         csr.Subject.PostalCode,
+		Organization:       csr.Subject.Organization,
+		OrganizationalUnit: csr.Subject.OrganizationalUnit,
+	}
+
+	return []X509CSROption{
+		WithX509CSRSubject(subject),
+		WithX509CSRDNSNames(csr.DNSNames...),
+		WithX509CSREmailAddrs(csr.EmailAddresses...),
+		WithX509CSRIPAddrs(csr.IPAddresses...),
+		WithX509CSRURIs(csr.URIs...),
+	}, nil
 }
 
 // CloneX509Csr generat a cloned csr with different private key
@@ -746,8 +290,8 @@ func (t *Tongsuo) SignBySm2Sm3(ctx context.Context,
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-sign", "/dev/stdin",
-			"-out", outputPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-sign", tongsuoStdinPath,
+			tongsuoFlagOut, outputPath,
 			contentPath,
 		},
 		parentPrikeyPem,
@@ -846,7 +390,7 @@ func (t *Tongsuo) VerifyBySm2Sm3(ctx context.Context,
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-verify", pubkeyPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-verify", pubkeyPath,
 			"-signature", signaturePath,
 			contentPath,
 		},
@@ -876,8 +420,8 @@ func (t *Tongsuo) HashBySm3(ctx context.Context, content []byte) (hash []byte, e
 
 	_, err = t.runCMD(ctx,
 		[]string{
-			"dgst", "-sm3", "-binary",
-			"-out", outputPath,
+			tongsuoCmdDgst, tongsuoDigestSM3, "-binary",
+			tongsuoFlagOut, outputPath,
 		},
 		content,
 	)
@@ -908,7 +452,7 @@ func (t *Tongsuo) GetPubkeyFromCertPem(ctx context.Context, certPem []byte) (pub
 	pubkeyPath := filepath.Join(dir, "pubkey")
 	if _, err = t.runCMD(ctx, []string{
 		"x509", "-pubkey", "-noout",
-		"-in", certPath, "-out", pubkeyPath,
+		tongsuoFlagIn, certPath, tongsuoFlagOut, pubkeyPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "get pubkey from cert")
 	}
@@ -942,7 +486,7 @@ func (t *Tongsuo) EncryptBySm2(ctx context.Context,
 	cipherPath := filepath.Join(dir, "cipher")
 	if _, err = t.runCMD(ctx, []string{
 		"pkeyutl", "-inkey", pubkeyPath, "-pubin", "-encrypt",
-		"-in", dataPath, "-out", cipherPath,
+		tongsuoFlagIn, dataPath, tongsuoFlagOut, cipherPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "encrypt by sm2")
 	}
@@ -976,7 +520,7 @@ func (t *Tongsuo) DecryptBySm2(ctx context.Context,
 	dataPath := filepath.Join(dir, "data")
 	if _, err = t.runCMD(ctx, []string{
 		"pkeyutl", "-inkey", prikeyPath, "-decrypt",
-		"-in", cipherPath, "-out", dataPath,
+		tongsuoFlagIn, cipherPath, tongsuoFlagOut, dataPath,
 	}, nil); err != nil {
 		return nil, errors.Wrap(err, "decrypt by sm2")
 	}
@@ -986,40 +530,6 @@ func (t *Tongsuo) DecryptBySm2(ctx context.Context,
 	}
 
 	return data, nil
-}
-
-// SignX509CRL sign x509 crl by ca private key
-func (t *Tongsuo) SignX509CRL(ctx context.Context,
-	CrlDer []byte,
-	PrikeyPem []byte,
-) (signedCrlDer []byte, err error) {
-	dir, err := os.MkdirTemp("", "tongsuo*")
-	if err != nil {
-		return nil, errors.Wrap(err, "generate temp dir")
-	}
-	defer t.removeAll(dir)
-
-	// write crl file
-	crlPath := filepath.Join(dir, "crl")
-	crlPem := CRLDer2Pem(CrlDer)
-	if err = os.WriteFile(crlPath, crlPem, 0600); err != nil {
-		return nil, errors.Wrap(err, "write crl")
-	}
-
-	// sign crl
-	signedCrlPath := filepath.Join(dir, "signed_crl")
-	if _, err = t.runCMD(ctx, []string{
-		"crl", "-in", crlPath, "-out", signedCrlPath, "-signkey", "/dev/stdin",
-	}, PrikeyPem); err != nil {
-		return nil, errors.Wrap(err, "sign crl")
-	}
-
-	signedCrlDer, err = os.ReadFile(signedCrlPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read signed crl")
-	}
-
-	return signedCrlDer, nil
 }
 
 // PrivateKey get private key

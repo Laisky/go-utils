@@ -18,6 +18,142 @@ export LD_LIBRARY_PATH=/opt/tongsuo/lib
 export PATH=$PATH:/opt/tongsuo/bin
 ```
 
+## Go wrapper security contracts
+
+These rules describe the behavior of the `crypto.Tongsuo` wrapper
+(`NewTongsuo` and its methods).
+
+### Supported versions
+
+| Tongsuo | Base | Status |
+| --- | --- | --- |
+| 8.5.x | OpenSSL 3.5 | Tested (8.5.0). `x509`/`req` accept `-not_before`/`-not_after`, so validity is exact. |
+| 8.4.x (e.g. 8.4.0-pre3) | OpenSSL 3.0 | Supported through capability detection with the whole-day validity fallback below. |
+
+`NewTongsuo` only runs `tongsuo version`. Exact-validity support is probed once,
+lazily, on the first certificate issuance (`x509 -help` and `req -help`) and
+cached; a probe that cannot run selects the conservative fallback for that call.
+Every certificate, CSR and CRL produced by the binary is parsed and checked
+before its bytes are returned, so toolchain or version differences fail closed
+instead of returning unexpected artifacts.
+
+### Certificate validity (`NewX509Cert`, `NewX509CertByCSR`)
+
+- The requested window is validated against one captured clock value before
+  anything is issued: zero `NotBefore`/`NotAfter`, `NotAfter <= now`, empty and
+  inverted windows (`NotAfter <= NotBefore`) are rejected.
+- Bounds are truncated to whole seconds (X.509 precision), which never extends
+  `NotAfter`.
+- With `-not_before`/`-not_after` support, the exact UTC bounds are passed
+  (`YYYYMMDDHHMMSSZ`).
+- Without it, `-days` is computed as `floor((NotAfter - now - 5m) / 24h)`. The
+  tool then starts the window at its own clock. Requests shorter than one day
+  plus the margin, and requests whose `NotBefore` lies in the future, cannot be
+  represented without widening the window and are rejected.
+- The issued certificate must satisfy `NotBefore >= requested NotBefore` and
+  `NotAfter <= requested NotAfter`, otherwise an error is returned.
+
+### Extended key usage
+
+- `x509.ExtKeyUsageAny` is emitted as the single `anyExtendedKeyUsage` OID
+  (2.5.29.37.0). It is never expanded into concrete usages: OpenSSL-derived
+  purpose checks (for example `tongsuo verify -purpose sslserver`) do not treat
+  Any as `serverAuth`, so request each concrete usage explicitly when a relying
+  party needs it.
+- Explicit usages are emitted exactly, deduplicated, in a fixed order, using
+  OpenSSL tokens that encode the exact OIDs. Unknown usages fail closed.
+- `NewX509Cert` honors explicit `WithX509CertExtKeyUsage` requests; without one a
+  non-CA certificate keeps the legacy default of exactly `anyExtendedKeyUsage`.
+- The issued EKU OIDs must equal the request. `NewX509CertByCSR` copies CSR
+  extensions (`-copy_extensions copyall`), so without an explicit signer EKU
+  request a CSR-requested EKU is kept; an explicit request replaces it.
+
+### OpenSSL configuration encoding
+
+Subject and SAN values are written into the generated configuration as literal
+values. Any value containing `$`, quotes, a backtick, a backslash, `#`, `;` or
+leading/trailing spaces is wrapped in double quotes with `\` and `"` escaped, so
+variable expansion (`$var`, `${var}`, `$(var)`, `$section::name`,
+`${ENV::NAME}`), quote stripping, escapes, comments and trimming never apply.
+
+- Multi-valued attributes get one `N.attribute` entry per value; street,
+  postal code and serial number are emitted instead of dropped.
+- Each SAN is its own `DNS.N`/`email.N`/`IP.N`/`URI.N` entry, so separators such
+  as `,` or `DNS:` inside a value cannot add entries.
+- The Tongsuo methods reject control characters, non-ASCII DNS/email/URI SANs,
+  `pkix.Name.ExtraNames` and the OpenSSL email keywords `copy`/`move`.
+- `NewX509CSR` passes `-utf8`, verifies the generated CSR signature and requires
+  its subject and SANs to equal the request; `NewX509Cert` checks the issued
+  certificate the same way. `NewX509CertByCSR` verifies the CSR signature before
+  signing.
+- The exported `X509Cert2OpensslConf`/`X509Csr2OpensslConf` use the same encoding,
+  keep their legacy stripping of control characters and return `nil` when a
+  template cannot be represented exactly.
+
+### Subprocess environment
+
+Tongsuo subprocesses never inherit the parent environment. They receive only:
+
+- `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`, `LIBPATH`
+  and `SYSTEMROOT` (plus `PATH` on Windows), when set;
+- names explicitly allowed with `NewTongsuo(path, WithTongsuoInheritedEnv(...))`,
+  for example `OPENSSL_CONF` or `OPENSSL_MODULES` when a deployment needs them;
+- the variables the wrapper sets itself to pass secrets (for example the
+  `-passout env:` password), which never appear in argv.
+
+`OPENSSL_CONF` is therefore no longer inherited by default. `ShowCsrInfo` passes
+an explicit empty configuration so it does not depend on the system default file.
+
+### Certificate metadata (`ShowCertInfo`, `ShowCertInfoDetail`, `ParseTongsuoCertInfo`)
+
+- Metadata is parsed from DER, never from the `x509 -text` display text:
+  `crypto/x509` for RSA, ECDSA and Ed25519, and the SM2-capable
+  `github.com/emmansun/gmsm/smx509` parser for SM2.
+- `TongsuoCertInfo.PublicKeyAlgorithm` distinguishes `SM2` from `ECDSA`, and
+  `IsSM2()` reports it. For SM2 certificates the returned `*x509.Certificate`
+  copies every parsed field but uses `x509.UnknownPublicKeyAlgorithm`, a `nil`
+  `PublicKey` and `x509.UnknownSignatureAlgorithm` for SM2-with-SM3, so SM2 is
+  never labeled ECDSA. The SM2 key is available as `TongsuoCertInfo.PublicKey`.
+- Any other public key algorithm fails closed with an error wrapping
+  `ErrTongsuoUnsupportedPublicKeyAlgorithm`. Malformed DER and trailing data
+  are rejected before any subprocess runs.
+- The display text is still returned for information only.
+- `ParseCsr2Opts`/`CloneX509Csr` copy the CSR subject and typed SANs from DER;
+  unsupported subject attribute types fail closed.
+
+### CRL signing (`SignX509CRL`)
+
+`crl -signkey` does not exist in Tongsuo 8.4/8.5 (`crl -key` only drives delta
+CRLs), so `SignX509CRL` re-signs the CRL itself:
+
+1. The input must be exactly one DER CRL (PEM and trailing data are rejected).
+2. The public key is derived from the private key, which stays on stdin.
+3. The algorithm is chosen from that key: SHA-256 with RSA (at least 2048 bits),
+   ECDSA with the hash matching P-256/P-384/P-521, or SM2 with SM3.
+4. Only the TBS signature algorithm is replaced; issuer, CRL number, update
+   times, revoked entries and extensions keep their original DER bytes.
+5. `tongsuo dgst -sign` signs the TBS and one DER `CertificateList` is assembled.
+6. The result is parsed, its signature verified under the derived key and its
+   fields compared with the input before the DER is returned.
+
+Callers should still verify the CRL against the intended issuer certificate,
+for example with `smx509.RevocationList.CheckSignatureFrom`, before distributing it.
+
+### Migration notes
+
+- `NewTongsuo(exePath)` callers need no change; the new variadic options are
+  optional.
+- Code relying on inherited `OPENSSL_CONF` must opt in with
+  `WithTongsuoInheritedEnv("OPENSSL_CONF")`.
+- `ShowCertInfo` no longer reports SM2 as `x509.ECDSA`; use `ShowCertInfoDetail`
+  to detect SM2. It now succeeds for certificates without a common name or
+  subject key identifier, and fails for unsupported key algorithms.
+- Past, empty or inverted validity windows and sub-day windows on Tongsuo 8.4
+  now return errors instead of issuing day-long certificates.
+- `WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageAny)` now yields only
+  `anyExtendedKeyUsage`; request `ServerAuth`, `ClientAuth`, etc. explicitly.
+- `OpensslCertificateOutput` is deprecated and unused.
+
 ## All in one
 
 ```sh
