@@ -271,7 +271,6 @@ func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest
 		SignatureAlgorithm: opt.signatureAlgorithm,
 		Subject:            opt.subject,
 		ExtraExtensions:    opt.extraExtensions,
-		Attributes:         opt.attributes,
 		EmailAddresses:     opt.emailAddresses,
 		DNSNames:           opt.dnsNames,
 		IPAddresses:        opt.ipAddresses,
@@ -281,6 +280,10 @@ func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest
 		// PublicKeyAlgorithm: opt.publicKeyAlgorithm,
 		// Extensions:      opt.extensions,
 	}
+
+	// Attributes backs the already-deprecated WithX509CSRAttribute option and is
+	// kept only for compatibility.
+	tpl.Attributes = opt.attributes //nolint:staticcheck // SA1019: see above.
 
 	if opt.subject.CommonName == "" {
 		return nil, errors.Errorf("common name is required")

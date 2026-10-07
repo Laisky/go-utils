@@ -68,6 +68,12 @@ var (
 // This is not a deterministic encryption scheme,
 // it will return different ciphertexts each time
 // even if the same plaintext is encrypted multiple times.
+//
+// Deprecated: PKCS #1 v1.5 encryption is deprecated by Go 1.26 and should not be
+// used for new data; the matching decryption is a padding oracle
+// (Bleichenbacher) whenever an attacker can observe its success or failure.
+// Use RSAEncryptByOAEP and RSADecryptByOAEP instead. This wrapper remains only
+// for interoperability with existing ciphertexts.
 func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
 	if pubkey == nil {
 		return nil, errors.Errorf("public key is nil")
@@ -93,6 +99,7 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 			return nil, errors.Wrap(err, "read chunk")
 		}
 
+		//nolint:staticcheck // SA1019: deliberate; this wrapper is itself deprecated (legacy interop).
 		cipherChunk, err := rsa.EncryptPKCS1v15(rand.Reader, pubkey, chunk[:n])
 		if err != nil {
 			return nil, errors.Wrap(err, "encrypt chunk")
@@ -107,6 +114,11 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 // RSADecryptByPKCS1v15 decrypt by rsa PKCS1v15
 //
 // only accept cipher encrypted by RSAEncrypt
+//
+// Deprecated: PKCS #1 v1.5 decryption is a padding oracle (Bleichenbacher)
+// whenever an attacker can observe whether it fails, and it is deprecated by
+// Go 1.26. Never expose its errors to untrusted parties; migrate data to
+// RSAEncryptByOAEP / RSADecryptByOAEP.
 func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
 	chunk := make([]byte, prikey.Size())
 	reader := bytes.NewReader(cipher)
@@ -120,6 +132,7 @@ func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, 
 			return nil, errors.Wrap(err, "read chunk")
 		}
 
+		//nolint:staticcheck // SA1019: deliberate; this wrapper is itself deprecated (legacy interop).
 		plainChunk, err := rsa.DecryptPKCS1v15(rand.Reader, prikey, chunk[:n])
 		if err != nil {
 			return nil, errors.Wrap(err, "decrypt chunk")

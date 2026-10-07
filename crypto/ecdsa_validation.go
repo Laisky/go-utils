@@ -79,7 +79,12 @@ func decodeECDSAComponent(raw string, useBase64 bool) (*big.Int, error) {
 // Custom curves are unsupported; rejecting them avoids calling arbitrary curve
 // implementations on lower-trust key coordinates during validation.
 func validECDSAVerificationInputs(key *ecdsa.PublicKey, r, s *big.Int) bool {
-	if key == nil || key.Curve == nil || key.X == nil || key.Y == nil || r == nil || s == nil {
+	if key == nil || key.Curve == nil || r == nil || s == nil {
+		return false
+	}
+	// Only nil-ness is read here; the coordinates are never modified or used for
+	// arithmetic. PublicKey.Bytes below dereferences them, so nil must be rejected.
+	if key.X == nil || key.Y == nil { //nolint:staticcheck // SA1019: read-only nil guard, see above.
 		return false
 	}
 	switch key.Curve {
