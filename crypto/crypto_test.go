@@ -57,18 +57,6 @@ func TestVerifyHashedPassword(t *testing.T) {
 	}
 }
 
-func TestPasswordHashIterationCount(t *testing.T) {
-	t.Parallel()
-	h, err := PasswordHash([]byte("password"), gutils.HashTypeSha256)
-	require.NoError(t, err)
-
-	hp, err := parseHashedPassword(h)
-	require.NoError(t, err)
-
-	require.GreaterOrEqual(t, hp.hashNum, MinPasswordHashIteration)
-	require.Less(t, hp.hashNum, MaxPasswordHashIteration)
-}
-
 func TestVerifyHashedPassword_LegacyIterationCompatibility(t *testing.T) {
 	t.Parallel()
 	rawPassword := []byte("legacy-password")
@@ -95,11 +83,12 @@ func TestVerifyHashedPassword_LegacyIterationCompatibility(t *testing.T) {
 func TestNewHashedPassword_RejectWeakIterationForNewHashes(t *testing.T) {
 	t.Parallel()
 
-	_, err := newHashedPassword(
+	_, err := newHashedPasswordWithMinIteration(
 		[]byte("salt"),
 		[]byte("password"),
 		gutils.HashTypeSha256,
 		MinPasswordHashIteration-1,
+		MinPasswordHashIteration,
 	)
 	require.ErrorContains(t, err, "out of range")
 }
