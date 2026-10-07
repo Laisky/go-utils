@@ -1,11 +1,8 @@
 package crypto
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,107 +201,6 @@ func AEADDecryptBasic(key, ciphertext, iv, tag, additionalData []byte) (plaintex
 	}
 
 	return plaintext, nil
-}
-
-// AesCtrStreamEncrypt encrypts the input stream using AES in CTR mode.
-//
-// WARNING: CTR mode provides confidentiality only, NOT integrity or authenticity.
-// An attacker can flip bits in the ciphertext to make predictable changes to the plaintext
-// without detection. If you need authenticated encryption, use AEADEncrypt (AES-GCM) instead.
-// Only use CTR mode when you provide your own authentication layer (e.g. HMAC over the ciphertext).
-func AesCtrStreamEncrypt(key []byte, reader io.Reader) (io.Reader, error) {
-	// Create AES cipher
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, errors.Wrap(err, "create aes cipher")
-	}
-
-	// Generate random IV
-	iv := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, errors.Wrap(err, "generate iv")
-	}
-
-	// Create CTR stream
-	stream := cipher.NewCTR(block, iv)
-
-	// Create a reader that prepends IV and encrypts the input
-	// For empty input, we still need to include the IV
-	return io.MultiReader(
-		bytes.NewReader(iv),
-		&cipher.StreamReader{
-			S: stream,
-			R: reader,
-		},
-	), nil
-}
-
-// AesCtrStreamDecrypt decrypts the input stream using AES in CTR mode.
-//
-// WARNING: CTR mode provides confidentiality only, NOT integrity or authenticity.
-// The ciphertext is malleable -- bit flips in the ciphertext cause corresponding bit flips
-// in the plaintext without any detectable error. You must verify integrity separately
-// (e.g. HMAC over the ciphertext) before trusting the decrypted output.
-func AesCtrStreamDecrypt(key []byte, reader io.Reader) (io.Reader, error) {
-	// Create AES cipher
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, errors.Wrap(err, "create aes cipher")
-	}
-
-	// Read IV from the beginning of the stream
-	iv := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(reader, iv); err != nil {
-		return nil, errors.Wrap(err, "read iv")
-	}
-
-	// Create CTR stream
-	stream := cipher.NewCTR(block, iv)
-
-	// Return decrypting reader that handles empty input
-	return &cipher.StreamReader{
-		S: stream,
-		R: reader,
-	}, nil
-}
-
-// AesReaderWrapper used to decrypt encrypted reader
-//
-// Deprecated: use AesCtrStreamDecrypt instead
-type AesReaderWrapper struct {
-	cnt []byte
-	idx int
-}
-
-// NewAesReaderWrapper wrap reader by aes
-//
-// Deprecated: use AesCtrStreamDecrypt instead
-func NewAesReaderWrapper(in io.Reader, key []byte) (*AesReaderWrapper, error) {
-	cipher, err := io.ReadAll(in)
-	if err != nil {
-		return nil, errors.Wrap(err, "read reader")
-	}
-
-	w := new(AesReaderWrapper)
-	if w.cnt, err = AesDecrypt(key, cipher); err != nil {
-		return nil, errors.Wrap(err, "decrypt")
-	}
-
-	return w, nil
-}
-
-// Read read from decrypted reader
-//
-// Deprecated: use AesCtrStreamDecrypt instead
-func (w *AesReaderWrapper) Read(p []byte) (n int, err error) {
-	if w.idx == len(w.cnt) {
-		return 0, io.EOF
-	}
-
-	n = copy(p, w.cnt[w.idx:])
-	w.idx += n
-
-	return n, nil
 }
 
 const (
