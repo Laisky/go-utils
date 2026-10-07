@@ -118,9 +118,15 @@ ok      github.com/Laisky/go-utils      82.997s
 func BenchmarkAllCounter(b *testing.B) {
 	b.ReportAllocs()
 	var err error
+	prevLevel := log.Shared.Level()
 	if err = log.Shared.ChangeLevel("info"); err != nil {
 		b.Fatalf("set level: %+v", err)
 	}
+	b.Cleanup(func() {
+		if restoreErr := log.Shared.ChangeLevel(prevLevel); restoreErr != nil {
+			b.Errorf("restore log level %q: %+v", prevLevel, restoreErr)
+		}
+	})
 	atomicCounter := NewCounter()
 	rotateCounter, err := NewRotateCounter(100000000)
 	if err != nil {
