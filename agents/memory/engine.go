@@ -128,7 +128,10 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		}
 	}
 
-	memoryBlock, factIDs, insightIDs := engine.buildMemoryBlock(facts, insights, chunks)
+	memoryBlock, factIDs, insightIDs, blockErr := engine.buildMemoryBlock(facts, insights, chunks)
+	if blockErr != nil {
+		return BeforeTurnOutput{}, errors.Wrap(blockErr, "build memory reference")
+	}
 	recentItems := engine.pickRecentContextItems(contextEvents, engine.conf.RecentContextItems)
 	excluded := mergeIdentitySets(conversation.HistoryIDs, conversation.CurrentIDs)
 	recentItems, droppedRecent := filterItemsByIdentity(recentItems, excluded)
@@ -540,7 +543,7 @@ func stripMemoryReferenceItems(items []ResponseItem) []ResponseItem {
 			}
 			continue
 		}
-		if item.Role == "developer" && isMemoryReferenceItem(item) {
+		if item.Role == responseRoleDeveloper && isMemoryReferenceItem(item) {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -554,7 +557,7 @@ func isMemoryReferenceItem(item ResponseItem) bool {
 	if isFixedMemoryPolicy(item) || isMemoryReferenceData(item) {
 		return true
 	}
-	if item.Role != "developer" {
+	if item.Role != responseRoleDeveloper {
 		return false
 	}
 	for _, part := range item.Content {

@@ -46,7 +46,8 @@ func VerifyByEd25519ph(pubkey ed25519.PublicKey, reader io.Reader, signature []b
 	if _, err := io.Copy(hasher, reader); err != nil {
 		return errors.Wrap(err, "read Ed25519ph message")
 	}
-	if err := ed25519.VerifyWithOptions(pubkey, hasher.Sum(nil), signature, &ed25519.Options{Hash: crypto.SHA512}); err != nil {
+	options := &ed25519.Options{Hash: crypto.SHA512}
+	if err := ed25519.VerifyWithOptions(pubkey, hasher.Sum(nil), signature, options); err != nil {
 		return errors.Wrap(err, "verify Ed25519ph signature")
 	}
 	return nil

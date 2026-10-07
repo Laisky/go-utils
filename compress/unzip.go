@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/Laisky/errors/v2"
+
 	gutils "github.com/Laisky/go-utils/v6"
 )
 
@@ -133,29 +134,8 @@ func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr er
 			retErr = errors.Join(retErr, errors.Wrap(err, "close ZIP archive"))
 		}
 	}()
-	if o.maxEntries > 0 && len(r.File) > o.maxEntries {
-		return nil, errors.Errorf("zip entries %d exceed max entries limit %d", len(r.File), o.maxEntries)
-	}
-	var advertised uint64
-	for _, f := range r.File {
-		if err := validateZIPMemberName(f.Name); err != nil {
-			return nil, errors.Wrap(err, "invalid ZIP member name")
-		}
-		if _, err := gutils.JoinFilepath(dest, f.Name); err != nil {
-			return nil, errors.Wrap(err, "ZIP member escapes trusted destination")
-		}
-		if f.FileInfo().IsDir() {
-			continue
-		}
-		if o.maxFileBytes > 0 && f.UncompressedSize64 > uint64(o.maxFileBytes) {
-			return nil, errors.Wrap(ErrUnzipByteLimit, "decompressed bytes exceed per-file limit")
-		}
-		if o.maxBytes > 0 {
-			if f.UncompressedSize64 > uint64(o.maxBytes)-advertised {
-				return nil, errors.Wrap(ErrUnzipByteLimit, "decompressed bytes exceed aggregate limit")
-			}
-			advertised += f.UncompressedSize64
-		}
+	if err := preflightZIPMembers(r.File, dest, o); err != nil {
+		return nil, err
 	}
 	if len(r.File) == 0 {
 		return nil, nil
@@ -175,8 +155,50 @@ func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr er
 			retErr = errors.Join(retErr, errors.Wrap(err, "close extraction root"))
 		}
 	}()
+	return extractZIPMembers(root, r.File, dest, o)
+}
+
+// preflightZIPMembers validates the whole archive before any filesystem write.
+// It takes the archive members, the trusted destination and the options, checks
+// the entry count, every member name, destination containment, and advertised
+// per-file and aggregate sizes, and returns the first violation or nil.
+func preflightZIPMembers(files []*zip.File, dest string, o *unzipOption) error {
+	if o.maxEntries > 0 && len(files) > o.maxEntries {
+		return errors.Errorf("zip entries %d exceed max entries limit %d", len(files), o.maxEntries)
+	}
+	var advertised uint64
+	for _, f := range files {
+		if err := validateZIPMemberName(f.Name); err != nil {
+			return errors.Wrap(err, "invalid ZIP member name")
+		}
+		if _, err := gutils.JoinFilepath(dest, f.Name); err != nil {
+			return errors.Wrap(err, "ZIP member escapes trusted destination")
+		}
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if o.maxFileBytes > 0 && f.UncompressedSize64 > uint64(o.maxFileBytes) {
+			return errors.Wrap(ErrUnzipByteLimit, "decompressed bytes exceed per-file limit")
+		}
+		if o.maxBytes > 0 {
+			if f.UncompressedSize64 > uint64(o.maxBytes)-advertised {
+				return errors.Wrap(ErrUnzipByteLimit, "decompressed bytes exceed aggregate limit")
+			}
+			advertised += f.UncompressedSize64
+		}
+	}
+	return nil
+}
+
+// extractZIPMembers creates directories and extracts files through root in
+// archive order. It takes the opened trusted root, the preflighted members, the
+// cleaned destination (used only to report output paths) and the options, and
+// returns the extracted paths or nil and the first failure. Members extracted
+// before a failure remain on disk.
+func extractZIPMembers(root *os.Root, files []*zip.File, dest string, o *unzipOption) ([]string, error) {
+	filenames := make([]string, 0, len(files))
 	var total int64
-	for _, f := range r.File {
+	for _, f := range files {
 		name, err := gutils.JoinFilepath(dest, f.Name)
 		if err != nil {
 			return nil, errors.Wrap(err, "resolve ZIP member")
@@ -202,17 +224,9 @@ func Unzip(src, dest string, opts ...UnzipOption) (filenames []string, retErr er
 // unzipFile verifies a member into a private temporary file before replacing its target.
 // Failed members never truncate an existing target or publish incomplete output.
 func unzipFile(root *os.Root, f *zip.File, name string, o *unzipOption, total *int64) (retErr error) {
-	if *total < 0 || o.maxBytes > 0 && *total > o.maxBytes {
-		return errors.WithStack(ErrUnzipByteLimit)
-	}
-	limit := int64(-1)
-	label := "aggregate"
-	if o.maxBytes > 0 {
-		limit = o.maxBytes - *total
-	}
-	if o.maxFileBytes > 0 && (limit < 0 || o.maxFileBytes < limit) {
-		limit = o.maxFileBytes
-		label = "per-file"
+	limit, label, err := unzipMemberLimit(o, *total)
+	if err != nil {
+		return err
 	}
 	src, err := f.Open()
 	if err != nil {
@@ -288,6 +302,25 @@ func unzipFile(root *os.Root, f *zip.File, name string, o *unzipOption, total *i
 	}
 	published = true
 	return nil
+}
+
+// unzipMemberLimit computes the decompressed byte budget for the next member.
+// It takes the options and the bytes already extracted, and returns the
+// remaining limit (negative means the explicit unlimited policy), the label of
+// the binding budget ("aggregate" or "per-file") for diagnostics, or
+// ErrUnzipByteLimit when the running total is already invalid or exhausted.
+func unzipMemberLimit(o *unzipOption, total int64) (limit int64, label string, err error) {
+	if total < 0 || o.maxBytes > 0 && total > o.maxBytes {
+		return 0, "", errors.WithStack(ErrUnzipByteLimit)
+	}
+	limit, label = -1, "aggregate"
+	if o.maxBytes > 0 {
+		limit = o.maxBytes - total
+	}
+	if o.maxFileBytes > 0 && (limit < 0 || o.maxFileBytes < limit) {
+		limit, label = o.maxFileBytes, "per-file"
+	}
+	return limit, label, nil
 }
 
 // copyZIPLimited probes a single extra byte in memory, never beyond the output budget.

@@ -9,7 +9,8 @@ import (
 
 // FlattenMapSafe returns a detached flat map, rejecting ambiguous paths, an empty
 // delimiter, or nesting deeper than 128 levels. It never modifies input maps.
-// Empty nested maps remain values. Non-map values are copied shallowly.
+// Empty nested maps remain values. Non-map values are copied shallowly. A nil
+// data map yields a nil result and a nil error after the delimiter is validated.
 func FlattenMapSafe(data map[string]any, delimiter string) (map[string]any, error) {
 	return flattenMapChecked(data, delimiter, true)
 }
@@ -37,10 +38,13 @@ func flattenMapChecked(data map[string]any, delimiter string, keepEmpty bool) (m
 	if delimiter == "" {
 		return nil, errors.New("flatten map: delimiter must not be empty")
 	}
-	if data == nil {
-		return nil, nil
+	// A nil input map is a valid empty map. The result mirrors it as nil (empty
+	// and read-only) instead of using a sentinel, keeping FlattenMapSafe's
+	// documented nil-in/nil-out contract; visiting a nil map never writes.
+	var out map[string]any
+	if data != nil {
+		out = make(map[string]any)
 	}
-	out := make(map[string]any)
 	seen := make(map[string]struct{})
 	var visit func(map[string]any, string, bool, int) error
 	visit = func(input map[string]any, prefix string, hasPrefix bool, depth int) error {

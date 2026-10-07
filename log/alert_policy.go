@@ -13,9 +13,11 @@ const defaultAlertMessageBytes = 16 * 1024
 // ErrAlertMessageTooLarge rejects an alert before it enters the remote queue.
 var ErrAlertMessageTooLarge = errors.New("alert message exceeds byte limit")
 
-// WithAlertFieldAllowlist explicitly exports only named top-level scalar fields.
-// Objects, arrays, errors, reflection, stringers, namespaces, and stack/caller
-// data are never exported by this hook. Use an approved scalar summary instead.
+// WithAlertFieldAllowlist explicitly exports only named top-level string, bool,
+// integer, float, and duration fields. Objects, arrays, errors, reflection,
+// stringers, binary/byte strings, complex numbers, times, uintptrs, namespaces,
+// and stack/caller data are never exported by this hook, and fields of unknown
+// types are dropped. Use an approved scalar summary instead.
 // Free-form entry messages remain the caller's responsibility.
 func WithAlertFieldAllowlist(keys ...string) AlertOption {
 	return func(o *alertOption) error {
@@ -57,32 +59,75 @@ func (a *Alert) remoteFields(fields []zapcore.Field) ([]zapcore.Field, error) {
 	selected := make([]zapcore.Field, 0, min(len(fields), len(a.allowedFields)))
 	remaining := a.maxMessageBytes
 	for _, field := range fields {
-		// Namespace changes the scope of every later field; do not flatten nested
-		// values into seemingly approved top-level names.
-		if field.Type == zapcore.NamespaceType {
+		disposition := alertFieldDispositionOf(field.Type)
+		if disposition == alertFieldStop {
 			break
+		}
+		if disposition != alertFieldExport {
+			continue
 		}
 		if _, ok := a.allowedFields[field.Key]; !ok {
 			continue
 		}
-		switch field.Type {
-		case zapcore.StringType, zapcore.BoolType, zapcore.Int64Type, zapcore.Int32Type,
-			zapcore.Int16Type, zapcore.Int8Type, zapcore.Uint64Type, zapcore.Uint32Type,
-			zapcore.Uint16Type, zapcore.Uint8Type, zapcore.Float64Type, zapcore.Float32Type,
-			zapcore.DurationType:
-			for _, size := range []int{len(field.Key), len(field.String), 32} {
-				if size > remaining {
-					return nil, errors.WithStack(ErrAlertMessageTooLarge)
-				}
-				remaining -= size
+		for _, size := range []int{len(field.Key), len(field.String), 32} {
+			if size > remaining {
+				return nil, errors.WithStack(ErrAlertMessageTooLarge)
 			}
-			// Keep only primitive storage. Even a manually constructed field cannot
-			// carry an unexpected object through the selected Interface member.
-			field.Interface = nil
-			selected = append(selected, field)
+			remaining -= size
 		}
+		// Keep only primitive storage. Even a manually constructed field cannot
+		// carry an unexpected object through the selected Interface member.
+		field.Interface = nil
+		selected = append(selected, field)
 	}
 	return selected, nil
+}
+
+// alertFieldDisposition is the allowlist policy's decision for one field type.
+type alertFieldDisposition int
+
+const (
+	// alertFieldDrop excludes the field even when its key is allowlisted.
+	alertFieldDrop alertFieldDisposition = iota
+	// alertFieldExport exports the field when its key is allowlisted.
+	alertFieldExport
+	// alertFieldStop excludes the field and every field after it.
+	alertFieldStop
+)
+
+// alertFieldDispositionOf decides how the remote alert policy treats a field of
+// the given zap type, independently of its key. It takes the field type and
+// returns alertFieldExport only for primitive scalars stored inline in the
+// field, alertFieldStop for a namespace, and alertFieldDrop for everything else,
+// including field types added by future zap versions (fail closed).
+func alertFieldDispositionOf(fieldType zapcore.FieldType) alertFieldDisposition {
+	switch fieldType {
+	case zapcore.StringType, zapcore.BoolType, zapcore.Int64Type, zapcore.Int32Type,
+		zapcore.Int16Type, zapcore.Int8Type, zapcore.Uint64Type, zapcore.Uint32Type,
+		zapcore.Uint16Type, zapcore.Uint8Type, zapcore.Float64Type, zapcore.Float32Type,
+		zapcore.DurationType:
+		return alertFieldExport
+	case zapcore.NamespaceType:
+		// Namespace changes the scope of every later field; do not flatten nested
+		// values into seemingly approved top-level names.
+		return alertFieldStop
+	case zapcore.ArrayMarshalerType, zapcore.ObjectMarshalerType, zapcore.InlineMarshalerType,
+		zapcore.ReflectType, zapcore.StringerType, zapcore.ErrorType:
+		// These carry caller code or arbitrary values whose rendered output is
+		// unbounded and unreviewed. They are dropped before any method runs.
+		return alertFieldDrop
+	case zapcore.BinaryType, zapcore.ByteStringType, zapcore.Complex128Type, zapcore.Complex64Type,
+		zapcore.TimeType, zapcore.TimeFullType, zapcore.UintptrType:
+		// Raw bytes, complex numbers, timestamps with caller-supplied locations,
+		// and memory addresses are outside the approved scalar summary policy.
+		return alertFieldDrop
+	case zapcore.UnknownType, zapcore.SkipType:
+		// An uninitialized field panics when encoded, and a skip field is a no-op.
+		return alertFieldDrop
+	default:
+		// Field types added by future zap versions fail closed.
+		return alertFieldDrop
+	}
 }
 
 // GetZapHook sends minimal metadata and explicitly allowed scalar fields only.

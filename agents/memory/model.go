@@ -15,6 +15,27 @@ const (
 	memoryTierL2 = "L2"
 )
 
+// jsonFieldType is the JSON object key naming the type of a response item,
+// content part, insight identity payload or JSON Schema node. Identity hashes
+// depend on this exact key, so it must never change.
+const jsonFieldType = "type"
+
+// Responses API protocol values that the memory engine emits and recognizes.
+const (
+	responseItemTypeMessage      = "message"
+	responseRoleDeveloper        = "developer"
+	responseRoleUser             = "user"
+	responseContentTypeInputText = "input_text"
+)
+
+// Memory fact record types. An upsert inserts or replaces a fact value, while a
+// delete or supersede record retires it when no explicit state is recorded.
+const (
+	memoryFactTypeUpsert    = "fact_upsert"
+	memoryFactTypeDelete    = "fact_delete"
+	memoryFactTypeSupersede = "fact_supersede"
+)
+
 const (
 	memoryStateActive       = "active"
 	memoryStateConsolidated = "consolidated"

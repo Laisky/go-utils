@@ -7,6 +7,14 @@ import (
 	"github.com/Laisky/zap"
 )
 
+// Operation labels with special meaning: select logs at Debug, error logs at
+// Error, and unknown replaces any first SQL token outside the allowlist.
+const (
+	sqlOperationSelect  = "select"
+	sqlOperationError   = "error"
+	sqlOperationUnknown = "unknown"
+)
+
 // loggerItf is the structured logging interface used by the GORM adapter.
 type loggerItf interface {
 	Debug(string, ...zap.Field)
@@ -62,8 +70,8 @@ func (l *Logger) Print(vs ...any) {
 		}
 	}
 	operation := sqlOperation(formatted)
-	if len(vs) > 0 && sqlOperation(vs[0]) == "error" {
-		operation = "error"
+	if len(vs) > 0 && sqlOperation(vs[0]) == sqlOperationError {
+		operation = sqlOperationError
 	}
 	fields := []zap.Field{zap.String("operation", operation)}
 	if len(vs) > 2 {
@@ -83,9 +91,9 @@ func (l *Logger) Print(vs ...any) {
 		}
 	}
 	switch operation {
-	case "select":
+	case sqlOperationSelect:
 		l.logger.Debug(message, fields...)
-	case "error":
+	case sqlOperationError:
 		l.logger.Error(message, fields...)
 	default:
 		l.logger.Info(message, fields...)
@@ -110,7 +118,7 @@ func sqlTextPrefix(value any, limit int) string {
 // becomes "unknown" instead of entering a log as a user-controlled label.
 func sqlOperation(value any) string {
 	if _, ok := value.(error); ok {
-		return "error"
+		return sqlOperationError
 	}
 	text := strings.TrimLeft(sqlTextPrefix(value, 256), " \t\r\n")
 	end := strings.IndexAny(text, " \t\r\n(")
@@ -118,13 +126,14 @@ func sqlOperation(value any) string {
 		text = text[:end]
 	}
 	if len(text) > 16 {
-		return "unknown"
+		return sqlOperationUnknown
 	}
 	switch token := strings.ToLower(text); token {
-	case "select", "insert", "update", "delete", "drop", "create", "alter", "begin", "commit", "rollback", "error":
+	case sqlOperationSelect, "insert", "update", "delete", "drop", "create", "alter", "begin", "commit", "rollback",
+		sqlOperationError:
 		return token
 	default:
-		return "unknown"
+		return sqlOperationUnknown
 	}
 }
 

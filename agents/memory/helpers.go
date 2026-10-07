@@ -163,7 +163,7 @@ func extractFacts(turnID, ts string, inputItems []ResponseItem) []MemoryFact {
 		facts = append(facts, MemoryFact{
 			ID:         turnID + "-fact-name",
 			TS:         ts,
-			Type:       "fact_upsert",
+			Type:       memoryFactTypeUpsert,
 			FactID:     "user_name",
 			Key:        "name",
 			Value:      value,
@@ -176,7 +176,7 @@ func extractFacts(turnID, ts string, inputItems []ResponseItem) []MemoryFact {
 		facts = append(facts, MemoryFact{
 			ID:         turnID + "-fact-prefer",
 			TS:         ts,
-			Type:       "fact_upsert",
+			Type:       memoryFactTypeUpsert,
 			FactID:     "user_preference",
 			Key:        "preference",
 			Value:      value,
@@ -189,7 +189,7 @@ func extractFacts(turnID, ts string, inputItems []ResponseItem) []MemoryFact {
 		facts = append(facts, MemoryFact{
 			ID:         turnID + "-fact-like",
 			TS:         ts,
-			Type:       "fact_upsert",
+			Type:       memoryFactTypeUpsert,
 			FactID:     "user_like",
 			Key:        "like",
 			Value:      value,
@@ -202,7 +202,7 @@ func extractFacts(turnID, ts string, inputItems []ResponseItem) []MemoryFact {
 		facts = append(facts, MemoryFact{
 			ID:         turnID + "-fact-today-task",
 			TS:         ts,
-			Type:       "fact_upsert",
+			Type:       memoryFactTypeUpsert,
 			FactID:     "today_task",
 			Key:        "today_task",
 			Value:      value,
@@ -215,7 +215,7 @@ func extractFacts(turnID, ts string, inputItems []ResponseItem) []MemoryFact {
 		facts = append(facts, MemoryFact{
 			ID:         turnID + "-fact-week-task",
 			TS:         ts,
-			Type:       "fact_upsert",
+			Type:       memoryFactTypeUpsert,
 			FactID:     "weekly_task",
 			Key:        "weekly_task",
 			Value:      value,

@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/Laisky/errors/v2"
-	"github.com/Laisky/go-utils/v6/internal/netdiag"
 	"github.com/Laisky/graphql"
 	zap "github.com/Laisky/zap"
 	"github.com/Laisky/zap/zapcore"
+
+	"github.com/Laisky/go-utils/v6/internal/netdiag"
 )
 
 // alertMutation defines the GraphQL mutation for sending alerts.
@@ -229,7 +230,7 @@ func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 		return errors.WithStack(ErrAlertMessageTooLarge)
 	}
 	// The lifecycle check and nonblocking admission share the shutdown lock.
-	// A cancelled context may race a send ordered before worker termination,
+	// A canceled context may race a send ordered before worker termination,
 	// but neither Close nor Done can complete before this admission finishes.
 	a.admission.Lock()
 	defer a.admission.Unlock()

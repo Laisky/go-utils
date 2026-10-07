@@ -11,6 +11,12 @@ import (
 
 var projectRegex = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
 
+// MCP FileIO tool argument names shared by every file operation.
+const (
+	mcpArgProject = "project"
+	mcpArgPath    = "path"
+)
+
 // MCPStorageConfig controls behavior of MCP-backed storage adapter.
 type MCPStorageConfig struct {
 	Caller       ToolCaller
@@ -102,10 +108,10 @@ func (storage *MCPStorage) Read(ctx context.Context, project, path string, offse
 		Content string `json:"content"`
 	}
 	if err := storage.callWithRetry(ctx, "file_read", map[string]any{
-		"project": project,
-		"path":    path,
-		"offset":  offset,
-		"length":  length,
+		mcpArgProject: project,
+		mcpArgPath:    path,
+		"offset":      offset,
+		"length":      length,
 	}, &out); err != nil {
 		return "", errors.Wrap(err, "call file_read")
 	}
@@ -127,8 +133,8 @@ func (storage *MCPStorage) Write(ctx context.Context,
 	}
 
 	if err := storage.callWithRetry(ctx, "file_write", map[string]any{
-		"project":          project,
-		"path":             path,
+		mcpArgProject:      project,
+		mcpArgPath:         path,
 		"content":          content,
 		"content_encoding": "utf-8",
 		"mode":             string(mode),
@@ -156,8 +162,8 @@ func (storage *MCPStorage) Stat(ctx context.Context, project, path string) (File
 		UpdatedAt string `json:"updated_at"`
 	}
 	if err := storage.callWithRetry(ctx, "file_stat", map[string]any{
-		"project": project,
-		"path":    path,
+		mcpArgProject: project,
+		mcpArgPath:    path,
 	}, &out); err != nil {
 		return FileInfo{}, errors.Wrap(err, "call file_stat")
 	}
@@ -198,10 +204,10 @@ func (storage *MCPStorage) List(ctx context.Context,
 		HasMore bool `json:"has_more"`
 	}
 	if err = storage.callWithRetry(ctx, "file_list", map[string]any{
-		"project": project,
-		"path":    path,
-		"depth":   depth,
-		"limit":   limit,
+		mcpArgProject: project,
+		mcpArgPath:    path,
+		"depth":       depth,
+		"limit":       limit,
 	}, &out); err != nil {
 		return nil, false, errors.Wrap(err, "call file_list")
 	}
@@ -249,7 +255,7 @@ func (storage *MCPStorage) Search(ctx context.Context,
 		} `json:"chunks"`
 	}
 	if err := storage.callWithRetry(ctx, "file_search", map[string]any{
-		"project":     project,
+		mcpArgProject: project,
 		"query":       query,
 		"path_prefix": pathPrefix,
 		"limit":       limit,
@@ -281,9 +287,9 @@ func (storage *MCPStorage) Delete(ctx context.Context, project, path string, rec
 	}
 
 	if err := storage.callWithRetry(ctx, "file_delete", map[string]any{
-		"project":   project,
-		"path":      path,
-		"recursive": recursive,
+		mcpArgProject: project,
+		mcpArgPath:    path,
+		"recursive":   recursive,
 	}, nil); err != nil {
 		return errors.Wrap(err, "call file_delete")
 	}

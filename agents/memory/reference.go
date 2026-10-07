@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Laisky/errors/v2"
+
 	storageengine "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
@@ -65,21 +67,22 @@ type memoryReferenceChunk struct {
 // memoryReferencePolicy returns only fixed trusted instructions. No stored value
 // is accepted as an argument or interpolated into this developer message.
 func memoryReferencePolicy() ResponseItem {
-	return ResponseItem{Type: "message", Role: "developer", Content: []ResponseContentPart{{
-		Type: "input_text", Text: memoryReferenceInstructions,
+	return ResponseItem{Type: responseItemTypeMessage, Role: responseRoleDeveloper, Content: []ResponseContentPart{{
+		Type: responseContentTypeInputText, Text: memoryReferenceInstructions,
 	}}}
 }
 
 // isFixedMemoryPolicy matches the fixed policy only in its developer role.
 func isFixedMemoryPolicy(item ResponseItem) bool {
-	return item.Type == "message" && item.Role == "developer" && len(item.Content) == 1 &&
-		item.Content[0].Type == "input_text" && item.Content[0].Text == memoryReferenceInstructions
+	return item.Type == responseItemTypeMessage && item.Role == responseRoleDeveloper && len(item.Content) == 1 &&
+		item.Content[0].Type == responseContentTypeInputText && item.Content[0].Text == memoryReferenceInstructions
 }
 
 // isMemoryReferenceData validates the inert reference shape. This predicate alone
 // must not remove caller user input; persistence requires its fixed policy pair.
 func isMemoryReferenceData(item ResponseItem) bool {
-	if item.Type != "message" || item.Role != "user" || len(item.Content) != 1 || item.Content[0].Type != "input_text" {
+	if item.Type != responseItemTypeMessage || item.Role != responseRoleUser || len(item.Content) != 1 ||
+		item.Content[0].Type != responseContentTypeInputText {
 		return false
 	}
 	text := item.Content[0].Text
@@ -95,11 +98,15 @@ func isMemoryReferenceData(item ResponseItem) bool {
 }
 
 // buildMemoryBlock serializes recalled data as an explicitly untrusted user-role
-// reference, with field-level provenance. It returns the same recall IDs used by
-// metrics; it never creates tool calls or authority from stored content.
-func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, insights []InsightRecord, chunks []storageengine.FileChunk) (*ResponseItem, []string, []string) {
+// reference, with field-level provenance. It returns the item (nil when nothing
+// was recalled), the same fact and insight IDs used by metrics, and an error if
+// the payload cannot be encoded; it never creates tool calls or authority from
+// stored content.
+func (engine *StandardEngine) buildMemoryBlock(
+	facts []MemoryFact, insights []InsightRecord, chunks []storageengine.FileChunk,
+) (*ResponseItem, []string, []string, error) {
 	if len(facts) == 0 && len(insights) == 0 && len(chunks) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	payload := memoryReferencePayload{Kind: "historical_memory", Untrusted: true}
 	factIDs := make([]string, 0, len(facts))
@@ -124,14 +131,19 @@ func (engine *StandardEngine) buildMemoryBlock(facts []MemoryFact, insights []In
 			Text: formatRecallChunkForPrompt(chunk),
 		})
 	}
-	// Only concrete strings, integers, booleans and slices are encoded, so
-	// Marshal cannot fail. Its default HTML escaping neutralizes delimiters
-	// after all text decoding and clipping; no prefix/suffix is trusted.
-	encoded, _ := json.Marshal(payload)
-	item := ResponseItem{Type: "message", Role: "user", Content: []ResponseContentPart{{
-		Type: "input_text", Text: "<memory_reference>\n" + string(encoded) + "\n</memory_reference>",
+	// Only concrete strings, integers, booleans and slices are encoded and
+	// invalid UTF-8 is coerced, so Marshal is not expected to fail; a failure is
+	// still surfaced rather than emitting an empty reference. Its default HTML
+	// escaping neutralizes delimiters after all text decoding and clipping; no
+	// prefix/suffix is trusted.
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "encode memory reference payload")
+	}
+	item := ResponseItem{Type: responseItemTypeMessage, Role: responseRoleUser, Content: []ResponseContentPart{{
+		Type: responseContentTypeInputText, Text: "<memory_reference>\n" + string(encoded) + "\n</memory_reference>",
 	}}}
-	return &item, factIDs, insightIDs
+	return &item, factIDs, insightIDs, nil
 }
 
 // formatRecallChunkForPrompt converts a raw search chunk into compact display text.

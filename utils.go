@@ -226,7 +226,7 @@ func HasField(st any, fieldName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer
-	if valueIface.Type().Kind() != reflect.Ptr {
+	if valueIface.Type().Kind() != reflect.Pointer {
 		// Create a new type of Iface's Type, so we have a pointer to work with
 		valueIface = reflect.New(reflect.TypeOf(st))
 	}
@@ -243,7 +243,7 @@ func HasMethod(st any, methodName string) bool {
 	valueIface := reflect.ValueOf(st)
 
 	// Check if the passed interface is a pointer
-	if valueIface.Type().Kind() != reflect.Ptr {
+	if valueIface.Type().Kind() != reflect.Pointer {
 		// Create a new type of Iface, so we have a pointer to work with
 		valueIface = reflect.New(reflect.TypeOf(st))
 	}
@@ -282,7 +282,7 @@ func NilInterface(data any) bool {
 		return true
 	}
 
-	if reflect.TypeOf(data).Kind() == reflect.Ptr &&
+	if reflect.TypeOf(data).Kind() == reflect.Pointer &&
 		reflect.ValueOf(data).IsNil() {
 		return true
 	}
@@ -308,7 +308,7 @@ func GetStructFieldByName(st any, fieldName string) any {
 		reflect.Slice,
 		reflect.Array,
 		reflect.Interface,
-		reflect.Ptr,
+		reflect.Pointer,
 		reflect.Map:
 		if v.IsNil() {
 			return nil
@@ -580,14 +580,14 @@ func SetStructFieldsBySlice(structs, vals any) (err error) {
 			return errors.WithStack(err)
 		}
 		switch sv.Index(i).Kind() {
-		case reflect.Ptr:
+		case reflect.Pointer:
 			nFields = sv.Index(i).Elem().NumField()
 		default:
 			nFields = sv.Index(i).NumField()
 		}
 		for iField = 0; iField < Min(eachGrpValsV.Len(), nFields); iField++ {
 			switch sv.Index(i).Kind() {
-			case reflect.Ptr:
+			case reflect.Pointer:
 				sv.Index(i).Elem().Field(iField).Set(eachGrpValsV.Index(iField))
 			default:
 				sv.Index(i).Field(iField).Set(eachGrpValsV.Index(iField))
@@ -644,7 +644,7 @@ func Contains[V comparable](collection []V, ele V) bool {
 
 // IsPtr check if t is pointer
 func IsPtr(t any) bool {
-	return reflect.TypeOf(t).Kind() == reflect.Ptr
+	return reflect.TypeOf(t).Kind() == reflect.Pointer
 }
 
 var reInvalidCMDChars = regexp.MustCompile(`[;&|]`)
@@ -940,7 +940,7 @@ func PrettyBuildInfo(opts ...PrettyBuildInfoOption) string {
 func IsEmpty(val any) bool {
 	t := reflect.TypeOf(val)
 	v := reflect.ValueOf(val)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return true
 		}
@@ -961,7 +961,7 @@ func IsEmpty(val any) bool {
 func NotEmpty(val any, name string) error {
 	t := reflect.TypeOf(val)
 	v := reflect.ValueOf(val)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return errors.Errorf("%q is empty pointer", name)
 		}

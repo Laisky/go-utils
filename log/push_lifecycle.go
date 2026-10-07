@@ -27,7 +27,12 @@ type pusherCounters struct{ enqueued, delivered, failed, dropped atomic.Uint64 }
 
 // Stats returns delivery counters without recursively writing to any logger.
 func (p *Pusher) Stats() PusherStats {
-	return PusherStats{p.counters.enqueued.Load(), p.counters.delivered.Load(), p.counters.failed.Load(), p.counters.dropped.Load()}
+	return PusherStats{
+		Enqueued:  p.counters.enqueued.Load(),
+		Delivered: p.counters.delivered.Load(),
+		Failed:    p.counters.failed.Load(),
+		Dropped:   p.counters.dropped.Load(),
+	}
 }
 
 // Close cancels the worker and in-flight send. It is idempotent and does not flush.

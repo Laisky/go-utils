@@ -386,9 +386,9 @@ func normalizeMemoryState(state, recordType string) string {
 	}
 
 	switch strings.TrimSpace(strings.ToLower(recordType)) {
-	case "fact_delete":
+	case memoryFactTypeDelete:
 		return memoryStateDeleted
-	case "fact_supersede":
+	case memoryFactTypeSupersede:
 		return memoryStateSuperseded
 	default:
 		return memoryStateActive

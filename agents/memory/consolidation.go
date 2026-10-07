@@ -233,10 +233,10 @@ func deriveInsightsFromFacts(now time.Time, facts []MemoryFact, observedTurns ma
 // buildInsightID builds one deterministic insight identifier.
 func buildInsightID(identity, insightType, ts, summary string) string {
 	payload, err := json.Marshal(map[string]string{
-		"identity": identity,
-		"type":     insightType,
-		"ts":       ts,
-		"summary":  summary,
+		"identity":    identity,
+		jsonFieldType: insightType,
+		"ts":          ts,
+		"summary":     summary,
 	})
 	if err != nil {
 		payload = []byte(identity + ":" + insightType + ":" + ts + ":" + summary)

@@ -124,11 +124,11 @@ func responseItemIdentity(item ResponseItem) string {
 	}
 
 	normalized := map[string]any{
-		"type":    strings.TrimSpace(item.Type),
-		"role":    strings.TrimSpace(item.Role),
-		"call_id": strings.TrimSpace(item.CallID),
-		"output":  normalizeFactValue(item.Output),
-		"content": normalizeResponseContentParts(item.Content),
+		jsonFieldType: strings.TrimSpace(item.Type),
+		"role":        strings.TrimSpace(item.Role),
+		"call_id":     strings.TrimSpace(item.CallID),
+		"output":      normalizeFactValue(item.Output),
+		"content":     normalizeResponseContentParts(item.Content),
 	}
 	buf, err := json.Marshal(normalized)
 	if err != nil {
@@ -148,11 +148,11 @@ func normalizeResponseContentParts(parts []ResponseContentPart) []map[string]str
 	normalized := make([]map[string]string, 0, len(parts))
 	for _, part := range parts {
 		normalized = append(normalized, map[string]string{
-			"type":      strings.TrimSpace(part.Type),
-			"text":      normalizeFactValue(part.Text),
-			"image_url": strings.TrimSpace(part.ImageURL),
-			"file_id":   strings.TrimSpace(part.FileID),
-			"filename":  strings.TrimSpace(part.Filename),
+			jsonFieldType: strings.TrimSpace(part.Type),
+			"text":        normalizeFactValue(part.Text),
+			"image_url":   strings.TrimSpace(part.ImageURL),
+			"file_id":     strings.TrimSpace(part.FileID),
+			"filename":    strings.TrimSpace(part.Filename),
 		})
 	}
 
