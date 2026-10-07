@@ -38,7 +38,11 @@ func EncodeByBase64(raw []byte) string {
 
 // DecodeByBase64 decode string to bytes by base64
 func DecodeByBase64(encoded string) ([]byte, error) {
-	return base64.URLEncoding.DecodeString(encoded)
+	raw, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, errors.Wrap(err, "decode base64")
+	}
+	return raw, nil
 }
 
 var (

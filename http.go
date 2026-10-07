@@ -1,13 +1,11 @@
 package utils
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Laisky/errors/v2"
@@ -211,15 +209,13 @@ func NewHTTPClient(opts ...HTTPClientOptFunc) (c *http.Client, err error) {
 //
 // Reference: https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/net/http/request.go;l=924
 func NewReusableRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
-	switch body.(type) {
-	case *bytes.Buffer, *bytes.Reader, *strings.Reader:
-		// These types are automatically handled by http.NewRequestWithContext
-		// which sets GetBody appropriately for reusability with HTTP/2 GOAWAY
-		// frames and redirects that need to replay the request body
-		return http.NewRequestWithContext(ctx, method, url, body)
-	default:
-		// For other readers, pass through directly but won't be reusable for redirects
-		// or HTTP/2 GOAWAY scenarios that require body replay
-		return http.NewRequestWithContext(ctx, method, url, body)
+	// *bytes.Buffer, *bytes.Reader and *strings.Reader bodies are recognized by
+	// http.NewRequestWithContext, which sets GetBody so HTTP/2 GOAWAY retries and
+	// redirects can replay the body. Other readers pass through unchanged and are
+	// not replayable.
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, errors.Wrap(err, "new request")
 	}
+	return req, nil
 }

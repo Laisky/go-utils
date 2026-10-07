@@ -29,9 +29,9 @@ func (p *RBACPermissionElem) Scan(input any) error {
 
 	switch v := input.(type) {
 	case []byte:
-		return json.Unmarshal(v, p)
+		return errors.Wrap(json.Unmarshal(v, p), "scan RBACPermissionElem")
 	case string:
-		return json.Unmarshal([]byte(v), p)
+		return errors.Wrap(json.Unmarshal([]byte(v), p), "scan RBACPermissionElem")
 	default:
 		return errors.Errorf("scan RBACPermissionElem: unsupported type %T", input)
 	}

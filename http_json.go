@@ -273,7 +273,10 @@ func CheckResp(resp *http.Response, opts ...CheckRespOptFunc) error {
 		checkRespStatus,
 		checkRespErr(opt.maxErrBodyBytes),
 	)(resp, nil)
-	return c.GetError()
+	if err := c.GetError(); err != nil {
+		return errors.Wrap(err, "check response")
+	}
+	return nil
 }
 
 // HTTPInvalidStatusError return error about status code
