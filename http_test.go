@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// httpTestClientTimeout is deliberately generous: these tests exercise body
+// limits and error formatting, not timeouts, and they run in parallel under
+// the race detector where large payloads can be slow on a loaded host.
+const httpTestClientTimeout = 2 * time.Minute
+
 type capturedRequest struct {
 	Method string
 	Header http.Header
@@ -134,7 +139,7 @@ func TestRequestJSONWithClientNilRequest(t *testing.T) {
 		JSON map[string]string `json:"json"`
 	}
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(5 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	err = RequestJSONWithClient(httpClient, http.MethodGet, server.URL, nil, &resp)
@@ -177,7 +182,7 @@ func TestRequestJSONWithClientLargeErrorBodyIsTruncated(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(5 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	var resp map[string]any
@@ -199,7 +204,7 @@ func TestRequestJSONWithClientLargeSuccessBodyWithinLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	var resp struct {
@@ -223,7 +228,7 @@ func TestRequestJSONWithClientLargeSuccessBodyExceedsLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	var resp struct {
@@ -246,7 +251,7 @@ func TestRequestJSONWithClientCustomMaxResponseBodyBytes(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	var resp struct {
@@ -285,7 +290,7 @@ func TestRequestJSONWithClientInvalidOption(t *testing.T) {
 	}))
 	defer server.Close()
 
-	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(10 * time.Second))
+	httpClient, err := NewHTTPClient(WithHTTPClientTimeout(httpTestClientTimeout))
 	require.NoError(t, err)
 
 	var resp map[string]any
