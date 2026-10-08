@@ -35,7 +35,7 @@ Choose the release line that matches your Go toolchain:
 | v5 | [`v5`](https://github.com/Laisky/go-utils/tree/v5) | >= 1.23 |
 | v6 | [`v6`](https://github.com/Laisky/go-utils/tree/v6) | >= 1.26 |
 
-These are the project's documented compatibility baselines, not a guarantee of ongoing maintenance for older release lines. Check the selected tag's `go.mod` for its exact toolchain requirements.
+These are the project's historical documented compatibility baselines, not fresh test results or a guarantee of ongoing maintenance for older release lines. Check the selected tag's `go.mod` for its exact toolchain requirements. The current v6 CI policy below applies to v6; it does not establish an automatic test matrix for the older branches.
 
 The `v6` branch declares **Go 1.26.0 or newer** in [go.mod](go.mod). Use a security-patched toolchain; the minimum language version is not a recommendation to deploy an old patch release.
 
@@ -183,7 +183,7 @@ Security-oriented checks and regression tests do not constitute an independent a
 
 Start from `v6`. Include a minimal, sanitized reproducer for a bug and preserve it as a behavior/regression test. Keep examples, public API documentation, and migration guidance synchronized with changes.
 
-The [main workflow](.github/workflows/test.yml) builds and runs race-enabled tests on Ubuntu with the latest Go 1.26 patch and the current stable Go release. It also checks formatting, lint, module tidiness, vulnerabilities, and `go vet` for Linux, Windows, and macOS targets. Cross-target vetting is not the same as running the test suite on every OS.
+The [main workflow](.github/workflows/test.yml) automatically checks formatting and runs seven essential unit tests with the latest patched Go 1.26 toolchain. Full lint, builds, and the Go 1.26/current-stable race and coverage matrix, including Tongsuo integration, run when the `Test` workflow is dispatched manually. The lint job also checks module tidiness, vulnerabilities, and `go vet` for Linux, Windows, and macOS targets. Cross-target vetting is not the same as running the test suite on every OS. Separate security workflows retain their automatic checks; see the [CI testing policy](docs/fast-ci.md) for the gate's scope and full local qualification commands.
 
 ```sh
 # Install goimports and govulncheck; install the linter used by the workflow separately.

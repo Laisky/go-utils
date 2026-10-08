@@ -1,0 +1,24 @@
+[
+  {
+    "package": ".",
+    "tests": [
+      "TestHashSHA256String",
+      "TestURLMasking",
+      "TestRemoveEmpty",
+      "TestTrimEleSpaceAndRemoveEmpty"
+    ]
+  },
+  {
+    "package": "./json",
+    "tests": [
+      "TestUnmarshal",
+      "TestUnmarshalCommentFromString"
+    ]
+  },
+  {
+    "package": "./log",
+    "tests": [
+      "TestZapForkHooksFieldsAndFilter"
+    ]
+  }
+]
