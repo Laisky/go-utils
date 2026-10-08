@@ -7,7 +7,7 @@ Reusable Go packages for service infrastructure, cryptography and PKI, file proc
 [![Go version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**[Get started](#get-started) · [Package guide](docs/modules.md) · [CLI](#command-line-toolbox) · [Safety and migration](#safety-and-migration) · [Contributing](#development-and-contributing)**
+**[Go compatibility](#requirements-and-versioning) · [Get started](#get-started) · [Package guide](docs/modules.md) · [CLI](#command-line-toolbox) · [Safety and migration](#safety-and-migration) · [Contributing](#development-and-contributing)**
 
 ## What is in the toolbox?
 
@@ -23,6 +23,19 @@ This is a library and toolbox, not an application framework, hosted KMS, authent
 ## Get started
 
 ### Requirements and versioning
+
+Choose the release line that matches your Go toolchain:
+
+| Version | Branch | Supported Go version |
+| --- | --- | --- |
+| v1 | [`master`](https://github.com/Laisky/go-utils/tree/master) | >= 1.16 |
+| v2 | [`v2`](https://github.com/Laisky/go-utils/tree/v2) | >= 1.18 |
+| v3 | [`v3`](https://github.com/Laisky/go-utils/tree/v3) | >= 1.19 |
+| v4 | [`v4`](https://github.com/Laisky/go-utils/tree/v4) | >= 1.21 |
+| v5 | [`v5`](https://github.com/Laisky/go-utils/tree/v5) | >= 1.23 |
+| v6 | [`v6`](https://github.com/Laisky/go-utils/tree/v6) | >= 1.26 |
+
+These are the project's documented compatibility baselines, not a guarantee of ongoing maintenance for older release lines. Check the selected tag's `go.mod` for its exact toolchain requirements.
 
 The `v6` branch declares **Go 1.26.0 or newer** in [go.mod](go.mod). Use a security-patched toolchain; the minimum language version is not a recommendation to deploy an old patch release.
 
