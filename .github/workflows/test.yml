@@ -2,12 +2,12 @@ name: Test
 
 on:
   push:
-    branches: [v6, v6-dev]
+    branches: [v6]
     paths-ignore:
       - "**/*.md"
       - ".scripts/*.sh"
   pull_request:
-    branches: [v6, v6-dev]
+    branches: [v6]
 
 permissions:
   contents: read

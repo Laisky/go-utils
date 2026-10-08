@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rivo/duplo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,4 +83,44 @@ func TestRemoveDuplicateSimilarImagesDryRunKeepsFiles(t *testing.T) {
 
 	require.NoError(t, removeDuplicate(true, dir))
 	require.Len(t, remainingFiles(t, dir), 2)
+}
+
+// TestSimilarImageReplacementKeepsIndexUsable verifies that processing a larger
+// re-encoded image replaces a smaller predecessor and lets a later similar image
+// match the kept file instead of consulting a deleted path.
+func TestSimilarImageReplacementKeepsIndexUsable(t *testing.T) {
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "picture.png")
+	jpegPath := filepath.Join(dir, "picture.jpg")
+	writeSyntheticImage(t, pngPath, 40, false)
+	writeSyntheticImage(t, jpegPath, 40, false)
+	pngInfo, err := os.Stat(pngPath)
+	require.NoError(t, err)
+	jpegInfo, err := os.Stat(jpegPath)
+	require.NoError(t, err)
+	require.NotEqual(t, pngInfo.Size(), jpegInfo.Size())
+
+	smaller, larger := pngPath, jpegPath
+	if pngInfo.Size() > jpegInfo.Size() {
+		smaller, larger = jpegPath, pngPath
+	}
+	third := filepath.Join(dir, "later"+filepath.Ext(smaller))
+	content, err := os.ReadFile(smaller)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(third, content, 0600))
+	store := duplo.New()
+	deleted, err := checkDupByImageSimilar(false, store, smaller)
+	require.NoError(t, err)
+	require.False(t, deleted)
+	deleted, err = checkDupByImageSimilar(false, store, larger)
+	require.NoError(t, err)
+	require.True(t, deleted)
+	require.NoFileExists(t, smaller)
+	require.FileExists(t, larger)
+
+	deleted, err = checkDupByImageSimilar(false, store, third)
+	require.NoError(t, err, "replacement index must refer to the surviving image")
+	require.True(t, deleted)
+	require.NoFileExists(t, third)
+	require.Equal(t, []string{filepath.Base(larger)}, remainingFiles(t, dir))
 }

@@ -45,6 +45,7 @@ func TestPusherHTTPSender_Send(t *testing.T) {
 		WithPusherSender(sender),
 	)
 	require.NoError(t, err)
+	defer p.Close()
 
 	logger := Shared.Named("test")
 	logger = logger.WithOptions(zap.HooksWithFields(p.GetZapHook()))
@@ -57,6 +58,16 @@ func TestPusherHTTPSender_Send(t *testing.T) {
 	}
 	// "{\"level\":\"info\",\"time\":\"2023-06-04T07:45:44.227Z\",\"logger\":\"go-utils.test\",\"caller\":\"log/push_test.go:46\",\"msg\":\"test\"}\n"
 	require.Contains(t, got, "slava, ukriane")
+	require.Eventually(t, func() bool {
+		return p.Stats().Delivered == 1
+	}, 3*time.Second, time.Millisecond, "client delivery must finish before cancellation")
+	require.Zero(t, p.Stats().Failed)
+	p.Close()
+	select {
+	case <-p.Done():
+	case <-time.After(3 * time.Second):
+		t.Fatal("pusher did not stop after completed delivery")
+	}
 }
 
 // TestPusher_HookReturnsAfterCtxCancel verifies the zap hook does not block

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -107,6 +108,45 @@ func TestRandomChoice(t *testing.T) {
 		n := randor.Intn(10000)
 		got := RandomChoice(arr, n)
 		require.Len(t, got, n, "n: %d, got: %d", n, len(got))
+	}
+}
+
+// TestRandomChoiceBoundaries verifies selection counts, source membership, order,
+// uniqueness, and unchanged input for explicit empty, zero, partial, and full selections.
+func TestRandomChoiceBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		arr  []int
+		n    int
+		want int
+	}{
+		{name: "nil", n: 0},
+		{name: "empty", arr: []int{}, n: 1},
+		{name: "zero", arr: []int{10, 20, 30, 40}, n: 0},
+		{name: "one", arr: []int{10, 20, 30, 40}, n: 1, want: 1},
+		{name: "partial", arr: []int{10, 20, 30, 40}, n: 2, want: 2},
+		{name: "all", arr: []int{10, 20, 30, 40}, n: 4, want: 4},
+		{name: "more_than_available", arr: []int{10, 20, 30, 40}, n: 8, want: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := slices.Clone(tc.arr)
+			got := RandomChoice(tc.arr, tc.n)
+			require.Len(t, got, tc.want)
+			require.Equal(t, before, tc.arr)
+
+			lastIndex := -1
+			for _, value := range got {
+				index := slices.Index(tc.arr, value)
+				require.NotEqual(t, -1, index, "selected value must belong to the input")
+				require.Greater(t, index, lastIndex, "selection must preserve source order without duplicates")
+				lastIndex = index
+			}
+			if tc.n >= len(tc.arr) {
+				require.Equal(t, tc.arr, got)
+			}
+		})
 	}
 }
 
