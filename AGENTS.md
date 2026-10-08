@@ -4,7 +4,7 @@
 - **English only:** Always output **English** for all code, comments, chat, documents, logs, and UI text regardless of input language.
 - **Project purpose:** go-utils (`github.com/Laisky/go-utils/v6`) is a reusable Go utility library (crypto/PKI including Tongsuo SM2/SM3/SM4, filesystem, compression, logging, HTTP, rate limiting, RBAC, agent memory) consumed by security-sensitive services such as Purrfect TEE. Prioritize security, integrity, and behavioral correctness over availability.
 - **File length limits:** No manually written code file may exceed **800 lines**; for Go prefer files ≤**600 lines**; split by responsibility when needed; generated files are exempt.
-- **Build and test checks:** After code changes run `make lint` and `go test -race -cover ./...`. Add narrower checks when they exist, but do not skip these final gates.
+- **Build and test checks:** Automatic pre-merge CI runs formatting plus the explicit essential unit allowlist in `.scripts/fast_ci_tests.json`; see `docs/fast-ci.md`. After Go code changes, developers still run `make lint` and `go test -race -cover ./...` on local dev/staging, with the required environment and Tongsuo installed. Full lint, race/coverage, and compatibility matrix qualification is also retained under manual `Test` workflow dispatch. CI-only scheduling/runner changes use the essential gate and its negative controls; they do not require running environment-dependent qualification on every update.
 - **Debug logging discipline:** Add targeted DEBUG logs to aid diagnosis, keep useful logs after debugging, and **never** include secrets (API keys, passwords, tokens) in logs or outputs.
 - **Structured logging:** Use structured Zap logging and `zap.Error(err)` for errors; avoid `fmt.Sprintf` for log messages.
 
@@ -28,7 +28,7 @@
 - **DB performance philosophy:** Minimize DB pressure: prefer explicit SQL for complex read conditions and joins; use ORM convenience for modifications.
 - **Never swallow errors:** Always return or log errors; do not silently ignore failures.
 - **Documentation consistency:** Keep manuals, architecture notes, and examples synchronized with shipped CLI and server behavior. Prefer one fail-closed noninteractive secret-input path over multiple ad-hoc examples.
-- **Preserve CI expectations:** Any change must respect CI and linting rules; fix tests or implementation as needed, but do not bypass checks.
+- **Preserve CI expectations:** Respect the current CI scheduling policy in `docs/fast-ci.md`; fix tests or implementation as needed, and never bypass failures or weaken assertions. The maintainer-directed 2026-10-08 amendment moves general full qualification to manual execution while retaining automatic essential units and the existing security checks.
 - **Planning discipline (pre-action):** Before any action, independently plan: check policy constraints and prerequisites, reorder operations if needed, and ensure required info/tools are available.
 - **Risk assessment:** Evaluate consequences of actions and prefer calling tools with available info rather than blocking on optional details unless required by dependencies.
 - **Hypothesis exploration:** When debugging, generate and prioritize hypotheses, test the most likely causes first, and iterate if disproven.
