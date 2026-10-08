@@ -1,8 +1,8 @@
-// Package utils is a comprehensive, production-grade Go utility library
-// providing reusable building blocks for cryptography, concurrency,
-// file operations, networking, caching, rate limiting, and more.
+// Package utils provides reusable Go building blocks for cryptography,
+// concurrency, file operations, networking, caching, and rate limiting.
 //
-// Requires Go 1.25 or later. Licensed under the MIT License.
+// Requires Go 1.26.0 or later. Use a security-patched toolchain.
+// Licensed under the MIT License.
 //
 // # Installation
 //
@@ -14,19 +14,27 @@
 //
 //	go install github.com/Laisky/go-utils/v6/cmd/gutils@latest
 //
+// All v6 import paths include /v6. The v6 development branch may contain APIs
+// not yet included in a release; pin a tested tag or reviewed commit rather
+// than assuming @latest is the current branch head.
+//
 // # Quick Start
 //
 // Import the root package for common utilities:
 //
 //	import gutils "github.com/Laisky/go-utils/v6"
 //
-// Import sub-packages for domain-specific functionality:
+// Import subpackages for domain-specific functionality:
 //
 //	import (
 //	    "github.com/Laisky/go-utils/v6/crypto"
 //	    "github.com/Laisky/go-utils/v6/log"
 //	    "github.com/Laisky/go-utils/v6/jwt"
 //	)
+//
+// See the [package guide] for usage recipes, imports, lifecycle requirements,
+// and migration notes. Examples and API contracts describe the checked-out
+// version, not every historical release.
 //
 // # Root Package
 //
@@ -36,9 +44,10 @@
 //     [IsDir], [IsFile], [FileExists], [FileMD5], [FileSHA1], [DirSize],
 //     [ListFilesInDir], [WatchFileChanging], [RenderTemplate]
 //   - HTTP client: [NewHTTPClient] with configurable TLS, proxy, and timeout
-//   - Caching: [LRU cache] with TTL support and [TtlCache] for time-based expiration
+//   - Caching: [NewLruCache], a SIEVE-backed bounded cache wrapper, and
+//     [TtlCache] for per-entry expiration
 //   - Rate limiting: [RateLimiter] using a token-bucket algorithm
-//   - Concurrency: [Mutex] (atomic-based), [RaceErr], [RaceErrWithCtx],
+//   - Concurrency: [Mutex], [RaceErr], [RaceErrWithCtx],
 //     [RunWithTimeout], [WaitComplete]
 //   - Async tasks: [AsyncTaskInterface] and [AsyncTaskResult]
 //   - Hashing: [Hash] and [FileHash] supporting SHA-256, SHA-512, and xxhash
@@ -50,64 +59,72 @@
 //   - Terminal: [Input], [InputYes] for interactive prompts
 //   - Time: [UTCNow], [TimeEqual] with tolerance comparison
 //   - ANSI color: [Color] for terminal output
-//   - RBAC: [RBACPermKey], [RBACPermFullKey] for role-based access control
+//   - RBAC: [RBACPermKey], [RBACPermFullKey], and explicit permission grants
 //
-// # Sub-Packages
+// Close caches and other owned resources during shutdown. Cancellation and
+// timeouts require cooperating workers; they do not forcibly stop arbitrary
+// code. RenderTemplate uses text/template, not HTML contextual escaping.
 //
-// The library is organized into focused sub-packages:
+// # Subpackages
 //
-//   - [github.com/Laisky/go-utils/v6/algorithm] — Data structures including
-//     skip lists, FIFO/deque queues, priority queues, and heaps.
-//   - [github.com/Laisky/go-utils/v6/common] — Shared type constraints
-//     ([Number], [Sortable]) and math helpers ([Min], [Max], [Round],
-//     [HumanReadableByteCount], [Number2Roman]).
-//   - [github.com/Laisky/go-utils/v6/compress] — Gzip, parallel gzip (pgzip),
-//     and ZIP archive operations with decompression-bomb protection.
-//   - [github.com/Laisky/go-utils/v6/counter] — Thread-safe counters:
-//     atomic [Counter] with speed tracking, [RotateCounter] for circular
-//     counting, and [ParallelCounter] for distributed counting.
-//   - [github.com/Laisky/go-utils/v6/crypto] — Cryptographic toolkit covering
-//     AES-GCM encryption, RSA (PKCS#1 v1.5 and OAEP), ECDSA, Ed25519,
-//     SM2/SM3/SM4, Argon2id password hashing, HKDF, OTP, and X.509 certificate
-//     management.
-//   - [github.com/Laisky/go-utils/v6/crypto/kms] — Key Management System
-//     interface with an in-memory implementation.
-//   - [github.com/Laisky/go-utils/v6/crypto/threshold] — Threshold
-//     cryptography including Shamir secret sharing and threshold RSA signatures.
-//   - [github.com/Laisky/go-utils/v6/email] — SMTP email sending via the
-//     [Mail] interface.
-//   - [github.com/Laisky/go-utils/v6/gorm] — GORM database helpers including
-//     [GzText] for transparent gzip-compressed text storage.
-//   - [github.com/Laisky/go-utils/v6/json] — JSON encoding/decoding utilities
-//     with comment support.
-//   - [github.com/Laisky/go-utils/v6/jwt] — JWT signing and parsing for
-//     HS256, ES256, and RS256 algorithms.
-//   - [github.com/Laisky/go-utils/v6/log] — Structured logging built on
-//     [zap] with sampled logging, log rotation, and alert integration.
-//   - [github.com/Laisky/go-utils/v6/agents] — Agent infrastructure for
-//     AI/ML applications, including memory management and file storage
-//     abstractions.
+// The library is one Go module containing focused subpackages:
+//
+//   - github.com/Laisky/go-utils/v6/algorithm: generic queues, heaps,
+//     priority queues, skip lists, and array/search helpers.
+//   - github.com/Laisky/go-utils/v6/common: shared numeric/sortable constraints,
+//     ordering constants, and numeric/formatting helpers.
+//   - github.com/Laisky/go-utils/v6/compress: gzip, parallel gzip, and ZIP
+//     operations with configurable output budgets.
+//   - github.com/Laisky/go-utils/v6/counter: atomic counters, speed sampling,
+//     rotation, and in-process range allocation to child counters.
+//   - github.com/Laisky/go-utils/v6/crypto: AES-GCM, RSA, ECDSA, Ed25519,
+//     SM2/SM3/SM4, password hashing, HKDF, OTP, and X.509/CSR utilities.
+//   - github.com/Laisky/go-utils/v6/crypto/kms: a key-management interface;
+//     crypto/kms/mem supplies an in-memory implementation, not an HSM.
+//   - github.com/Laisky/go-utils/v6/crypto/threshold/shamir: secret sharing.
+//   - github.com/Laisky/go-utils/v6/crypto/threshold/signature: threshold RSA.
+//   - github.com/Laisky/go-utils/v6/email: SMTP delivery with verified TLS by
+//     default and explicit transport customization.
+//   - github.com/Laisky/go-utils/v6/gorm: compressed/JSON database fields and
+//     metadata-first SQL diagnostic logging.
+//   - github.com/Laisky/go-utils/v6/json: JSON helpers, with explicit
+//     comment-aware decoding APIs.
+//   - github.com/Laisky/go-utils/v6/jwt: HS256/ES256 signing and verification,
+//     plus RS256 verification.
+//   - github.com/Laisky/go-utils/v6/log: structured logging built on the
+//     [Laisky Zap fork], sampling, UTC daily rotation, and retention.
+//   - github.com/Laisky/go-utils/v6/agents/files: MCP FileIO and storage APIs.
+//   - github.com/Laisky/go-utils/v6/agents/memory/storage: a storage contract
+//     with local and MCP implementations in its subpackages.
+//   - github.com/Laisky/go-utils/v6/agents/memory: turn preparation and
+//     persistence, tiered facts, compaction, and maintenance.
 //
 // # CLI Tool (gutils)
 //
-// The gutils command-line tool exposes several handy operations:
+// Preview destructive work and keep backups before changing files:
 //
-//	# find and delete duplicate files or similar images
-//	gutils remove-dup -d examples/images --dry
+//	# preview duplicate-file removal
+//	gutils remove-dup -d ./photos --dry
 //
-//	# move files into hash-based hierarchical directories
-//	gutils md5dir -i examples/md5dir/
+//	# move a backed-up working copy into MD5-based directories
+//	gutils md5dir -i ./working-copy
 //
-//	# show X.509 certificate details
-//	gutils certinfo -r blog.laisky.com:443
+//	# inspect an X.509 certificate
+//	gutils certinfo -r example.com:443
 //	gutils certinfo -f ./cert.pem
 //
-//	# encrypt a file with AES
-//	gutils encrypt aes -i <file_path> -s <password>
+//	# use a provisioned password file; never put passwords in arguments
+//	chmod 600 ./password.txt
+//	gutils encrypt aes -i ./config.toml --password-file ./password.txt
 //
-//	# sign or verify with RSA
-//	gutils rsa sign
-//	gutils rsa verify
+//	# sign or verify a file and its .sig sidecar
+//	gutils rsa sign --prikey ./private.pem --file ./artifact.bin
+//	gutils rsa verify --pubkey ./public.pem --file ./artifact.bin
 //
-// [zap]: https://pkg.go.dev/go.uber.org/zap
+// The removed -s/--secret flag is not accepted. Existing regular output files
+// can be replaced. Read the CLI and migration guides before processing older
+// ciphertext or permission data.
+//
+// [package guide]: https://github.com/Laisky/go-utils/blob/v6/docs/modules.md
+// [Laisky Zap fork]: https://pkg.go.dev/github.com/Laisky/zap
 package utils
