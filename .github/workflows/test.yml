@@ -9,6 +9,8 @@ on:
   pull_request:
     branches: [v6]
 
+  workflow_dispatch:
+
 permissions:
   contents: read
 
@@ -23,7 +25,35 @@ env:
   TONGSUO_VERSION: "8.5.0"
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GOTOOLCHAIN: local
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+      - name: Check gate failure reporting
+        run: python3 -m unittest discover -s .scripts -p test_fast_ci.py -v
+      - name: Formatting and essential unit tests
+        run: python3 .scripts/fast_ci.py --evidence "$RUNNER_TEMP/fast-ci"
+      - name: Retain discovery, native exits, and measured timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-ci-${{ github.sha }}
+          path: ${{ runner.temp }}/fast-ci
+          if-no-files-found: error
+          retention-days: 14
+
   lint:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -63,7 +93,8 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod go.sum
 
-  test:
+  full-test:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
