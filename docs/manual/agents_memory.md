@@ -276,6 +276,10 @@ Root path usage:
 | `FilePerm` | No       | `0644`  | File permission for newly created files.          |
 | `DirPerm`  | No       | `0755`  | Directory permission for created directories.     |
 
+**Resource policy:** `Limits local.Limits` selects the bounded defaults described in
+[Local storage operation budgets](../security/local-storage-budgets.md). Zero fields
+select defaults; negative values fail construction.
+
 ### 5.4 MCP plugin config: `mcpstorage.Config`
 
 | Field          | Required    | Default                  | Description                                                                 |
@@ -754,6 +758,11 @@ From `agents/memory/storage/local` implementation:
 3. `Search` limit defaults to `5` and is capped at `50`.
 4. `Search` skips files larger than `4 MiB`.
 5. Symlinks are skipped in traversal/search to avoid root escape and loop recursion.
+6. `Read` returns at most 8 MiB by default and reads only the requested range.
+7. `Search` also defaults to 1024 files, 8192 discovered entries, 64 MiB scanned,
+   8 MiB retained content, and five seconds. Budget errors return no partial results.
+   Configure reviewed `local.Limits` for trusted workloads; see the
+   [operation budget and compatibility contract](../security/local-storage-budgets.md).
 
 ### 10.2 `AfterTurn`
 
