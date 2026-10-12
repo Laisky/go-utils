@@ -110,3 +110,22 @@ func TestMCPBudgetOverflowAndValidation(t *testing.T) {
 	var toolErr *ToolError
 	require.False(t, errors.As(ErrMCPBudgetExceeded, &toolErr))
 }
+
+// TestMCPCountingReaderContract preserves io.Reader's exact EOF sentinel and
+// counts partial data while wrapping non-EOF errors with actionable context.
+func TestMCPCountingReaderContract(t *testing.T) {
+	reader := &mcpCountingReader{reader: strings.NewReader("fixture")}
+	body, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, "fixture", string(body))
+	require.Equal(t, int64(len(body)), reader.count)
+	_, err = reader.Read(make([]byte, 1))
+	require.Equal(t, io.EOF, err)
+
+	reader = &mcpCountingReader{reader: &budgetErrorBody{remaining: 3}}
+	n, err := reader.Read(make([]byte, 10))
+	require.Equal(t, 3, n)
+	require.Equal(t, int64(3), reader.count)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.ErrorContains(t, err, "read MCP response")
+}

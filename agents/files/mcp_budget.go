@@ -31,7 +31,8 @@ func WithMCPBudget(ctx context.Context, maxRequests int, maxResponseBytes int64)
 		return nil, errors.New("MCP budgets must be positive")
 	}
 	parent, _ := ctx.Value(mcpBudgetKey{}).(*mcpBudget)
-	return context.WithValue(ctx, mcpBudgetKey{}, &mcpBudget{requests: maxRequests, bytes: maxResponseBytes, parent: parent}), nil
+	budget := &mcpBudget{requests: maxRequests, bytes: maxResponseBytes, parent: parent}
+	return context.WithValue(ctx, mcpBudgetKey{}, budget), nil
 }
 
 // reserveMCPResponse reserves one attempt and bounded response space from every
@@ -90,5 +91,12 @@ type mcpCountingReader struct {
 func (r *mcpCountingReader) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
 	r.count += int64(n)
-	return n, err
+	if err != nil {
+		// io.Reader requires the exact EOF sentinel, not a wrapped EOF.
+		if errors.Is(err, io.EOF) {
+			return n, io.EOF
+		}
+		return n, errors.Wrap(err, "read MCP response")
+	}
+	return n, nil
 }

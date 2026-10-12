@@ -30,7 +30,9 @@ const (
 // 1 MiB, or the ten-second deadline return an error, never partial results.
 // Missing abstracts may be created, but never outside the validated subtree.
 // Project and session authorization remain the embedding application's duty.
-func (engine *StandardEngine) ListDirWithAbstract(ctx context.Context, project, sessionID, listPath string, depth, limit int) ([]DirectorySummary, error) {
+func (engine *StandardEngine) ListDirWithAbstract(
+	ctx context.Context, project, sessionID, listPath string, depth, limit int,
+) ([]DirectorySummary, error) {
 	if strings.TrimSpace(project) == "" {
 		return nil, errors.New("project is required")
 	}
@@ -89,7 +91,8 @@ func (engine *StandardEngine) ListDirWithAbstract(ctx context.Context, project, 
 // validateSummaryPath rejects noncanonical or out-of-subtree paths before I/O.
 // The length ceiling leaves room for the appended /.abstract and /.overview.
 func validateSummaryPath(root, p string) error {
-	if len(p) > 502 || !utf8.ValidString(p) || !strings.HasPrefix(p, "/") || path.Clean(p) != p || strings.Contains(p, "\\") {
+	if len(p) > 502 || !utf8.ValidString(p) || !strings.HasPrefix(p, "/") ||
+		path.Clean(p) != p || strings.Contains(p, "\\") {
 		return errors.New("summary path must be canonical and bounded")
 	}
 	for _, r := range p {
@@ -140,7 +143,9 @@ func boundedSummaryDirs(root string, entries []storageengine.FileInfo, depth, li
 
 // readDirectorySummary performs at most three bounded storage calls for dir,
 // charging untrimmed abstract bytes to the shared remaining response budget.
-func (engine *StandardEngine) readDirectorySummary(ctx context.Context, project, dir string, remaining *int64) (DirectorySummary, error) {
+func (engine *StandardEngine) readDirectorySummary(
+	ctx context.Context, project, dir string, remaining *int64,
+) (DirectorySummary, error) {
 	if err := ctx.Err(); err != nil {
 		return DirectorySummary{}, errors.Wrap(err, "summary context")
 	}
@@ -175,7 +180,9 @@ func (engine *StandardEngine) readDirectorySummary(ctx context.Context, project,
 		return DirectorySummary{}, errors.Wrap(err, "summary context")
 	}
 	if !info.Exists || info.Type != storageengine.FileTypeFile {
-		if err := engine.storage.Write(ctx, project, abstractPath, body, storageengine.WriteModeTruncate, 0); err != nil {
+		if err := engine.storage.Write(
+			ctx, project, abstractPath, body, storageengine.WriteModeTruncate, 0,
+		); err != nil {
 			return DirectorySummary{}, errors.Wrap(err, "create summary abstract")
 		}
 	}
@@ -189,5 +196,8 @@ func (engine *StandardEngine) readDirectorySummary(ctx context.Context, project,
 	if err := ctx.Err(); err != nil {
 		return DirectorySummary{}, errors.Wrap(err, "summary context")
 	}
-	return DirectorySummary{Path: dir, Abstract: strings.TrimSpace(body), UpdatedAt: updatedAt, HasOverview: overview.Exists && overview.Type == storageengine.FileTypeFile}, nil
+	return DirectorySummary{
+		Path: dir, Abstract: strings.TrimSpace(body), UpdatedAt: updatedAt,
+		HasOverview: overview.Exists && overview.Type == storageengine.FileTypeFile,
+	}, nil
 }
