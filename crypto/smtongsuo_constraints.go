@@ -37,8 +37,11 @@ func tongsuoCSRConstraints(opt *signCSROption) (*tongsuoConstraints, error) {
 	return newTongsuoConstraints(opt.isCA, maximum, maximum == 0, opt.extraExtensions)
 }
 
-// newTongsuoConstraints validates path length and extension identities, rejecting ambiguous overrides before invoking a tool.
-func newTongsuoConstraints(isCA bool, maximum int, explicitZero bool, extensions []pkix.Extension) (*tongsuoConstraints, error) {
+// newTongsuoConstraints validates path length and extension identities, rejecting ambiguous overrides before
+// invoking a tool.
+func newTongsuoConstraints(
+	isCA bool, maximum int, explicitZero bool, extensions []pkix.Extension,
+) (*tongsuoConstraints, error) {
 	if maximum < -1 || (explicitZero && maximum != 0) {
 		return nil, errors.New("invalid CA path length constraint")
 	}
@@ -89,7 +92,8 @@ func (c *tongsuoConstraints) basicConstraintsLine() string {
 	return "basicConstraints = critical, CA:" + value + "\n"
 }
 
-// extraExtensionLines returns raw DER directives using only validated numeric OIDs and hexadecimal bytes, never OpenSSL expressions.
+// extraExtensionLines returns raw DER directives using only validated numeric OIDs and hexadecimal bytes,
+// never OpenSSL expressions.
 func (c *tongsuoConstraints) extraExtensionLines() string {
 	var lines strings.Builder
 	for _, extension := range c.extensions {
@@ -107,9 +111,11 @@ func (c *tongsuoConstraints) extraExtensionLines() string {
 	return lines.String()
 }
 
-// verify checks parsed certificate constraints and each requested extension before any issued DER is returned to a caller.
+// verify checks parsed certificate constraints and each requested extension before any issued DER is returned
+// to a caller.
 func (c *tongsuoConstraints) verify(cert *smx509.Certificate) error {
-	if !cert.BasicConstraintsValid || cert.IsCA != c.isCA || cert.MaxPathLen != c.maxPathLen || cert.MaxPathLenZero != (c.maxPathLen == 0) {
+	if !cert.BasicConstraintsValid || cert.IsCA != c.isCA ||
+		cert.MaxPathLen != c.maxPathLen || cert.MaxPathLenZero != (c.maxPathLen == 0) {
 		return errors.New("issued certificate CA or path length constraints differ from the request")
 	}
 	basicCritical := false
