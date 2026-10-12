@@ -224,7 +224,9 @@ func encryptDirByAESCLI(ctx context.Context, dir string, secret *aesCLISecret) e
 		return errors.WithStack(gcrypto.AESEncryptFilesInDirWithContext(ctx, dir, secret.key))
 	}
 
-	enc, err := gcrypto.NewPasswordEncryptor(secret.password, gcrypto.WithPasswordKDFParams(aesCLIPasswordKDFParams))
+	enc, err := gcrypto.NewPasswordEncryptorContext(
+		ctx, secret.password, gcrypto.WithPasswordKDFParams(aesCLIPasswordKDFParams),
+	)
 	if err != nil {
 		return errors.Wrap(err, "derive password key")
 	}
