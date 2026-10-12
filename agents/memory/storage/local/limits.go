@@ -24,12 +24,16 @@ type Limits struct {
 // DefaultLimits returns bounded defaults: 8 MiB per Read, 1024 searched files,
 // 8192 discovered entries, 64 MiB scanned, 8 MiB retained, and five seconds.
 func DefaultLimits() Limits {
-	return Limits{MaxReadBytes: 8 << 20, MaxSearchFiles: 1024, MaxSearchEntries: 8192, MaxSearchBytes: 64 << 20, MaxSearchResultBytes: 8 << 20, SearchTimeout: 5 * time.Second}
+	return Limits{
+		MaxReadBytes: 8 << 20, MaxSearchFiles: 1024, MaxSearchEntries: 8192,
+		MaxSearchBytes: 64 << 20, MaxSearchResultBytes: 8 << 20, SearchTimeout: 5 * time.Second,
+	}
 }
 
 // normalizeLimits fills zero fields and rejects negative or unaddressable limits.
 func normalizeLimits(limits Limits) (Limits, error) {
-	if limits.MaxReadBytes < 0 || limits.MaxSearchFiles < 0 || limits.MaxSearchEntries < 0 || limits.MaxSearchBytes < 0 || limits.MaxSearchResultBytes < 0 || limits.SearchTimeout < 0 {
+	if limits.MaxReadBytes < 0 || limits.MaxSearchFiles < 0 || limits.MaxSearchEntries < 0 ||
+		limits.MaxSearchBytes < 0 || limits.MaxSearchResultBytes < 0 || limits.SearchTimeout < 0 {
 		return Limits{}, errors.New("local storage limits cannot be negative")
 	}
 	defaults := DefaultLimits()

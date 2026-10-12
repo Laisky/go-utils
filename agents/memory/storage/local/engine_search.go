@@ -18,7 +18,9 @@ import (
 // result count, it bounds discovered entries, files, scanned/retained bytes,
 // depth, and duration. Budget exhaustion or cancellation returns an error and
 // no partial results. Symlinks, special files and files over 4 MiB are skipped.
-func (engine *Engine) Search(ctx context.Context, project, query, pathPrefix string, limit int) ([]memorystorage.FileChunk, error) {
+func (engine *Engine) Search(
+	ctx context.Context, project, query, pathPrefix string, limit int,
+) ([]memorystorage.FileChunk, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "search context")
 	}
@@ -45,7 +47,10 @@ func (engine *Engine) Search(ctx context.Context, project, query, pathPrefix str
 	if root == nil {
 		return nil, nil
 	}
-	state := &searchState{ctx: ctx, root: root, limits: engine.limits, query: query, queryLower: strings.ToLower(query), resultLimit: limit, entries: 1}
+	state := &searchState{
+		ctx: ctx, root: root, limits: engine.limits, query: query,
+		queryLower: strings.ToLower(query), resultLimit: limit, entries: 1,
+	}
 	walkErr := state.walk(prefix, 0)
 	closeErr := root.Close()
 	if closeErr != nil {
@@ -153,7 +158,7 @@ func (state *searchState) scanFile(current string, info fs.FileInfo) error {
 	available := state.limits.MaxSearchBytes - state.scanned
 	body, err := readRootRange(state.ctx, state.root, current, 0, -1, min(int64(maxSearchFileBytes), available))
 	if err != nil {
-		return errors.Wrap(err, "read search file")
+		return wrapSearchReadError(current, err)
 	}
 	state.scanned += int64(len(body))
 	idx := strings.Index(strings.ToLower(body), state.queryLower)
@@ -164,7 +169,10 @@ func (state *searchState) scanFile(current string, info fs.FileInfo) error {
 		return errors.Wrap(ErrBudgetExceeded, "search result byte limit")
 	}
 	state.retained += int64(len(body))
-	state.chunks = append(state.chunks, memorystorage.FileChunk{FilePath: toStoragePath(current), StartBytes: int64(idx), EndBytes: int64(idx + len(state.query)), Content: body, Score: 0.9})
+	state.chunks = append(state.chunks, memorystorage.FileChunk{
+		FilePath: toStoragePath(current), StartBytes: int64(idx),
+		EndBytes: int64(idx + len(state.query)), Content: body, Score: 0.9,
+	})
 	if len(state.chunks) >= state.resultLimit {
 		return errWalkStop
 	}

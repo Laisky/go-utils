@@ -278,7 +278,7 @@ func wrapEntryInfoError(currentPath string, err error) error {
 // Returns:
 //   - error: Nil for not-exist races, otherwise a wrapped actionable error.
 func wrapSearchReadError(currentPath string, err error) error {
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	if errors.Is(err, fs.ErrPermission) {

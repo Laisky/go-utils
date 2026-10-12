@@ -12,7 +12,9 @@ import (
 // checking the byte budget before allocation and cancellation between 32 KiB
 // reads. A missing file returns empty content; concurrent truncation returns
 // the available prefix. offset and length must already be syntactically valid.
-func readRootRange(ctx context.Context, root *os.Root, relPath string, offset, length, maxBytes int64) (content string, err error) {
+func readRootRange(
+	ctx context.Context, root *os.Root, relPath string, offset, length, maxBytes int64,
+) (content string, err error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "read context")
 	}
