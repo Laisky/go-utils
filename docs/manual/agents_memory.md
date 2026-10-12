@@ -675,6 +675,13 @@ Behavior summary:
 | `depth`     | No       | `8`                     | Directory traversal depth.                                  |
 | `limit`     | No       | `200`                   | Max entries returned by underlying storage list call.       |
 
+Explicit listing paths and backend results must stay inside the requested session
+subtree. Depth is capped at 32; entry and directory counts at 200. Abstracts are
+bounded to 64 KiB each and 1 MiB total, with a ten-second operation deadline and
+shared MCP attempt/response budgets. See
+[Directory summary scope and budgets](../security/directory-summary-budgets.md)
+for error, compatibility and authorization semantics.
+
 #### `DirectorySummary`
 
 | Field         | Description                                                          |

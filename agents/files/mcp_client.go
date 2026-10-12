@@ -299,6 +299,12 @@ func (client *MCPClient) doRPC(ctx context.Context, sessionID string, reqBody rp
 		httpReq.Header.Set("Mcp-Session-Id", sessionID)
 	}
 
+	responseLimit, finishBudget, err := reserveMCPResponse(ctx, maxMCPRPCResponseBodyBytes)
+	if err != nil {
+		return errors.Wrap(err, "admit MCP request")
+	}
+	counter := &mcpCountingReader{}
+	defer func() { finishBudget(counter.count) }()
 	httpResp, err := client.httpCli.Do(httpReq)
 	if err != nil {
 		return errors.Wrap(err, "do http request")
@@ -307,20 +313,24 @@ func (client *MCPClient) doRPC(ctx context.Context, sessionID string, reqBody rp
 		_ = httpResp.Body.Close()
 	}()
 
-	respBody, truncated, err := readMCPBodyWithLimit(httpResp.Body, maxMCPRPCResponseBodyBytes)
+	counter.reader = httpResp.Body
+	respBody, truncated, err := readMCPBodyWithLimit(counter, responseLimit)
 	if err != nil {
 		return errors.Wrap(err, "read response body")
 	}
 	if truncated {
 		log.Shared.Debug("mcp rpc response body truncated",
 			zap.Int("http_status", httpResp.StatusCode),
-			zap.Int("max_body_bytes", maxMCPRPCResponseBodyBytes),
+			zap.Int64("max_body_bytes", responseLimit),
 			zap.Int("body_bytes", len(respBody)),
 		)
 
-		return errors.Errorf("rpc response body exceeds limit %d bytes (truncated)", maxMCPRPCResponseBodyBytes)
+		return errors.Wrapf(ErrMCPBudgetExceeded, "rpc response body exceeds limit %d bytes (truncated)", responseLimit)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "MCP response context")
+	}
 	if err = json.Unmarshal(respBody, out); err != nil {
 		return errors.Wrap(err, "unmarshal rpc response")
 	}
