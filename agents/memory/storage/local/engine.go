@@ -36,6 +36,7 @@ const (
 
 // Config controls Local storage engine initialization.
 type Config struct {
+	Limits   Limits
 	RootDir  string
 	FilePerm os.FileMode
 	DirPerm  os.FileMode
@@ -43,6 +44,7 @@ type Config struct {
 
 // Engine is a local filesystem implementation of the memory storage interface.
 type Engine struct {
+	limits   Limits
 	root     *os.Root
 	filePerm os.FileMode
 	dirPerm  os.FileMode
@@ -59,6 +61,11 @@ type Engine struct {
 func NewEngine(conf Config) (*Engine, error) {
 	if strings.TrimSpace(conf.RootDir) == "" {
 		return nil, errors.Errorf("root_dir is required")
+	}
+
+	limits, err := normalizeLimits(conf.Limits)
+	if err != nil {
+		return nil, errors.Wrap(err, "validate local limits")
 	}
 
 	dirPerm := conf.DirPerm
@@ -90,6 +97,7 @@ func NewEngine(conf Config) (*Engine, error) {
 	}
 
 	return &Engine{
+		limits:   limits,
 		root:     root,
 		filePerm: filePerm,
 		dirPerm:  dirPerm,
@@ -115,7 +123,8 @@ func (engine *Engine) Close() error {
 	return nil
 }
 
-// Read reads content from a file path with optional byte slicing.
+// Read reads only the requested file range, bounded by Config.Limits.MaxReadBytes.
+// Oversized requests fail before allocation; cancellation is checked between reads.
 //
 // Parameters:
 //   - ctx: Request-scoped context used for cancellation checks.
@@ -137,8 +146,8 @@ func (engine *Engine) Read(ctx context.Context, project, storagePath string, off
 		return "", errors.Wrap(err, "normalize path")
 	}
 
-	if offset < 0 {
-		return "", errors.Errorf("offset must be >= 0")
+	if offset < 0 || length < -1 {
+		return "", errors.New("offset must be >= 0 and length must be >= -1")
 	}
 
 	projectRoot, err := engine.openProjectRoot(project, false)
@@ -155,24 +164,7 @@ func (engine *Engine) Read(ctx context.Context, project, storagePath string, off
 		_ = projectRoot.Close()
 	}()
 
-	body, err := projectRoot.ReadFile(relPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", errors.Wrap(err, "read file")
-	}
-
-	if offset > int64(len(body)) {
-		return "", errors.Errorf("offset out of range")
-	}
-
-	body = body[offset:]
-	if length >= 0 && length < int64(len(body)) {
-		body = body[:length]
-	}
-
-	return string(body), nil
+	return readRootRange(ctx, projectRoot, relPath, offset, length, engine.limits.MaxReadBytes)
 }
 
 // Write writes content into a file using append, overwrite, or truncate mode.
