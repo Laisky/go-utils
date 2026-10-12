@@ -314,6 +314,9 @@ func (p *RBACPermissionElem) HasPerm(requiredKey RBACPermFullKey) bool {
 	if err := p.validUnlocked(0); err != nil {
 		return false
 	}
+	if err := p.validateRBACIdentities("", 0, false); err != nil {
+		return false
+	}
 	return p.hasPermUnlocked(requiredKey, 0)
 }
 
@@ -396,9 +399,9 @@ func (p *RBACPermissionElem) hasPerm2WithParent(requiredKey, parentFullKey RBACP
 		return false
 	}
 
-	currentFullKey := p.FullKey
-	if currentFullKey == "" {
-		currentFullKey = parentFullKey.Append(p.Key)
+	currentFullKey, valid := p.canonicalRBACIdentity(parentFullKey, depth)
+	if !valid {
+		return false
 	}
 
 	if p.explicitGrantMode() == RBACGrantSubtree &&
@@ -423,7 +426,10 @@ func (p *RBACPermissionElem) Valid() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	return p.validUnlocked(0)
+	if err := p.validUnlocked(0); err != nil {
+		return errors.WithStack(err)
+	}
+	return p.validateRBACIdentities("", 0, false)
 }
 
 // validUnlocked checks keys and grant modes at the supplied depth without
@@ -479,8 +485,9 @@ func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionEl
 	if p.Key == "" || other.Key == "" || p.Key != other.Key || !other.validGrantMode() {
 		return
 	}
-	current := p.rbacFullKey(parent)
-	if current != other.rbacFullKey(parent) {
+	current, valid := p.canonicalRBACIdentity(parent, depth)
+	incoming, incomingValid := other.canonicalRBACIdentity(parent, depth)
+	if !valid || !incomingValid || current != incoming {
 		return
 	}
 	if !p.validGrantMode() {
@@ -501,6 +508,9 @@ func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionEl
 		if oe == nil || oe.Key == "" || !oe.validGrantMode() {
 			continue
 		}
+		if _, valid := oe.canonicalRBACIdentity(current, depth+1); !valid {
+			continue
+		}
 		var replacedEle *RBACPermissionElem
 		for _, child := range p.Children {
 			if child != nil && child.Key == oe.Key {
@@ -509,7 +519,7 @@ func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionEl
 			}
 		}
 		if replacedEle == nil {
-			p.Children = append(p.Children, oe.cloneRBACAtDepth(depth+1))
+			p.Children = append(p.Children, oe.cloneCanonicalRBACBranch(current, depth+1))
 			continue
 		}
 		replacedEle.unionAndOverwriteByUnlocked(oe, current, depth+1)

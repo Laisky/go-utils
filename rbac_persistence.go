@@ -76,7 +76,8 @@ func decodePermissionTree(wire *permissionJSON, depth int) (*RBACPermissionElem,
 
 // UnmarshalJSON validates a detached tree before replacing live authorization
 // state. Null children, invalid grants, and excessive depth leave the receiver
-// unchanged. Missing fields in valid legacy JSON still replace old state.
+// unchanged. Descendant FullKey values must agree with their structural path.
+// Missing fields in valid legacy JSON still replace old state.
 func (p *RBACPermissionElem) UnmarshalJSON(data []byte) error {
 	if p == nil {
 		return errors.New("unmarshal RBACPermissionElem: nil receiver")
@@ -88,6 +89,9 @@ func (p *RBACPermissionElem) UnmarshalJSON(data []byte) error {
 	decoded, err := decodePermissionTree(wire, 0)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if err := decoded.validateRBACIdentities("", 0, true); err != nil {
+		return errors.Wrap(err, "unmarshal permission identity")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
