@@ -51,3 +51,23 @@ func (p *RBACPermissionElem) validateRBACIdentities(parent RBACPermFullKey, dept
 	}
 	return nil
 }
+
+// cloneCanonicalRBACBranch copies only valid identities under parent. Legacy
+// grant modes are materialized before filtering, so removing denied descendants
+// cannot convert their structural parent into a leaf grant. Invalid nodes and
+// their descendants are omitted without changing the source tree.
+func (p *RBACPermissionElem) cloneCanonicalRBACBranch(parent RBACPermFullKey, depth int) *RBACPermissionElem {
+	current, valid := p.canonicalRBACIdentity(parent, depth)
+	if !valid || !p.validGrantMode() {
+		return nil
+	}
+	clone := &RBACPermissionElem{
+		Key: p.Key, FullKey: current, Title: p.Title, Grant: p.explicitGrantMode(),
+	}
+	for _, child := range p.Children {
+		if copied := child.cloneCanonicalRBACBranch(current, depth+1); copied != nil {
+			clone.Children = append(clone.Children, copied)
+		}
+	}
+	return clone
+}

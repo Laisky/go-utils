@@ -519,7 +519,7 @@ func (p *RBACPermissionElem) unionAndOverwriteByUnlocked(other *RBACPermissionEl
 			}
 		}
 		if replacedEle == nil {
-			p.Children = append(p.Children, oe.cloneRBACAtDepth(depth+1))
+			p.Children = append(p.Children, oe.cloneCanonicalRBACBranch(current, depth+1))
 			continue
 		}
 		replacedEle.unionAndOverwriteByUnlocked(oe, current, depth+1)

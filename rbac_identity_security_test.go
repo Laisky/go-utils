@@ -79,3 +79,39 @@ func TestRBACIdentityLegacyDirectState(t *testing.T) {
 	p.Children = []*RBACPermissionElem{{Key: "reader", FullKey: "root.admin", Grant: RBACGrantSubtree}}
 	require.False(t, p.HasPerm("root.admin"))
 }
+
+// TestRBACIdentityUnionNestedForgery checks absent and existing destination
+// branches, preserving legitimate siblings without normalizing denied grants.
+func TestRBACIdentityUnionNestedForgery(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		for _, keepSibling := range []bool{false, true} {
+			for _, mode := range []RBACGrantMode{"", RBACGrantNone} {
+				source := NewPermissionTree()
+				reader := &RBACPermissionElem{Key: "reader", FullKey: "root.reader", Grant: mode}
+				reader.Children = []*RBACPermissionElem{{Key: "view", FullKey: "root.admin", Grant: RBACGrantSubtree}}
+				if keepSibling {
+					reader.Children = append(reader.Children, &RBACPermissionElem{
+						Key: "edit", FullKey: "root.reader.edit", Grant: RBACGrantSubtree,
+					})
+				}
+				source.Children = []*RBACPermissionElem{reader}
+				before, err := source.Value()
+				require.NoError(t, err)
+				destination := NewPermissionTree()
+				if existing {
+					destination.Children = []*RBACPermissionElem{{Key: "reader", Grant: RBACGrantNone}}
+				}
+				destination.UnionAndOverwriteBy(source)
+				require.False(t, destination.HasPerm2("root.reader.view"))
+				require.NoError(t, destination.FillDefault(""))
+				require.False(t, destination.HasPerm2("root.reader.view"), "normalization promoted a forged grandchild")
+				require.False(t, destination.HasPerm2("root.reader"), "filtering created a legacy leaf grant")
+				require.False(t, destination.HasPerm2("root.admin"))
+				require.Equal(t, keepSibling, destination.HasPerm2("root.reader.edit"))
+				after, err := source.Value()
+				require.NoError(t, err)
+				require.Equal(t, before, after)
+			}
+		}
+	}
+}
