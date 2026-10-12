@@ -2,13 +2,13 @@ package crypto
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
 	"sync/atomic"
 
 	"github.com/Laisky/errors/v2"
-	"golang.org/x/crypto/argon2"
 )
 
 // Password-based encryption format (version 1):
@@ -137,6 +137,16 @@ type PasswordEncryptor struct {
 // the encryptor, or an error for an empty password, invalid option or
 // randomness failure.
 func NewPasswordEncryptor(password []byte, opts ...PasswordEncryptorOption) (*PasswordEncryptor, error) {
+	return NewPasswordEncryptorContext(context.Background(), password, opts...)
+}
+
+// NewPasswordEncryptorContext derives a reusable key after acquiring the shared
+// Argon2 memory budget. ctx cancels admission; an already-running Argon2 call
+// cannot be interrupted. It returns the encryptor or a validation/admission error.
+func NewPasswordEncryptorContext(ctx context.Context, password []byte, opts ...PasswordEncryptorOption) (*PasswordEncryptor, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "password encryption context")
+	}
 	if len(password) == 0 {
 		return nil, errors.New("password must not be empty")
 	}
@@ -168,8 +178,16 @@ func NewPasswordEncryptor(password []byte, opts ...PasswordEncryptorOption) (*Pa
 	header = append(header, opt.params.Parallelism)
 	header = append(header, salt...)
 
-	key := argon2.IDKey(password, salt, opt.params.Time, opt.params.MemoryKiB,
-		opt.params.Parallelism, passwordKeyLen)
+	key, err := deriveArgon2idKey(ctx, password, salt, argon2idParams{
+		time: opt.params.Time, memoryKiB: opt.params.MemoryKiB, threads: opt.params.Parallelism,
+	}, passwordKeyLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "derive password encryption key")
+	}
+	if err := ctx.Err(); err != nil {
+		clear(key)
+		return nil, errors.Wrap(err, "password encryption context")
+	}
 	return &PasswordEncryptor{header: header, key: key}, nil
 }
 
@@ -208,11 +226,21 @@ func (e *PasswordEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 // Argon2id + AES-256-GCM format, using default KDF parameters and a fresh salt
 // and nonce. It returns the self-describing ciphertext or an error.
 func EncryptByPassword(password, plaintext []byte, opts ...PasswordEncryptorOption) ([]byte, error) {
-	enc, err := NewPasswordEncryptor(password, opts...)
+	return EncryptByPasswordContext(context.Background(), password, plaintext, opts...)
+}
+
+// EncryptByPasswordContext encrypts plaintext using password with cancellable
+// shared-budget admission and returns the existing password-format ciphertext.
+func EncryptByPasswordContext(ctx context.Context, password, plaintext []byte, opts ...PasswordEncryptorOption) ([]byte, error) {
+	enc, err := NewPasswordEncryptorContext(ctx, password, opts...)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
+	defer clear(enc.key)
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "password encryption context")
+	}
 	ciphertext, err := enc.Encrypt(plaintext)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -233,6 +261,16 @@ func IsPasswordEncrypted(data []byte) bool {
 // derivation. It returns the plaintext, or an error for malformed input,
 // unsupported versions, hostile parameters, a wrong password or tampering.
 func DecryptByPassword(password, ciphertext []byte) ([]byte, error) {
+	return DecryptByPasswordContext(context.Background(), password, ciphertext)
+}
+
+// DecryptByPasswordContext opens the existing password ciphertext format after
+// validating its header and acquiring the same Argon2 budget as password hashing.
+// ctx cancels admission but cannot interrupt a running Argon2 computation.
+func DecryptByPasswordContext(ctx context.Context, password, ciphertext []byte) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "password decryption context")
+	}
 	if len(password) == 0 {
 		return nil, errors.New("password must not be empty")
 	}
@@ -247,8 +285,16 @@ func DecryptByPassword(password, ciphertext []byte) ([]byte, error) {
 	nonce := ciphertext[passwordHeaderLen : passwordHeaderLen+AesGcmIvLen]
 	sealed := ciphertext[passwordHeaderLen+AesGcmIvLen:]
 
-	key := argon2.IDKey(password, salt, params.Time, params.MemoryKiB, params.Parallelism, passwordKeyLen)
+	key, err := deriveArgon2idKey(ctx, password, salt, argon2idParams{
+		time: params.Time, memoryKiB: params.MemoryKiB, threads: params.Parallelism,
+	}, passwordKeyLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "derive password decryption key")
+	}
 	defer clear(key)
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "password decryption context")
+	}
 
 	aead, err := newPasswordAEAD(key)
 	if err != nil {
