@@ -147,7 +147,7 @@ func TestRsaEncryptByOAEP(t *testing.T) {
 
 				_, err = RSADecryptByOAEP(newPrikey, cipher)
 				require.Error(t, err)
-				require.ErrorContains(t, err, "decrypt chunk")
+				require.ErrorIs(t, err, ErrInvalidRSAEnvelope)
 			})
 
 			t.Run("cipher should be different", func(t *testing.T) {
