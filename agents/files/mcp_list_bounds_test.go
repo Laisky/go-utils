@@ -1,9 +1,10 @@
 package files
 
 import (
-	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestMCPListRequestBounds verifies that client and configured defaults cannot

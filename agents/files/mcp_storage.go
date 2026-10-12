@@ -57,8 +57,8 @@ func NewMCPStorage(conf MCPStorageConfig) (*MCPStorage, error) {
 	return &MCPStorage{
 		caller:       conf.Caller,
 		retryDelays:  retryDelays,
-		defaultDepth: defaultDepth,
-		defaultLimit: defaultLimit,
+		defaultDepth: min(defaultDepth, 32),
+		defaultLimit: min(defaultLimit, 5000),
 	}, nil
 }
 
@@ -193,6 +193,8 @@ func (storage *MCPStorage) List(ctx context.Context,
 	if limit <= 0 {
 		limit = storage.defaultLimit
 	}
+	depth = min(depth, 32)
+	limit = min(limit, 5000)
 
 	var out struct {
 		Entries []struct {
@@ -212,6 +214,9 @@ func (storage *MCPStorage) List(ctx context.Context,
 		return nil, false, errors.Wrap(err, "call file_list")
 	}
 
+	if len(out.Entries) > limit {
+		return nil, false, errors.New("MCP listing exceeds requested entry limit")
+	}
 	infos := make([]FileInfo, 0, len(out.Entries))
 	for _, entry := range out.Entries {
 		infos = append(infos, FileInfo{
@@ -301,9 +306,12 @@ func (storage *MCPStorage) Delete(ctx context.Context, project, path string, rec
 func (storage *MCPStorage) callWithRetry(ctx context.Context, toolName string, args any, out any) error {
 	var err error
 	for idx := 0; idx <= len(storage.retryDelays); idx++ {
+		if err := ctx.Err(); err != nil {
+			return errors.Wrap(err, "storage request context")
+		}
 		err = storage.caller.CallTool(ctx, toolName, args, out)
 		if err == nil {
-			return nil
+			return errors.Wrap(ctx.Err(), "storage response context")
 		}
 
 		var tErr *ToolError

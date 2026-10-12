@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -114,4 +115,70 @@ func TestSummaryRequestBounds(t *testing.T) {
 		require.Empty(t, out)
 		require.Equal(t, []string{"list:/memory/alice"}, storage.calls)
 	})
+}
+
+// TestSummaryAllowedDescendant retains scoped discovery and proves the concrete
+// metadata-call ceiling includes the root directory and derived ancestors.
+func TestSummaryAllowedDescendant(t *testing.T) {
+	storage := &summaryProbe{memoryStorageMock: newMemoryStorageMock(), entries: []files.FileInfo{
+		{Path: "/memory/alice/sub/a/file", Type: files.FileTypeFile},
+		{Path: "/memory/alice/sub/b", Type: files.FileTypeDirectory},
+	}}
+	engine, err := NewEngine(storage, Config{})
+	require.NoError(t, err)
+	out, err := engine.ListDirWithAbstract(t.Context(), "demo", "alice", "/memory/alice/sub", 2, 3)
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+	require.Len(t, storage.calls, 1+3*len(out))
+	for _, summary := range out {
+		require.True(t, summary.Path == "/memory/alice/sub" || strings.HasPrefix(summary.Path, "/memory/alice/sub/"))
+	}
+}
+
+// TestSummaryCumulativeBytes counts untrimmed content toward the aggregate
+// ceiling and stops before issuing the read that would exceed that ceiling.
+func TestSummaryCumulativeBytes(t *testing.T) {
+	storage := &summaryProbe{memoryStorageMock: newMemoryStorageMock(), entries: []files.FileInfo{}}
+	root := "/memory/alice"
+	storage.files["demo:"+root+"/.abstract"] = strings.Repeat(" ", maxSummaryAbstractBytes)
+	for i := 0; i < 16; i++ {
+		p := fmt.Sprintf("%s/d%02d", root, i)
+		storage.entries = append(storage.entries, files.FileInfo{Path: p, Type: files.FileTypeDirectory})
+		storage.files["demo:"+p+"/.abstract"] = strings.Repeat(" ", maxSummaryAbstractBytes)
+	}
+	engine, err := NewEngine(storage, Config{})
+	require.NoError(t, err)
+	out, err := engine.ListDirWithAbstract(t.Context(), "demo", "alice", "", 2, 30)
+	require.Error(t, err)
+	require.Nil(t, out)
+	reads := 0
+	for _, call := range storage.calls {
+		if strings.HasPrefix(call, "read:") {
+			reads++
+		}
+	}
+	require.Equal(t, maxSummaryTotalBytes/maxSummaryAbstractBytes, reads)
+	require.NotContains(t, storage.calls, "read:/memory/alice/d15/.abstract")
+}
+
+// TestSummaryDerivedFanoutAndCancellation rejects over-deep and over-fanout
+// paths before metadata side effects and propagates an already canceled context.
+func TestSummaryDerivedFanoutAndCancellation(t *testing.T) {
+	for _, depth := range []int{1, 32} {
+		storage := &summaryProbe{memoryStorageMock: newMemoryStorageMock(), entries: []files.FileInfo{{Path: "/memory/alice/a/b/c", Type: files.FileTypeDirectory}}}
+		engine, err := NewEngine(storage, Config{})
+		require.NoError(t, err)
+		_, err = engine.ListDirWithAbstract(t.Context(), "demo", "alice", "", depth, 2)
+		require.Error(t, err)
+		require.Equal(t, []string{"list:/memory/alice"}, storage.calls)
+	}
+	storage := &summaryProbe{memoryStorageMock: newMemoryStorageMock()}
+	engine, err := NewEngine(storage, Config{})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	out, err := engine.ListDirWithAbstract(ctx, "demo", "alice", "", 2, 3)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, out)
+	require.Empty(t, storage.calls)
 }
