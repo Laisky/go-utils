@@ -78,7 +78,10 @@ func (s *rbacPermissionSnapshot) collect(p *RBACPermissionElem, parent RBACPermF
 	if p == nil || p.Key == "" || !p.validGrantMode() || depth > rbacMaxDepth {
 		return
 	}
-	key := p.rbacFullKey(parent)
+	key, valid := p.canonicalRBACIdentity(parent, depth)
+	if !valid {
+		return
+	}
 	if _, exists := s.nodes[key]; !exists {
 		s.nodes[key] = rbacNodeInfo{title: p.Title}
 	}

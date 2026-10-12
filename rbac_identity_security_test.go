@@ -56,3 +56,26 @@ func TestRBACIdentityAnchoredRoundTrip(t *testing.T) {
 	require.False(t, q.HasPerm2("root.admin.read"))
 	require.False(t, q.HasPerm2("sys.read"))
 }
+
+// TestRBACIdentityMutationsCannotPromote checks that set operations do not turn
+// a denied forged source into a canonical grant, including after normalization.
+func TestRBACIdentityMutationsCannotPromote(t *testing.T) {
+	forged := NewPermissionTree()
+	forged.Children = []*RBACPermissionElem{{Key: "reader", FullKey: "root.admin", Grant: RBACGrantSubtree}}
+	p := NewPermissionTree()
+	p.UnionAndOverwriteBy(forged)
+	require.NoError(t, p.FillDefault(""))
+	require.False(t, p.HasPerm2("root.reader"))
+	require.False(t, p.HasPerm2("root.admin"))
+	broad := &RBACPermissionElem{Key: "root", Grant: RBACGrantSubtree}
+	broad.Intersection(forged)
+	require.False(t, broad.HasPerm2("root.admin"))
+	require.False(t, broad.HasPerm2("root.reader"))
+}
+
+// TestRBACIdentityLegacyDirectState ensures the deprecated authorization entrypoint also fails closed for a forged structural identity.
+func TestRBACIdentityLegacyDirectState(t *testing.T) {
+	p := NewPermissionTree()
+	p.Children = []*RBACPermissionElem{{Key: "reader", FullKey: "root.admin", Grant: RBACGrantSubtree}}
+	require.False(t, p.HasPerm("root.admin"))
+}
