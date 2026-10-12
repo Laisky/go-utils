@@ -23,6 +23,8 @@ type tongsuoIssuanceExpectation struct {
 	validity *tongsuoValidity
 	// names, when set, is the exact subject and SAN content required.
 	names *tongsuoNames
+	// constraints, when set, checks CA authority and exact raw extensions.
+	constraints *tongsuoConstraints
 }
 
 // verifyTongsuoIssuedCert parses certDer with the SM2-capable parser and checks
@@ -35,6 +37,11 @@ func verifyTongsuoIssuedCert(certDer []byte, want tongsuoIssuanceExpectation) er
 		return errors.Wrap(err, "parse issued certificate")
 	}
 
+	if want.constraints != nil {
+		if err = want.constraints.verify(cert); err != nil {
+			return errors.Wrap(err, "verify issued constraints")
+		}
+	}
 	if want.validity != nil {
 		if err = want.validity.verify(cert); err != nil {
 			return errors.Wrap(err, "verify issued validity")
@@ -120,6 +127,10 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal openssl conf")
 	}
+	constraints, err := tongsuoTemplateConstraints(tpl)
+	if err != nil {
+		return nil, errors.Wrap(err, "certificate constraints")
+	}
 	extKeyUsages, err := tongsuoCertExtKeyUsages(tpl)
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
@@ -169,6 +180,7 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	}
 
 	if err = verifyTongsuoIssuedCert(certDer, tongsuoIssuanceExpectation{
+		constraints:       constraints,
 		checkExtKeyUsages: true,
 		extKeyUsages:      extKeyUsages,
 		validity:          &validity,
@@ -274,6 +286,10 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "X509SignCsrOptions2OpensslConf")
 	}
+	constraints, err := tongsuoCSRConstraints(opt)
+	if err != nil {
+		return nil, errors.Wrap(err, "certificate constraints")
+	}
 	extKeyUsages, err := canonicalExtKeyUsages(opt.extKeyUsage)
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
@@ -344,6 +360,7 @@ func (t *Tongsuo) signX509CSR(ctx context.Context,
 	// the CSR may carry its own EKU (copied by copy_extensions); only an
 	// explicit request is enforced here
 	if err = verifyTongsuoIssuedCert(certDer, tongsuoIssuanceExpectation{
+		constraints:       constraints,
 		checkExtKeyUsages: len(extKeyUsages) != 0,
 		extKeyUsages:      extKeyUsages,
 		validity:          &validity,

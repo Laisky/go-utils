@@ -55,6 +55,10 @@ func X509Cert2OpensslConf(cert *x509.Certificate) (opensslConf []byte) {
 // configuration using enc for every caller-controlled value. It returns the
 // configuration, or an error when the template cannot be represented exactly.
 func x509Cert2OpensslConf(cert *x509.Certificate, enc opensslConfEncoder) (opensslConf []byte, err error) {
+	constraints, err := tongsuoTemplateConstraints(cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "certificate constraints")
+	}
 	extKeyUsages, err := tongsuoCertExtKeyUsages(cert)
 	if err != nil {
 		return nil, errors.Wrap(err, "ext key usage")
@@ -85,16 +89,17 @@ func x509Cert2OpensslConf(cert *x509.Certificate, enc opensslConfEncoder) (opens
 
 	// set v3_ca
 	cnt += gutils.Dedent(`
-		[ v3_ca ]
-		basicConstraints = critical, CA:`)
+		[ v3_ca ]`)
+	cnt += "\n" + constraints.basicConstraintsLine()
 	if cert.IsCA {
-		cnt += "TRUE\nkeyUsage = cRLSign, keyCertSign\n"
+		cnt += "keyUsage = cRLSign, keyCertSign\n"
 	} else {
-		cnt += "FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
+		cnt += "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement\n"
 	}
 	cnt += extKeyUsageLine
 	cnt += "subjectKeyIdentifier = hash\nauthorityKeyIdentifier = keyid:always, issuer\n"
 
+	cnt += constraints.extraExtensionLines()
 	// set policies
 	cnt += opensslPoliciesLines(cert.PolicyIdentifiers)
 
@@ -340,20 +345,19 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 		return nil, nil, errors.Wrap(err, "apply options")
 	}
 
+	constraints, err := tongsuoCSRConstraints(opt)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "certificate constraints")
+	}
+
 	cnt := gutils.Dedent(`
 		[req]
 		x509_extensions = v3_ca
 
 		[ v3_ca ]
 		subjectKeyIdentifier = hash
-		authorityKeyIdentifier = keyid:always, issuer
-		basicConstraints = critical, CA:`)
-
-	if opt.isCA {
-		cnt += "TRUE\n"
-	} else {
-		cnt += "FALSE\n"
-	}
+		authorityKeyIdentifier = keyid:always, issuer`)
+	cnt += "\n" + constraints.basicConstraintsLine()
 
 	var keyUsages []string
 	for _, name := range sortedKeyUsages {
@@ -377,6 +381,7 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	}
 	cnt += extKeyUsageLine
 
+	cnt += constraints.extraExtensionLines()
 	cnt += opensslPoliciesLines(opt.policies)
 
 	return opt, []byte(cnt), nil
