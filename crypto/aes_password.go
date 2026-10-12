@@ -143,7 +143,9 @@ func NewPasswordEncryptor(password []byte, opts ...PasswordEncryptorOption) (*Pa
 // NewPasswordEncryptorContext derives a reusable key after acquiring the shared
 // Argon2 memory budget. ctx cancels admission; an already-running Argon2 call
 // cannot be interrupted. It returns the encryptor or a validation/admission error.
-func NewPasswordEncryptorContext(ctx context.Context, password []byte, opts ...PasswordEncryptorOption) (*PasswordEncryptor, error) {
+func NewPasswordEncryptorContext(
+	ctx context.Context, password []byte, opts ...PasswordEncryptorOption,
+) (*PasswordEncryptor, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "password encryption context")
 	}
@@ -231,7 +233,9 @@ func EncryptByPassword(password, plaintext []byte, opts ...PasswordEncryptorOpti
 
 // EncryptByPasswordContext encrypts plaintext using password with cancellable
 // shared-budget admission and returns the existing password-format ciphertext.
-func EncryptByPasswordContext(ctx context.Context, password, plaintext []byte, opts ...PasswordEncryptorOption) ([]byte, error) {
+func EncryptByPasswordContext(
+	ctx context.Context, password, plaintext []byte, opts ...PasswordEncryptorOption,
+) ([]byte, error) {
 	enc, err := NewPasswordEncryptorContext(ctx, password, opts...)
 	if err != nil {
 		return nil, errors.WithStack(err)
