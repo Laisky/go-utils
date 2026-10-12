@@ -127,3 +127,21 @@ func TestRSAOAEPLegacyMigration(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, out)
 }
+
+// TestRSAOAEPFreshNonces verifies that repeated encryption of identical input
+// generates distinct nonce fields and remains independently interoperable.
+func TestRSAOAEPFreshNonces(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	seen := make(map[string]struct{})
+	for range 8 {
+		encrypted, err := RSAEncryptByOAEP(&key.PublicKey, []byte("fixture"))
+		require.NoError(t, err)
+		wrappedLen := int(binary.BigEndian.Uint16(encrypted[9:11]))
+		nonce := string(encrypted[11+wrappedLen : 11+wrappedLen+12])
+		_, duplicate := seen[nonce]
+		require.False(t, duplicate, "fresh encryption reused a nonce")
+		seen[nonce] = struct{}{}
+		require.Equal(t, []byte("fixture"), openRSAEnvelopeWithStdlibForTest(t, key, encrypted))
+	}
+}

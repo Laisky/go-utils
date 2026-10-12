@@ -8,7 +8,8 @@ import (
 	"github.com/Laisky/errors/v2"
 )
 
-// RSADecryptByOAEPLegacy decodes the historical sequence of independent RSA-OAEP/SHA-256 blocks for explicit offline migration.
+// RSADecryptByOAEPLegacy decodes the historical sequence of independent RSA-OAEP/SHA-256 blocks for explicit
+// offline migration.
 // The caller MUST authenticate the complete original ciphertext with a trusted
 // external MAC, signature or equivalent integrity record before calling this.
 // Reordered, duplicated and deleted whole blocks cannot be detected by this format.

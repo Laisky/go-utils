@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/binary"
+	"math"
 
 	"github.com/Laisky/errors/v2"
 )
@@ -22,7 +23,8 @@ const (
 	rsaEnvelopeLabel     = "go-utils RSA-OAEP AES-256-GCM envelope v1"
 )
 
-// ErrInvalidRSAEnvelope reports malformed or unauthenticated ciphertext without exposing partial plaintext or a primitive-specific decryption reason.
+// ErrInvalidRSAEnvelope reports malformed or unauthenticated ciphertext without exposing partial plaintext or
+// a primitive-specific decryption reason.
 var ErrInvalidRSAEnvelope = errors.New("invalid or unauthenticated RSA envelope")
 
 // RSAEncryptByOAEP encrypts one complete message with a fresh AES-256-GCM key wrapped by RSA-OAEP/SHA-256.
@@ -58,29 +60,37 @@ func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "create envelope AEAD")
 	}
-	prefixLen := rsaEnvelopeHeaderLen + len(wrapped) + rsaEnvelopeNonceLen
+	wrappedLen := len(wrapped)
+	if wrappedLen < 0 || wrappedLen > math.MaxUint16 {
+		return nil, errors.New("wrapped RSA key exceeds envelope length field")
+	}
+	prefixLen := rsaEnvelopeHeaderLen + wrappedLen + rsaEnvelopeNonceLen
 	envelope := make([]byte, prefixLen, overhead+len(plain))
 	copy(envelope, rsaEnvelopeMagic)
 	envelope[len(rsaEnvelopeMagic)] = rsaEnvelopeVersion
-	binary.BigEndian.PutUint16(envelope[len(rsaEnvelopeMagic)+1:rsaEnvelopeHeaderLen], uint16(len(wrapped)))
+	binary.BigEndian.PutUint16(envelope[len(rsaEnvelopeMagic)+1:rsaEnvelopeHeaderLen], uint16(wrappedLen))
 	copy(envelope[rsaEnvelopeHeaderLen:], wrapped)
-	nonce := envelope[prefixLen-rsaEnvelopeNonceLen : prefixLen]
+	nonce := make([]byte, rsaEnvelopeNonceLen)
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, errors.Wrap(err, "generate envelope nonce")
 	}
+	copy(envelope[prefixLen-rsaEnvelopeNonceLen:prefixLen], nonce)
 	// Seal appends after the immutable AAD prefix. The output region and AAD
 	// do not overlap, even though their backing allocation is shared.
 	return aead.Seal(envelope, nonce, plain, envelope[:prefixLen]), nil
 }
 
-// RSADecryptByOAEP authenticates a versioned RSA-OAEP/AES-GCM envelope and returns the complete plaintext or an error.
+// RSADecryptByOAEP authenticates a versioned RSA-OAEP/AES-GCM envelope and returns the complete plaintext or
+// an error.
 // It never falls back to unauthenticated legacy blocks, including single blocks,
 // and never returns partial plaintext on failure. Empty ciphertext is invalid.
 func RSADecryptByOAEP(prikey *rsa.PrivateKey, encrypted []byte) ([]byte, error) {
 	if err := validateRSAPrivateKey(prikey); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if len(encrypted) < rsaEnvelopeHeaderLen || !bytes.Equal(encrypted[:len(rsaEnvelopeMagic)], []byte(rsaEnvelopeMagic)) || encrypted[len(rsaEnvelopeMagic)] != rsaEnvelopeVersion {
+	if len(encrypted) < rsaEnvelopeHeaderLen ||
+		!bytes.Equal(encrypted[:len(rsaEnvelopeMagic)], []byte(rsaEnvelopeMagic)) ||
+		encrypted[len(rsaEnvelopeMagic)] != rsaEnvelopeVersion {
 		return nil, errors.WithStack(ErrInvalidRSAEnvelope)
 	}
 	wrappedLen := int(binary.BigEndian.Uint16(encrypted[len(rsaEnvelopeMagic)+1 : rsaEnvelopeHeaderLen]))
@@ -91,7 +101,10 @@ func RSADecryptByOAEP(prikey *rsa.PrivateKey, encrypted []byte) ([]byte, error) 
 	if len(encrypted) < prefixLen+rsaEnvelopeTagLen {
 		return nil, errors.WithStack(ErrInvalidRSAEnvelope)
 	}
-	key, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, prikey, encrypted[rsaEnvelopeHeaderLen:rsaEnvelopeHeaderLen+wrappedLen], []byte(rsaEnvelopeLabel))
+	key, err := rsa.DecryptOAEP(
+		sha256.New(), rand.Reader, prikey, encrypted[rsaEnvelopeHeaderLen:rsaEnvelopeHeaderLen+wrappedLen],
+		[]byte(rsaEnvelopeLabel),
+	)
 	if err != nil {
 		return nil, errors.WithStack(ErrInvalidRSAEnvelope)
 	}
