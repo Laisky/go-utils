@@ -75,13 +75,6 @@ func decodeECDSAComponent(raw string, useBase64 bool) (*big.Int, error) {
 	return value, nil
 }
 
-// validECDSAVerificationInputs checks a standard NIST public key, including
-// equivalent curve wrappers, and the bounded signature components.
-func validECDSAVerificationInputs(key *ecdsa.PublicKey, r, s *big.Int) bool {
-	_, valid := canonicalECDSAVerificationKey(key, r, s)
-	return valid
-}
-
 // canonicalECDSAVerificationKey returns a detached key using a trusted standard
 // curve implementation. Wrapper arithmetic is never used for verification.
 func canonicalECDSAVerificationKey(key *ecdsa.PublicKey, r, s *big.Int) (*ecdsa.PublicKey, bool) {
