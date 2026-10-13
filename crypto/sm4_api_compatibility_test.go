@@ -40,3 +40,31 @@ func TestSM4CompatibilityOriginalNames(t *testing.T) {
 		})
 	}
 }
+
+// TestSM4ExplicitAuthentication preserves post-change envelopes and rejects format downgrade.
+func TestSM4ExplicitAuthentication(t *testing.T) {
+	ins := newSm4TestTongsuo(t)
+	ctx := context.Background()
+	key := []byte("0123456789abcdef")
+	plain := []byte("compatibility is not format autodetection")
+	old := sm4TestLegacyEncrypt(t, key, plain)
+	out, err := ins.DecryptBySm4CbcEnvelope(ctx, key, old)
+	require.Error(t, err)
+	require.Nil(t, out)
+	envelope, err := ins.EncryptBySm4CbcEnvelope(ctx, key, plain)
+	require.NoError(t, err)
+	out, err = ins.DecryptBySm4CbcEnvelope(ctx, key, envelope)
+	require.NoError(t, err)
+	require.Equal(t, plain, out)
+	out, err = ins.DecryptBySm4Cbc(ctx, key, envelope)
+	require.Error(t, err)
+	require.Nil(t, out)
+	ct, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plain, old[:16])
+	require.NoError(t, err)
+	out, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ct, old[:16], nil)
+	require.Error(t, err)
+	require.Nil(t, out)
+	out, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ct, old[:16], tag)
+	require.NoError(t, err)
+	require.Equal(t, plain, out)
+}

@@ -669,7 +669,7 @@ Certificate:
 tongsuo verify -x509_strict -CAfile rootca.crt -untrusted intermediateca.crt leaf.crt
 ```
 
-## SM4-CBC (`EncryptBySm4Cbc*` / `DecryptBySm4Cbc*`)
+## SM4-CBC (`EncryptBySm4CbcEnvelope*` / `DecryptBySm4CbcEnvelope*`)
 
 ### In-process implementation (no key in argv)
 
@@ -691,35 +691,35 @@ requires the binary for the other (SM2/SM3/X.509) operations.
 
 | API | Format | Authenticated |
 | --- | --- | --- |
-| `EncryptBySm4Cbc` / `DecryptBySm4Cbc` | `"GUS4" \|\| 0x01 \|\| iv(16) \|\| ciphertext(16n) \|\| tag(32)` | magic, version, IV, ciphertext |
-| `EncryptBySm4CbcBaisc` / `DecryptBySm4CbcBaisc` | standard SM4-CBC-PKCS7 ciphertext under the raw key and IV, plus a separate 32-byte `hmac` | IV and ciphertext (when `hmac` is supplied) |
+| `EncryptBySm4CbcEnvelope` / `DecryptBySm4CbcEnvelope` | `"GUS4" \|\| 0x01 \|\| iv(16) \|\| ciphertext(16n) \|\| tag(32)` | magic, version, IV, ciphertext |
+| `EncryptBySm4CbcBasicAuthenticated` / `DecryptBySm4CbcBasicAuthenticated` | standard SM4-CBC-PKCS7 ciphertext under the raw key and IV, plus a separate 32-byte `hmac` | IV and ciphertext (when `hmac` is supplied) |
 | `DecryptBySm4CbcLegacy` (migration only) | `iv(16) \|\| ciphertext(16n) \|\| HMAC-SHA256(key, ciphertext)(32)` | ciphertext only, **IV is NOT authenticated** |
 | `DecryptBySm4CbcBaiscLegacy` (migration only) | basic ciphertext + `HMAC-SHA256(key, ciphertext)` | ciphertext only, **IV is NOT authenticated** |
 
-Version 1 envelope details (`EncryptBySm4Cbc`):
+Version 1 envelope details (`EncryptBySm4CbcEnvelope`):
 
 - `encKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc-hmac-sha256 envelope v1 encryption key")[:16]`
 - `macKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc-hmac-sha256 envelope v1 mac key")[:32]`
 - a fresh random 16-byte IV per message;
   `ciphertext = SM4-CBC-PKCS7(encKey, iv, plaintext)`
 - `tag = HMAC-SHA256(macKey, "GUS4" || 0x01 || iv || ciphertext)`
-- `DecryptBySm4Cbc` checks the length (`>= 69` bytes and block aligned), magic, and
+- `DecryptBySm4CbcEnvelope` checks the length (`>= 69` bytes and block aligned), magic, and
   version **before** any cryptographic operation, verifies the tag with
   `hmac.Equal` **before** decrypting, and only then removes PKCS#7 padding
   (constant-time check). Any modified byte, truncation, or unknown version fails
   without returning plaintext.
 
-Basic API details (`EncryptBySm4CbcBaisc`): the ciphertext is plain SM4-CBC under
+Basic API details (`EncryptBySm4CbcBasicAuthenticated`): the ciphertext is plain SM4-CBC under
 the caller's raw key and IV (interoperable with Tongsuo, GmSSL, and others). The
 returned `hmac` is `HMAC-SHA256(basicMacKey, iv || ciphertext)` where
 `basicMacKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc basic iv-and-ciphertext v1 mac key")[:32]`.
-`DecryptBySm4CbcBaisc` verifies that tag before decrypting.
+`DecryptBySm4CbcBasicAuthenticated` verifies that tag before decrypting.
 
-> **Warning**: calling `DecryptBySm4CbcBaisc` with an empty `hmac` performs **no
+> **Warning**: calling `DecryptBySm4CbcBasicAuthenticated` with an empty `hmac` performs **no
 > integrity check at all**. The IV and ciphertext are then fully malleable and the
 > padding check can act as a padding oracle. Only do this for interoperability
 > with data that is authenticated by other means. Never reuse an IV with the same
-> key; prefer `EncryptBySm4Cbc`, which generates the IV for you.
+> key; prefer `EncryptBySm4CbcEnvelope`, which generates the IV for you.
 
 Empty plaintext is supported by every API and, as with `tongsuo enc`, produces one
 full 16-byte padding block (a 69-byte v1 envelope).
@@ -731,12 +731,12 @@ happens if the key holder produced malformed data). Match them with `errors.Is`.
 
 ### Breaking changes and migration
 
-- `DecryptBySm4Cbc` accepts **only** the v1 envelope. Data produced by
-  `EncryptBySm4Cbc` in earlier releases (`iv || ciphertext || HMAC(key, ciphertext)`)
+- `DecryptBySm4CbcEnvelope` accepts **only** the v1 envelope. Data produced by
+  `EncryptBySm4CbcEnvelope` in earlier releases (`iv || ciphertext || HMAC(key, ciphertext)`)
   is rejected with `ErrSm4CbcMalformedCiphertext`; there is no silent fallback,
   because the legacy MAC does not cover the IV and an attacker could flip bits of
   the first plaintext block undetected.
-- `DecryptBySm4CbcBaisc` with a nonempty `hmac` accepts **only** the new
+- `DecryptBySm4CbcBasicAuthenticated` with a nonempty `hmac` accepts **only** the new
   IV-authenticating tag. Tags produced by earlier releases fail with
   `ErrSm4CbcHMACMismatch`.
 - Basic ciphertexts themselves are unchanged and remain decryptable.
@@ -746,12 +746,12 @@ example a column or key prefix). Do not call the legacy functions as an automati
 fallback after the current decoder fails on attacker-reachable input:
 
 ```go
-// legacy combined data written by EncryptBySm4Cbc before the v1 envelope
+// legacy combined data written by EncryptBySm4CbcEnvelope before the v1 envelope
 plaintext, err := ts.DecryptBySm4CbcLegacy(ctx, key, legacyCombined)
 if err != nil {
     return errors.Wrap(err, "decrypt legacy sm4 data")
 }
-migrated, err := ts.EncryptBySm4Cbc(ctx, key, plaintext)
+migrated, err := ts.EncryptBySm4CbcEnvelope(ctx, key, plaintext)
 if err != nil {
     return errors.Wrap(err, "re-encrypt sm4 data")
 }
@@ -762,7 +762,7 @@ plaintext, err = ts.DecryptBySm4CbcBaiscLegacy(ctx, key, ciphertext, iv, oldHmac
 if err != nil {
     return errors.Wrap(err, "decrypt legacy sm4 basic data")
 }
-ciphertext, newHmac, err := ts.EncryptBySm4CbcBaisc(ctx, key, plaintext, freshIV)
+ciphertext, newHmac, err := ts.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, freshIV)
 ```
 
 The two formats also have disjoint lengths (`53 + 16n` for v1 versus `48 + 16n`
