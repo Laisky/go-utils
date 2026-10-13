@@ -23,7 +23,7 @@ import (
 
 const (
 	// DefaultPasswordDelay is the minimum wall-clock duration of PasswordHash and
-	// VerifyHashedPassword, applied to both successful and failed calls.
+	// PasswordHashArgon2id and VerifyHashedPassword, applied to successful and failed calls.
 	DefaultPasswordDelay = 2 * time.Second
 	// MaxPasswordHashIteration limits the iteration count of legacy records.
 	MaxPasswordHashIteration = 1000000
@@ -66,7 +66,7 @@ func detectPasswordRecordFormat(hashedPassword string) passwordRecordFormat {
 }
 
 // VerifyHashedPassword checks rawpassword against a record produced by
-// PasswordHash. It accepts Argon2id PHC records and, through a separate legacy
+// PasswordHash or PasswordHashArgon2id. It accepts Argon2id PHC records and, through a separate legacy
 // branch, historical iterated-digest records; any other layout is rejected.
 // Every call takes at least DefaultPasswordDelay. It returns nil when the
 // password matches, and an error that never echoes the password or the stored

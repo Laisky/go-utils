@@ -9,11 +9,12 @@ before enabling it; never enable it while a required rollback reader is digest-o
 
 # Password record formats and migration
 
-`PasswordHashArgon2id` now stores passwords with **Argon2id** (RFC 9106), a memory-hard
+`PasswordHashArgon2id` explicitly stores passwords with **Argon2id** (RFC 9106), a memory-hard
 password KDF. Earlier releases stored an iterated general-purpose digest
-(SHA-256/SHA-512 applied 10,000 to 1,000,000 times). Such records are no
-longer created, but they still verify through a separate legacy branch. This
-change addresses issue #93 (CodeQL `go/weak-sensitive-data-hashing`).
+(SHA-256/SHA-512 applied 10,000 to 1,000,000 times). The deprecated `PasswordHash` still creates those caller-selected records for
+compatibility, and `VerifyHashedPassword` verifies both formats using separate
+branches. New applications should explicitly use Argon2id for the issue #93
+security improvement; upgrading the library alone does not migrate old callers.
 
 ## New records
 
@@ -26,10 +27,10 @@ $argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>
 - Defaults follow the second recommended option in RFC 9106 section 4:
   `m=65536` KiB (64 MiB), `t=3` passes, `p=4` lanes, a 16-byte random salt and a
   32-byte tag.
-- The `hasher` argument of `PasswordHashArgon2id(password)` is kept only for API
-  compatibility. It must still be `sha256` or `sha512`, and other values return
-  the same error as before. Apart from that check it is ignored. No
-  general-purpose digest is applied to the password.
+- The new API takes only the password: `PasswordHashArgon2id(password)`.
+  It has no ignored algorithm selector. The original `PasswordHash(password,
+  hasher)` still honors `sha256` or `sha512`; unsupported selectors retain their
+  historical error behavior.
 
 ## Verification (`VerifyHashedPassword`)
 
@@ -78,13 +79,13 @@ Recommended login flow:
 
 1. `err := VerifyHashedPassword(pw, stored)`. Stop if it fails.
 2. `needs, err := PasswordHashNeedsRehash(stored)`.
-3. If `needs` is true, call `PasswordHashArgon2id(pw, gutils.HashTypeSha256)` and replace
+3. If `needs` is true **and the application migration gate is enabled**, call `PasswordHashArgon2id(pw)` and replace
    the stored record. Only do this after a successful verification.
 
 Rollout policy:
 
-- Records written by this version cannot be verified by older go-utils
-  releases. Upgrade every service that verifies passwords before any of them
+- Records written by the explicit Argon2id API cannot be verified by digest-only
+  releases. The original writer remains interoperable with those releases. Upgrade every service that verifies passwords before any of them
   writes new records. During a rolling deploy, a node that has not been
   upgraded rejects records that were just created or re-hashed.
 - Users who do not log in keep their legacy records. To retire the legacy
@@ -108,6 +109,7 @@ Rollout policy:
 - constant-time tag comparison paths, the memory budget, and concurrent use
   under `-race`.
 
-CodeQL could not be run locally. New records no longer pass through
-general-purpose digests. The legacy verification branch still does, by design,
-until stored legacy records are migrated.
+Argon2id records do not pass through general-purpose digest iteration. Legacy
+writing and verification still do by design for compatibility. Deprecation does
+not make those legacy records memory-hard. Full security qualification should
+include the application migration gate and its permitted rollback versions.
