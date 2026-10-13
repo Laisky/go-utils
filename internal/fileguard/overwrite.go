@@ -8,7 +8,8 @@ import (
 )
 
 // OverwriteInPlace writes an existing regular destination inode without replacing
-// its metadata or hardlinks. It opens without truncation, verifies the descriptor
+// its metadata or hardlinks. Explicit O_EXCL still rejects an existing target.
+// It opens without truncation, verifies the descriptor
 // against the inspected identity and source, then applies the requested truncation.
 // Missing destinations are created exclusively. Final symlinks and special files
 // are rejected; Unix also uses O_NOFOLLOW and O_NONBLOCK. Parent directories must
@@ -24,6 +25,9 @@ func OverwriteInPlace(path string, flag int, perm os.FileMode, source os.FileInf
 	}
 	if !expected.Mode().IsRegular() {
 		return errors.Wrap(ErrNotRegular, "overwrite destination")
+	}
+	if flag&os.O_EXCL != 0 {
+		return errors.Wrap(&os.PathError{Op: "open", Path: path, Err: fs.ErrExist}, "exclusive overwrite destination")
 	}
 	// Never truncate or create while opening an inspected existing path.
 	openFlag := writeAccess(flag) &^ (os.O_TRUNC | os.O_CREATE | os.O_EXCL)

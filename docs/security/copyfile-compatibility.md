@@ -23,3 +23,7 @@ The behavior tests first fail on inode and hardlink visibility, then pass after
 the repair. Atomic isolation and raced symlink rejection remain tested separately.
 No data migration or deployment is included; choose the API based on required
 filesystem semantics rather than upgrading into different behavior by accident.
+
+An explicit `WithFileFlag(os.O_EXCL)` still rejects an existing destination, even
+when combined with `Overwrite()`. The in-place descriptor check does not discard
+the caller's exclusive-create requirement or truncate before that rejection.
