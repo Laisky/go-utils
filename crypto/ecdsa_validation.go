@@ -75,25 +75,69 @@ func decodeECDSAComponent(raw string, useBase64 bool) (*big.Int, error) {
 	return value, nil
 }
 
-// validECDSAVerificationInputs checks a NIST public key and 0 < r,s < its order.
-// Custom curves are unsupported; rejecting them avoids calling arbitrary curve
-// implementations on lower-trust key coordinates during validation.
+// validECDSAVerificationInputs checks a standard NIST public key, including
+// equivalent curve wrappers, and the bounded signature components.
 func validECDSAVerificationInputs(key *ecdsa.PublicKey, r, s *big.Int) bool {
-	if key == nil || key.Curve == nil || r == nil || s == nil {
-		return false
+	_, valid := canonicalECDSAVerificationKey(key, r, s)
+	return valid
+}
+
+// canonicalECDSAVerificationKey returns a detached key using a trusted standard
+// curve implementation. Wrapper arithmetic is never used for verification.
+func canonicalECDSAVerificationKey(key *ecdsa.PublicKey, r, s *big.Int) (*ecdsa.PublicKey, bool) {
+	//nolint:staticcheck // SA1019: read-only nil checks for legacy public coordinates before validation.
+	if key == nil || key.Curve == nil || r == nil || s == nil || key.X == nil || key.Y == nil {
+		return nil, false
 	}
-	// Only nil-ness is read here; the coordinates are never modified or used for
-	// arithmetic. PublicKey.Bytes below dereferences them, so nil must be rejected.
-	if key.X == nil || key.Y == nil { //nolint:staticcheck // SA1019: read-only nil guard, see above.
-		return false
+	curve := standardECDSACurve(key.Curve)
+	if curve == nil {
+		return nil, false
 	}
-	switch key.Curve {
-	case elliptic.P224(), elliptic.P256(), elliptic.P384(), elliptic.P521():
-	default:
-		return false
+	order := curve.Params().N
+	if r.Sign() <= 0 || s.Sign() <= 0 || r.Cmp(order) >= 0 || s.Cmp(order) >= 0 {
+		return nil, false
 	}
-	order := key.Curve.Params().N
-	return r.Sign() > 0 && s.Sign() > 0 && r.Cmp(order) < 0 && s.Cmp(order) < 0 && ecdsaPublicKeyOnCurve(key)
+	canonical := *key
+	canonical.Curve = curve
+	if !ecdsaPublicKeyOnCurve(&canonical) {
+		return nil, false
+	}
+	return &canonical, true
+}
+
+// standardECDSACurve matches all mathematical parameters, rather than object
+// identity or a curve name. Only Params is called on the wrapper; a broken Params
+// implementation is rejected, and no wrapper arithmetic is trusted.
+func standardECDSACurve(curve elliptic.Curve) (standard elliptic.Curve) {
+	defer func() {
+		if recover() != nil {
+			standard = nil
+		}
+	}()
+	params := curve.Params()
+	if params == nil {
+		return nil
+	}
+	for _, candidate := range []elliptic.Curve{elliptic.P224(), elliptic.P256(), elliptic.P384(), elliptic.P521()} {
+		known := candidate.Params()
+		if params.BitSize != known.BitSize {
+			continue
+		}
+		match := true
+		for _, pair := range [][2]*big.Int{
+			{params.P, known.P}, {params.N, known.N}, {params.B, known.B},
+			{params.Gx, known.Gx}, {params.Gy, known.Gy},
+		} {
+			if pair[0] == nil || pair[0].Cmp(pair[1]) != 0 {
+				match = false
+				break
+			}
+		}
+		if match {
+			return candidate
+		}
+	}
+	return nil
 }
 
 // ecdsaPublicKeyOnCurve reports whether key holds a valid point on its NIST

@@ -193,7 +193,8 @@ func SignByECDSAWithSHA256(prikey *ecdsa.PrivateKey, content []byte) (r, s *big.
 
 // VerifyByECDSAWithSHA256 verify signature by ecdsa public key use sha256
 func VerifyByECDSAWithSHA256(pubKey *ecdsa.PublicKey, content []byte, r, s *big.Int) bool {
-	if !validECDSAVerificationInputs(pubKey, r, s) {
+	pubKey, valid := canonicalECDSAVerificationKey(pubKey, r, s)
+	if !valid {
 		return false
 	}
 	hash := sha256.Sum256(content)
@@ -218,7 +219,8 @@ func VerifyByECDSAWithSHA256AndBase64(pubKey *ecdsa.PublicKey, content []byte, s
 	if err != nil {
 		return false, errors.Wrap(err, "decode signature")
 	}
-	if !validECDSAVerificationInputs(pubKey, r, s) {
+	pubKey, valid := canonicalECDSAVerificationKey(pubKey, r, s)
+	if !valid {
 		return false, errors.New("invalid ECDSA key or signature components")
 	}
 	hash := sha256.Sum256(content)
@@ -244,7 +246,8 @@ func VerifyReaderByECDSAWithSHA256(pubKey *ecdsa.PublicKey, reader io.Reader, r,
 	if reader == nil {
 		return false, errors.New("verify ECDSA: nil reader")
 	}
-	if !validECDSAVerificationInputs(pubKey, r, s) {
+	pubKey, valid := canonicalECDSAVerificationKey(pubKey, r, s)
+	if !valid {
 		return false, errors.New("invalid ECDSA key or signature components")
 	}
 	hasher := sha256.New()
