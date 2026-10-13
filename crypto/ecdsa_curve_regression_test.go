@@ -75,3 +75,10 @@ func TestECDSAVerificationRejectsOffCurveKeys(t *testing.T) {
 		})
 	}
 }
+
+// validECDSAVerificationInputs checks a standard NIST public key, including
+// equivalent curve wrappers, and the bounded signature components.
+func validECDSAVerificationInputs(key *ecdsa.PublicKey, r, s *big.Int) bool {
+	_, valid := canonicalECDSAVerificationKey(key, r, s)
+	return valid
+}
