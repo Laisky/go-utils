@@ -6,7 +6,8 @@ A structural node and a grant are different authorization states. Removing the
 last child of a structural node must not turn that node into a grant covering
 all its descendants.
 
-`RBACPermissionElem.Grant` persists that distinction:
+`RBACPermissionElem.Grant` represents that distinction in memory; `RBACPolicyV2`
+preserves it in versioned storage:
 
 | Value | Meaning |
 | --- | --- |
@@ -64,16 +65,22 @@ over-revocation.
 
 ## Persistence and compatibility
 
-Clone, JSON, and SQL Value/Scan preserve explicit grant state. An empty structural
-node must serialize with `"grant":"none"`. A reused JSON/SQL receiver is decoded
-into fresh state before replacement; absent legacy fields cannot retain an old
-broad grant or old children. Failed decoding leaves the previous state intact.
+Clone preserves explicit grant state. For JSON and SQL persistence, explicitly
+use `RBACPolicyV2{Root: p}` and its `Value` / `Scan` methods. Version 2 uses the
+array-shaped tuple `["go-utils/rbac",2,root]`, with an explicit grant on every node.
+Old object readers reject that shape, rather than silently ignoring a version.
 
-**Do not mix old authorization readers with new persisted trees.** Older readers
-ignore the new field and still treat an empty parent as a grant. Upgrade all
-authorization evaluators and policy mutators together, or use a versioned storage
-boundary that prevents older consumers from accepting the new representation.
-Do not round-trip new trees through serializers that discard the grant field.
+The deprecated original object writer preserves the historical format only when
+its grant meaning is exactly representable by pre-#33 readers. Unrepresentable
+states return `ErrRBACPolicyMigrationRequired` without bytes; a denied leaf is
+never silently written as a broad grant. The existing legacy reader can import
+audited old records, but new versioned readers require the exact versioned format.
+Both readers build detached state and leave the receiver unchanged on failure.
+
+**Do not mix old authorization readers with new persisted trees.** Separate v2
+storage destinations and coordinate all writers, readers, caches and rollback
+binaries. Never discard explicit grants or automatically retry a legacy decoder.
+See [the versioned storage migration procedure](security/rbac-policy-storage.md).
 
 Already-persisted legacy leaves are intrinsically ambiguous: an intentional broad
 grant and a parent emptied by the old bug have identical data. The new code cannot
@@ -89,8 +96,9 @@ cached derived permission trees.
 3. Semantic intersection can materialize a descendant branch from B when A has
    a broad grant, even if the branch did not previously exist as a node in A.
 4. OverwriteBy changes titles only; full permission identities are not display metadata.
-5. JSON now persists explicit modes, and decoding replaces omitted fields rather
-   than merging authorization state into a reused object.
+5. `RBACPolicyV2` persists explicit modes in a strict versioned format. Legacy
+   object writers refuse unsafe downgrades; decoding replaces omitted fields
+   rather than merging authorization state into a reused object.
 6. Legacy HasPerm still has its older structural matching semantics; it is not
    interchangeable with HasPerm2. This change does not redesign that deprecated API.
 

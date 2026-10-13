@@ -225,18 +225,6 @@ func (p *RBACPermissionElem) cloneRBACAtDepth(depth int) *RBACPermissionElem {
 	return newP
 }
 
-// valueSnapshot returns a detached copy for database serialization.
-//
-// Returns:
-//   - a clone of the permission tree that does not reuse the live mutex state.
-func (p *RBACPermissionElem) valueSnapshot() *RBACPermissionElem {
-	if p == nil {
-		return nil
-	}
-
-	return p.Clone()
-}
-
 // FillDefault auto filling some default valus
 //
 // it is best to call this function immediately after initialization
