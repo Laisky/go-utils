@@ -27,7 +27,7 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) ([
 	defer clear(key)
 	encrypted, err := t.runCMDWithEnv(ctx, []string{
 		"ec", tongsuoFlagIn, tongsuoStdinPath, tongsuoFlagOut, "/dev/stdout",
-		tongsuoCipherSM4CBC, "-passout", "env:_TONGSUO_PASSOUT",
+		"-sm4-cbc", "-passout", "env:_TONGSUO_PASSOUT",
 	}, key, []string{"_TONGSUO_PASSOUT=" + password})
 	if err != nil {
 		return nil, errors.Wrap(err, "encrypt private key")
