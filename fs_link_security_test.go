@@ -170,7 +170,7 @@ func TestCopyFileOverwriteHardLink(t *testing.T) {
 		t.Skipf("hard links unsupported: %v", err)
 	}
 
-	require.NoError(t, CopyFile(fixture.src, dst, Overwrite()))
+	require.NoError(t, CopyFileAtomic(fixture.src, dst, Overwrite()))
 	requireFileContent(t, dst, "12345678")
 	requireFileContent(t, fixture.victim, "KEEP")
 }
@@ -182,7 +182,7 @@ func TestCopyFileOverwriteRegular(t *testing.T) {
 	dst := filepath.Join(fixture.work, "dst")
 	require.NoError(t, os.WriteFile(dst, []byte("previous content"), 0o600))
 
-	require.NoError(t, CopyFile(fixture.src, dst, Overwrite(), WithFileMode(0o600)))
+	require.NoError(t, CopyFileAtomic(fixture.src, dst, Overwrite(), WithFileMode(0o600)))
 	requireFileContent(t, dst, "12345678")
 	entries, err := os.ReadDir(fixture.work)
 	require.NoError(t, err)
