@@ -20,9 +20,9 @@ func TestRSAOAEPMessageStructure(t *testing.T) {
 	capacity := key.Size() - 2*sha256.Size - 2
 	plain := append(bytes.Repeat([]byte("a"), capacity), bytes.Repeat([]byte("b"), capacity)...)
 	plain = append(plain, bytes.Repeat([]byte("c"), capacity)...)
-	ciphertext, err := RSAEncryptByOAEP(&key.PublicKey, plain)
+	ciphertext, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, plain)
 	require.NoError(t, err)
-	got, err := RSADecryptByOAEP(key, ciphertext)
+	got, err := RSADecryptByOAEPEnvelope(key, ciphertext)
 	require.NoError(t, err)
 	require.Equal(t, plain, got)
 	size := key.Size()
@@ -36,7 +36,7 @@ func TestRSAOAEPMessageStructure(t *testing.T) {
 	}
 	for name, corrupted := range cases {
 		t.Run(name, func(t *testing.T) {
-			out, err := RSADecryptByOAEP(key, corrupted)
+			out, err := RSADecryptByOAEPEnvelope(key, corrupted)
 			require.Error(t, err, "accepted structurally modified message containing %d plaintext bytes", len(out))
 			require.Empty(t, out)
 		})
@@ -69,38 +69,38 @@ func TestRSAOAEPEnvelopeTampering(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	for _, plain := range [][]byte{nil, []byte("bounded authenticated test payload")} {
-		encrypted, err := RSAEncryptByOAEP(&key.PublicKey, plain)
+		encrypted, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, plain)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plain, openRSAEnvelopeWithStdlibForTest(t, key, encrypted)))
-		out, err := RSADecryptByOAEP(key, encrypted)
+		out, err := RSADecryptByOAEPEnvelope(key, encrypted)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plain, out))
 		for index := range encrypted {
 			modified := bytes.Clone(encrypted)
 			modified[index] ^= 1
-			out, err := RSADecryptByOAEP(key, modified)
+			out, err := RSADecryptByOAEPEnvelope(key, modified)
 			require.ErrorIs(t, err, ErrInvalidRSAEnvelope, "accepted byte mutation at %d", index)
 			require.Nil(t, out)
 		}
 		for length := 0; length < len(encrypted); length++ {
-			out, err := RSADecryptByOAEP(key, encrypted[:length])
+			out, err := RSADecryptByOAEPEnvelope(key, encrypted[:length])
 			require.ErrorIs(t, err, ErrInvalidRSAEnvelope, "accepted truncation to %d", length)
 			require.Nil(t, out)
 		}
-		out, err = RSADecryptByOAEP(key, append(bytes.Clone(encrypted), 0))
+		out, err = RSADecryptByOAEPEnvelope(key, append(bytes.Clone(encrypted), 0))
 		require.ErrorIs(t, err, ErrInvalidRSAEnvelope)
 		require.Nil(t, out)
 	}
 	other, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	encrypted, err := RSAEncryptByOAEP(&key.PublicKey, []byte("wrong-key control"))
+	encrypted, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, []byte("wrong-key control"))
 	require.NoError(t, err)
-	out, err := RSADecryptByOAEP(other, encrypted)
+	out, err := RSADecryptByOAEPEnvelope(other, encrypted)
 	require.ErrorIs(t, err, ErrInvalidRSAEnvelope)
 	require.Nil(t, out)
 }
 
-// TestRSAOAEPLegacyMigration requires explicit legacy decoding and rejects format downgrade through the default decryptor.
+// TestRSAOAEPLegacyMigration requires explicit legacy decoding and rejects format downgrade through the explicit envelope decryptor.
 func TestRSAOAEPLegacyMigration(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -111,16 +111,16 @@ func TestRSAOAEPLegacyMigration(t *testing.T) {
 		legacy = append(legacy, block...)
 	}
 	for _, old := range [][]byte{legacy, legacy[:key.Size()]} {
-		out, err := RSADecryptByOAEP(key, old)
+		out, err := RSADecryptByOAEPEnvelope(key, old)
 		require.ErrorIs(t, err, ErrInvalidRSAEnvelope)
 		require.Nil(t, out)
 	}
 	out, err := RSADecryptByOAEPLegacy(key, legacy)
 	require.NoError(t, err)
 	require.Equal(t, []byte("firstsecond"), out)
-	upgraded, err := RSAEncryptByOAEP(&key.PublicKey, out)
+	upgraded, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, out)
 	require.NoError(t, err)
-	restored, err := RSADecryptByOAEP(key, upgraded)
+	restored, err := RSADecryptByOAEPEnvelope(key, upgraded)
 	require.NoError(t, err)
 	require.Equal(t, out, restored)
 	out, err = RSADecryptByOAEPLegacy(key, legacy[:len(legacy)-1])
@@ -135,7 +135,7 @@ func TestRSAOAEPFreshNonces(t *testing.T) {
 	require.NoError(t, err)
 	seen := make(map[string]struct{})
 	for range 8 {
-		encrypted, err := RSAEncryptByOAEP(&key.PublicKey, []byte("fixture"))
+		encrypted, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, []byte("fixture"))
 		require.NoError(t, err)
 		wrappedLen := int(binary.BigEndian.Uint16(encrypted[9:11]))
 		nonce := string(encrypted[11+wrappedLen : 11+wrappedLen+12])
@@ -143,5 +143,47 @@ func TestRSAOAEPFreshNonces(t *testing.T) {
 		require.False(t, duplicate, "fresh encryption reused a nonce")
 		seen[nonce] = struct{}{}
 		require.Equal(t, []byte("fixture"), openRSAEnvelopeWithStdlibForTest(t, key, encrypted))
+	}
+}
+
+// TestRSAOAEPEnvelopeExistingCiphertexts preserves envelopes written by #123 under the explicit replacement API.
+func TestRSAOAEPEnvelopeExistingCiphertexts(t *testing.T) {
+	key, fixture := loadRSACompatibilityFixture(t)
+	for _, tc := range fixture.Cases {
+		out, err := RSADecryptByOAEPEnvelope(key, tc.Envelope)
+		require.NoError(t, err)
+		require.True(t, bytes.Equal(tc.Plaintext, out))
+		require.True(t, bytes.Equal(tc.Plaintext, openRSAEnvelopeWithStdlibForTest(t, key, tc.Envelope)))
+		out, err = RSADecryptByOAEPEnvelope(key, tc.Ciphertext)
+		require.ErrorIs(t, err, ErrInvalidRSAEnvelope, "explicit envelope API must not downgrade to old blocks")
+		require.Nil(t, out)
+		out, err = RSADecryptByOAEP(key, tc.Envelope)
+		require.Error(t, err, "historical API must not silently autodetect the new protocol")
+		require.Nil(t, out)
+	}
+}
+
+// TestRSAOAEPEnvelopeKeyValidation keeps invalid-key and minimum-key coverage on the new entrypoints.
+func TestRSAOAEPEnvelopeKeyValidation(t *testing.T) {
+	for _, pub := range []*rsa.PublicKey{nil, {}} {
+		out, err := RSAEncryptByOAEPEnvelope(pub, nil)
+		require.Error(t, err)
+		require.Nil(t, out)
+	}
+	for _, priv := range []*rsa.PrivateKey{nil, {}} {
+		out, err := RSADecryptByOAEPEnvelope(priv, nil)
+		require.Error(t, err)
+		require.Nil(t, out)
+	}
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	for _, plain := range [][]byte{nil, []byte("minimum-key interoperability control")} {
+		ciphertext, err := RSAEncryptByOAEPEnvelope(&key.PublicKey, plain)
+		require.NoError(t, err)
+		require.Len(t, ciphertext, rsaEnvelopeHeaderLen+key.Size()+rsaEnvelopeNonceLen+len(plain)+rsaEnvelopeTagLen)
+		out, err := RSADecryptByOAEPEnvelope(key, ciphertext)
+		require.NoError(t, err)
+		require.True(t, bytes.Equal(plain, out))
+		require.True(t, bytes.Equal(plain, openRSAEnvelopeWithStdlibForTest(t, key, ciphertext)))
 	}
 }

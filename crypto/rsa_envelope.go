@@ -27,12 +27,13 @@ const (
 // a primitive-specific decryption reason.
 var ErrInvalidRSAEnvelope = errors.New("invalid or unauthenticated RSA envelope")
 
-// RSAEncryptByOAEP encrypts one complete message with a fresh AES-256-GCM key wrapped by RSA-OAEP/SHA-256.
+// RSAEncryptByOAEPEnvelope encrypts one complete message with a fresh AES-256-GCM key wrapped by RSA-OAEP/SHA-256.
 // The versioned header, wrapped key and nonce are authenticated as associated data.
-// Empty plaintext still produces an authenticated envelope. This format replaces
-// independent RSA blocks; see docs/security/rsa-oaep-envelope.md for migration.
+// Empty plaintext still produces an authenticated envelope. This is an explicit
+// opt-in format; it does not change the historical RSAEncryptByOAEP block format.
+// See docs/security/rsa-oaep-envelope.md for migration.
 // This provides message integrity, not sender authentication or replay protection.
-func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) ([]byte, error) {
+func RSAEncryptByOAEPEnvelope(pubkey *rsa.PublicKey, plain []byte) ([]byte, error) {
 	if err := validateRSAPublicKey(pubkey); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -80,11 +81,11 @@ func RSAEncryptByOAEP(pubkey *rsa.PublicKey, plain []byte) ([]byte, error) {
 	return aead.Seal(envelope, nonce, plain, envelope[:prefixLen]), nil
 }
 
-// RSADecryptByOAEP authenticates a versioned RSA-OAEP/AES-GCM envelope and returns the complete plaintext or
+// RSADecryptByOAEPEnvelope authenticates a versioned RSA-OAEP/AES-GCM envelope and returns the complete plaintext or
 // an error.
 // It never falls back to unauthenticated legacy blocks, including single blocks,
 // and never returns partial plaintext on failure. Empty ciphertext is invalid.
-func RSADecryptByOAEP(prikey *rsa.PrivateKey, encrypted []byte) ([]byte, error) {
+func RSADecryptByOAEPEnvelope(prikey *rsa.PrivateKey, encrypted []byte) ([]byte, error) {
 	if err := validateRSAPrivateKey(prikey); err != nil {
 		return nil, errors.WithStack(err)
 	}
