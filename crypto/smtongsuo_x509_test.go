@@ -348,7 +348,7 @@ func TestTongsuo_NewX509CRL(t *testing.T) {
 	unsignedCrlDer := newGoRevocationFixtureForTest(t, caCert.RawSubject, caCert.SubjectKeyId,
 		crlNo, []x509.RevocationListEntry{{SerialNumber: cert.SerialNumber, RevocationTime: now}},
 		now, now.Add(24*time.Hour))
-	crlDer, err := ins.SignX509CRL(ctx, unsignedCrlDer, caPrikeyPem)
+	crlDer, err := ins.SignX509CRLDER(ctx, unsignedCrlDer, caPrikeyPem)
 	require.NoError(t, err)
 	require.NotNil(t, crlDer)
 

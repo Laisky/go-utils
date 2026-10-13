@@ -205,8 +205,8 @@ func withPRFOIDForTest(t *testing.T, info tongsuoEncryptedPrivateKeyInfoForTest,
 	return der
 }
 
-// TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2 verifies with the real
-// tongsuo binary that NewPrikeyWithPassword encrypts the SM2 key as a PKCS#8
+// TestTongsuoNewPrikeyWithPasswordPKCS8UsesPKCS8PBES2 verifies with the real
+// tongsuo binary that NewPrikeyWithPasswordPKCS8 encrypts the SM2 key as a PKCS#8
 // EncryptedPrivateKeyInfo with PBES2: PBKDF2 with HMAC-SM3, at least 10,000
 // iterations (the project's password-hashing floor) and a 16-byte salt, and
 // SM4-CBC. Legacy OpenSSL PEM encryption ("Proc-Type"/"DEK-Info") derived the
@@ -214,13 +214,13 @@ func withPRFOIDForTest(t *testing.T, info tongsuoEncryptedPrivateKeyInfoForTest,
 // with Tongsuo and with the independent gmsm PKCS#8 parser, and must not
 // decrypt with a wrong password. Regression for the coordinator finding that
 // the legacy format fell far below the 10,000-iteration password rule.
-func TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2(t *testing.T) {
+func TestTongsuoNewPrikeyWithPasswordPKCS8UsesPKCS8PBES2(t *testing.T) {
 	t.Parallel()
 	ins := newSecurityTestTongsuo(t)
 	ctx := t.Context()
 	const password = "synthetic-password"
 
-	out, err := ins.NewPrikeyWithPassword(ctx, password)
+	out, err := ins.NewPrikeyWithPasswordPKCS8(ctx, password)
 	require.NoError(t, err)
 	require.NotContains(t, string(out), "Proc-Type")
 	require.NotContains(t, string(out), "DEK-Info")

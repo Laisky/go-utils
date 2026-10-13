@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// maxTongsuoCRLDERSize bounds the CRL DER accepted by SignX509CRL.
+	// maxTongsuoCRLDERSize bounds the CRL DER accepted by SignX509CRLDER.
 	maxTongsuoCRLDERSize = 64 << 20
 	// maxTongsuoCRLSignatureSize bounds the signature produced by the tool.
 	maxTongsuoCRLSignatureSize = 16 << 10
@@ -163,7 +163,7 @@ func verifyResignedCRL(input *smx509.RevocationList, signed []byte, pub any) err
 	return nil
 }
 
-// SignX509CRL re-signs a DER CRL with the CA private key through the tongsuo
+// SignX509CRLDER re-signs a DER CRL with the CA private key through the tongsuo
 // binary and returns the signed CRL as exactly one DER object.
 //
 // The input must be exactly one DER CRL (PEM and trailing data are rejected).
@@ -177,7 +177,7 @@ func verifyResignedCRL(input *smx509.RevocationList, signed []byte, pub any) err
 // and no bytes. Callers should still verify the CRL against the intended
 // issuer certificate (for example smx509.RevocationList.CheckSignatureFrom)
 // before distributing it.
-func (t *Tongsuo) SignX509CRL(ctx context.Context,
+func (t *Tongsuo) SignX509CRLDER(ctx context.Context,
 	CrlDer []byte,
 	PrikeyPem []byte,
 ) (signedCrlDer []byte, err error) {
@@ -263,4 +263,18 @@ func (t *Tongsuo) SignX509CRL(ctx context.Context,
 		zap.String("signature_algorithm", alg.Algorithm.String()),
 		zap.Int("revoked_entries", len(input.RevokedCertificateEntries)))
 	return signed, nil
+}
+
+// SignX509CRL re-signs a DER CRL and preserves the historical X509 CRL PEM output.
+// Signature verification, field-preservation checks, bounded input and subprocess
+// safety are shared with SignX509CRLDER; only the final output encoding differs.
+//
+// Deprecated: Use SignX509CRLDER when an explicit DER result is required. Existing
+// PEM-parsing callers may keep this method without changing their parser.
+func (t *Tongsuo) SignX509CRL(ctx context.Context, CrlDer, PrikeyPem []byte) ([]byte, error) {
+	der, err := t.SignX509CRLDER(ctx, CrlDer, PrikeyPem)
+	if err != nil {
+		return nil, errors.Wrap(err, "sign CRL")
+	}
+	return CRLDer2Pem(der), nil
 }
