@@ -47,3 +47,22 @@ func TestCopyFileCompatibilityHardlinks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "new", string(got))
 }
+
+// TestCopyFileCompatibilitySameSource rejects self-copy before truncation,
+// including a second hardlink to the source, while preserving its contents.
+func TestCopyFileCompatibilitySameSource(t *testing.T) {
+	dir := t.TempDir()
+	source, link := filepath.Join(dir, "source"), filepath.Join(dir, "same-inode")
+	require.NoError(t, os.WriteFile(source, []byte("retain source"), 0600))
+	require.Error(t, CopyFile(source, source, Overwrite()))
+	data, err := os.ReadFile(source)
+	require.NoError(t, err)
+	require.Equal(t, "retain source", string(data))
+	if err := os.Link(source, link); err != nil {
+		t.Skipf("hardlinks unavailable: %v", err)
+	}
+	require.Error(t, CopyFile(source, link, Overwrite()))
+	data, err = os.ReadFile(source)
+	require.NoError(t, err)
+	require.Equal(t, "retain source", string(data))
+}
