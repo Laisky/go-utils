@@ -161,9 +161,9 @@ func TestCopyFileOverwriteDirectory(t *testing.T) {
 	require.True(t, info.IsDir())
 }
 
-// TestCopyFileOverwriteHardLink verifies that replacing a hard-linked destination
+// TestCopyFileAtomicOverwriteHardLink verifies that replacing a hard-linked destination
 // swaps the directory entry instead of rewriting the shared inode; regression for issue #46.
-func TestCopyFileOverwriteHardLink(t *testing.T) {
+func TestCopyFileAtomicOverwriteHardLink(t *testing.T) {
 	fixture := newLinkFixture(t)
 	dst := filepath.Join(fixture.work, "dst")
 	if err := os.Link(fixture.victim, dst); err != nil {
@@ -182,7 +182,7 @@ func TestCopyFileOverwriteRegular(t *testing.T) {
 	dst := filepath.Join(fixture.work, "dst")
 	require.NoError(t, os.WriteFile(dst, []byte("previous content"), 0o600))
 
-	require.NoError(t, CopyFileAtomic(fixture.src, dst, Overwrite(), WithFileMode(0o600)))
+	require.NoError(t, CopyFile(fixture.src, dst, Overwrite(), WithFileMode(0o600)))
 	requireFileContent(t, dst, "12345678")
 	entries, err := os.ReadDir(fixture.work)
 	require.NoError(t, err)
@@ -217,10 +217,10 @@ func TestMoveFileDanglingLink(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestCopyFileOverwriteRace flips the destination between a regular file and a
+// TestCopyFileAtomicOverwriteRace flips the destination between a regular file and a
 // link to the victim while overwrite copies run. The victim must never change;
 // regression for issue #46.
-func TestCopyFileOverwriteRace(t *testing.T) {
+func TestCopyFileAtomicOverwriteRace(t *testing.T) {
 	fixture := newLinkFixture(t)
 	dst := filepath.Join(fixture.work, "dst")
 	require.NoError(t, os.WriteFile(dst, []byte("seed"), 0o600))
@@ -246,11 +246,49 @@ func TestCopyFileOverwriteRace(t *testing.T) {
 		}
 	}()
 	for range 200 {
-		err := CopyFile(fixture.src, dst, Overwrite())
+		err := CopyFileAtomic(fixture.src, dst, Overwrite())
 		if err != nil {
 			require.True(t, strings.Contains(err.Error(), "not a regular file") ||
 				strings.Contains(err.Error(), "replace"), err.Error())
 		}
+	}
+	stop.Store(true)
+	wg.Wait()
+	requireFileContent(t, fixture.victim, "KEEP")
+}
+
+// TestCopyFileCompatibilitySymlinkRace flips the destination between a regular file and a
+// link to the victim while overwrite copies run. The victim must never change;
+// regression for issue #46.
+func TestCopyFileCompatibilitySymlinkRace(t *testing.T) {
+	fixture := newLinkFixture(t)
+	dst := filepath.Join(fixture.work, "dst")
+	require.NoError(t, os.WriteFile(dst, []byte("seed"), 0o600))
+	probe := filepath.Join(fixture.work, "probe-link")
+	if err := os.Symlink(fixture.victim, probe); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	require.NoError(t, os.Remove(probe))
+
+	var stop atomic.Bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; !stop.Load() && i < 5000; i++ {
+			staging := filepath.Join(fixture.work, "staging-link")
+			if err := os.Symlink(fixture.victim, staging); err != nil {
+				continue
+			}
+			if err := os.Rename(staging, dst); err != nil {
+				_ = os.Remove(staging)
+			}
+		}
+	}()
+	for range 200 {
+		// Raced opens may reject; the safety invariant is that no target is written.
+		_ = CopyFile(fixture.src, dst, Overwrite())
+		requireFileContent(t, fixture.victim, "KEEP")
 	}
 	stop.Store(true)
 	wg.Wait()
