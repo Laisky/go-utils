@@ -33,7 +33,8 @@ func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) ([
 		return nil, errors.Wrap(err, "encrypt private key")
 	}
 	block, rest := pem.Decode(encrypted)
-	if block == nil || block.Type != "EC PRIVATE KEY" || block.Headers["Proc-Type"] != "4,ENCRYPTED" || len(bytes.TrimSpace(rest)) != 0 {
+	if block == nil || block.Type != "EC PRIVATE KEY" ||
+		block.Headers["Proc-Type"] != "4,ENCRYPTED" || len(bytes.TrimSpace(rest)) != 0 {
 		return nil, errors.New("encrypt private key: invalid encrypted SEC1 output")
 	}
 	return encrypted, nil
