@@ -5,8 +5,9 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestSM4CompatibilityOriginalNames preserves the historical combined format in both directions.
