@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// maxTongsuoCRLDERSize bounds the CRL DER accepted by SignX509CRL.
+	// maxTongsuoCRLDERSize bounds the CRL DER accepted by SignX509CRLDER.
 	maxTongsuoCRLDERSize = 64 << 20
 	// maxTongsuoCRLSignatureSize bounds the signature produced by the tool.
 	maxTongsuoCRLSignatureSize = 16 << 10
@@ -163,7 +163,7 @@ func verifyResignedCRL(input *smx509.RevocationList, signed []byte, pub any) err
 	return nil
 }
 
-// SignX509CRL re-signs a DER CRL with the CA private key through the tongsuo
+// SignX509CRLDER re-signs a DER CRL with the CA private key through the tongsuo
 // binary and returns the signed CRL as exactly one DER object.
 //
 // The input must be exactly one DER CRL (PEM and trailing data are rejected).
@@ -177,7 +177,7 @@ func verifyResignedCRL(input *smx509.RevocationList, signed []byte, pub any) err
 // and no bytes. Callers should still verify the CRL against the intended
 // issuer certificate (for example smx509.RevocationList.CheckSignatureFrom)
 // before distributing it.
-func (t *Tongsuo) SignX509CRL(ctx context.Context,
+func (t *Tongsuo) SignX509CRLDER(ctx context.Context,
 	CrlDer []byte,
 	PrikeyPem []byte,
 ) (signedCrlDer []byte, err error) {

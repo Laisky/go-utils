@@ -206,7 +206,7 @@ func withPRFOIDForTest(t *testing.T, info tongsuoEncryptedPrivateKeyInfoForTest,
 }
 
 // TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2 verifies with the real
-// tongsuo binary that NewPrikeyWithPassword encrypts the SM2 key as a PKCS#8
+// tongsuo binary that NewPrikeyPKCS8WithPassword encrypts the SM2 key as a PKCS#8
 // EncryptedPrivateKeyInfo with PBES2: PBKDF2 with HMAC-SM3, at least 10,000
 // iterations (the project's password-hashing floor) and a 16-byte salt, and
 // SM4-CBC. Legacy OpenSSL PEM encryption ("Proc-Type"/"DEK-Info") derived the
@@ -220,7 +220,7 @@ func TestTongsuoNewPrikeyWithPasswordUsesPKCS8PBES2(t *testing.T) {
 	ctx := t.Context()
 	const password = "synthetic-password"
 
-	out, err := ins.NewPrikeyWithPassword(ctx, password)
+	out, err := ins.NewPrikeyPKCS8WithPassword(ctx, password)
 	require.NoError(t, err)
 	require.NotContains(t, string(out), "Proc-Type")
 	require.NotContains(t, string(out), "DEK-Info")
