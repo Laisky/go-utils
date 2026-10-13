@@ -63,26 +63,26 @@ func TestTongsuoSm4CbcInteropWithTongsuoBinary(t *testing.T) {
 		plaintext = plaintext[:n]
 
 		expected := sm4TestTongsuoEnc(t, exePath, true, key, iv, plaintext)
-		ciphertext, tag, err := ins.EncryptBySm4CbcBaisc(ctx, key, plaintext, iv)
+		ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.Equal(t, expected, ciphertext, "ciphertext mismatch with tongsuo for %d bytes", n)
 
 		decryptedByTongsuo := sm4TestTongsuoEnc(t, exePath, false, key, iv, ciphertext)
 		require.True(t, bytes.Equal(plaintext, decryptedByTongsuo), "tongsuo failed to decrypt %d bytes", n)
 
-		got, err := ins.DecryptBySm4CbcBaisc(ctx, key, expected, iv, nil)
+		got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, expected, iv, nil)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got))
-		got, err = ins.DecryptBySm4CbcBaisc(ctx, key, expected, iv, tag)
+		got, err = ins.DecryptBySm4CbcBasicV1(ctx, key, expected, iv, tag)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got))
 
-		// Pre-#45 EncryptBySm4Cbc output: iv || tongsuo ciphertext || HMAC(key, ciphertext).
+		// Pre-#45 EncryptBySm4CbcEnvelope output: iv || tongsuo ciphertext || HMAC(key, ciphertext).
 		legacy := sm4TestLegacyCombine(key, iv, expected)
 		got, err = ins.DecryptBySm4CbcLegacy(ctx, key, legacy)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got))
-		_, err = ins.DecryptBySm4Cbc(ctx, key, legacy)
+		_, err = ins.DecryptBySm4CbcEnvelope(ctx, key, legacy)
 		require.ErrorIs(t, err, ErrSm4CbcMalformedCiphertext)
 	}
 }
