@@ -14,16 +14,16 @@ import (
 
 // Password records
 //
-// Records produced by the opt-in PasswordHashArgon2id use Argon2id (RFC 9106) serialized as a
+// Records explicitly produced by PasswordHashArgon2id use Argon2id (RFC 9106) serialized as a
 // PHC string: "$argon2id$v=19$m=<KiB>,t=<passes>,p=<lanes>$<salt>$<hash>".
 // Records in the historical "<hasher>.<iterations>.<hexsalt>.<hexhash>"
-// iterated-digest layout remain verifiable through a dedicated legacy branch
-// only. PasswordHash retains the historical writer. The two layouts are told apart by their prefix and are never
+// iterated-digest layout remain the output of the deprecated PasswordHash API and are verifiable
+// through a dedicated legacy branch. The two layouts are told apart by their prefix and are never
 // reinterpreted as each other; see password_migration.md for the rollout policy.
 
 const (
 	// DefaultPasswordDelay is the minimum wall-clock duration of PasswordHash and
-	// VerifyHashedPassword, applied to both successful and failed calls.
+	// PasswordHashArgon2id and VerifyHashedPassword, applied to successful and failed calls.
 	DefaultPasswordDelay = 2 * time.Second
 	// MaxPasswordHashIteration limits the iteration count of legacy records.
 	MaxPasswordHashIteration = 1000000
@@ -66,7 +66,7 @@ func detectPasswordRecordFormat(hashedPassword string) passwordRecordFormat {
 }
 
 // VerifyHashedPassword checks rawpassword against a record produced by
-// PasswordHash. It accepts Argon2id PHC records and, through a separate legacy
+// PasswordHash or PasswordHashArgon2id. It accepts Argon2id PHC records and, through a separate legacy
 // branch, historical iterated-digest records; any other layout is rejected.
 // Every call takes at least DefaultPasswordDelay. It returns nil when the
 // password matches, and an error that never echoes the password or the stored
@@ -93,12 +93,13 @@ func VerifyHashedPassword(rawpassword []byte, hashedPassword string) (err error)
 	}
 }
 
-// PasswordHash produces the historical salted, iterated SHA-256 or SHA-512 record
-// selected by hasher. Salt sizes, iteration bounds, delay and wire format remain
-// compatible with old readers, including during rolling upgrades and rollback.
+// PasswordHash returns the historical salted, iterated SHA-256 or SHA-512 record
+// requested by hasher. Its format, salt lengths, iteration range and minimum
+// delay remain compatible with existing writers and readers.
 //
-// Deprecated: General-purpose digests are not memory-hard password KDFs. Use
-// PasswordHashArgon2id only after all readers and rollback versions support PHC records.
+// Deprecated: Iterated general-purpose digests are not a modern password KDF.
+// Use PasswordHashArgon2id after all readers, including rollback versions, accept
+// PHC records. Merely upgrading the library does not opt existing callers in.
 func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword string, err error) {
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 
@@ -136,11 +137,11 @@ func PasswordHash(password []byte, hasher gutils.HashType) (hashedPassword strin
 	return h.String(), nil
 }
 
-// PasswordHashArgon2id returns an explicitly selected Argon2id PHC record with a fresh
-// 16-byte salt and the default bounded memory-hard parameters. It rejects empty or
-// oversized passwords, uses shared memory admission and preserves DefaultPasswordDelay.
-// Verify with VerifyHashedPassword. Old digest-only readers cannot read this format;
-// upgrading the library alone does not opt existing PasswordHash callers into it.
+// PasswordHashArgon2id returns a fresh PHC Argon2id record for password using
+// the existing memory budget, 64 MiB, three passes, four lanes, a random 16-byte
+// salt and a 32-byte output. Invalid passwords are rejected. Every call takes
+// at least DefaultPasswordDelay. VerifyHashedPassword accepts both formats;
+// older digest-only readers do not, so adopt this API through a coordinated rollout.
 func PasswordHashArgon2id(password []byte) (string, error) {
 	defer gutils.NewDelay(DefaultPasswordDelay).Wait()
 	if len(password) == 0 {
@@ -166,8 +167,8 @@ func PasswordHashArgon2id(password []byte) (string, error) {
 // never echoes the input, for empty, oversized, malformed or unsupported records.
 //
 // Rollout: call VerifyHashedPassword; when it succeeds and this function returns
-// true, opt into PasswordHashArgon2id only after every reader and rollback version
-// supports that format. PasswordHash itself does not migrate record formats.
+// true, call PasswordHashArgon2id only after all active and rollback readers
+// support PHC records, then store the new record.
 func PasswordHashNeedsRehash(hashedPassword string) (bool, error) {
 	if len(hashedPassword) == 0 {
 		return false, errors.Errorf("hashedPassword is empty")

@@ -53,8 +53,8 @@ func newLegacyPasswordFixture(t *testing.T, password string, hasher gutils.HashT
 
 // TestPasswordSecurity_NewRecordsUseArgon2id verifies that PasswordHashArgon2id emits a
 // PHC-formatted Argon2id record with the default parameters and a fresh salt
-// instead of an iterated general-purpose digest, and that the explicitly selected
-// record round-trips and needs no rehash;
+// instead of an iterated general-purpose digest, and that the record round-trips
+// and needs no rehash;
 // regression for issue #93.
 func TestPasswordSecurity_NewRecordsUseArgon2id(t *testing.T) {
 	t.Parallel()
