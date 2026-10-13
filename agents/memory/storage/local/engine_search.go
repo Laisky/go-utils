@@ -90,6 +90,11 @@ func (state *searchState) walk(current string, depth int) error {
 		}
 		return errors.Wrap(err, "stat search entry")
 	}
+	// Preserve the historical nil result for an absent root, but return an
+	// allocated empty slice after traversing an existing root without matches.
+	if depth == 0 {
+		state.chunks = make([]memorystorage.FileChunk, 0, min(state.resultLimit, 32))
+	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		return nil
 	}

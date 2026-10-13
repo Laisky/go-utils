@@ -25,7 +25,8 @@ const (
 
 // ListDirWithAbstract returns bounded directory summaries inside sessionID.
 // Empty listPath selects the session root; explicit paths must be canonical
-// descendants. Positive depth/limit are capped at 32/200. Backend over-return,
+// descendants. Positive depth/limit are capped at 32/200; limit counts backend
+// entries, while the root summary has a separate additional slot. Backend over-return,
 // excessive derived directories, abstracts over 64 KiB, aggregate abstracts over
 // 1 MiB, or the ten-second deadline return an error, never partial results.
 // Missing abstracts may be created, but never outside the validated subtree.
@@ -58,7 +59,8 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	defer cancel()
 	// Include initialization and retries in the actual HTTP-attempt budget. Local
 	// and custom backends remain subject to the bounded logical call loop below.
-	ctx, err := files.WithMCPBudget(ctx, 2*(1+3*limit), maxSummaryWireBytes)
+	// The root is additional to the caller's child-entry limit, including its I/O.
+	ctx, err := files.WithMCPBudget(ctx, 2*(1+3*(limit+1)), maxSummaryWireBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "set summary MCP budget")
 	}
@@ -72,7 +74,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	if len(entries) > limit {
 		return nil, errors.New("summary listing exceeds entry budget")
 	}
-	dirs, err := boundedSummaryDirs(root, entries, depth, limit)
+	dirs, err := boundedSummaryDirs(root, entries, depth, limit+1)
 	if err != nil {
 		return nil, errors.Wrap(err, "validate summary listing")
 	}
