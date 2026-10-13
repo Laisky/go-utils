@@ -8,20 +8,28 @@ import (
 	"github.com/Laisky/go-utils/v6/json"
 )
 
-// Value implement GORM interface
+// Value writes only policies exactly representable by historical leaf-grant storage.
+//
+// Deprecated: Use RBACPolicyV1.Value with a separate versioned storage column.
+// Explicit deny leaves and granted internal nodes fail closed instead of being
+// persisted in a representation that old readers could misinterpret.
 func (p *RBACPermissionElem) Value() (driver.Value, error) {
 	if p == nil {
 		return nil, errors.Errorf("marshal RBACPermissionElem: nil receiver")
 	}
 
-	b, err := json.Marshal(p.valueSnapshot())
+	b, err := json.Marshal(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal RBACPermissionElem")
 	}
 	return string(b), nil
 }
 
-// Scan implement GORM interface
+// Scan reads historical object storage, including transitional explicit-grant
+// records, without changing state on failure. It does not accept versioned tuples.
+//
+// Deprecated: Use RBACPolicyV1.Scan for versioned policy storage. Treat any scan
+// error as an authorization failure; do not retain stale policy decisions.
 func (p *RBACPermissionElem) Scan(input any) error {
 	if input == nil {
 		return errors.Errorf("scan RBACPermissionElem: input is nil")

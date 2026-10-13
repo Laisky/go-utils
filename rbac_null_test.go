@@ -17,7 +17,7 @@ func TestRBACRejectsNullChildrenBeforePublish(t *testing.T) {
 		for _, mode := range []string{"scan-string", "scan-bytes", "json"} {
 			t.Run(mode+raw, func(t *testing.T) {
 				p := &RBACPermissionElem{Key: "original", Grant: RBACGrantNone}
-				before, err := json.Marshal(p)
+				before, err := json.Marshal(RBACPolicyV1{Root: p})
 				require.NoError(t, err)
 				switch mode {
 				case "scan-string":
@@ -28,7 +28,7 @@ func TestRBACRejectsNullChildrenBeforePublish(t *testing.T) {
 					err = json.Unmarshal([]byte(raw), p)
 				}
 				require.Error(t, err)
-				after, err := json.Marshal(p)
+				after, err := json.Marshal(RBACPolicyV1{Root: p})
 				require.NoError(t, err)
 				require.JSONEq(t, string(before), string(after))
 			})
@@ -55,10 +55,10 @@ func TestRBACInvalidDecodePreservesReceiver(t *testing.T) {
 		`{"key":"root","children":[{"key":"child","grant":"unsupported"}]}`,
 		nested(rbacMaxDepth + 1),
 	} {
-		before, err := json.Marshal(p)
+		before, err := json.Marshal(RBACPolicyV1{Root: p})
 		require.NoError(t, err)
 		require.Error(t, p.Scan(raw))
-		after, err := json.Marshal(p)
+		after, err := json.Marshal(RBACPolicyV1{Root: p})
 		require.NoError(t, err)
 		require.JSONEq(t, string(before), string(after))
 	}
@@ -93,10 +93,10 @@ func FuzzRBACDecodeNeverPublishesInvalidStructure(f *testing.F) {
 			t.Skip()
 		}
 		p := &RBACPermissionElem{Key: "original", Grant: RBACGrantNone}
-		before, err := json.Marshal(p)
+		before, err := json.Marshal(RBACPolicyV1{Root: p})
 		require.NoError(t, err)
 		if err := p.Scan(raw); err != nil {
-			after, marshalErr := json.Marshal(p)
+			after, marshalErr := json.Marshal(RBACPolicyV1{Root: p})
 			require.NoError(t, marshalErr)
 			require.JSONEq(t, string(before), string(after))
 			return

@@ -158,6 +158,8 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 // mutex does not synchronize access through its parent. Use Value for a locked
 // serialization snapshot rather than marshaling a concurrently mutated tree.
 type RBACPermissionElem struct {
+	rbacStorageValueGuard
+
 	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
 	Title string `json:"title" binding:"min=1"`
@@ -222,18 +224,6 @@ func (p *RBACPermissionElem) cloneRBACAtDepth(depth int) *RBACPermissionElem {
 	}
 
 	return newP
-}
-
-// valueSnapshot returns a detached copy for database serialization.
-//
-// Returns:
-//   - a clone of the permission tree that does not reuse the live mutex state.
-func (p *RBACPermissionElem) valueSnapshot() *RBACPermissionElem {
-	if p == nil {
-		return nil
-	}
-
-	return p.Clone()
 }
 
 // FillDefault auto filling some default valus

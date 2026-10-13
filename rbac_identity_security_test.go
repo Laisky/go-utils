@@ -95,8 +95,7 @@ func TestRBACIdentityUnionNestedForgery(t *testing.T) {
 					})
 				}
 				source.Children = []*RBACPermissionElem{reader}
-				before, err := source.Value()
-				require.NoError(t, err)
+				before := source.Clone()
 				destination := NewPermissionTree()
 				if existing {
 					destination.Children = []*RBACPermissionElem{{Key: "reader", Grant: RBACGrantNone}}
@@ -108,8 +107,7 @@ func TestRBACIdentityUnionNestedForgery(t *testing.T) {
 				require.False(t, destination.HasPerm2("root.reader"), "filtering created a legacy leaf grant")
 				require.False(t, destination.HasPerm2("root.admin"))
 				require.Equal(t, keepSibling, destination.HasPerm2("root.reader.edit"))
-				after, err := source.Value()
-				require.NoError(t, err)
+				after := source.Clone()
 				require.Equal(t, before, after)
 			}
 		}
