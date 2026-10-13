@@ -767,14 +767,3 @@ ciphertext, newHmac, err := ts.EncryptBySm4CbcBaisc(ctx, key, plaintext, freshIV
 
 The two formats also have disjoint lengths (`53 + 16n` for v1 versus `48 + 16n`
 for legacy), so neither decoder can mistake one for the other.
-
-## Encrypted key and CRL format compatibility
-
-`NewPrikeyWithPassword` retains encrypted `EC PRIVATE KEY` PEM with its historical
-SM4-CBC headers and is deprecated. `NewPrikeyPKCS8WithPassword` explicitly returns
-PBES2-protected `ENCRYPTED PRIVATE KEY` PEM. Select the new function only after
-all consumers, including rollback versions, support that format.
-
-`SignX509CRL` retains `X509 CRL` PEM output. `SignX509CRLDER` explicitly returns DER.
-Both share the hardened signing and field/signature verification path. See
-[format compatibility guidance](../docs/security/tongsuo-format-compatibility.md).
