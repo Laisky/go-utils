@@ -66,3 +66,26 @@ func TestCopyFileCompatibilitySameSource(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "retain source", string(data))
 }
+
+// TestCopyFileCompatibilityExclusive preserves an explicit exclusive-creation
+// flag even when Overwrite is supplied; an existing destination must stay intact.
+func TestCopyFileCompatibilityExclusive(t *testing.T) {
+	dir := t.TempDir()
+	src, dst := filepath.Join(dir, "source"), filepath.Join(dir, "destination")
+	require.NoError(t, os.WriteFile(src, []byte("new content"), 0o600))
+	require.NoError(t, os.WriteFile(dst, []byte("existing content"), 0o640))
+	before, err := os.Stat(dst)
+	require.NoError(t, err)
+	// The historical OpenFile flags refuse truncation when O_EXCL is explicit.
+	control, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0o600)
+	require.ErrorIs(t, err, os.ErrExist)
+	require.Nil(t, control)
+	err = CopyFile(src, dst, Overwrite(), WithFileFlag(os.O_EXCL))
+	require.ErrorIs(t, err, os.ErrExist)
+	after, err := os.Stat(dst)
+	require.NoError(t, err)
+	require.True(t, os.SameFile(before, after))
+	content, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	require.Equal(t, "existing content", string(content))
+}
