@@ -1,26 +1,22 @@
-# Password record formats and migration
+# Password record compatibility and explicit Argon2id migration
 
-`PasswordHash` now stores passwords with **Argon2id** (RFC 9106), a memory-hard
-password KDF. Earlier releases stored an iterated general-purpose digest
-(SHA-256/SHA-512 applied 10,000 to 1,000,000 times). Such records are no
-longer created, but they still verify through a separate legacy branch. This
-change addresses issue #93 (CodeQL `go/weak-sensitive-data-hashing`).
+`PasswordHash(password, hasher)` preserves the selected SHA-256/SHA-512 algorithm,
+four-part legacy record, 256/512-byte salt, random iteration range and minimum
+delay. It is deprecated but remains usable by existing callers. New writes from
+this API continue to verify on old digest-only readers. A library update must not
+silently change stored password formats, including during rolling upgrades.
 
-## New records
+`PasswordHashArgon2id(password)` is the explicit replacement. It emits the same
+Argon2id PHC format introduced by the incompatible writer change, so existing
+PHC records remain readable. Its parameters are unchanged: 64 MiB, three passes,
+four lanes, 16-byte salt and 32-byte tag. The legacy writer is not memory-hard;
+deprecation documents this limitation instead of silently changing its algorithm.
+
+## New opt-in records
 
 ```
 $argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>
 ```
-
-- Standard PHC string. `<salt>` and `<hash>` use standard base64 **without
-  padding**.
-- Defaults follow the second recommended option in RFC 9106 section 4:
-  `m=65536` KiB (64 MiB), `t=3` passes, `p=4` lanes, a 16-byte random salt and a
-  32-byte tag.
-- The `hasher` argument of `PasswordHash(password, hasher)` is kept only for API
-  compatibility. It must still be `sha256` or `sha512`, and other values return
-  the same error as before. Apart from that check it is ignored. No
-  general-purpose digest is applied to the password.
 
 ## Verification (`VerifyHashedPassword`)
 
@@ -69,13 +65,13 @@ Recommended login flow:
 
 1. `err := VerifyHashedPassword(pw, stored)`. Stop if it fails.
 2. `needs, err := PasswordHashNeedsRehash(stored)`.
-3. If `needs` is true, call `PasswordHash(pw, gutils.HashTypeSha256)` and replace
+3. If `needs` is true, call `PasswordHashArgon2id(pw)` and replace
    the stored record. Only do this after a successful verification.
 
 Rollout policy:
 
-- Records written by this version cannot be verified by older go-utils
-  releases. Upgrade every service that verifies passwords before any of them
+- Records explicitly written by PasswordHashArgon2id cannot be verified by older
+  digest-only releases; records from PasswordHash remain compatible. Upgrade every service that verifies passwords before any of them
   writes new records. During a rolling deploy, a node that has not been
   upgraded rejects records that were just created or re-hashed.
 - Users who do not log in keep their legacy records. To retire the legacy
@@ -99,6 +95,7 @@ Rollout policy:
 - constant-time tag comparison paths, the memory budget, and concurrent use
   under `-race`.
 
-CodeQL could not be run locally. New records no longer pass through
-general-purpose digests. The legacy verification branch still does, by design,
-until stored legacy records are migrated.
+The deprecated writer and legacy verifier retain general-purpose digests for
+compatibility. The explicit Argon2id writer is the stronger replacement. Preserve
+a PHC-capable rollback reader once opting into that format; never rehash unless
+password verification succeeded, and never downgrade a PHC record to aid rollback.

@@ -22,11 +22,11 @@ const legacyMinPasswordHashIteration = 1
 // HashedPassword is the legacy salted, iterated general-purpose digest record
 // "<hasher>.<iterations>.<hexsalt>.<hexhash>".
 //
-// PasswordHash no longer produces this layout. Stored records keep verifying
+// PasswordHash retains this layout for existing callers. Stored records keep verifying
 // through the legacy branch of VerifyHashedPassword, and PasswordHashNeedsRehash
 // always reports them for migration.
 //
-// Deprecated: new records use Argon2id; see PasswordHash.
+// Deprecated: For an explicit memory-hard format use PasswordHashArgon2id.
 type HashedPassword struct {
 	salt           []byte
 	hasher         gutils.HashTypeInterface
@@ -46,7 +46,7 @@ func (p HashedPassword) String() string {
 }
 
 // newHashedPasswordWithMinIteration builds a legacy hashed password and validates the iteration range.
-// It exists only to verify (and, in tests, to build fixtures for) legacy records.
+// It supports legacy verification and the compatible deprecated PasswordHash writer.
 //
 // Params:
 //   - salt: random salt bytes appended to rawpassword.
