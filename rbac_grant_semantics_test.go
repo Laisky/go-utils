@@ -104,7 +104,7 @@ func TestRBACSemanticIntersectionExhaustive(t *testing.T) {
 			left, right := rbacMaskGrants(a), rbacMaskGrants(b)
 			for _, overwrite := range []bool{false, true} {
 				p, q := rbacExplicitTree(left...), rbacExplicitTree(right...)
-				before, err := json.Marshal(q)
+				before, err := snapshotRBACJSONForTest(q)
 				require.NoError(t, err)
 				if overwrite {
 					p.OverwriteBy(q, true)
@@ -116,7 +116,7 @@ func TestRBACSemanticIntersectionExhaustive(t *testing.T) {
 					require.Equalf(t, want, p.HasPerm2(RBACPermFullKey(probe)),
 						"a=%d b=%d overwrite=%v query=%q", a, b, overwrite, probe)
 				}
-				after, err := json.Marshal(q)
+				after, err := snapshotRBACJSONForTest(q)
 				require.NoError(t, err)
 				require.Equal(t, before, after, "other input was mutated")
 			}
@@ -138,16 +138,16 @@ func TestRBACRestrictionPersistence(t *testing.T) {
 			case "overwrite":
 				p.OverwriteBy(rbacRegressionTree("write"), true)
 			}
-			b, err := json.Marshal(p)
+			b, err := json.Marshal(RBACPolicyV2{Root: p})
 			require.NoError(t, err)
 			require.Contains(t, string(b), `"grant":"none"`, "non-grant state not persisted")
-			var fromJSON RBACPermissionElem
+			var fromJSON RBACPolicyV2
 			require.NoError(t, json.Unmarshal(b, &fromJSON))
-			value, err := p.Value()
+			value, err := (RBACPolicyV2{Root: p}).Value()
 			require.NoError(t, err)
-			var fromSQL RBACPermissionElem
+			var fromSQL RBACPolicyV2
 			require.NoError(t, fromSQL.Scan(value))
-			for name, copy := range map[string]*RBACPermissionElem{"live": p, "clone": p.Clone(), "json": &fromJSON, "sql": &fromSQL} {
+			for name, copy := range map[string]*RBACPermissionElem{"live": p, "clone": p.Clone(), "json": fromJSON.Root, "sql": fromSQL.Root} {
 				require.NoError(t, copy.FillDefault(""))
 				rbacAssertPermissions(t, copy, rbacTestProbes, func(q string) bool { return q == "" })
 				sys := copy.GetElemByKey("root.sys")
@@ -329,11 +329,12 @@ func FuzzRBACRestrictionMonotonicity(f *testing.F) {
 				p.Intersection(q)
 			}
 			rbacAssertPermissions(t, p, probes, func(q string) bool { return rbacOracle(left, q) && rbacOracle(right, q) })
-			wire, err := json.Marshal(p)
+			wire, err := json.Marshal(RBACPolicyV2{Root: p})
 			require.NoError(t, err)
-			var restored RBACPermissionElem
-			require.NoError(t, json.Unmarshal(wire, &restored))
-			rbacAssertPermissions(t, &restored, probes, func(q string) bool { return rbacOracle(left, q) && rbacOracle(right, q) })
+			var stored RBACPolicyV2
+			require.NoError(t, json.Unmarshal(wire, &stored))
+			restored := stored.Root
+			rbacAssertPermissions(t, restored, probes, func(q string) bool { return rbacOracle(left, q) && rbacOracle(right, q) })
 			target := targets[int(cut)%len(targets)]
 			restored.Cut(RBACPermFullKey(target))
 			for _, probe := range probes {

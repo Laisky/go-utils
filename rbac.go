@@ -155,8 +155,8 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 //
 // Calls through the same tree root are synchronized. Direct field access and
 // operations through child pointers require external synchronization; a child
-// mutex does not synchronize access through its parent. Use Value for a locked
-// serialization snapshot rather than marshaling a concurrently mutated tree.
+// mutex does not synchronize access through its parent. Use RBACPolicyV2 for a locked,
+// versioned serialization snapshot of explicit grants.
 type RBACPermissionElem struct {
 	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
@@ -168,7 +168,8 @@ type RBACPermissionElem struct {
 	Children []*RBACPermissionElem `json:"children,omitempty"`
 	// Grant separates authorization from tree shape. The zero value accepts
 	// legacy leaf grants; mutation methods materialize that legacy state before
-	// changing children. Explicit RBACGrantNone survives JSON/SQL round trips.
+	// changing children. RBACPolicyV2 preserves explicit grant meaning in storage;
+	// the legacy object writer rejects grants unsafe for historical readers.
 	Grant RBACGrantMode `json:"grant,omitempty"`
 }
 
