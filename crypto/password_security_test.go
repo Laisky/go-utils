@@ -51,10 +51,10 @@ func newLegacyPasswordFixture(t *testing.T, password string, hasher gutils.HashT
 	return hp.String()
 }
 
-// TestPasswordSecurity_NewRecordsUseArgon2id verifies that PasswordHash emits a
+// TestPasswordSecurity_NewRecordsUseArgon2id verifies that PasswordHashArgon2id emits a
 // PHC-formatted Argon2id record with the default parameters and a fresh salt
-// instead of an iterated general-purpose digest, regardless of the retained
-// hasher argument, and that the record round-trips and needs no rehash;
+// instead of an iterated general-purpose digest, and that the record round-trips
+// and needs no rehash;
 // regression for issue #93.
 func TestPasswordSecurity_NewRecordsUseArgon2id(t *testing.T) {
 	t.Parallel()
@@ -62,8 +62,8 @@ func TestPasswordSecurity_NewRecordsUseArgon2id(t *testing.T) {
 	records := make([]string, len(hashers))
 	errs := make([]error, len(hashers))
 	var wg sync.WaitGroup
-	for i, hasher := range hashers {
-		wg.Go(func() { records[i], errs[i] = PasswordHash([]byte("synthetic password"), hasher) })
+	for i := range hashers {
+		wg.Go(func() { records[i], errs[i] = PasswordHashArgon2id([]byte("synthetic password")) })
 	}
 	wg.Wait()
 
