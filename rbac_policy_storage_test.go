@@ -117,7 +117,7 @@ func TestRBACPolicyLegacyCompatibility(t *testing.T) {
 		require.NoError(t, current.Scan(raw))
 		for _, fill := range []bool{false, true} {
 			if fill {
-				require.NoError(t, current.FillDefault(""))
+				require.NoError(t, current.FillDefault(current.FullKey.Parent()))
 			}
 			out, err := current.Value()
 			require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestRBACPolicyLegacyCompatibility(t *testing.T) {
 			var older pre33RBACReader
 			require.NoError(t, json.Unmarshal([]byte(out.(string)), &older))
 			for _, probe := range append(rbacTestProbes, "root.read", "root.sys.read.child") {
-				require.Equal(t, old.allows(probe, ""), current.HasPerm2(RBACPermFullKey(probe)))
+				require.Equalf(t, old.allows(probe, ""), current.HasPerm2(RBACPermFullKey(probe)), "probe=%s fill=%v raw=%s", probe, fill, raw)
 				require.Equal(t, old.allows(probe, ""), older.allows(probe, ""))
 			}
 		}
