@@ -264,17 +264,3 @@ func (t *Tongsuo) SignX509CRLDER(ctx context.Context,
 		zap.Int("revoked_entries", len(input.RevokedCertificateEntries)))
 	return signed, nil
 }
-
-// SignX509CRL re-signs a DER CRL and preserves the historical X509 CRL PEM output.
-// Signature verification, field-preservation checks, bounded input and subprocess
-// safety are shared with SignX509CRLDER; only the final output encoding differs.
-//
-// Deprecated: Use SignX509CRLDER when an explicit DER result is required. Existing
-// PEM-parsing callers may keep this method without changing their parser.
-func (t *Tongsuo) SignX509CRL(ctx context.Context, CrlDer, PrikeyPem []byte) ([]byte, error) {
-	der, err := t.SignX509CRLDER(ctx, CrlDer, PrikeyPem)
-	if err != nil {
-		return nil, errors.Wrap(err, "sign CRL")
-	}
-	return CRLDer2Pem(der), nil
-}

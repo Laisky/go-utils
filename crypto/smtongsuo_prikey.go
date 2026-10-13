@@ -27,12 +27,12 @@ func (t *Tongsuo) NewPrikey(ctx context.Context) (prikeyPem []byte, err error) {
 	return prikeyPem, nil
 }
 
-// tongsuoPrikeyPBKDF2Iterations is the PBKDF2 iteration count NewPrikeyWithPasswordPKCS8
+// tongsuoPrikeyPBKDF2Iterations is the PBKDF2 iteration count NewPrikeyPKCS8WithPassword
 // uses to derive the key-encryption key, matching the OWASP recommendation of
 // 600,000 iterations for PBKDF2-HMAC-SHA256; HMAC-SM3 has the same output size.
 const tongsuoPrikeyPBKDF2Iterations = 600000
 
-// NewPrikeyWithPasswordPKCS8 generates a new SM2 private key and returns it encrypted
+// NewPrikeyPKCS8WithPassword generates a new SM2 private key and returns it encrypted
 // under password as a PKCS#8 "ENCRYPTED PRIVATE KEY" PEM block.
 //
 // The encryption is PBES2 (RFC 8018): PBKDF2 with HMAC-SM3, a random 16-byte
@@ -45,7 +45,7 @@ const tongsuoPrikeyPBKDF2Iterations = 600000
 // The password is passed to tongsuo through the environment, never argv, and
 // the unencrypted key only through stdin. It returns the PEM or an error; an
 // empty password is rejected.
-func (t *Tongsuo) NewPrikeyWithPasswordPKCS8(ctx context.Context, password string) (
+func (t *Tongsuo) NewPrikeyPKCS8WithPassword(ctx context.Context, password string) (
 	encryptedPrikeyPem []byte, err error) {
 	if len(password) == 0 {
 		return nil, errors.Errorf("password should not be empty")
@@ -76,36 +76,5 @@ func (t *Tongsuo) NewPrikeyWithPasswordPKCS8(ctx context.Context, password strin
 		zap.String("kdf", "pbkdf2-hmac-sm3"),
 		zap.Int("iterations", tongsuoPrikeyPBKDF2Iterations),
 		zap.String("cipher", "sm4-cbc"))
-	return encryptedPrikeyPem, nil
-}
-
-// NewPrikeyWithPassword generates an SM2 key in the historical password-encrypted
-// EC PRIVATE KEY PEM layout (Proc-Type/DEK-Info, SM4-CBC). It rejects empty passwords
-// and passes the password through the existing private subprocess environment, not argv.
-//
-// Deprecated: Legacy PEM derives its encryption key with a single MD5 pass. Use
-// NewPrikeyWithPasswordPKCS8 for PBES2/PBKDF2 through an explicit format migration;
-// old PEM parsers must not receive PKCS#8 under an unchanged API name.
-func (t *Tongsuo) NewPrikeyWithPassword(ctx context.Context, password string) (
-	encryptedPrikeyPem []byte, err error) {
-	if len(password) == 0 {
-		return nil, errors.Errorf("password should not be empty")
-	}
-
-	prikeyPem, err := t.NewPrikey(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "generate new private key")
-	}
-
-	// Pass password via environment variable instead of command-line argument
-	// to avoid exposing it in the process list (ps aux, /proc/*/cmdline).
-	encryptedPrikeyPem, err = t.runCMDWithEnv(ctx, []string{
-		"ec", tongsuoFlagIn, tongsuoStdinPath, tongsuoFlagOut, "/dev/stdout",
-		"-sm4-cbc", "-passout", "env:_TONGSUO_PASSOUT",
-	}, prikeyPem, []string{"_TONGSUO_PASSOUT=" + password})
-	if err != nil {
-		return nil, errors.Wrap(err, "encrypt private key")
-	}
-
 	return encryptedPrikeyPem, nil
 }

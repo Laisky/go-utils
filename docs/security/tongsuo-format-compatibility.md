@@ -1,25 +1,21 @@
 # Tongsuo format compatibility
 
-`NewPrikeyWithPassword` again emits the historical encrypted `EC PRIVATE KEY`
-PEM block with Proc-Type/DEK-Info headers. It is deprecated because the legacy
-PEM KDF is a single MD5 pass. It still avoids password-in-argv and mixed
-stdout/stderr output. `NewPrikeyWithPasswordPKCS8` explicitly opts into the
-existing PBES2/PBKDF2-HMAC-SM3/SM4-CBC format, with 600,000 iterations and a
-random 16-byte salt. Existing EC PRIVATE KEY consumers need no format migration
-to upgrade. Consumers adopting the changed PKCS#8 format must choose its explicit
-new name. Keep format-capable readers for any keys already written during that window.
+`NewPrikeyWithPassword` again returns encrypted SEC1 `EC PRIVATE KEY` with
+OpenSSL `Proc-Type` / `DEK-Info` headers. It is deprecated because this legacy
+password derivation is weak. `NewPrikeyPKCS8WithPassword` explicitly selects the
+existing PBES2/PBKDF2-HMAC-SM3 (600,000 iterations), SM4-CBC PKCS#8 format.
+Both use environment-based password passing, stdin for plaintext key data and
+separate stderr capture; reverting those process-secrecy fixes is unnecessary.
 
-`SignX509CRL` again returns X509 CRL PEM, despite its historical result variable
-having been called DER. `SignX509CRLDER` is the explicit DER replacement. Both
-retain the repaired signing algorithm, verified signature, exact field preservation,
-input size limits, invalid/trailing-data rejection and safe subprocess handling.
-This does not restore the old broken SM2 signing implementation: compatibility is
-restored by encoding the fully verified DER result as PEM at the old boundary.
+`SignX509CRL` again returns `X509 CRL` PEM. `SignX509CRLDER` explicitly returns
+DER and retains all recent signed-output verification and TBS field checks.
+The PEM wrapper calls that same verified implementation, so it does not restore
+the old unsafe signing logic. The old name is deprecated for format clarity,
+not because PEM encoding itself is unsafe.
 
-Tests first require the old names' PEM contracts and fail before this correction.
-Legacy keys are parsed/decrypted through real Tongsuo; CRLs are decoded as PEM,
-parsed, signature-verified and compared with original fields. The PKCS#8 tests
-retain independent gmsm parsing, KDF bounds, incorrect-password rejection and
-secret-handling assertions on the explicit new API. No database rewrite or
-production key/certificate operation is performed. Rollback must retain a reader
-for every format already stored; never infer trusted formats from decryption failures.
+Existing old-format callers need no data migration. Consumers that adopted
+PKCS#8 or DER behavior from the intervening revisions must explicitly select the
+new methods. Keep reader support during rollout and rollback. No existing keys,
+certificates or CRLs are rewritten by this change. A failed operation returns no
+key or CRL bytes. Existing PBES2, wrong-password, stderr separation and DER CRL
+verification regressions remain on the appropriate explicit APIs.
