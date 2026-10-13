@@ -155,9 +155,11 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 //
 // Calls through the same tree root are synchronized. Direct field access and
 // operations through child pointers require external synchronization; a child
-// mutex does not synchronize access through its parent. Use Value for a locked
-// serialization snapshot rather than marshaling a concurrently mutated tree.
+// mutex does not synchronize access through its parent. Use RBACPolicyV2 for a locked,
+// versioned serialization snapshot of explicit grants.
 type RBACPermissionElem struct {
+	rbacStorageValueGuard
+
 	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
 	Title string `json:"title" binding:"min=1"`
@@ -168,7 +170,8 @@ type RBACPermissionElem struct {
 	Children []*RBACPermissionElem `json:"children,omitempty"`
 	// Grant separates authorization from tree shape. The zero value accepts
 	// legacy leaf grants; mutation methods materialize that legacy state before
-	// changing children. Explicit RBACGrantNone survives JSON/SQL round trips.
+	// changing children. RBACPolicyV2 preserves explicit grant meaning in storage;
+	// the legacy object writer rejects grants unsafe for historical readers.
 	Grant RBACGrantMode `json:"grant,omitempty"`
 }
 
@@ -222,18 +225,6 @@ func (p *RBACPermissionElem) cloneRBACAtDepth(depth int) *RBACPermissionElem {
 	}
 
 	return newP
-}
-
-// valueSnapshot returns a detached copy for database serialization.
-//
-// Returns:
-//   - a clone of the permission tree that does not reuse the live mutex state.
-func (p *RBACPermissionElem) valueSnapshot() *RBACPermissionElem {
-	if p == nil {
-		return nil
-	}
-
-	return p.Clone()
 }
 
 // FillDefault auto filling some default valus

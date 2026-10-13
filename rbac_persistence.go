@@ -8,20 +8,25 @@ import (
 	"github.com/Laisky/go-utils/v6/json"
 )
 
-// Value implement GORM interface
+// Value returns the legacy JSON object only when old readers retain the same grants.
+//
+// Deprecated: Use RBACPolicyV2.Value for explicit grants in coordinated versioned storage.
 func (p *RBACPermissionElem) Value() (driver.Value, error) {
 	if p == nil {
 		return nil, errors.Errorf("marshal RBACPermissionElem: nil receiver")
 	}
 
-	b, err := json.Marshal(p.valueSnapshot())
+	b, err := json.Marshal(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal RBACPermissionElem")
 	}
 	return string(b), nil
 }
 
-// Scan implement GORM interface
+// Scan imports a legacy JSON object without changing the receiver on failure.
+//
+// Deprecated: Use RBACPolicyV2.Scan for strict versioned policy storage.
+// Import legacy objects only as an explicit, authorized migration step.
 func (p *RBACPermissionElem) Scan(input any) error {
 	if input == nil {
 		return errors.Errorf("scan RBACPermissionElem: input is nil")
