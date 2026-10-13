@@ -61,7 +61,7 @@ func TestTongsuoSignX509CRLReturnsVerifiedDER(t *testing.T) {
 		input := newGoRevocationFixtureForTest(t, ca.RawSubject, ca.SubjectKeyId,
 			big.NewInt(7), crlEntriesForTest(now), now, now.Add(24*time.Hour))
 
-		signed, err := ins.SignX509CRL(ctx, input, caKey)
+		signed, err := ins.SignX509CRLDER(ctx, input, caKey)
 		require.NoError(t, err)
 		require.False(t, bytes.HasPrefix(bytes.TrimSpace(signed), []byte("-----BEGIN")), "output must be DER, not PEM")
 
@@ -88,7 +88,7 @@ func TestTongsuoSignX509CRLReturnsVerifiedDER(t *testing.T) {
 		input := newGoRevocationFixtureForTest(t, ca.RawSubject, ca.SubjectKeyId,
 			big.NewInt(8), crlEntriesForTest(now), now, now.Add(24*time.Hour))
 
-		signed, err := ins.SignX509CRL(ctx, input, caKeyPem)
+		signed, err := ins.SignX509CRLDER(ctx, input, caKeyPem)
 		require.NoError(t, err)
 
 		crl, err := x509.ParseRevocationList(signed)
@@ -112,7 +112,7 @@ func TestTongsuoSignX509CRLReturnsVerifiedDER(t *testing.T) {
 		input := newGoRevocationFixtureForTest(t, ca.RawSubject, ca.SubjectKeyId,
 			big.NewInt(9), nil, now, now.Add(time.Hour))
 
-		signed, err := ins.SignX509CRL(ctx, input, caKeyPem)
+		signed, err := ins.SignX509CRLDER(ctx, input, caKeyPem)
 		require.NoError(t, err)
 
 		crl, err := x509.ParseRevocationList(signed)
@@ -163,7 +163,7 @@ func TestTongsuoSignX509CRLRejectsInvalidInput(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			out, err := ins.SignX509CRL(ctx, tc.crl, tc.key)
+			out, err := ins.SignX509CRLDER(ctx, tc.crl, tc.key)
 			require.Error(t, err)
 			require.Nil(t, out)
 		})
