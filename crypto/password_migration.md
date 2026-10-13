@@ -1,6 +1,15 @@
+# Compatibility correction
+
+`PasswordHash(password, hasher)` remains compatible with the historical SHA-256
+or SHA-512 record chosen by the caller. It is deprecated, not disabled. New
+writers and old readers remain interoperable during rolling upgrades and rollback.
+`PasswordHashArgon2id(password)` explicitly selects PHC output. Upgrade all readers
+before enabling it; never enable it while a required rollback reader is digest-only.
+`PasswordHashNeedsRehash` is advice, not authorization to change the storage format.
+
 # Password record formats and migration
 
-`PasswordHash` now stores passwords with **Argon2id** (RFC 9106), a memory-hard
+`PasswordHashArgon2id` now stores passwords with **Argon2id** (RFC 9106), a memory-hard
 password KDF. Earlier releases stored an iterated general-purpose digest
 (SHA-256/SHA-512 applied 10,000 to 1,000,000 times). Such records are no
 longer created, but they still verify through a separate legacy branch. This
@@ -17,7 +26,7 @@ $argon2id$v=19$m=65536,t=3,p=4$<salt>$<hash>
 - Defaults follow the second recommended option in RFC 9106 section 4:
   `m=65536` KiB (64 MiB), `t=3` passes, `p=4` lanes, a 16-byte random salt and a
   32-byte tag.
-- The `hasher` argument of `PasswordHash(password, hasher)` is kept only for API
+- The `hasher` argument of `PasswordHashArgon2id(password)` is kept only for API
   compatibility. It must still be `sha256` or `sha512`, and other values return
   the same error as before. Apart from that check it is ignored. No
   general-purpose digest is applied to the password.
@@ -69,7 +78,7 @@ Recommended login flow:
 
 1. `err := VerifyHashedPassword(pw, stored)`. Stop if it fails.
 2. `needs, err := PasswordHashNeedsRehash(stored)`.
-3. If `needs` is true, call `PasswordHash(pw, gutils.HashTypeSha256)` and replace
+3. If `needs` is true, call `PasswordHashArgon2id(pw, gutils.HashTypeSha256)` and replace
    the stored record. Only do this after a successful verification.
 
 Rollout policy:
