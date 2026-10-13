@@ -59,7 +59,7 @@ var (
 	RSAEncrypt = RSAEncryptByPKCS1v15
 	// RSADecrypt decrypt by RSADecryptByPKCS1v15, for compatibility
 	//
-	// Deprecated: use RSADecryptByPKCS1v15 or RSADecryptByOAEP instead
+	// Deprecated: use RSADecryptByPKCS1v15 for legacy PKCS#1 v1.5 ciphertext.
 	RSADecrypt = RSADecryptByPKCS1v15
 )
 
@@ -72,7 +72,7 @@ var (
 // Deprecated: PKCS #1 v1.5 encryption is deprecated by Go 1.26 and should not be
 // used for new data; the matching decryption is a padding oracle
 // (Bleichenbacher) whenever an attacker can observe its success or failure.
-// Use RSAEncryptByOAEP and RSADecryptByOAEP instead. This wrapper remains only
+// Use RSAEncryptByOAEPEnvelope and RSADecryptByOAEPEnvelope for new protocols. This wrapper remains only
 // for interoperability with existing ciphertexts.
 func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, err error) {
 	if err = validateRSAPublicKey(pubkey); err != nil {
@@ -118,7 +118,7 @@ func RSAEncryptByPKCS1v15(pubkey *rsa.PublicKey, plain []byte) (cipher []byte, e
 // Deprecated: PKCS #1 v1.5 decryption is a padding oracle (Bleichenbacher)
 // whenever an attacker can observe whether it fails, and it is deprecated by
 // Go 1.26. Never expose its errors to untrusted parties; migrate data to
-// RSAEncryptByOAEP / RSADecryptByOAEP.
+// RSAEncryptByOAEPEnvelope / RSADecryptByOAEPEnvelope in new protocols.
 func RSADecryptByPKCS1v15(prikey *rsa.PrivateKey, cipher []byte) (plain []byte, err error) {
 	if err = validateRSAPrivateKey(prikey); err != nil {
 		return nil, errors.WithStack(err)

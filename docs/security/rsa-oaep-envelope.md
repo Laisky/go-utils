@@ -1,25 +1,49 @@
-# RSA-OAEP whole-message integrity (#112)
+# RSA-OAEP compatibility and whole-message integrity (#112, #123)
 
-## Security contract and wire compatibility
+## API contracts
 
-`RSAEncryptByOAEP` now writes a versioned hybrid envelope. A fresh random 32-byte
-AES key encrypts the entire message with AES-256-GCM, and RSA-OAEP with SHA-256
-wraps that key. The default decryptor authenticates the whole message before
-returning any plaintext. Empty plaintext has an authenticated representation;
-empty ciphertext, block deletion, duplication, permutation, truncation, appended
-data, wrong keys and metadata changes are rejected.
+Existing public functions keep their historical behavior. A library upgrade must
+not change their ciphertext format or make stored ciphertext unreadable.
 
-**This is an intentional wire-format change, not a drop-in interoperability
-change.** Method signatures remain compatible, but old raw/chunked OAEP ciphertext
-is rejected, including a single block. There is no automatic fallback. Errors
-for malformed or unauthenticated envelopes match `ErrInvalidRSAEnvelope` with
-`errors.Is`; callers must not depend on the old `decrypt chunk` error text.
+| API pair | Format and empty-input behavior | Intended use |
+| --- | --- | --- |
+| `RSAEncryptByOAEP` / `RSADecryptByOAEP` | Concatenated RSA-OAEP/SHA-256 blocks, nil OAEP label; empty input returns `nil, nil` | Deprecated; retained for existing callers and externally authenticated legacy protocols |
+| `RSAEncryptByOAEPEnvelope` / `RSADecryptByOAEPEnvelope` | Versioned RSA-OAEP/AES-256-GCM envelope; empty plaintext is authenticated, empty ciphertext is rejected | Explicit opt-in for new protocols and intentional migrations |
 
-This is public-key encryption, not sender authentication or replay protection.
-Anyone with the public key can create a new valid message. Applications needing
-authenticated senders or freshness must enforce those properties separately.
-The existing 1024-bit compatibility boundary is retained; use an appropriate
-strong RSA key for new deployments rather than selecting that minimum.
+The original key validation, block boundaries and `decrypt chunk` error context
+are preserved by the old functions. Deprecation is a warning, not removal or a
+runtime refusal. Old writers interoperate with old readers in both directions.
+Neither API pair automatically detects or falls back to the other format.
+
+**Correction to #123:** that PR changed the old function names to use the envelope
+format. Keeping their signatures did not preserve compatibility. The repair
+restores their original implementations and original interoperability assertions;
+the authenticated implementation is retained under the new explicit names.
+Envelopes already written by #123 remain readable with
+`RSADecryptByOAEPEnvelope`, with no change to the envelope bytes or version.
+Callers that adopted #123's envelope behavior must select the new names explicitly.
+
+## Security boundary
+
+Independent legacy OAEP blocks do not authenticate message order or completeness.
+Whole blocks can be removed, repeated or reordered. This limitation cannot be
+removed from that format while preserving interoperability with old readers and
+ciphertexts. The deprecated APIs therefore **do not** claim whole-message integrity;
+applications must authenticate the complete legacy ciphertext externally before
+accepting it across a trust boundary. The secure remediation is opt-in migration,
+not silently reinterpreting an existing function.
+
+The envelope uses a fresh random 32-byte AES key with AES-256-GCM for the payload;
+RSA-OAEP/SHA-256 wraps the key. The header, wrapped key and nonce are authenticated
+as associated data. Malformed or unauthenticated envelopes return no plaintext
+and match `ErrInvalidRSAEnvelope` with `errors.Is`. The envelope reader never
+falls back to legacy blocks, including single blocks. Tampering, truncation,
+appended data, wrong keys and unknown versions remain rejected.
+
+Public-key encryption does not establish sender identity or prevent replay.
+Anyone holding the public key can create a fresh valid envelope; applications
+must enforce sender authentication and freshness separately. The existing
+1024-bit compatibility boundary remains, not a recommendation for new keys.
 
 ## Version 1 encoding
 
@@ -39,41 +63,51 @@ Associated data is every byte preceding the GCM ciphertext, including the magic,
 version, wrapped-key length, wrapped key and nonce. Version 1 fixes the algorithms;
 unknown versions are rejected. Sizes are checked before slicing or allocation.
 
-## Migration and rollback
+## Explicit migration and rollback
 
-Inventory every writer, reader, stored ciphertext and external raw-OAEP consumer
-before rollout. Upgrade readers and writers in a coordinated protocol migration.
-Old binaries cannot read newly written envelopes. Do not roll back readers after
-new ciphertext has been stored unless the application also restores a compatible
-protocol/data version.
+Existing legacy callers need no data migration merely to upgrade this library.
+For new whole-message integrity guarantees, inventory writers, readers and stored
+values, then explicitly adopt both `RSAEncryptByOAEPEnvelope` and
+`RSADecryptByOAEPEnvelope`. This is not a drop-in rename for a mixed-version protocol.
+Choose the format from trusted protocol/schema metadata, not a decryption error.
+Never catch an envelope authentication failure and retry with an old decoder.
 
-`RSADecryptByOAEPLegacy` is a deprecated, explicitly named offline migration aid.
-Before calling it, authenticate the **complete original ciphertext** using a
-trusted external MAC, signature, or equivalent integrity record. Legacy OAEP
-cannot establish that no blocks were previously removed or reordered. Data with
-no independent integrity record cannot be retrospectively authenticated.
-After authorized migration, write the returned plaintext through the new
-`RSAEncryptByOAEP`. Never catch a default decryption error and retry with the
-legacy decoder, and never expose the legacy decoder to untrusted requests.
-No legacy encryption API was added.
+`RSADecryptByOAEPLegacy`, introduced by #123, remains available as a deprecated
+strict offline migration helper. Its additional rejection of empty input and
+partial blocks is unchanged; it does not replace the historical public function.
+Before migration, independently authenticate the **complete original ciphertext**
+using a trusted MAC, signature or equivalent integrity record. Legacy OAEP cannot
+prove retrospectively that no blocks were removed or reordered. An envelope
+cannot retroactively supply missing integrity evidence for historical plaintext.
 
-## Reproduction and regression evidence
+Applications that wrote envelopes during the #123 window should use the explicit
+envelope APIs for that data. Keep the required format-aware reader when rolling
+back application code after new envelopes are stored. No automatic fallback,
+stored-data rewrite or deployment is performed by this compatibility repair.
 
-On original revision `042437b6015f5ba8f185ef91b05b2bd3a5a420f3`, a disposable
-2048-bit key and three 190-byte plaintext blocks demonstrated accepted complete
-block removal, duplication, permutation and empty input. The intact round trip
-and partial-block rejection served as controls. The same structural rejection
-test passes after the repair.
+## Behavior-first regression evidence
 
-Retained tests additionally flip every byte and try every truncated length in
-bounded empty/nonempty fixtures, verify default downgrade rejection, exercise
-explicit migration, and independently decode the envelope with standard-library
-RSA and AES-GCM rather than relying only on a wrapper-to-wrapper round trip.
-Existing key-validation and OAEP payload-boundary tests remain, updated to the
-new documented format and uniform authentication-error contract.
+Frozen fixtures include ciphertext generated by the actual pre-change module at
+`042437b6015f5ba8f185ef91b05b2bd3a5a420f3` and envelopes generated from the exact
+#123 merged source tree at `a389e7ad3e9103250acf5f5d5f7ec543a9522032`. Their
+private key is disposable public test material and must never protect real data.
 
-Run `go test -race -count=1 -run 'TestRSAOAEP|TestSecurity68|TestRsaEncryptByOAEP|TestCVE_RSA_OAEP|TestRSAHelpers' ./crypto`.
+The restored original OAEP assertions and added historical-reader/writer/error
+tests pass on the old implementation, fail on #123, and pass after API separation.
+Tests independently decode with standard-library primitives and cover empty,
+single-block, boundary and multi-block payloads, wrong keys, malformed blocks and
+no partial plaintext on errors. They do not substitute a new-to-new round trip
+for compatibility verification.
+
+The envelope's byte-mutation, every-truncation, whole-block structural tamper,
+wrong-key, fresh-nonce and downgrade-rejection tests now call the explicit APIs.
+Frozen #123 envelopes prove that renaming does not discard the newly introduced
+format. Existing key-validation tests remain on the deprecated functions, with
+additional invalid/minimum-key coverage on the new functions.
+
+Run `go test -race -count=1 -run 'TestRSA|TestSecurity68|TestRsaEncryptByOAEP|TestCVE_RSA_OAEP' ./crypto`.
 
 Primary references: [Go RSA](https://pkg.go.dev/crypto/rsa#EncryptOAEP),
-[Go AEAD](https://pkg.go.dev/crypto/cipher#AEAD), and
+[Go AEAD](https://pkg.go.dev/crypto/cipher#AEAD),
+[Go deprecation comments](https://go.dev/doc/comment#deprecations), and
 [RFC 3560 key transport](https://www.rfc-editor.org/rfc/rfc3560).

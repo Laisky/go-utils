@@ -15,8 +15,8 @@ import (
 // Reordered, duplicated and deleted whole blocks cannot be detected by this format.
 // Empty input and partial blocks are rejected; failures return no partial data.
 //
-// Deprecated: This format has no whole-message integrity. Use RSADecryptByOAEP
-// for all normal decryption, and never use this function as an automatic fallback.
+// Deprecated: This format has no whole-message integrity. Use RSADecryptByOAEPEnvelope
+// for new authenticated protocols, and never use this function as an automatic fallback.
 func RSADecryptByOAEPLegacy(prikey *rsa.PrivateKey, encrypted []byte) ([]byte, error) {
 	if err := validateRSAPrivateKey(prikey); err != nil {
 		return nil, errors.WithStack(err)
