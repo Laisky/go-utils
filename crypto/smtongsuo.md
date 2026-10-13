@@ -687,83 +687,70 @@ The output is byte-for-byte identical to `tongsuo enc -sm4-cbc -K -iv`
 The methods remain on `*Tongsuo` for API compatibility only; `NewTongsuo` still
 requires the binary for the other (SM2/SM3/X.509) operations.
 
-### Formats
+### Compatible and opt-in formats
 
-| API | Format | Authenticated |
+| API | Wire/MAC contract | Status |
 | --- | --- | --- |
-| `EncryptBySm4Cbc` / `DecryptBySm4Cbc` | `"GUS4" \|\| 0x01 \|\| iv(16) \|\| ciphertext(16n) \|\| tag(32)` | magic, version, IV, ciphertext |
-| `EncryptBySm4CbcBaisc` / `DecryptBySm4CbcBaisc` | standard SM4-CBC-PKCS7 ciphertext under the raw key and IV, plus a separate 32-byte `hmac` | IV and ciphertext (when `hmac` is supplied) |
-| `DecryptBySm4CbcLegacy` (migration only) | `iv(16) \|\| ciphertext(16n) \|\| HMAC-SHA256(key, ciphertext)(32)` | ciphertext only, **IV is NOT authenticated** |
-| `DecryptBySm4CbcBaiscLegacy` (migration only) | basic ciphertext + `HMAC-SHA256(key, ciphertext)` | ciphertext only, **IV is NOT authenticated** |
+| `EncryptBySm4Cbc` / `DecryptBySm4Cbc` | `iv || ciphertext || HMAC-SHA256(key, ciphertext)` | Deprecated; existing callers remain compatible |
+| `EncryptBySm4CbcBaisc` / `DecryptBySm4CbcBaisc` | Raw-key CBC plus ciphertext-only MAC; an omitted MAC skips verification | Deprecated; spelling and behavior are preserved |
+| `EncryptBySm4CbcEnvelope` / `DecryptBySm4CbcEnvelope` | Versioned `GUS4` envelope, derived keys, IV and ciphertext authenticated | Explicit opt-in for complete-message authentication |
+| `EncryptBySm4CbcBasicV1` / `DecryptBySm4CbcBasicV1` | Raw-key CBC plus a derived-key MAC of IV and ciphertext | Explicit opt-in MAC format; verification requires the supplied tag |
 
-Version 1 envelope details (`EncryptBySm4Cbc`):
+The legacy public names do not silently adopt a new wire or MAC format. Separate
+Legacy helpers are retained for explicit migration, but are not a substitute for
+preserving the original entrypoints. Existing readers can read newly produced
+legacy ciphertext, and existing ciphertext remains readable through the old names.
 
-- `encKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc-hmac-sha256 envelope v1 encryption key")[:16]`
-- `macKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc-hmac-sha256 envelope v1 mac key")[:32]`
-- a fresh random 16-byte IV per message;
-  `ciphertext = SM4-CBC-PKCS7(encKey, iv, plaintext)`
-- `tag = HMAC-SHA256(macKey, "GUS4" || 0x01 || iv || ciphertext)`
-- `DecryptBySm4Cbc` checks the length (`>= 69` bytes and block aligned), magic, and
-  version **before** any cryptographic operation, verifies the tag with
-  `hmac.Equal` **before** decrypting, and only then removes PKCS#7 padding
-  (constant-time check). Any modified byte, truncation, or unknown version fails
-  without returning plaintext.
+The new envelope uses fresh 16-byte IVs and HKDF-SHA256 with separate encryption
+and MAC domain labels. Its exact layout is `GUS4 || 0x01 || iv(16) || ciphertext(16n)
+|| tag(32)`. The tag authenticates every preceding byte. The new reader checks
+framing, version and tag before CBC decryption and padding removal, returning no
+plaintext on errors. It never falls back to the legacy reader.
 
-Basic API details (`EncryptBySm4CbcBaisc`): the ciphertext is plain SM4-CBC under
-the caller's raw key and IV (interoperable with Tongsuo, GmSSL, and others). The
-returned `hmac` is `HMAC-SHA256(basicMacKey, iv || ciphertext)` where
-`basicMacKey = HKDF-SHA256(key, salt=nil, info="github.com/Laisky/go-utils/crypto sm4-cbc basic iv-and-ciphertext v1 mac key")[:32]`.
-`DecryptBySm4CbcBaisc` verifies that tag before decrypting.
+`BasicV1` preserves raw SM4-CBC interoperability; its separate tag is
+`HMAC-SHA256(basicMacKey, iv || ciphertext)` using the established HKDF domain
+`github.com/Laisky/go-utils/crypto sm4-cbc basic iv-and-ciphertext v1 mac key`.
+It is distinct from the deprecated ciphertext-only MAC. Passing an empty tag to
+either Basic decoder provides **no integrity verification**; only use that mode
+when an outer protocol independently authenticates both the IV and ciphertext.
+Prefer the envelope API for new designs. Neither encryption format authenticates
+the sender or prevents replay; the application supplies those controls.
 
-> **Warning**: calling `DecryptBySm4CbcBaisc` with an empty `hmac` performs **no
-> integrity check at all**. The IV and ciphertext are then fully malleable and the
-> padding check can act as a padding oracle. Only do this for interoperability
-> with data that is authenticated by other means. Never reuse an IV with the same
-> key; prefer `EncryptBySm4Cbc`, which generates the IV for you.
+### Explicit migration
 
-Empty plaintext is supported by every API and, as with `tongsuo enc`, produces one
-full 16-byte padding block (a 69-byte v1 envelope).
-
-Errors: `ErrSm4CbcMalformedCiphertext` (bad length/magic/version, detected before
-crypto), `ErrSm4CbcHMACMismatch` (authentication failure), and
-`ErrSm4CbcBadDecrypt` (invalid padding; after a successful MAC check this only
-happens if the key holder produced malformed data). Match them with `errors.Is`.
-
-### Breaking changes and migration
-
-- `DecryptBySm4Cbc` accepts **only** the v1 envelope. Data produced by
-  `EncryptBySm4Cbc` in earlier releases (`iv || ciphertext || HMAC(key, ciphertext)`)
-  is rejected with `ErrSm4CbcMalformedCiphertext`; there is no silent fallback,
-  because the legacy MAC does not cover the IV and an attacker could flip bits of
-  the first plaintext block undetected.
-- `DecryptBySm4CbcBaisc` with a nonempty `hmac` accepts **only** the new
-  IV-authenticating tag. Tags produced by earlier releases fail with
-  `ErrSm4CbcHMACMismatch`.
-- Basic ciphertexts themselves are unchanged and remain decryptable.
-
-Migrate stored data once, offline, and record the format version out of band (for
-example a column or key prefix). Do not call the legacy functions as an automatic
-fallback after the current decoder fails on attacker-reachable input:
+Legacy callers need no wire migration merely to upgrade the library. Before
+adopting the envelope or BasicV1 MAC, coordinate all readers, writers and rollback
+versions. Track format selection in trusted protocol/schema metadata. Authenticate
+the complete original legacy ciphertext **and IV** independently before migration;
+a legacy ciphertext-only MAC cannot prove the IV was not changed. Never retry a
+legacy decoder after a new-format authentication failure.
 
 ```go
-// legacy combined data written by EncryptBySm4Cbc before the v1 envelope
+// Only after independently authenticating both legacyCombined and its IV:
 plaintext, err := ts.DecryptBySm4CbcLegacy(ctx, key, legacyCombined)
 if err != nil {
-    return errors.Wrap(err, "decrypt legacy sm4 data")
+    return errors.Wrap(err, "decrypt authenticated legacy sm4 data")
 }
-migrated, err := ts.EncryptBySm4Cbc(ctx, key, plaintext)
+migrated, err := ts.EncryptBySm4CbcEnvelope(ctx, key, plaintext)
 if err != nil {
-    return errors.Wrap(err, "re-encrypt sm4 data")
+    return errors.Wrap(err, "create sm4 envelope")
 }
-// persist migrated and mark the record as format v1
-
-// legacy basic data: ciphertext + iv + old HMAC(key, ciphertext)
-plaintext, err = ts.DecryptBySm4CbcBaiscLegacy(ctx, key, ciphertext, iv, oldHmac)
-if err != nil {
-    return errors.Wrap(err, "decrypt legacy sm4 basic data")
-}
-ciphertext, newHmac, err := ts.EncryptBySm4CbcBaisc(ctx, key, plaintext, freshIV)
+// Store migrated in the explicitly versioned destination.
 ```
 
-The two formats also have disjoint lengths (`53 + 16n` for v1 versus `48 + 16n`
-for legacy), so neither decoder can mistake one for the other.
+The layouts have disjoint lengths: `53 + 16n` for the envelope versus `48 + 16n`
+for legacy combined ciphertext. Empty plaintext produces one padded CBC block in
+both formats. `ErrSm4CbcMalformedCiphertext`, `ErrSm4CbcHMACMismatch` and
+`ErrSm4CbcBadDecrypt` remain matchable with `errors.Is`. See
+[API compatibility and migration](../docs/security/sm4-api-compatibility.md).
+
+## Encrypted key and CRL format compatibility
+
+`NewPrikeyWithPassword` retains encrypted `EC PRIVATE KEY` PEM with its historical
+SM4-CBC headers and is deprecated. `NewPrikeyPKCS8WithPassword` explicitly returns
+PBES2-protected `ENCRYPTED PRIVATE KEY` PEM. Select the new function only after
+all consumers, including rollback versions, support that format.
+
+`SignX509CRL` retains `X509 CRL` PEM output. `SignX509CRLDER` explicitly returns DER.
+Both share the hardened signing and field/signature verification path. See
+[format compatibility guidance](../docs/security/tongsuo-format-compatibility.md).
