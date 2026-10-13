@@ -39,3 +39,11 @@ Compatibility: project-wide administrative listing through a mismatched session
 is no longer accepted. Use an explicitly authorized lower-level storage operation
 for project-wide administration. Oversized summary requests must be partitioned
 or reduced. There is no stored-data migration; rollback reintroduces the gap.
+
+## Compatibility: the root is additional to the child limit
+
+`limit` continues to bound backend entries, not root-plus-child summaries. One
+child directory with `limit=1` returns both the root and that child. The derived
+directory budget and MCP attempt budget reserve one extra root slot; backend
+over-return, session confinement, depth, elapsed-time and byte limits remain
+enforced. Root/child boundary cases are retained as behavior regressions.
