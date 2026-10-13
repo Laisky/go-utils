@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	gutils "github.com/Laisky/go-utils/v6"
 	"github.com/stretchr/testify/require"
+
+	gutils "github.com/Laisky/go-utils/v6"
 )
 
 // TestPasswordCompatibilityWriter verifies both requested algorithms with an independent pre-Argon2 reader.
