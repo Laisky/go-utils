@@ -31,7 +31,7 @@ import (
 // distinct info labels; ciphertext = SM4-CBC-PKCS7(encKey, iv, plaintext) and
 // tag = HMAC-SHA256(macKey, magic || version || iv || ciphertext).
 //
-// Legacy envelope (DecryptBySm4CbcLegacy only):
+// Legacy envelope (deprecated EncryptBySm4Cbc / DecryptBySm4Cbc):
 //
 //	iv(16) || ciphertext(16*n, n>=1) || HMAC-SHA256(key, ciphertext)(32)
 //
@@ -87,8 +87,8 @@ var (
 // The returned hmac is HMAC-SHA256 over iv || ciphertext under a MAC key derived
 // from key with HKDF-SHA256 and a dedicated info label, so both the IV and the
 // ciphertext are authenticated. Verify it with DecryptBySm4CbcBasicV1. MACs produced
-// by older releases (HMAC-SHA256(key, ciphertext)) can only be verified with
-// DecryptBySm4CbcBaiscLegacy.
+// by older releases (HMAC-SHA256(key, ciphertext)) remain compatible with the
+// deprecated DecryptBySm4CbcBaisc and DecryptBySm4CbcBaiscLegacy APIs.
 //
 // Never reuse an IV with the same key; prefer EncryptBySm4CbcEnvelope, which generates a
 // random IV and emits a self-describing authenticated envelope.
