@@ -743,3 +743,14 @@ for legacy combined ciphertext. Empty plaintext produces one padded CBC block in
 both formats. `ErrSm4CbcMalformedCiphertext`, `ErrSm4CbcHMACMismatch` and
 `ErrSm4CbcBadDecrypt` remain matchable with `errors.Is`. See
 [API compatibility and migration](../docs/security/sm4-api-compatibility.md).
+
+## Encrypted key and CRL format compatibility
+
+`NewPrikeyWithPassword` retains encrypted `EC PRIVATE KEY` PEM with its historical
+SM4-CBC headers and is deprecated. `NewPrikeyPKCS8WithPassword` explicitly returns
+PBES2-protected `ENCRYPTED PRIVATE KEY` PEM. Select the new function only after
+all consumers, including rollback versions, support that format.
+
+`SignX509CRL` retains `X509 CRL` PEM output. `SignX509CRLDER` explicitly returns DER.
+Both share the hardened signing and field/signature verification path. See
+[format compatibility guidance](../docs/security/tongsuo-format-compatibility.md).
