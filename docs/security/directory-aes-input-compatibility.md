@@ -17,3 +17,9 @@ source substitution, stale staging files, cancellation and read/growth budgets
 keep their defenses. No file format or function signature changes. Repeated
 unfiltered runs intentionally include their newly existing inputs; applications
 that require naming-policy-based idempotence can opt into suffix filtering.
+
+The `encrypt aes` CLI follows the same rule in both raw-key and password modes:
+ordinary `.enc` inputs are included by default. `--skip-suffix-inputs` is the
+explicit directory-only filename filter. It is not ciphertext detection and can
+skip plaintext by design only when requested. Runs use an input snapshot, so
+outputs newly produced during a run are never recursively fed back into it.

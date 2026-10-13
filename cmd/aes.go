@@ -83,6 +83,7 @@ type aesCLIArgs struct {
 	// legacySecret receives the removed -s/--secret flag so it can fail closed.
 	legacySecret        string
 	legacyPasswordAsKey bool
+	skipSuffixInputs    bool
 }
 
 var (
@@ -103,6 +104,8 @@ func init() {
 
 	EncryptCMD.AddCommand(EncryptAESCMD)
 	registerAESSecretFlags(EncryptAESCMD, &encryptAESArgs)
+	EncryptAESCMD.Flags().BoolVar(&encryptAESArgs.skipSuffixInputs, "skip-suffix-inputs", false,
+		"for directories, explicitly skip input names ending in .enc; this is a name filter, not ciphertext detection")
 	EncryptAESCMD.Flags().StringVarP(&encryptAESArgs.legacySecret, "secret", "s", "",
 		"REMOVED: secrets are never accepted as arguments; use --password-file or --key-file")
 
@@ -147,6 +150,8 @@ var EncryptAESCMD = &cobra.Command{
 
 		Outputs are written with mode 0600 via a temporary file and an atomic rename;
 		an existing symlink or special file at the output path is refused.
+		Directory inputs ending in .enc are included by default. Use --skip-suffix-inputs
+		to explicitly exclude them; a suffix alone does not identify encrypted content.
 	`),
 	Args: NoExtraArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
@@ -195,6 +200,9 @@ func runEncryptAES(cmd *cobra.Command, args *aesCLIArgs) error {
 	if err != nil {
 		return errors.Wrap(err, "read input path")
 	}
+	if !st.IsDir() && args.skipSuffixInputs {
+		return errors.New("--skip-suffix-inputs is only supported for directory inputs")
+	}
 	if st.IsDir() && args.output != "" {
 		return errors.New("--output is not supported for a directory input; outputs are written next to each file")
 	}
@@ -207,7 +215,11 @@ func runEncryptAES(cmd *cobra.Command, args *aesCLIArgs) error {
 
 	if st.IsDir() {
 		log.Shared.Info("encrypt files in dir", zap.String("path", args.input), zap.String("mode", secret.mode()))
-		return encryptDirByAESCLI(commandContext(cmd), args.input, secret)
+		var options []gcrypto.AESEncryptFilesInDirOption
+		if args.skipSuffixInputs {
+			options = append(options, gcrypto.WithAESFilesInDirSkipSuffixInputs())
+		}
+		return encryptDirByAESCLI(commandContext(cmd), args.input, secret, options...)
 	}
 
 	output := args.output
@@ -219,9 +231,10 @@ func runEncryptAES(cmd *cobra.Command, args *aesCLIArgs) error {
 
 // encryptDirByAESCLI encrypts the files of dir in password or raw-key mode.
 // Password mode derives the key once for the whole run.
-func encryptDirByAESCLI(ctx context.Context, dir string, secret *aesCLISecret) error {
+func encryptDirByAESCLI(ctx context.Context, dir string, secret *aesCLISecret,
+	options ...gcrypto.AESEncryptFilesInDirOption) error {
 	if secret.key != nil {
-		return errors.WithStack(gcrypto.AESEncryptFilesInDirWithContext(ctx, dir, secret.key))
+		return errors.WithStack(gcrypto.AESEncryptFilesInDirWithContext(ctx, dir, secret.key, options...))
 	}
 
 	enc, err := gcrypto.NewPasswordEncryptorContext(
@@ -231,7 +244,7 @@ func encryptDirByAESCLI(ctx context.Context, dir string, secret *aesCLISecret) e
 		return errors.Wrap(err, "derive password key")
 	}
 
-	return errors.WithStack(gcrypto.PasswordEncryptFilesInDirWithContext(ctx, dir, enc))
+	return errors.WithStack(gcrypto.PasswordEncryptFilesInDirWithContext(ctx, dir, enc, options...))
 }
 
 // encryptFileByAESCLI encrypts the file in and safely publishes the result at out.
