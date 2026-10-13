@@ -8,11 +8,9 @@ import (
 	"github.com/Laisky/go-utils/v6/json"
 )
 
-// Value writes only policies exactly representable by historical leaf-grant storage.
+// Value returns the legacy JSON object only when old readers retain the same grants.
 //
-// Deprecated: Use RBACPolicyV1.Value with a separate versioned storage column.
-// Explicit deny leaves and granted internal nodes fail closed instead of being
-// persisted in a representation that old readers could misinterpret.
+// Deprecated: Use RBACPolicyV2.Value for explicit grants in coordinated versioned storage.
 func (p *RBACPermissionElem) Value() (driver.Value, error) {
 	if p == nil {
 		return nil, errors.Errorf("marshal RBACPermissionElem: nil receiver")
@@ -25,11 +23,10 @@ func (p *RBACPermissionElem) Value() (driver.Value, error) {
 	return string(b), nil
 }
 
-// Scan reads historical object storage, including transitional explicit-grant
-// records, without changing state on failure. It does not accept versioned tuples.
+// Scan imports a legacy JSON object without changing the receiver on failure.
 //
-// Deprecated: Use RBACPolicyV1.Scan for versioned policy storage. Treat any scan
-// error as an authorization failure; do not retain stale policy decisions.
+// Deprecated: Use RBACPolicyV2.Scan for strict versioned policy storage.
+// Import legacy objects only as an explicit, authorized migration step.
 func (p *RBACPermissionElem) Scan(input any) error {
 	if input == nil {
 		return errors.Errorf("scan RBACPermissionElem: input is nil")
