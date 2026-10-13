@@ -3,6 +3,7 @@ package email
 import (
 	"crypto/tls"
 	"github.com/stretchr/testify/require"
+	"net/smtp"
 	"testing"
 )
 
@@ -25,4 +26,32 @@ func TestSMTPCompatibilityNegotiation(t *testing.T) {
 			requireEncryptedBeforeSensitive(t, commands)
 		})
 	}
+}
+
+// TestSMTPCompatibilityNoDowngrade rejects lookalike capabilities and refuses LOGIN credential disclosure off TLS.
+func TestSMTPCompatibilityNoDowngrade(t *testing.T) {
+	for _, advertised := range []string{"XLOGIN", "XPLAIN", "SCRAM-SHA-256", ""} {
+		auth, err := selectSMTPAuth(advertised, syntheticSMTPUser, syntheticSMTPPassword, "relay.invalid")
+		require.Error(t, err)
+		require.Nil(t, auth)
+	}
+	auth := &smtpLoginAuth{username: syntheticSMTPUser, password: syntheticSMTPPassword, host: "relay.invalid"}
+	for _, server := range []*smtp.ServerInfo{nil, {Name: "relay.invalid"}, {TLS: true, Name: "other.invalid"}} {
+		_, response, err := auth.Start(server)
+		require.Error(t, err)
+		require.Nil(t, response)
+	}
+	_, _, err := auth.Start(&smtp.ServerInfo{TLS: true, Name: "relay.invalid"})
+	require.NoError(t, err)
+	response, err := auth.Next([]byte("Password:"), true)
+	require.Error(t, err)
+	require.Nil(t, response)
+	for _, prompt := range []string{"Username:", "Password:"} {
+		response, err = auth.Next([]byte(prompt), true)
+		require.NoError(t, err)
+		require.NotEmpty(t, response)
+	}
+	response, err = auth.Next([]byte("Password:"), true)
+	require.Error(t, err)
+	require.Nil(t, response)
 }
