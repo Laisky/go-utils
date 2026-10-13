@@ -149,6 +149,11 @@ func TestRBACPolicyLegacyCompatibility(t *testing.T) {
 func TestRBACPolicyV2SnapshotConcurrency(t *testing.T) {
 	root := rbacExplicitTree("root.read")
 	policy := RBACPolicyV2{Root: root}
+	type result struct {
+		raw []byte
+		err error
+	}
+	results := make(chan result, 50)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -160,20 +165,20 @@ func TestRBACPolicyV2SnapshotConcurrency(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
+		defer close(results)
 		for range 50 {
 			raw, err := policy.MarshalJSON()
-			if !require.NoError(t, err) {
-				return
-			}
-			var restored RBACPolicyV2
-			if !require.NoError(t, restored.UnmarshalJSON(raw)) {
-				return
-			}
-			require.True(t, restored.Root.HasPerm2("root.read"))
-			require.False(t, restored.Root.HasPerm2("root.admin"))
+			results <- result{raw: raw, err: err}
 		}
 	}()
 	wg.Wait()
+	for item := range results {
+		require.NoError(t, item.err)
+		var restored RBACPolicyV2
+		require.NoError(t, restored.UnmarshalJSON(item.raw))
+		require.True(t, restored.Root.HasPerm2("root.read"))
+		require.False(t, restored.Root.HasPerm2("root.admin"))
+	}
 }
 
 // TestRBACPolicyV2WriteBudgets refuses invalid or excessive trees rather than
