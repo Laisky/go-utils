@@ -155,7 +155,7 @@ func placeMd5File(ctx context.Context, f, targetDir string, remain bool) (confli
 // fs.ErrExist when the destination is occupied, or another failure.
 func publishMd5File(f, target string, remain bool) error {
 	if remain {
-		return errors.Wrapf(gutils.CopyFile(f, target, gutils.WithFileMode(0644)),
+		return errors.Wrapf(gutils.CopyFileAtomic(f, target, gutils.WithFileMode(0644)),
 			"copy file from %q to %q", f, target)
 	}
 
@@ -163,7 +163,7 @@ func publishMd5File(f, target string, remain bool) error {
 	if linkErr != nil && !errors.Is(linkErr, fs.ErrExist) {
 		glog.Shared.Debug("hard link unavailable, falling back to exclusive copy",
 			zap.String("from", f), zap.String("to", target), zap.Error(linkErr))
-		if err := gutils.CopyFile(f, target, gutils.WithFileMode(0644)); err != nil {
+		if err := gutils.CopyFileAtomic(f, target, gutils.WithFileMode(0644)); err != nil {
 			return errors.Wrapf(err, "copy file from %q to %q", f, target)
 		}
 	} else if linkErr != nil {

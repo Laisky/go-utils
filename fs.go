@@ -155,8 +155,8 @@ func (o *copyFileOption) applyOpts(optfs ...CopyFileOptionFunc) (*copyFileOption
 type CopyFileOptionFunc func(o *copyFileOption) error
 
 // WithFileMode sets the creation mode, before the umask, of the file CopyFile
-// creates. With Overwrite the replacement file also receives this mode; the
-// previous destination's mode is not preserved.
+// creates. Existing CopyFile destinations retain their mode; CopyFileAtomic
+// replacements receive the supplied creation mode.
 func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.mode = perm
@@ -165,8 +165,8 @@ func WithFileMode(perm fs.FileMode) CopyFileOptionFunc {
 }
 
 // WithFileFlag adds open flags, such as os.O_SYNC, for the file CopyFile creates.
-// Creation is always exclusive (os.O_CREATE|os.O_EXCL) and os.O_TRUNC is ignored,
-// because CopyFile never opens an existing destination for writing.
+// New files are created exclusively. CopyFile applies O_TRUNC only after
+// descriptor validation; CopyFileAtomic always writes a new replacement inode.
 func WithFileFlag(flag int) CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.flag |= flag
@@ -174,11 +174,10 @@ func WithFileFlag(flag int) CopyFileOptionFunc {
 	}
 }
 
-// Overwrite allows CopyFile to replace an existing regular destination file.
-// The content is written to a private temporary file beside dst and published
-// with rename, so the destination entry is replaced rather than written through.
-// A destination that exists but is not a regular file, such as a symbolic link,
-// directory or FIFO, is rejected and left unchanged.
+// Overwrite permits overwriting an existing regular destination. CopyFile writes
+// through the existing inode, preserving its mode, ownership and hardlink visibility.
+// CopyFileAtomic instead replaces the directory entry with a private temporary file.
+// Both reject final symbolic links, directories and special files.
 func Overwrite() CopyFileOptionFunc {
 	return func(o *copyFileOption) error {
 		o.overwrite = true
@@ -187,15 +186,31 @@ func Overwrite() CopyFileOptionFunc {
 	}
 }
 
-// CopyFile copies the content of src to dst, creating dst's parent directories.
+// CopyFile copies src to dst, creating parent directories and exclusively creating
+// a missing destination. With Overwrite, an existing regular inode is updated in
+// place; its mode, ownership, hardlinks and existing open handles are preserved.
+// Final symlinks and special destinations are rejected before writing. The parent
+// directories must be trusted. In-place failures may leave partial content.
 //
-// Without Overwrite, dst is created atomically with exclusive-create semantics:
-// any existing entry, including a symbolic link whose target is missing, is a
-// collision and produces an error matching fs.ErrExist. With Overwrite, an
-// existing regular dst is replaced through a temporary file and rename; links and
-// special files are rejected. A failed copy never leaves a partial destination.
-// It returns nil on success or an error describing the first failure.
-func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
+// Deprecated: For atomic publication and hardlink isolation, explicitly use
+// CopyFileAtomic. Those guarantees require replacing the destination inode and
+// cannot be added transparently to this existing API's overwrite semantics.
+func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) error {
+	return copyFile(src, dst, false, optfs...)
+}
+
+// CopyFileAtomic copies src to a private new file and atomically publishes it
+// when Overwrite is supplied. It never writes through an existing inode, so old
+// hardlinks and open handles remain unchanged. The replacement uses WithFileMode
+// or the default mode, not the old metadata. Without Overwrite it creates the
+// destination exclusively. It returns an error without publishing partial content.
+func CopyFileAtomic(src, dst string, optfs ...CopyFileOptionFunc) error {
+	return copyFile(src, dst, true, optfs...)
+}
+
+// copyFile implements the shared copy path and selects in-place versus atomic
+// overwrite explicitly; it returns any open, copy, publication or close error.
+func copyFile(src, dst string, atomicReplace bool, optfs ...CopyFileOptionFunc) (err error) {
 	opt, err := new(copyFileOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return errors.Wrap(err, "apply options")
@@ -219,8 +234,15 @@ func CopyFile(src, dst string, optfs ...CopyFileOptionFunc) (err error) {
 		}
 		return nil
 	}
-	if opt.overwrite {
+	if opt.overwrite && atomicReplace {
 		err = fileguard.Replace(dst, opt.flag, opt.mode, copyInto)
+	} else if opt.overwrite {
+		var source os.FileInfo
+		source, err = srcFp.Stat()
+		if err != nil {
+			return errors.Wrap(err, "inspect source file")
+		}
+		err = fileguard.OverwriteInPlace(dst, opt.flag, opt.mode, source, copyInto)
 	} else {
 		err = fileguard.WriteNew(dst, opt.flag, opt.mode, copyInto)
 	}
