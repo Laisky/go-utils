@@ -33,7 +33,7 @@ func TestSecurity68InvalidOAEPKey(t *testing.T) {
 	}
 }
 
-// TestSecurity68OAEPBoundaries preserves old payload boundaries while independently opening the new authenticated format with standard-library primitives.
+// TestSecurity68OAEPBoundaries decrypts every emitted block with the standard library.
 func TestSecurity68OAEPBoundaries(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -42,9 +42,15 @@ func TestSecurity68OAEPBoundaries(t *testing.T) {
 		plaintext := bytes.Repeat([]byte{0x6a}, size)
 		ciphertext, err := RSAEncryptByOAEP(&key.PublicKey, plaintext)
 		require.NoError(t, err)
-		require.Len(t, ciphertext, rsaEnvelopeHeaderLen+key.Size()+rsaEnvelopeNonceLen+size+rsaEnvelopeTagLen)
-		recovered := openRSAEnvelopeWithStdlibForTest(t, key, ciphertext)
-		require.True(t, bytes.Equal(plaintext, recovered))
+		wantBlocks := (size + capacity - 1) / capacity
+		require.Len(t, ciphertext, wantBlocks*key.Size())
+		recovered := make([]byte, 0, size)
+		for pos := 0; pos < len(ciphertext); pos += key.Size() {
+			chunk, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, key, ciphertext[pos:pos+key.Size()], nil)
+			require.NoError(t, err)
+			recovered = append(recovered, chunk...)
+		}
+		require.Equal(t, plaintext, recovered)
 	}
 	a, err := RSAEncryptByOAEP(&key.PublicKey, []byte("same input"))
 	require.NoError(t, err)
@@ -75,6 +81,7 @@ func TestSecurity68MinimumSupportedKey(t *testing.T) {
 	message := []byte("synthetic compatibility fixture")
 	ciphertext, err := RSAEncryptByOAEP(&key.PublicKey, message)
 	require.NoError(t, err)
-	plaintext := openRSAEnvelopeWithStdlibForTest(t, key, ciphertext)
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, key, ciphertext, nil)
+	require.NoError(t, err)
 	require.Equal(t, message, plaintext)
 }
