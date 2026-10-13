@@ -270,7 +270,7 @@ func TestAESFilesInDirSecurity_SkipsAndOutputLinks(t *testing.T) {
 	require.NoError(t, os.Symlink(victim, filepath.Join(dir, "link.txt")))
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "sub.txt"), 0o700))
 
-	require.NoError(t, AESEncryptFilesInDir(dir, filesTestKey))
+	require.NoError(t, AESEncryptFilesInDir(dir, filesTestKey, WithAESFilesInDirSkipSuffixInputs()))
 	for _, skipped := range []string{"old.txt.enc.enc", "link.txt.enc", "sub.txt.enc"} {
 		_, err := os.Lstat(filepath.Join(dir, skipped))
 		require.ErrorIs(t, err, os.ErrNotExist, skipped)
@@ -282,7 +282,7 @@ func TestAESFilesInDirSecurity_SkipsAndOutputLinks(t *testing.T) {
 	require.Equal(t, "plain", string(got))
 
 	// An existing regular output is atomically replaced.
-	require.NoError(t, AESEncryptFilesInDir(dir, filesTestKey))
+	require.NoError(t, AESEncryptFilesInDir(dir, filesTestKey, WithAESFilesInDirSkipSuffixInputs()))
 	ct2, err := os.ReadFile(filepath.Join(dir, "a.txt.enc"))
 	require.NoError(t, err)
 	require.NotEqual(t, ct, ct2)

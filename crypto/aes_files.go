@@ -54,11 +54,12 @@ const (
 type encryptFilesOption struct {
 	ext string
 	// suffix will append in encrypted file'name after ext as suffix
-	suffix         string
-	maxConcurrency int
-	maxFiles       int
-	maxFileBytes   int64
-	maxTotalBytes  int64
+	suffix           string
+	skipSuffixInputs bool
+	maxConcurrency   int
+	maxFiles         int
+	maxFileBytes     int64
+	maxTotalBytes    int64
 	// hook is a package-test instrumentation point; it is nil in production.
 	hook func(ctx context.Context, stage aesFilesHookStage, name string) error
 }
@@ -265,6 +266,19 @@ func encryptFilesInDir(ctx context.Context, dir string, encrypt func([]byte) ([]
 	run.logger.Debug("encrypt files in dir",
 		zap.Int("files", len(candidates)), zap.Int("concurrency", opt.maxConcurrency))
 
+	// A destination can also be an enumerated input (a, a.enc). Read the
+	// longest names first in that case, before their predecessor replaces them.
+	// Enumeration is a snapshot, so newly created outputs are not fed back into this run.
+	if run.inputsOverlapOutputs(candidates) {
+		slices.SortFunc(candidates, func(a, b aesFilesCandidate) int { return len(b.name) - len(a.name) })
+		for _, c := range candidates {
+			if err := run.encryptOne(ctx, c); err != nil {
+				return errors.Wrapf(err, "encrypt file `%s`", c.name)
+			}
+		}
+		return errors.Wrap(ctx.Err(), "encrypt files in dir")
+	}
+
 	pool, gctx := errgroup.WithContext(ctx)
 	pool.SetLimit(opt.maxConcurrency)
 	for _, c := range candidates {
@@ -342,7 +356,7 @@ func (r *aesFilesRun) match(entry fs.DirEntry) (aesFilesCandidate, bool, error) 
 		r.logger.Debug("skip non-regular entry", zap.String("name", name))
 		return aesFilesCandidate{}, false, nil
 	case !strings.HasSuffix(name, r.opt.ext),
-		strings.HasSuffix(name, r.opt.suffix),
+		r.opt.skipSuffixInputs && strings.HasSuffix(name, r.opt.suffix),
 		strings.HasPrefix(name, aesFilesTempPrefix):
 		return aesFilesCandidate{}, false, nil
 	}
@@ -500,4 +514,25 @@ func publishInRoot(ctx context.Context, root *os.Root, name string, content []by
 	published = true
 
 	return nil
+}
+
+// inputsOverlapOutputs reports whether any destination is also a source in the bounded input snapshot.
+func (r *aesFilesRun) inputsOverlapOutputs(candidates []aesFilesCandidate) bool {
+	names := make(map[string]struct{}, len(candidates))
+	for _, c := range candidates {
+		names[c.name] = struct{}{}
+	}
+	for _, c := range candidates {
+		if _, exists := names[c.name+r.opt.suffix]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+// WithAESFilesInDirSkipSuffixInputs explicitly excludes input names ending in the
+// configured output suffix. It is an opt-in filename filter, not ciphertext detection.
+// The default includes ordinary plaintext such as report.enc for compatibility.
+func WithAESFilesInDirSkipSuffixInputs() AESEncryptFilesInDirOption {
+	return func(opt *encryptFilesOption) error { opt.skipSuffixInputs = true; return nil }
 }

@@ -27,7 +27,7 @@ func setupAESCLITest(t *testing.T) {
 	t.Helper()
 	reset := func() {
 		encryptAESArgs, decryptAESArgs = aesCLIArgs{}, aesCLIArgs{}
-		for _, f := range []string{"secret", "password-file", "key-file"} {
+		for _, f := range []string{"secret", "password-file", "key-file", "skip-suffix-inputs"} {
 			if flag := EncryptAESCMD.Flags().Lookup(f); flag != nil {
 				flag.Changed = false
 			}
@@ -407,7 +407,7 @@ func TestAESCLISecurity_DirectoryMode(t *testing.T) {
 	require.Equal(t, cts[0][:saltEnd], cts[1][:saltEnd], "key derived once per run")
 	require.NotEqual(t, cts[0][saltEnd:nonceEnd], cts[1][saltEnd:nonceEnd], "fresh nonce per file")
 
-	require.NoError(t, runAESCLI(t, nil, "encrypt", "aes", "-i", dir, "--key-file", keyFile))
+	require.NoError(t, runAESCLI(t, nil, "encrypt", "aes", "-i", dir, "--key-file", keyFile, "--skip-suffix-inputs"))
 	for name, content := range files {
 		ct, err := os.ReadFile(filepath.Join(dir, name+".enc"))
 		require.NoError(t, err)
@@ -416,7 +416,7 @@ func TestAESCLISecurity_DirectoryMode(t *testing.T) {
 		require.Equal(t, content, string(got))
 	}
 	_, err := os.Lstat(filepath.Join(dir, "a.toml.enc.enc"))
-	require.ErrorIs(t, err, os.ErrNotExist, "existing outputs are not re-encrypted")
+	require.ErrorIs(t, err, os.ErrNotExist, "the explicit suffix filter excludes existing outputs")
 
 	err = runAESCLI(t, nil, "encrypt", "aes", "-i", dir, "-o", filepath.Join(dir, "x"), "--key-file", keyFile)
 	require.ErrorContains(t, err, "--output is not supported")
