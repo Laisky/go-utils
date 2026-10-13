@@ -23,3 +23,20 @@ func TestAESFilesCompatibilitySuffixInputs(t *testing.T) {
 		})
 	}
 }
+
+// TestAESFilesCompatibilityOverlappingInputs encrypts every original input before an overlapping output can replace it.
+func TestAESFilesCompatibilityOverlappingInputs(t *testing.T) {
+	inputs := map[string]string{"a": "first", "a.enc": "second", "a.enc.enc": "third"}
+	for range 4 {
+		dir := writeFilesTestDir(t, inputs)
+		require.NoError(t, AESEncryptFilesInDir(dir, filesTestKey, WithAESFilesInDirMaxConcurrency(4)))
+		for name, original := range inputs {
+			ct, err := os.ReadFile(filepath.Join(dir, name+".enc"))
+			require.NoError(t, err)
+			plain, err := AesDecrypt(filesTestKey, ct)
+			require.NoError(t, err)
+			require.Equal(t, original, string(plain), name)
+		}
+		requireNoStagingFiles(t, dir)
+	}
+}
