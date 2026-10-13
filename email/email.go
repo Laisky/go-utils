@@ -323,9 +323,13 @@ func (s *requireTLSSender) DialAndSend(msgs ...*gomail.Message) error {
 	}
 
 	if s.username != "" || s.password != "" {
-		if ok, _ := c.Extension("AUTH"); ok {
-			// The connection is encrypted at this point, so PlainAuth is safe.
-			if err := c.Auth(smtp.PlainAuth("", s.username, s.password, s.host)); err != nil {
+		if ok, advertised := c.Extension("AUTH"); ok {
+			// Capabilities are read after the verified TLS upgrade, never from plaintext EHLO.
+			auth, err := selectSMTPAuth(advertised, s.username, s.password, s.host)
+			if err != nil {
+				return errors.Wrap(err, "select smtp auth")
+			}
+			if err := c.Auth(auth); err != nil {
 				return errors.Wrap(err, "smtp auth")
 			}
 		}

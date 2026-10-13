@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/hmac"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"math/big"
 	"net"
@@ -44,6 +48,8 @@ type smtpStubConfig struct {
 	implicitTLS bool
 	// authMechanisms, when non-empty, is advertised as "AUTH <mechanisms>".
 	authMechanisms string
+	// requireAuthMechanism makes compatibility fixtures enforce the advertised protocol.
+	requireAuthMechanism string
 	// serverTLS is the server-side TLS configuration used for STARTTLS or
 	// implicit TLS.
 	serverTLS *tls.Config
@@ -234,15 +240,45 @@ func (s *smtpStub) handleAuth(conn net.Conn, br *bufio.Reader, fields []string) 
 		mech = strings.ToUpper(fields[1])
 	}
 
+	if s.cfg.requireAuthMechanism != "" && mech != s.cfg.requireAuthMechanism {
+		return writeSMTPLine(conn, "504 unsupported authentication mechanism")
+	}
 	switch {
+	case mech == "CRAM-MD5":
+		challenge := []byte("<compatibility@stub.example.invalid>")
+		if !writeSMTPLine(conn, "334 "+base64.StdEncoding.EncodeToString(challenge)) {
+			return false
+		}
+		line, err := br.ReadString('\n')
+		if err != nil {
+			return false
+		}
+		response, err := base64.StdEncoding.DecodeString(strings.TrimSpace(line))
+		if err != nil {
+			return false
+		}
+		//nolint:gosec // G401: verify legacy SMTP CRAM-MD5 interoperability using disposable credentials.
+		mac := hmac.New(md5.New, []byte(syntheticSMTPPassword))
+		_, _ = mac.Write(challenge)
+		expected := syntheticSMTPUser + " " + hex.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal(response, []byte(expected)) {
+			return writeSMTPLine(conn, "535 invalid synthetic credentials")
+		}
 	case mech == "LOGIN":
 		// Prompt for username and password ("Username:" / "Password:" in base64).
-		for _, prompt := range []string{"334 VXNlcm5hbWU6", "334 UGFzc3dvcmQ6"} {
+		for index, prompt := range []string{"334 VXNlcm5hbWU6", "334 UGFzc3dvcmQ6"} {
 			if !writeSMTPLine(conn, prompt) {
 				return false
 			}
-			if _, err := br.ReadString('\n'); err != nil {
+			line, err := br.ReadString('\n')
+			if err != nil {
 				return false
+			}
+			if s.cfg.requireAuthMechanism != "" {
+				value, err := base64.StdEncoding.DecodeString(strings.TrimSpace(line))
+				if err != nil || string(value) != []string{syntheticSMTPUser, syntheticSMTPPassword}[index] {
+					return writeSMTPLine(conn, "535 invalid synthetic credentials")
+				}
 			}
 		}
 	case mech == "PLAIN" && len(fields) < 3:
