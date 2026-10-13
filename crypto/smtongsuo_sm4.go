@@ -31,7 +31,7 @@ import (
 // distinct info labels; ciphertext = SM4-CBC-PKCS7(encKey, iv, plaintext) and
 // tag = HMAC-SHA256(macKey, magic || version || iv || ciphertext).
 //
-// Legacy envelope (deprecated original names and explicit Legacy readers):
+// Legacy envelope (deprecated EncryptBySm4Cbc / DecryptBySm4Cbc):
 //
 //	iv(16) || ciphertext(16*n, n>=1) || HMAC-SHA256(key, ciphertext)(32)
 //
@@ -77,7 +77,7 @@ var (
 	ErrSm4CbcBadDecrypt = errors.New("bad decrypt")
 )
 
-// EncryptBySm4CbcBasicAuthenticated encrypts plaintext with SM4-CBC and PKCS#7 padding in-process.
+// EncryptBySm4CbcBasicV1 encrypts plaintext with SM4-CBC and PKCS#7 padding in-process.
 //
 // The ciphertext is standard SM4-CBC under the raw key and IV, byte-for-byte
 // identical to `tongsuo enc -sm4-cbc -K <key> -iv <iv>`, so other SM4
@@ -86,9 +86,9 @@ var (
 //
 // The returned hmac is HMAC-SHA256 over iv || ciphertext under a MAC key derived
 // from key with HKDF-SHA256 and a dedicated info label, so both the IV and the
-// ciphertext are authenticated. Verify it with DecryptBySm4CbcBasicAuthenticated. MACs produced
-// by older releases (HMAC-SHA256(key, ciphertext)) can only be verified with
-// DecryptBySm4CbcBaiscLegacy.
+// ciphertext are authenticated. Verify it with DecryptBySm4CbcBasicV1. MACs produced
+// by older releases (HMAC-SHA256(key, ciphertext)) remain compatible with the
+// deprecated DecryptBySm4CbcBaisc and DecryptBySm4CbcBaiscLegacy APIs.
 //
 // Never reuse an IV with the same key; prefer EncryptBySm4CbcEnvelope, which generates a
 // random IV and emits a self-describing authenticated envelope.
@@ -103,7 +103,7 @@ var (
 //   - ciphertext: SM4-CBC ciphertext, a nonzero multiple of 16 bytes.
 //   - hmac: 32-byte HMAC-SHA256 tag over iv || ciphertext.
 //   - err: non-nil when the context is done or an argument is invalid.
-func (t *Tongsuo) EncryptBySm4CbcBasicAuthenticated(ctx context.Context,
+func (t *Tongsuo) EncryptBySm4CbcBasicV1(ctx context.Context,
 	key, plaintext, iv []byte) (ciphertext, hmac []byte, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, nil, errors.Wrap(err, "context done")
@@ -124,17 +124,19 @@ func (t *Tongsuo) EncryptBySm4CbcBasicAuthenticated(ctx context.Context,
 	return ciphertext, sm4HMAC(macKey, iv, ciphertext), nil
 }
 
-// DecryptBySm4CbcBasicAuthenticated decrypts standard SM4-CBC ciphertext with PKCS#7 padding in-process.
+// DecryptBySm4CbcBasicV1 decrypts standard SM4-CBC ciphertext with PKCS#7 padding in-process.
 //
-// The hmac must be the 32-byte tag returned by
-// EncryptBySm4CbcBasicAuthenticated; it is verified in constant time over iv || ciphertext
+// When hmac is nonempty it must be the 32-byte tag returned by
+// EncryptBySm4CbcBasicV1; it is verified in constant time over iv || ciphertext
 // BEFORE any decryption, so a modified IV, ciphertext, or tag fails with
 // ErrSm4CbcHMACMismatch and no plaintext. Tags produced by older releases, which
 // did not cover the IV, are rejected here; use DecryptBySm4CbcBaiscLegacy to
 // migrate such data.
 //
-// An empty tag is rejected. Use the deprecated raw CBC API only when an
-// external protocol already supplies the missing integrity guarantee.
+// WARNING: an empty hmac means NO integrity check at all. The ciphertext and IV
+// are then fully malleable and the padding check may act as a padding oracle.
+// Only pass an empty hmac for interoperability with data authenticated by other
+// means.
 //
 // The tongsuo binary is not invoked and the key never appears in any process argv.
 //
@@ -143,12 +145,12 @@ func (t *Tongsuo) EncryptBySm4CbcBasicAuthenticated(ctx context.Context,
 //   - key: SM4 key, must be 16 bytes.
 //   - ciphertext: SM4-CBC ciphertext, must be a nonzero multiple of 16 bytes.
 //   - iv: SM4-CBC IV, must be 16 bytes.
-//   - hmac: mandatory 32-byte tag over iv || ciphertext.
+//   - hmac: empty to skip integrity checks, otherwise the 32-byte tag over iv || ciphertext.
 //
 // # Returns
 //   - plaintext: decrypted data, only returned when every check succeeded.
 //   - err: non-nil on invalid arguments, MAC mismatch, or invalid padding.
-func (t *Tongsuo) DecryptBySm4CbcBasicAuthenticated(ctx context.Context,
+func (t *Tongsuo) DecryptBySm4CbcBasicV1(ctx context.Context,
 	key, ciphertext, iv, hmac []byte) (plaintext []byte, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "context done")
@@ -157,10 +159,7 @@ func (t *Tongsuo) DecryptBySm4CbcBasicAuthenticated(ctx context.Context,
 		return nil, errors.Wrap(err, "validate sm4 arguments")
 	}
 
-	if len(hmac) == 0 {
-		return nil, errors.New("hmac should be 32 bytes for authenticated verification")
-	}
-	{
+	if len(hmac) != 0 {
 		macKey, err := deriveSm4Key(key, sm4BasicMACKeyInfo, sm4MACSize)
 		if err != nil {
 			return nil, errors.Wrap(err, "derive mac key")
@@ -183,7 +182,7 @@ func (t *Tongsuo) DecryptBySm4CbcBasicAuthenticated(ctx context.Context,
 // SECURITY: the legacy MAC does NOT authenticate the IV. An attacker who can
 // modify the stored IV can flip arbitrary bits of the first 16 plaintext bytes
 // and this function still succeeds. Use it only to migrate existing data:
-// decrypt with this function, then re-encrypt with EncryptBySm4CbcBasicAuthenticated (or
+// decrypt with this function, then re-encrypt with EncryptBySm4CbcBasicV1 (or
 // preferably EncryptBySm4CbcEnvelope). Track the format of stored data out of band and
 // never fall back to this function automatically when the current format fails.
 //

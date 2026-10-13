@@ -111,15 +111,15 @@ func TestTongsuoSm4KeyNeverInChildArgv(t *testing.T) {
 	keyHex := hex.EncodeToString(key)
 	plaintext := []byte("benign plaintext for the argv capture regression test")
 
-	ciphertext, tag, encErr := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+	ciphertext, tag, encErr := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 	combined, combinedErr := ins.EncryptBySm4CbcEnvelope(ctx, key, plaintext)
 	var decErr, combinedDecErr error
 	if encErr == nil {
-		_, decErr = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, iv, tag)
+		_, decErr = ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, tag)
 	} else {
 		// Exercise the decrypt path with a syntactically valid ciphertext so that
 		// any argv exposure on decryption is captured as well.
-		_, decErr = ins.DecryptBySm4CbcBaisc(ctx, key, make([]byte, 16), iv, nil)
+		_, decErr = ins.DecryptBySm4CbcBasicV1(ctx, key, make([]byte, 16), iv, nil)
 	}
 	if combinedErr == nil {
 		_, combinedDecErr = ins.DecryptBySm4CbcEnvelope(ctx, key, combined)
@@ -170,7 +170,7 @@ func TestTongsuoSm4CbcRejectsEachIVByteFlip(t *testing.T) {
 	}
 }
 
-// TestTongsuoSm4CbcBasicRejectsEachIVByteFlip verifies that DecryptBySm4CbcBasicAuthenticated
+// TestTongsuoSm4CbcBasicRejectsEachIVByteFlip verifies that DecryptBySm4CbcBasicV1
 // with a nonempty MAC rejects a modified IV for every IV byte position without
 // returning plaintext; regression for issue #45.
 func TestTongsuoSm4CbcBasicRejectsEachIVByteFlip(t *testing.T) {
@@ -181,11 +181,11 @@ func TestTongsuoSm4CbcBasicRejectsEachIVByteFlip(t *testing.T) {
 	iv, err := Salt(16)
 	require.NoError(t, err)
 
-	ciphertext, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+	ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 	require.NoError(t, err)
 	require.Len(t, tag, 32)
 
-	got, err := ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, iv, tag)
+	got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, tag)
 	require.NoError(t, err)
 	require.Equal(t, plaintext, got)
 
@@ -193,7 +193,7 @@ func TestTongsuoSm4CbcBasicRejectsEachIVByteFlip(t *testing.T) {
 		tamperedIV := bytes.Clone(iv)
 		tamperedIV[i] ^= 0x80
 
-		got, err := ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, tamperedIV, tag)
+		got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, tamperedIV, tag)
 		require.Error(t, err, "IV byte %d flip must fail authentication", i)
 		require.ErrorContains(t, err, "hmac not match")
 		require.Nil(t, got, "no plaintext may be returned for IV byte %d flip", i)
@@ -300,20 +300,20 @@ func TestTongsuoSm4CbcEnvelopeMalformedLengthsFail(t *testing.T) {
 		t.Parallel()
 		iv, err := Salt(16)
 		require.NoError(t, err)
-		ciphertext, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+		ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 
 		for _, bad := range [][]byte{nil, ciphertext[:1], ciphertext[:15], ciphertext[:len(ciphertext)-1]} {
-			got, err := ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, bad, iv, tag)
+			got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, bad, iv, tag)
 			require.ErrorIs(t, err, ErrSm4CbcMalformedCiphertext, "ciphertext length %d", len(bad))
 			require.Nil(t, got)
 
-			got, err = ins.DecryptBySm4CbcBaisc(ctx, key, bad, iv, nil)
+			got, err = ins.DecryptBySm4CbcBasicV1(ctx, key, bad, iv, nil)
 			require.ErrorIs(t, err, ErrSm4CbcMalformedCiphertext, "ciphertext length %d without mac", len(bad))
 			require.Nil(t, got)
 		}
 
-		got, err := ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext[:16], iv, tag)
+		got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext[:16], iv, tag)
 		require.ErrorIs(t, err, ErrSm4CbcHMACMismatch, "block-aligned truncation must fail authentication")
 		require.Nil(t, got)
 	})
@@ -338,9 +338,9 @@ func TestTongsuoSm4CbcWrongKeyFails(t *testing.T) {
 	require.ErrorIs(t, err, ErrSm4CbcHMACMismatch)
 	require.Nil(t, got)
 
-	ciphertext, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+	ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 	require.NoError(t, err)
-	got, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, wrongKey, ciphertext, iv, tag)
+	got, err = ins.DecryptBySm4CbcBasicV1(ctx, wrongKey, ciphertext, iv, tag)
 	require.ErrorIs(t, err, ErrSm4CbcHMACMismatch)
 	require.Nil(t, got)
 
@@ -349,7 +349,7 @@ func TestTongsuoSm4CbcWrongKeyFails(t *testing.T) {
 		require.ErrorContains(t, err, "key should be 16 bytes")
 		_, err = ins.DecryptBySm4CbcEnvelope(ctx, badKey, combined)
 		require.ErrorContains(t, err, "key should be 16 bytes")
-		_, _, err = ins.EncryptBySm4CbcBasicAuthenticated(ctx, badKey, plaintext, iv)
+		_, _, err = ins.EncryptBySm4CbcBasicV1(ctx, badKey, plaintext, iv)
 		require.ErrorContains(t, err, "key should be 16 bytes")
 		_, err = ins.DecryptBySm4CbcLegacy(ctx, badKey, sm4TestLegacyEncrypt(t, key, plaintext))
 		require.ErrorContains(t, err, "key should be 16 bytes")
@@ -367,7 +367,7 @@ func TestTongsuoSm4CbcHonorsCanceledContext(t *testing.T) {
 
 	combined, err := ins.EncryptBySm4CbcEnvelope(context.Background(), key, plaintext)
 	require.NoError(t, err)
-	ciphertext, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(context.Background(), key, plaintext, iv)
+	ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(context.Background(), key, plaintext, iv)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -379,10 +379,10 @@ func TestTongsuoSm4CbcHonorsCanceledContext(t *testing.T) {
 	out, err = ins.DecryptBySm4CbcEnvelope(ctx, key, combined)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, out)
-	out, _, err = ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+	out, _, err = ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, out)
-	out, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, iv, tag)
+	out, err = ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, tag)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, out)
 	out, err = ins.DecryptBySm4CbcLegacy(ctx, key, sm4TestLegacyEncrypt(t, key, plaintext))

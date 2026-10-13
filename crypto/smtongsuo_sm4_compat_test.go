@@ -86,17 +86,17 @@ func TestTongsuoSm4CbcRoundTrips(t *testing.T) {
 
 		iv, err := Salt(16)
 		require.NoError(t, err)
-		ciphertext, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+		ciphertext, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		require.Len(t, ciphertext, paddedLen)
 		require.Len(t, tag, sm4MACSize)
 		require.Equal(t, sm4TestRawCbcEncrypt(t, key, iv, sm4TestPkcs7Pad(plaintext)), ciphertext,
 			"basic ciphertext must be standard SM4-CBC-PKCS7 under the raw key")
 
-		got, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, iv, tag)
+		got, err = ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, tag)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got), "plaintext length %d", n)
-		got, err = ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, nil)
+		got, err = ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, nil)
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got), "plaintext length %d without mac", n)
 	}
@@ -115,7 +115,7 @@ func TestTongsuoSm4CbcKeySeparation(t *testing.T) {
 	require.NoError(t, err)
 	iv := combined[sm4EnvelopeHeaderSize : sm4EnvelopeHeaderSize+sm4IVSize]
 	ciphertext := combined[sm4EnvelopeHeaderSize+sm4IVSize : len(combined)-sm4MACSize]
-	rawKeyPlain, rawKeyErr := ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, nil)
+	rawKeyPlain, rawKeyErr := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, nil)
 	if rawKeyErr == nil {
 		require.NotEqual(t, plaintext, rawKeyPlain, "envelope ciphertext must not be encrypted under the raw key")
 	}
@@ -128,7 +128,7 @@ func TestTongsuoSm4CbcKeySeparation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, macKey, basicMACKey)
 
-	basicCT, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+	basicCT, tag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 	require.NoError(t, err)
 	legacyTag := sm4TestLegacyCombine(key, iv, basicCT)[sm4IVSize+len(basicCT):]
 	require.NotEqual(t, legacyTag, tag)
@@ -172,11 +172,11 @@ func TestTongsuoSm4CbcLegacyDecoders(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, bytes.Equal(plaintext, got))
 
-		got, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ciphertext, iv, legacyTag)
+		got, err = ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, legacyTag)
 		require.ErrorIs(t, err, ErrSm4CbcHMACMismatch, "current basic decoder must reject legacy MACs")
 		require.Nil(t, got)
 
-		_, currentTag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plaintext, iv)
+		_, currentTag, err := ins.EncryptBySm4CbcBasicV1(ctx, key, plaintext, iv)
 		require.NoError(t, err)
 		got, err = ins.DecryptBySm4CbcBaiscLegacy(ctx, key, ciphertext, iv, currentTag)
 		require.ErrorIs(t, err, ErrSm4CbcHMACMismatch, "legacy basic decoder must reject current MACs")
@@ -248,7 +248,7 @@ func TestTongsuoSm4CbcStrictPadding(t *testing.T) {
 		aligned := append(bytes.Repeat([]byte{'p'}, 16), last...)
 		ciphertext := sm4TestRawCbcEncrypt(t, key, iv, aligned)
 
-		got, err := ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, nil)
+		got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, nil)
 		require.ErrorIs(t, err, ErrSm4CbcBadDecrypt, "invalid padding case %d", i)
 		require.Nil(t, got)
 	}
@@ -257,7 +257,7 @@ func TestTongsuoSm4CbcStrictPadding(t *testing.T) {
 		last := append(bytes.Repeat([]byte{'v'}, 16-padLen), bytes.Repeat([]byte{byte(padLen)}, padLen)...)
 		ciphertext := sm4TestRawCbcEncrypt(t, key, iv, last)
 
-		got, err := ins.DecryptBySm4CbcBaisc(ctx, key, ciphertext, iv, nil)
+		got, err := ins.DecryptBySm4CbcBasicV1(ctx, key, ciphertext, iv, nil)
 		require.NoError(t, err, "valid padding length %d", padLen)
 		require.Equal(t, last[:16-padLen], got)
 	}

@@ -1,30 +1,27 @@
-# SM4 compatibility and explicit authenticated formats
+# SM4 API compatibility
 
-The original EncryptBySm4Cbc/DecryptBySm4Cbc methods again use
-`iv || SM4-CBC(raw key,iv,plaintext) || HMAC-SHA256(raw key,ciphertext)`.
-The original `Baisc` methods retain raw CBC and ciphertext-only HMAC; an empty
-tag on the old basic decryptor explicitly skips authentication. These APIs are
-deprecated, not disabled. Their historical IV-malleability limitation remains.
-Separate Legacy helpers alone did not preserve existing callers, so original names
-now preserve their wire contract as well. In-process cryptography is retained:
-restoring compatibility does not restore secret keys in subprocess arguments.
+The original `EncryptBySm4Cbc` / `DecryptBySm4Cbc` and misspelled
+`EncryptBySm4CbcBaisc` / `DecryptBySm4CbcBaisc` names keep the historical raw-key
+CBC and HMAC-SHA256(key, ciphertext) format. All four are deprecated, not disabled.
+The IV remains unauthenticated in that legacy format; use an external authenticated
+protocol until an explicit migration can be coordinated. The old basic reader's
+optional MAC behavior is preserved. No SM4 operation launches a child process.
 
-New protocols explicitly select EncryptBySm4CbcEnvelope/DecryptBySm4CbcEnvelope.
-They preserve the previously introduced GUS4 version 1 bytes, key separation,
-header/IV/ciphertext authentication and strict no-fallback parsing. The new
-BasicAuthenticated pair supports separate ciphertext/IV/tag fields, requires
-a nonempty tag, and authenticates the IV with the previously introduced derived MAC key.
-Historical Basic tags are not accepted by these explicit authenticated readers.
+`EncryptBySm4CbcEnvelope` / `DecryptBySm4CbcEnvelope` retain the versioned GUS4
+format, key separation and mandatory authentication of header, IV and ciphertext.
+`EncryptBySm4CbcBasicV1` / `DecryptBySm4CbcBasicV1` expose the post-hardening
+basic MAC format explicitly. Its optional MAC parameter still means no integrity
+when omitted; prefer the combined envelope. Neither new reader falls back to an
+old MAC or envelope after authentication failure. Previously written GUS4 values
+remain readable with the new envelope names, without rewriting their bytes.
 
-Upgrade old readers before switching writers; select formats using trusted
-protocol metadata. Do not catch authentication failures and retry a legacy reader.
-Independently authenticate historical IVs before treating migrated plaintext as
-trusted: a new envelope cannot retroactively establish integrity of old data.
-No persisted-data rewrite or automatic migration is included. Existing callers
-using the original format need no migration just to upgrade the library. Callers
-using the short-lived changed format must explicitly select the new methods.
+Existing legacy callers need no format migration merely to upgrade. To adopt new
+APIs, coordinate writers, readers, persisted format metadata and rollback readers.
+Do not infer a trusted format by catching authentication errors. The previous
+Legacy-only helpers did not preserve existing callers and are not a substitute
+for restoring the original names' contracts.
 
-Behavior tests independently construct and decode old framing at empty, block
-boundary and multi-block sizes. The same tests fail before this correction and
-pass after it. All IV/tag/header tamper and malformed-padding regression assertions
-remain, applied to the explicit new format; raw no-tag controls use the old basic API.
+Tests first reproduce two old-name interoperability failures, then preserve all
+new-format IV/header/tag mutation, key-separation, malformed-input and subprocess
+secrecy regressions on the explicit APIs. Independent CBC/HMAC construction and
+real Tongsuo interoperability exercise old and new cryptographic primitives.

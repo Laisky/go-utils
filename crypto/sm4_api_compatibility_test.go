@@ -3,68 +3,55 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestSM4CompatibilityOriginalNames verifies both historical APIs against independent
-// pre-envelope framing and MAC implementations at empty and multi-block boundaries.
+// TestSM4CompatibilityOriginalNames preserves the historical combined format in both directions.
 func TestSM4CompatibilityOriginalNames(t *testing.T) {
-	ins := newSm4TestTongsuo(t)
+	ins := new(Tongsuo)
 	ctx := context.Background()
 	key := []byte("0123456789abcdef")
-	iv := []byte("fedcba9876543210")
-	for _, n := range []int{0, 1, 15, 16, 17, 65} {
-		plain := bytes.Repeat([]byte{0x61}, n)
-		ct := sm4TestRawCbcEncrypt(t, key, iv, sm4TestPkcs7Pad(plain))
-		historical := sm4TestLegacyCombine(key, iv, ct)
-		t.Run("reader-"+string(rune('A'+n)), func(t *testing.T) {
-			got, err := ins.DecryptBySm4Cbc(ctx, key, historical)
-			require.NoError(t, err, "the unchanged old name must read historical ciphertext")
-			require.Equal(t, plain, got)
-			got, err = ins.DecryptBySm4CbcBaisc(ctx, key, ct, iv, historical[len(historical)-32:])
-			require.NoError(t, err)
-			require.Equal(t, plain, got)
-		})
-		t.Run("writer-"+string(rune('A'+n)), func(t *testing.T) {
-			out, tag, err := ins.EncryptBySm4CbcBaisc(ctx, key, plain, iv)
-			require.NoError(t, err)
-			require.Equal(t, ct, out)
-			require.Equal(t, historical[len(historical)-32:], tag, "old readers must accept the returned MAC")
-			combined, err := ins.EncryptBySm4Cbc(ctx, key, plain)
-			require.NoError(t, err)
-			require.Len(t, combined, 16+len(ct)+32)
-			expected := sm4TestRawCbcEncrypt(t, key, combined[:16], sm4TestPkcs7Pad(plain))
-			require.Equal(t, sm4TestLegacyCombine(key, combined[:16], expected), combined)
-		})
+	for _, n := range []int{0, 1, 15, 16, 17, 48, 1024} {
+		plain := bytes.Repeat([]byte("a"), n)
+		old := sm4TestLegacyEncrypt(t, key, plain)
+		out, err := ins.DecryptBySm4Cbc(ctx, key, old)
+		require.NoError(t, err, "existing callers must read historic ciphertext")
+		require.True(t, bytes.Equal(plain, out))
+		encoded, err := ins.EncryptBySm4Cbc(ctx, key, plain)
+		require.NoError(t, err)
+		require.Len(t, encoded, 16+(n/16+1)*16+32, "old readers require original framing")
+		iv, ct, mac := encoded[:16], encoded[16:len(encoded)-32], encoded[len(encoded)-32:]
+		expected := sm4TestRawCbcEncrypt(t, key, iv, sm4TestPkcs7Pad(plain))
+		require.Equal(t, expected, ct)
+		h := hmac.New(sha256.New, key)
+		_, err = h.Write(ct)
+		require.NoError(t, err)
+		require.Equal(t, h.Sum(nil), mac, "old MAC scope and key must remain unchanged")
 	}
 }
 
-// TestSM4ExplicitAuthentication preserves post-change envelopes and rejects format downgrade.
-func TestSM4ExplicitAuthentication(t *testing.T) {
-	ins := newSm4TestTongsuo(t)
+// TestSM4CompatibilityBasicNames preserves ciphertext-only MACs and the optional-MAC legacy contract.
+func TestSM4CompatibilityBasicNames(t *testing.T) {
+	ins := new(Tongsuo)
 	ctx := context.Background()
-	key := []byte("0123456789abcdef")
-	plain := []byte("compatibility is not format autodetection")
-	old := sm4TestLegacyEncrypt(t, key, plain)
-	out, err := ins.DecryptBySm4CbcEnvelope(ctx, key, old)
-	require.Error(t, err)
-	require.Nil(t, out)
-	envelope, err := ins.EncryptBySm4CbcEnvelope(ctx, key, plain)
+	key, iv, plain := []byte("0123456789abcdef"), []byte("abcdef0123456789"), []byte("legacy basic compatibility")
+	ct := sm4TestRawCbcEncrypt(t, key, iv, sm4TestPkcs7Pad(plain))
+	h := hmac.New(sha256.New, key)
+	_, err := h.Write(ct)
 	require.NoError(t, err)
-	out, err = ins.DecryptBySm4CbcEnvelope(ctx, key, envelope)
+	tag := h.Sum(nil)
+	got, err := ins.DecryptBySm4CbcBaisc(ctx, key, ct, iv, tag)
 	require.NoError(t, err)
-	require.Equal(t, plain, out)
-	out, err = ins.DecryptBySm4Cbc(ctx, key, envelope)
-	require.Error(t, err)
-	require.Nil(t, out)
-	ct, tag, err := ins.EncryptBySm4CbcBasicAuthenticated(ctx, key, plain, old[:16])
+	require.Equal(t, plain, got)
+	got, err = ins.DecryptBySm4CbcBaisc(ctx, key, ct, iv, nil)
 	require.NoError(t, err)
-	out, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ct, old[:16], nil)
-	require.Error(t, err)
-	require.Nil(t, out)
-	out, err = ins.DecryptBySm4CbcBasicAuthenticated(ctx, key, ct, old[:16], tag)
+	require.Equal(t, plain, got)
+	produced, mac, err := ins.EncryptBySm4CbcBaisc(ctx, key, plain, iv)
 	require.NoError(t, err)
-	require.Equal(t, plain, out)
+	require.Equal(t, ct, produced)
+	require.Equal(t, tag, mac)
 }
