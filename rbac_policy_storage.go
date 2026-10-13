@@ -199,7 +199,15 @@ func copyRBACWire(p *RBACPermissionElem, parent RBACPermFullKey, depth int,
 	}
 	if p.Children != nil {
 		wire.Children = make([]*permissionJSON, len(p.Children))
+		seen := make(map[RBACPermKey]struct{}, len(p.Children))
 		for i, child := range p.Children {
+			if child == nil {
+				return nil, errors.New("null RBAC policy child")
+			}
+			if _, duplicate := seen[child.Key]; duplicate {
+				return nil, errors.New("duplicate RBAC policy child")
+			}
+			seen[child.Key] = struct{}{}
 			converted, err := copyRBACWire(child, current, depth+1, legacy, nodes, textBytes)
 			if err != nil {
 				return nil, errors.Wrapf(err, "encode RBAC child %d", i)

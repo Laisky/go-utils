@@ -158,6 +158,8 @@ func hasRBACHierarchicalPrefix(childKey, parentKey string) bool {
 // mutex does not synchronize access through its parent. Use RBACPolicyV2 for a locked,
 // versioned serialization snapshot of explicit grants.
 type RBACPermissionElem struct {
+	rbacStorageValueGuard
+
 	mu sync.RWMutex `json:"-"`
 	// Title display name of this element
 	Title string `json:"title" binding:"min=1"`

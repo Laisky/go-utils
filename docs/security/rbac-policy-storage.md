@@ -91,3 +91,12 @@ rejection, strict malformed-input handling, unchanged state on failure,
 concurrent snapshots, and resource limits. Existing exhaustive permission,
 revocation, nested-union and normalization assertions are retained; tests of
 explicit-grant persistence now select the versioned API deliberately.
+
+### Copy and writer safety
+
+Non-addressable copies of `RBACPermissionElem` are rejected by an embedded JSON
+guard instead of bypassing the pointer serializer. Serialize a tree pointer or
+`RBACPolicyV2`, never a copied mutex-bearing value. Writers reject duplicate child
+identities before returning bytes, so they do not emit ambiguous policies that
+the strict reader would reject. Both controls were reproduced on the recovered
+candidate and retained from review of the other unreleased candidate.
