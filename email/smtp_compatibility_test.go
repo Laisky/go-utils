@@ -2,9 +2,10 @@ package email
 
 import (
 	"crypto/tls"
-	"github.com/stretchr/testify/require"
 	"net/smtp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestSMTPCompatibilityNegotiation delivers only over TLS using mechanisms accepted by real legacy relays.
