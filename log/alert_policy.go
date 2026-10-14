@@ -13,7 +13,9 @@ const defaultAlertMessageBytes = 16 * 1024
 // ErrAlertMessageTooLarge rejects an alert before it enters the remote queue.
 var ErrAlertMessageTooLarge = errors.New("alert message exceeds byte limit")
 
-// WithAlertFieldAllowlist explicitly exports only named top-level string, bool,
+// WithAlertFieldAllowlist selects the legacy explicit-filter policy, replacing
+// default diagnostic forwarding. An empty list sends metadata only. It exports
+// only named top-level string, bool,
 // integer, float, and duration fields. Objects, arrays, errors, reflection,
 // stringers, binary/byte strings, complex numbers, times, uintptrs, namespaces,
 // and stack/caller data are never exported by this hook, and fields of unknown
@@ -51,23 +53,40 @@ func WithAlertMaxMessageBytes(limit int) AlertOption {
 // Done closes after the sender returns. Close cancels delivery rather than flushing.
 func (a *Alert) Done() <-chan struct{} { return a.done }
 
-// remoteFields selects values before encoding and never invokes user marshalers.
+// remoteFields selects values before encoding; default errors become sanitized
+// strings, while complex marshalers never execute. Explicit filters retain their policy.
 func (a *Alert) remoteFields(fields []zapcore.Field) ([]zapcore.Field, error) {
-	if len(a.allowedFields) == 0 {
+	if a.allowedFields != nil && len(a.allowedFields) == 0 {
 		return nil, nil
 	}
-	selected := make([]zapcore.Field, 0, min(len(fields), len(a.allowedFields)))
+	selected := make([]zapcore.Field, 0, min(len(fields), a.maxMessageBytes/32))
 	remaining := a.maxMessageBytes
 	for _, field := range fields {
 		disposition := alertFieldDispositionOf(field.Type)
 		if disposition == alertFieldStop {
 			break
 		}
-		if disposition != alertFieldExport {
-			continue
-		}
-		if _, ok := a.allowedFields[field.Key]; !ok {
-			continue
+		if a.allowedFields == nil {
+			var ok bool
+			field, ok = a.defaultDiagnosticField(field)
+			if !ok {
+				continue
+			}
+		} else {
+			if disposition != alertFieldExport {
+				continue
+			}
+			if _, ok := a.allowedFields[field.Key]; !ok {
+				continue
+			}
+			if a.sanitizeDiagnosticText(field.Key) != field.Key {
+				continue
+			}
+			if sensitiveDiagnosticKey(field.Key) {
+				field.Type, field.String, field.Integer = zapcore.StringType, diagnosticRedacted, 0
+			} else if field.Type == zapcore.StringType {
+				field.String = a.sanitizeDiagnosticText(field.String)
+			}
 		}
 		for _, size := range []int{len(field.Key), len(field.String), 32} {
 			if size > remaining {
@@ -130,9 +149,9 @@ func alertFieldDispositionOf(fieldType zapcore.FieldType) alertFieldDisposition 
 	}
 }
 
-// GetZapHook sends minimal metadata and explicitly allowed scalar fields only.
-// Entry.Message and LoggerName are application-authored text, not automatically
-// redacted. Do not put secrets in them or in an allowlisted scalar value.
+// GetZapHook sends metadata and sanitized primitive diagnostics by default,
+// including sanitized error text. An explicit allowlist retains legacy field/type
+// selection; targeted credential and payload redaction applies in both modes.
 func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) error {
 	return func(entry zapcore.Entry, fields []zapcore.Field) error {
 		if !a.level.Enabled(entry.Level) {
@@ -144,6 +163,8 @@ func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) error {
 		if len(entry.Message) > a.maxMessageBytes || len(entry.LoggerName) > a.maxMessageBytes-len(entry.Message) {
 			return errors.WithStack(ErrAlertMessageTooLarge)
 		}
+		entry.Message = a.sanitizeDiagnosticText(entry.Message)
+		entry.LoggerName = a.sanitizeDiagnosticText(entry.LoggerName)
 		selected, err := a.remoteFields(fields)
 		if err != nil {
 			return err

@@ -53,12 +53,13 @@ type Alert struct {
 
 // alertOption holds configuration options for the Alert hook.
 type alertOption struct {
-	encPool         *sync.Pool
-	level           zapcore.LevelEnabler
-	timeout         time.Duration
-	alertType       string
-	alertToken      string
-	ratelimiter     RateLimiter
+	encPool     *sync.Pool
+	level       zapcore.LevelEnabler
+	timeout     time.Duration
+	alertType   string
+	alertToken  string
+	ratelimiter RateLimiter
+	// allowedFields is nil for default diagnostics; a non-nil map selects the legacy filter.
 	allowedFields   map[string]struct{}
 	maxMessageBytes int
 }
