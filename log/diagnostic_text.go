@@ -15,10 +15,13 @@ var (
 	diagnosticURL        = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"'\x60]+`)
 	diagnosticPayload    = regexp.MustCompile(`(?is)\b(?:response[_ -]?(?:body|payload)|` +
 		`request[_ -]?(?:body|payload)|body|payload|headers)\s*["']?\s*[:=]\s*.*`)
-	diagnosticCookie     = regexp.MustCompile(`(?i)\b(?:set-cookie|cookie)["']?\s*[:=]\s*[^\r\n]*`)
-	diagnosticCredential = regexp.MustCompile(`(?i)\b(api[_ -]?key|access[_ -]?key|access[_ -]?token|` +
+	diagnosticAuthorization = regexp.MustCompile(`(?i)\b((?:proxy-)?authorization)(?:[_ -]?v[0-9]+)?` +
+		`\b["']?\s*[:=]\s*[^\r\n]*`)
+	diagnosticSimpleAuthorization = regexp.MustCompile(`(?i)^(?:bearer|basic)\s+[^\s,;"'\]}]+`)
+	diagnosticCookie              = regexp.MustCompile(`(?i)\b(?:set-cookie|cookie)["']?\s*[:=]\s*[^\r\n]*`)
+	diagnosticCredential          = regexp.MustCompile(`(?i)\b(api[_ -]?key|access[_ -]?key|access[_ -]?token|` +
 		`refresh[_ -]?token|id[_ -]?token|auth[_ -]?token|token|password|passwd|pwd|client[_ -]?secret|secret|` +
-		`authorization|proxy-authorization|credentials)(?:[_ -]?v[0-9]+)?\b["']?\s*[:=]\s*` +
+		`credentials)(?:[_ -]?v[0-9]+)?\b["']?\s*[:=]\s*` +
 		`(?:(?:bearer|basic)\s+[^\s,;"'\]}]+|"[^"]*"|'[^']*'|[^\s,;&}\]]+)`)
 	diagnosticAuth     = regexp.MustCompile(`(?i)\b(?:bearer|basic)\s+[^\s,;"'\]}]+`)
 	diagnosticKeyValue = regexp.MustCompile(`\b(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{12,}|` +
@@ -44,6 +47,19 @@ func SanitizeDiagnosticText(text string) string {
 	})
 	text = diagnosticCookie.ReplaceAllStringFunc(text, func(value string) string {
 		at := strings.IndexAny(value, ":=")
+		return value[:at+1] + " " + diagnosticRedacted
+	})
+	text = diagnosticAuthorization.ReplaceAllStringFunc(text, func(value string) string {
+		at := strings.IndexAny(value, ":=")
+		raw := strings.TrimLeft(value[at+1:], " \t")
+		// Basic/Bearer have one credential; other schemes may contain comma or
+		// semicolon-delimited credential parameters, so redact their complete header.
+		if matched := diagnosticSimpleAuthorization.FindStringIndex(raw); matched != nil {
+			tail := raw[matched[1]:]
+			if !strings.HasPrefix(strings.TrimSpace(tail), ",") {
+				return value[:at+1] + " " + diagnosticRedacted + tail
+			}
+		}
 		return value[:at+1] + " " + diagnosticRedacted
 	})
 	text = diagnosticURL.ReplaceAllString(text, "[redacted URL]")

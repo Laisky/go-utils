@@ -9,7 +9,7 @@ selected an explicit field filter.
 
 Default forwarding removes targeted credential and raw-payload field names and
 sanitizes remaining strings, entry messages and logger names. It redacts
-recognizable credential assignments, Bearer/Basic authentication, credential
+recognizable credential assignments, authentication headers of any scheme, credential
 key formats, URLs, labeled body/payload/header text and echoed alert tokens.
 Counters such as `query_count`, `token_count` and `auth_failure_count` remain
 ordinary diagnostics. `SanitizeDiagnosticText` provides the same text projection

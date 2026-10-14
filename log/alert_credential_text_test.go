@@ -13,6 +13,9 @@ import (
 // TestAlertCredentialTextRedactionActualReceiver covers credential text in default errors and explicit selected strings.
 func TestAlertCredentialTextRedactionActualReceiver(t *testing.T) {
 	for _, tc := range []struct{ name, raw, useful string }{
+		{"Token auth header", "HTTP 401 exchange rejected; Authorization: Token SYNTHETIC_TOKEN_SCHEME; attempt=2", "HTTP 401"},
+		{"Digest auth header", "HTTP 401 exchange rejected; Authorization: Digest username=\"SYNTHETIC_USERNAME\", response=\"SYNTHETIC_SIGNATURE\", nonce=\"SYNTHETIC_NONCE\"", "HTTP 401"},
+		{"AWS proxy auth header", "HTTP 403 proxy rejected; Proxy-Authorization: AWS4-HMAC-SHA256 Credential=SYNTHETIC_AWS_CREDENTIAL, SignedHeaders=host;x-amz-date, Signature=SYNTHETIC_AWS_SIGNATURE", "HTTP 403"},
 		{"versioned auth token", "navigation failed: auth_token_v2=SYNTHETIC_AUTH_TOKEN; attempt=2", "navigation failed"},
 		{"versioned API key", "exchange rejected api_key_v2: SYNTHETIC_API_KEY; HTTP 403", "HTTP 403"},
 		{"versioned access token", "exchange rejected access_token_v4 = SYNTHETIC_ACCESS_TOKEN; HTTP 401", "HTTP 401"},
