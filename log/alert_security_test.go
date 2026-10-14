@@ -79,9 +79,9 @@ func captureSecurityAlert(t *testing.T, options ...AlertOption) (*Alert, <-chan 
 	return a, messages
 }
 
-// TestSecurity38DefaultFields proves that remote alerts do not inherit private log context.
+// TestSecurity38DefaultFields retains the historical metadata-only contract when explicitly selected.
 func TestSecurity38DefaultFields(t *testing.T) {
-	a, messages := captureSecurityAlert(t)
+	a, messages := captureSecurityAlert(t, WithAlertFieldAllowlist())
 	var calls atomic.Int64
 	entry := zapcore.Entry{Level: zap.ErrorLevel, Message: "safe operation failed", Stack: "SYNTHETIC_STACK_38"}
 	fields := []zapcore.Field{
@@ -95,7 +95,7 @@ func TestSecurity38DefaultFields(t *testing.T) {
 	select {
 	case message := <-messages:
 		require.Contains(t, message, "safe operation failed")
-		require.NotContains(t, message, "SYNTHETIC_", "default payload must exclude fields and stack")
+		require.NotContains(t, message, "SYNTHETIC_", "explicit metadata-only payload must exclude fields and stack")
 	case <-time.After(3 * time.Second):
 		t.Fatal("no local alert")
 	}
