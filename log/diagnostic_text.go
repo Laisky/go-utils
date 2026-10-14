@@ -15,9 +15,10 @@ var (
 	diagnosticURL        = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"'\x60]+`)
 	diagnosticPayload    = regexp.MustCompile(`(?is)\b(?:response[_ -]?(?:body|payload)|` +
 		`request[_ -]?(?:body|payload)|body|payload|headers)\s*["']?\s*[:=]\s*.*`)
-	diagnosticCredential = regexp.MustCompile(`(?i)\b(api[_-]?key|access[_-]?key|access[_-]?token|` +
-		`refresh[_-]?token|id[_-]?token|token|password|passwd|pwd|client[_-]?secret|secret|` +
-		`authorization|proxy-authorization|cookie|set-cookie|credentials)\b["']?\s*[:=]\s*` +
+	diagnosticCookie     = regexp.MustCompile(`(?i)\b(?:set-cookie|cookie)["']?\s*[:=]\s*[^\r\n]*`)
+	diagnosticCredential = regexp.MustCompile(`(?i)\b(api[_ -]?key|access[_ -]?key|access[_ -]?token|` +
+		`refresh[_ -]?token|id[_ -]?token|auth[_ -]?token|token|password|passwd|pwd|client[_ -]?secret|secret|` +
+		`authorization|proxy-authorization|credentials)(?:[_ -]?v[0-9]+)?\b["']?\s*[:=]\s*` +
 		`(?:(?:bearer|basic)\s+[^\s,;"'\]}]+|"[^"]*"|'[^']*'|[^\s,;&}\]]+)`)
 	diagnosticAuth     = regexp.MustCompile(`(?i)\b(?:bearer|basic)\s+[^\s,;"'\]}]+`)
 	diagnosticKeyValue = regexp.MustCompile(`\b(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{12,}|` +
@@ -34,6 +35,14 @@ func SanitizeDiagnosticText(text string) string {
 		return "[diagnostic text exceeds limit]"
 	}
 	text = diagnosticPayload.ReplaceAllStringFunc(text, func(value string) string {
+		at := strings.IndexAny(value, ":=")
+		// A fixed transport error is useful context, not a raw response payload.
+		if strings.TrimSpace(value[at+1:]) == "unexpected EOF" {
+			return value
+		}
+		return value[:at+1] + " " + diagnosticRedacted
+	})
+	text = diagnosticCookie.ReplaceAllStringFunc(text, func(value string) string {
 		at := strings.IndexAny(value, ":=")
 		return value[:at+1] + " " + diagnosticRedacted
 	})
