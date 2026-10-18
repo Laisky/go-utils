@@ -25,7 +25,13 @@
       "TestAlertFidelityCoreBoundContext",
       "TestAlertFidelityEncodingFailuresRejectWholeEntry",
       "TestAlertFidelityInvalidUTF8RejectsWholeEntry",
-      "TestAlertFidelityCoreTeePreservesLocalSink"
+      "TestAlertFidelityCoreTeePreservesLocalSink",
+      "TestAlertCoverageNativeRepresentations",
+      "TestAlertCoverageCallbackFailuresRejectWholeRecord",
+      "TestAlertCoverageExpansionBudgetsRejectWholeRecord",
+      "TestAlertCoverageCoreLegacyNamespace",
+      "TestAlertCoverageCoreRejectedAdmission",
+      "TestAlertCoverageDirectTextRejectsInvalid"
     ]
   }
 ]
