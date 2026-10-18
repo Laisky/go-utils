@@ -32,9 +32,9 @@ func TestAlertExplicitFilterRedactsSecretsWithoutChangingSelection(t *testing.T)
 	require.NotContains(t, fields, "error")
 }
 
-// TestAlertDefaultTargetedPayloadLabels retains measurements while dropping sensitive payload labels.
-func TestAlertDefaultTargetedPayloadLabels(t *testing.T) {
-	alert, messages := captureSecurityAlert(t)
+// TestAlertDiagnosticRedactionTargetedPayloadLabels retains measurements while dropping sensitive payload labels.
+func TestAlertDiagnosticRedactionTargetedPayloadLabels(t *testing.T) {
+	alert, messages := captureSecurityAlert(t, WithAlertDiagnosticRedaction())
 	logger, err := New(WithOutputPaths([]string{}), WithZapOptions(zap.HooksWithFields(alert.GetZapHook())))
 	require.NoError(t, err)
 	logger.Error("render failed", zap.String("raw_html", "SYNTHETIC_HTML_BODY"), zap.String("egress_receipt", "SYNTHETIC_RECEIPT_BODY"),

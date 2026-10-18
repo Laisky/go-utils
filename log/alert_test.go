@@ -10,6 +10,7 @@ import (
 
 	"github.com/Laisky/errors/v2"
 	zap "github.com/Laisky/zap"
+	"github.com/Laisky/zap/zapcore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,7 +95,7 @@ func TestAlert_SendAfterClose(t *testing.T) {
 }
 
 // ExampleAlert demonstrates creating an Alert with a type, a token and an info hook level,
-// attaching its zap hook to a logger so that info and higher entries are pushed to the
+// attaching its alert core to a logger so that info and higher entries are queued for the
 // alert API, and closing the Alert when done.
 func ExampleAlert() {
 	pusher, err := NewAlert(
@@ -110,7 +111,7 @@ func ExampleAlert() {
 	defer pusher.Close()
 	logger := Shared.WithOptions(
 		zap.Fields(zap.String("logger", "test")),
-		zap.HooksWithFields(pusher.GetZapHook()),
+		zap.WrapCore(func(core zapcore.Core) zapcore.Core { return zapcore.NewTee(core, pusher.GetZapCore()) }),
 	)
 
 	logger.Debug("DEBUG", zap.String("yo", "hello"))

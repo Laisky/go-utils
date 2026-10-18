@@ -18,7 +18,14 @@
   {
     "package": "./log",
     "tests": [
-      "TestZapForkHooksFieldsAndFilter"
+      "TestZapForkHooksFieldsAndFilter",
+      "TestAlertFidelityDefaultHookHTTP",
+      "TestAlertFidelityConfiguredSizeHTTP",
+      "TestAlertFidelityDefaultBudgetRejectsWholeEntry",
+      "TestAlertFidelityCoreBoundContext",
+      "TestAlertFidelityEncodingFailuresRejectWholeEntry",
+      "TestAlertFidelityInvalidUTF8RejectsWholeEntry",
+      "TestAlertFidelityCoreTeePreservesLocalSink"
     ]
   }
 ]

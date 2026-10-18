@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAlertCredentialTextRedactionActualReceiver covers credential text in default errors and explicit selected strings.
+// TestAlertCredentialTextRedactionActualReceiver covers credential text in opt-in diagnostic errors and explicit selected strings.
 func TestAlertCredentialTextRedactionActualReceiver(t *testing.T) {
 	for _, tc := range []struct{ name, raw, useful string }{
 		{"Token auth header", "HTTP 401 exchange rejected; Authorization: Token SYNTHETIC_TOKEN_SCHEME; attempt=2", "HTTP 401"},
@@ -26,8 +26,8 @@ func TestAlertCredentialTextRedactionActualReceiver(t *testing.T) {
 		{"Set-Cookie full header", "upstream rejected; Set-Cookie: auth=SYNTHETIC_SET_COOKIE; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/SYNTHETIC_USER_PATH; Secure\nHTTP 503", "HTTP 503"},
 	} {
 		for _, explicit := range []bool{false, true} {
-			mode := "default"
-			var opts []AlertOption
+			mode := "diagnostic-redaction"
+			opts := []AlertOption{WithAlertDiagnosticRedaction()}
 			if explicit {
 				mode = "explicit"
 				opts = []AlertOption{WithAlertFieldAllowlist("bound", "details")}
