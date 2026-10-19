@@ -23,7 +23,7 @@ import (
 // alertSecurityObject counts calls so rejected context is never serialized.
 type alertSecurityObject struct{ calls *atomic.Int64 }
 
-// MarshalLogObject must not run under the default remote field policy.
+// MarshalLogObject must not run under an explicitly filtered remote field policy.
 func (o alertSecurityObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	o.calls.Add(1)
 	enc.AddString("Authorization", "SYNTHETIC_NESTED_38")
@@ -33,7 +33,7 @@ func (o alertSecurityObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 // alertSecurityArray verifies array marshalers are excluded before execution.
 type alertSecurityArray struct{ calls *atomic.Int64 }
 
-// MarshalLogArray must not run for a default alert.
+// MarshalLogArray must not run for an explicitly filtered alert.
 func (o alertSecurityArray) MarshalLogArray(enc zapcore.ArrayEncoder) error {
 	o.calls.Add(1)
 	enc.AppendString("SYNTHETIC_ARRAY_38")
@@ -148,7 +148,7 @@ func TestSecurity38BudgetsAndEncoding(t *testing.T) {
 	hook := a.GetZapHook()
 	require.ErrorIs(t, hook(zapcore.Entry{Level: zap.ErrorLevel, Message: strings.Repeat("x", 257)}, nil), ErrAlertMessageTooLarge)
 	require.ErrorIs(t, hook(zapcore.Entry{Level: zap.ErrorLevel}, []zapcore.Field{zap.String("request_id", strings.Repeat("x", 257))}), ErrAlertMessageTooLarge)
-	a.encPool = &sync.Pool{New: func() any { return failingAlertEncoder{zapcore.NewJSONEncoder(zapcore.EncoderConfig{})} }}
+	a.encFactory = func() zapcore.Encoder { return failingAlertEncoder{zapcore.NewJSONEncoder(zapcore.EncoderConfig{})} }
 	err := hook(zapcore.Entry{Level: zap.ErrorLevel, Message: "not sent"}, nil)
 	require.Error(t, err)
 	require.NotContains(t, fmt.Sprintf("%+v", err), "SYNTHETIC")

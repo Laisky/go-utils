@@ -47,9 +47,9 @@ func TestAlertDefaultDiagnosticsWithBoundFields(t *testing.T) {
 	require.Equal(t, "capture rendered document: unexpected EOF", fields["error"])
 }
 
-// TestAlertDefaultRedactsCredentialAndPayloadShapes exercises the actual emitted alert envelope.
-func TestAlertDefaultRedactsCredentialAndPayloadShapes(t *testing.T) {
-	a, messages := captureSecurityAlert(t)
+// TestAlertDiagnosticRedactionCredentialAndPayloadShapes exercises the actual emitted alert envelope.
+func TestAlertDiagnosticRedactionCredentialAndPayloadShapes(t *testing.T) {
+	a, messages := captureSecurityAlert(t, WithAlertDiagnosticRedaction())
 	fields := []zapcore.Field{
 		zap.String("stage", "render"), zap.String("category", "future_failure_category"),
 		zap.String("serpGoogleApiKey", "SYNTHETIC_API_CREDENTIAL"), zap.String("password", "SYNTHETIC_PASSWORD"),
@@ -92,9 +92,9 @@ type panickingDiagnosticError struct{}
 // Error panics with a synthetic credential which must not be included in the fallback.
 func (panickingDiagnosticError) Error() string { panic("SYNTHETIC_PANIC_CREDENTIAL") }
 
-// TestAlertDefaultComplexFieldsAndNamespace keeps executable data and scoped fields excluded.
-func TestAlertDefaultComplexFieldsAndNamespace(t *testing.T) {
-	a, messages := captureSecurityAlert(t)
+// TestAlertDiagnosticRedactionComplexFieldsAndNamespace keeps explicitly filtered executable data and scoped fields excluded.
+func TestAlertDiagnosticRedactionComplexFieldsAndNamespace(t *testing.T) {
+	a, messages := captureSecurityAlert(t, WithAlertDiagnosticRedaction())
 	var calls atomic.Int64
 	fields := []zapcore.Field{
 		zap.String("category", "unrecognized_future_category"),

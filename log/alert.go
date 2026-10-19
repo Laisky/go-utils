@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/graphql"
@@ -53,25 +54,22 @@ type Alert struct {
 
 // alertOption holds configuration options for the Alert hook.
 type alertOption struct {
-	encPool     *sync.Pool
+	// encFactory permits deterministic encoder-failure testing without shared encoder state.
+	encFactory  func() zapcore.Encoder
 	level       zapcore.LevelEnabler
 	timeout     time.Duration
 	alertType   string
 	alertToken  string
 	ratelimiter RateLimiter
-	// allowedFields is nil for default diagnostics; a non-nil map selects the legacy filter.
-	allowedFields   map[string]struct{}
-	maxMessageBytes int
+	// allowedFields selects the explicit legacy filter; diagnosticRedaction opts into the former default policy.
+	allowedFields       map[string]struct{}
+	diagnosticRedaction bool
+	maxMessageBytes     int
 }
 
 // applyOpts applies the given AlertOptions to the alertOption.
 func (o *alertOption) applyOpts(opts ...AlertOption) (*alertOption, error) {
 	// fill default
-	o.encPool = &sync.Pool{
-		New: func() any {
-			return zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
-		},
-	}
 	o.level = defaultAlertHookLevel
 	o.timeout = defaultAlertPusherTimeout
 	o.maxMessageBytes = defaultAlertMessageBytes
@@ -221,12 +219,16 @@ func (a *Alert) finishSender() {
 	}
 }
 
-// SendWithType sends an alert with the specified type, token, and message.
+// SendWithType queues an alert with the specified type, token, and message.
+// A nil result acknowledges local admission, not remote or recipient delivery.
 func (a *Alert) SendWithType(alertType, pushToken, msg string) (err error) {
 	if alertType == "" || pushToken == "" || msg == "" {
 		return errors.Errorf("alertType, pushToken and msg should not be empty")
 	}
 
+	if !utf8.ValidString(msg) || !utf8.ValidString(alertType) || !utf8.ValidString(pushToken) {
+		return errors.WithStack(ErrAlertEncoding)
+	}
 	if len(msg) > a.maxMessageBytes {
 		return errors.WithStack(ErrAlertMessageTooLarge)
 	}
@@ -298,11 +300,12 @@ func (a *Alert) runSender(ctx context.Context) {
 		}
 		cancel()
 
-		Shared.Debug("alert delivered")
+		Shared.Debug("alert request accepted")
 	}
 }
 
-// Send sends an alert with the default alertType and pushToken.
+// Send queues an alert with the default alertType and pushToken.
+// A nil result acknowledges local admission, not remote or recipient delivery.
 func (a *Alert) Send(msg string) (err error) {
 	return a.SendWithType(a.alertType, a.alertToken, msg)
 }

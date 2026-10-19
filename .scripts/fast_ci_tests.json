@@ -18,7 +18,20 @@
   {
     "package": "./log",
     "tests": [
-      "TestZapForkHooksFieldsAndFilter"
+      "TestZapForkHooksFieldsAndFilter",
+      "TestAlertFidelityDefaultHookHTTP",
+      "TestAlertFidelityConfiguredSizeHTTP",
+      "TestAlertFidelityDefaultBudgetRejectsWholeEntry",
+      "TestAlertFidelityCoreBoundContext",
+      "TestAlertFidelityEncodingFailuresRejectWholeEntry",
+      "TestAlertFidelityInvalidUTF8RejectsWholeEntry",
+      "TestAlertFidelityCoreTeePreservesLocalSink",
+      "TestAlertCoverageNativeRepresentations",
+      "TestAlertCoverageCallbackFailuresRejectWholeRecord",
+      "TestAlertCoverageExpansionBudgetsRejectWholeRecord",
+      "TestAlertCoverageCoreLegacyNamespace",
+      "TestAlertCoverageCoreRejectedAdmission",
+      "TestAlertCoverageDirectTextRejectsInvalid"
     ]
   }
 ]

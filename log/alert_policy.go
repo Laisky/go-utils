@@ -1,9 +1,6 @@
 package log
 
 import (
-	"strings"
-	"time"
-
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap/zapcore"
 )
@@ -14,7 +11,7 @@ const defaultAlertMessageBytes = 16 * 1024
 var ErrAlertMessageTooLarge = errors.New("alert message exceeds byte limit")
 
 // WithAlertFieldAllowlist selects the legacy explicit-filter policy, replacing
-// default diagnostic forwarding. An empty list sends metadata only. It exports
+// faithful default forwarding. An empty list sends metadata only. It exports
 // only named top-level string, bool,
 // integer, float, and duration fields. Objects, arrays, errors, reflection,
 // stringers, binary/byte strings, complex numbers, times, uintptrs, namespaces,
@@ -149,43 +146,40 @@ func alertFieldDispositionOf(fieldType zapcore.FieldType) alertFieldDisposition 
 	}
 }
 
-// GetZapHook sends metadata and sanitized primitive diagnostics by default,
-// including sanitized error text. An explicit allowlist retains legacy field/type
-// selection; targeted credential and payload redaction applies in both modes.
+// WithAlertDiagnosticRedaction explicitly selects the former default policy:
+// sanitized messages, logger names and primitive diagnostics, excluding payloads
+// and complex fields. It does not change an explicit WithAlertFieldAllowlist.
+func WithAlertDiagnosticRedaction() AlertOption {
+	return func(o *alertOption) error {
+		o.diagnosticRedaction = true
+		return nil
+	}
+}
+
+// GetZapHook forwards the supplied entry message, logger name and supported Zap
+// fields unchanged by default, using standard Zap JSON field representations.
+// Explicit redaction or allowlist options retain their documented policies.
+// Encoding failures and size overflow reject the entire entry before admission.
+//
+// Deprecated: use GetZapCore with zap.WrapCore and zapcore.NewTee for logger.With
+// context. A hook receives fields after its enclosing core has encoded them;
+// it cannot recover binding order or eager snapshots of mutable bound values.
 func (a *Alert) GetZapHook() func(zapcore.Entry, []zapcore.Field) error {
 	return func(entry zapcore.Entry, fields []zapcore.Field) error {
 		if !a.level.Enabled(entry.Level) {
 			return nil
 		}
-		if a.closed.Load() || a.ctx.Err() != nil {
-			return errors.New("alert is closed")
+		if err := a.checkAlertEntry(entry); err != nil {
+			return err
 		}
-		if len(entry.Message) > a.maxMessageBytes || len(entry.LoggerName) > a.maxMessageBytes-len(entry.Message) {
-			return errors.WithStack(ErrAlertMessageTooLarge)
-		}
-		entry.Message = a.sanitizeDiagnosticText(entry.Message)
-		entry.LoggerName = a.sanitizeDiagnosticText(entry.LoggerName)
-		selected, err := a.remoteFields(fields)
+		selected, err := a.selectAlertFields(fields)
 		if err != nil {
 			return err
 		}
-		enc, ok := a.encPool.Get().(zapcore.Encoder)
-		if !ok {
-			return errors.New("invalid alert encoder")
+		enc := a.newAlertEncoder()
+		if err = addAlertFields(enc, selected, a.maxMessageBytes); err != nil {
+			return err
 		}
-		defer a.encPool.Put(enc)
-		// Metadata is composed explicitly, never inherited from encoder options.
-		buffer, err := enc.EncodeEntry(zapcore.Entry{}, selected)
-		if buffer != nil {
-			defer buffer.Free()
-		}
-		if err != nil || buffer == nil {
-			return errors.New("encode approved alert fields failed")
-		}
-		msg := "logger: `" + entry.LoggerName + "`\n" +
-			"time: `" + entry.Time.UTC().Format(time.RFC3339Nano) + "`\n" +
-			"level: `" + entry.Level.String() + "`\n" +
-			"message: `" + entry.Message + "`\n" + strings.TrimSpace(buffer.String())
-		return a.Send(msg)
+		return a.sendAlertEntry(entry, enc)
 	}
 }
