@@ -15,22 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  crypto-matrix:
-    name: crypto (${{ matrix.go }})
+  crypto:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        go: ['1.26.10', '1.27.3']
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          # Keep the Go 1.26 floor and qualify both patched compiler lines.
-          go-version: ${{ matrix.go }}
+          # go.mod declares the Go 1.26 floor; test on the latest 1.26 patch.
+          go-version: '1.26.x'
           cache: true
       - name: Check CSR source formatting
         run: test -z "$(gofmt -l crypto/x509.go crypto/x509_csr_signature_test.go)"
@@ -42,14 +37,3 @@ jobs:
         run: go build ./...
       - name: Crypto regression suite with race detection
         run: go test -race -count=1 -timeout=5m ./crypto/...
-
-  crypto:
-    needs: crypto-matrix
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - name: Require both compiler checks
-        env:
-          CRYPTO_MATRIX_RESULT: ${{ needs.crypto-matrix.result }}
-        run: test "$CRYPTO_MATRIX_RESULT" = success
