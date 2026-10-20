@@ -22,6 +22,8 @@ an `X509CSRIdentityPolicy` with two non-nil callbacks:
 
 Both callbacks receive independently parsed snapshots, including `RawSubject`
 and `Extensions`. Mutation cannot change the bytes later issued or returned.
+Opt-in issuance preserves the original CSR Subject DER, including unknown DN
+attributes and RDN grouping, rather than reconstructing it from parsed fields.
 Errors return nil DER. Obtain approved identities from authenticated enrollment
 policy, not from the untrusted CSR itself. For example:
 
@@ -53,6 +55,11 @@ leftmost wildcard); internationalized names require their ASCII representation.
 Mailbox local-part spelling is preserved, including valid quoted forms.
 Ordinary URIs can be opaque or hostless (`urn:`, `mailto:`, `file:`), and can
 contain queries and fragments. URI normalization is not authorization.
+Percent escapes must contain two hexadecimal digits in every URI component,
+including queries and opaque values. Validation does not decode or normalize
+the original identity spelling, including escape case or an empty `#` delimiter.
+Unescaped characters outside the URI reserved/unreserved ASCII sets are rejected;
+percent-encoded forms such as `%3Cidentity%3E` remain valid identity text.
 
 Legacy `NewX509CertByCSR` keeps its existing behavior. The older
 `NewX509SVIDByCSR` compatibility helper checks only the independently approved
@@ -77,6 +84,8 @@ therefore use a parent with a nonempty Subject DN; a populated CN-less DN can
 still self-sign. The check uses original Issuer DER, including raw parent-name
 precedence, rather than mutable parsed-name fields. Tongsuo rejects the new options;
 its existing behavior and feature freeze remain unchanged.
+Subject emptiness is likewise checked in the original DER, so a nonempty DN
+containing only an unfamiliar attribute such as UID remains a valid named Subject.
 
 These options and policy APIs opt into validation. Existing generic callers
 retain their former encoding, raw-extension precedence and CN rules. Raw

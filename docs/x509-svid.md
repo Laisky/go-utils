@@ -24,6 +24,9 @@ not permitted by the profile.
 The builders validate original URI bytes in the final encoded certificate or
 request after all options and raw overrides. URL parsing can drop an empty `#`
 fragment delimiter, so checking only a parsed URL string is insufficient.
+Both direct builders also use the common strict SAN validation before encoding:
+nil URI values return errors, and ancillary DNS/IP/email validation is the same
+for named and empty Subjects. Effective raw SAN overrides retain precedence.
 A leaf has exactly one canonical `spiffe` URI with a non-root
 path, `CA=false`, critical digital-signature key usage, and no certificate/CRL
 signing usage. Empty Subject requires a critical SAN extension. Other SAN types
