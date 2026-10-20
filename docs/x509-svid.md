@@ -12,8 +12,10 @@ checks that the signed request claims exactly that ID. A valid CSR signature
 proves possession of its key; it does not establish enrollment authorization.
 CSR-requested raw extensions do not become issuance policy.
 
-The builders validate the final encoded certificate or request after all options
-and raw overrides. A leaf has exactly one canonical `spiffe` URI with a non-root
+The builders validate original URI bytes in the final encoded certificate or
+request after all options and raw overrides. URL parsing can drop an empty `#`
+fragment delimiter, so checking only a parsed URL string is insufficient.
+A leaf has exactly one canonical `spiffe` URI with a non-root
 path, `CA=false`, critical digital-signature key usage, and no certificate/CRL
 signing usage. Empty Subject requires a critical SAN extension. Other SAN types
 are permitted. Builders include both TLS EKUs by default. Verification permits
@@ -40,7 +42,14 @@ chains, err := crypto.VerifyX509SVIDForID(peerCertificates, bundles,
 For TLS, run this verification from `tls.Config.VerifyConnection` on both sides
 and require the peer's certificate. SPIFFE URI authorization replaces DNS-name
 verification, so a client using `InsecureSkipVerify` must always install the full
-chain, profile, and identity verification callback. The mutual TLS regression
+chain, profile, and identity verification callback. The SPIFFE identity verifier
+follows go-spiffe's `ExtKeyUsageAny` chain policy: it enforces the leaf profile,
+but does not enforce TLS-role EKU restrictions on signing CAs. If the application's
+policy requires those restrictions, additionally call `Certificate.Verify` with
+the same trust-domain roots and intermediates, `KeyUsages` set to the required
+clientAuth or serverAuth purpose, and no DNS name for URI-based authentication.
+Do not use OS roots or pool unrelated trust domains for that additional check.
+The mutual TLS regression
 test demonstrates successful authentication and distinct wrong-identity and
 wrong-domain failures without a network listener.
 

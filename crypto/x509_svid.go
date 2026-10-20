@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
-	"net/url"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
@@ -37,7 +37,7 @@ func ValidateX509SVID(cert *x509.Certificate) (spiffeid.ID, error) {
 	if err != nil {
 		return spiffeid.ID{}, errors.Wrap(err, "parse X.509-SVID certificate DER")
 	}
-	id, err := x509SVIDURI(parsed.URIs)
+	id, err := x509SVIDURI(parsed.Extensions)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -77,12 +77,44 @@ func ValidateX509SVID(cert *x509.Certificate) (spiffeid.ID, error) {
 	return id, nil
 }
 
-// x509SVIDURI validates exactly one URI SAN as a workload SPIFFE ID.
-func x509SVIDURI(uris []*url.URL) (spiffeid.ID, error) {
-	if len(uris) != 1 || uris[0] == nil {
+// x509SVIDRawURIs returns original URI SAN bytes before lossy URL normalization.
+func x509SVIDRawURIs(extensions []pkix.Extension) ([]string, error) {
+	var uris []string
+	for _, ext := range extensions {
+		if !ext.Id.Equal(asn1.ObjectIdentifier{2, 5, 29, 17}) {
+			continue
+		}
+		var names []asn1.RawValue
+		rest, err := asn1.Unmarshal(ext.Value, &names)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse original subject alternative names")
+		}
+		if len(rest) != 0 {
+			return nil, errors.New("trailing subject alternative name data")
+		}
+		for _, name := range names {
+			if name.Class != asn1.ClassContextSpecific || name.Tag != 6 {
+				continue
+			}
+			if name.IsCompound {
+				return nil, errors.New("URI SAN must be primitive")
+			}
+			uris = append(uris, string(name.Bytes))
+		}
+	}
+	return uris, nil
+}
+
+// x509SVIDURI validates exactly one original URI SAN as a workload SPIFFE ID.
+func x509SVIDURI(extensions []pkix.Extension) (spiffeid.ID, error) {
+	uris, err := x509SVIDRawURIs(extensions)
+	if err != nil {
+		return spiffeid.ID{}, err
+	}
+	if len(uris) != 1 {
 		return spiffeid.ID{}, errors.New("X.509-SVID requires exactly one URI SAN")
 	}
-	return ParseX509SVIDID(uris[0].String())
+	return ParseX509SVIDID(uris[0])
 }
 
 // NewX509SVID creates a Go X.509 leaf for the caller-authorized SPIFFE ID.
@@ -124,7 +156,7 @@ func NewX509SVIDCSR(prikey crypto.PrivateKey, requestedID string, opts ...X509CS
 	if err != nil {
 		return nil, errors.Wrap(err, "parse final X.509-SVID CSR")
 	}
-	actualID, err := x509SVIDURI(csr.URIs)
+	actualID, err := x509SVIDURI(csr.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +185,7 @@ func NewX509SVIDByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDER
 	if err := csr.CheckSignature(); err != nil {
 		return nil, errors.Wrap(err, "verify X.509-SVID CSR possession")
 	}
-	requestedID, err := x509SVIDURI(csr.URIs)
+	requestedID, err := x509SVIDURI(csr.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +219,9 @@ func validateIssuedX509SVID(der []byte, expected spiffeid.ID) ([]byte, error) {
 // VerifyX509SVID verifies the DER leaf profile and its chain using the leaf ID's trust-domain bundle.
 // It never uses OS roots. The returned authenticated ID still requires application authorization.
 // The go-spiffe bundle source permits explicit federation and bundle rotation.
+// Chain verification follows go-spiffe's ExtKeyUsageAny policy; applications that
+// require TLS-role restrictions on signing CAs must additionally verify the chain
+// with x509.VerifyOptions.KeyUsages set to the required client or server purpose.
 func VerifyX509SVID(certs []*x509.Certificate, bundles x509bundle.Source,
 	opts ...x509svid.VerifyOption) (spiffeid.ID, [][]*x509.Certificate, error) {
 	if len(certs) == 0 {
@@ -258,7 +293,14 @@ func validateX509SVIDAuthority(cert *x509.Certificate) error {
 	if !criticalKU {
 		return errors.New("X.509-SVID signing certificate key usage must be critical")
 	}
-	for _, uri := range cert.URIs {
+	rawURIs, err := x509SVIDRawURIs(cert.Extensions)
+	if err != nil {
+		return errors.Wrap(err, "parse signing certificate URI SANs")
+	}
+	if len(rawURIs) != len(cert.URIs) {
+		return errors.New("inconsistent signing certificate URI SANs")
+	}
+	for i, uri := range cert.URIs {
 		// Signing certificates SHOULD be SVIDs; ordinary CAs can have unrelated URI SANs.
 		if uri == nil || uri.Scheme != "spiffe" {
 			continue
@@ -266,7 +308,7 @@ func validateX509SVIDAuthority(cert *x509.Certificate) error {
 		if len(cert.URIs) != 1 {
 			return errors.New("SVID signing certificate requires exactly one URI SAN")
 		}
-		id, err := spiffeid.FromURI(uri)
+		id, err := spiffeid.FromString(rawURIs[i])
 		if err != nil {
 			return errors.Wrap(err, "parse signing certificate SPIFFE ID")
 		}
