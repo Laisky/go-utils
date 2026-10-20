@@ -122,6 +122,9 @@ func authorizeX509IssuedCertificate(der []byte, policy X509CSRIdentityPolicy) ([
 	if len(cert.RawSubject) == 2 && (cert.IsCA || cert.KeyUsage&x509.KeyUsageCRLSign != 0) {
 		return nil, errors.New("CA and CRL signing certificates require a nonempty Subject")
 	}
+	if err := validateX509Issuer(cert.RawIssuer); err != nil {
+		return nil, err
+	}
 	if err := policy.AuthorizeCertificate(cert); err != nil {
 		return nil, errors.Wrap(err, "authorize issued certificate identities")
 	}

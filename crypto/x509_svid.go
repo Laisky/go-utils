@@ -37,6 +37,9 @@ func ValidateX509SVID(cert *x509.Certificate) (spiffeid.ID, error) {
 	if err != nil {
 		return spiffeid.ID{}, errors.Wrap(err, "parse X.509-SVID certificate DER")
 	}
+	if err := validateX509Issuer(parsed.RawIssuer); err != nil {
+		return spiffeid.ID{}, err
+	}
 	id, err := x509SVIDURI(parsed.Extensions)
 	if err != nil {
 		return spiffeid.ID{}, err

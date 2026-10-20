@@ -23,8 +23,9 @@ func sanRawNamesForTest(t *testing.T, names ...asn1.RawValue) pkix.Extension {
 // TestX509SANEmptySubject checks additive CN-less issuance and critical final SAN rules.
 func TestX509SANEmptySubject(t *testing.T) {
 	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
+	ca := newCSRSignatureTestCA(t, key)
 	for _, subject := range []pkix.Name{{}, {Organization: []string{"approved organization"}}} {
-		der, err := NewX509Cert(key, WithX509CertAllowEmptySubject(), WithX509Subject(subject), WithX509CertDNSNames("service.example.org"))
+		der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertAllowEmptySubject(), WithX509Subject(subject), WithX509CertDNSNames("service.example.org"))
 		require.NoError(t, err)
 		cert := svidTestParse(t, der)
 		require.Empty(t, cert.Subject.CommonName)
@@ -61,6 +62,7 @@ func TestX509SANEmptySubject(t *testing.T) {
 // TestX509SANStrictInput rejects malformed new-path inputs without changing legacy contracts.
 func TestX509SANStrictInput(t *testing.T) {
 	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
+	ca := newCSRSignatureTestCA(t, key)
 	relative := &url.URL{Path: "/relative"}
 	for name, options := range map[string]struct {
 		cert X509CertOption
@@ -98,7 +100,7 @@ func TestX509SANStrictInput(t *testing.T) {
 		})
 	}
 	valid := sanRawNamesForTest(t, asn1.RawValue{Class: 2, Tag: 2, Bytes: []byte("service.example.org")})
-	der, err := NewX509Cert(key, WithX509CertAllowEmptySubject(), WithX509CertURIs(nil), WithX509CertExtraExtensions(valid))
+	der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertAllowEmptySubject(), WithX509CertURIs(nil), WithX509CertExtraExtensions(valid))
 	require.NoError(t, err, "raw override preserves standard precedence and avoids the unused nil URI")
 	require.Equal(t, []string{"service.example.org"}, svidTestParse(t, der).DNSNames)
 }
@@ -106,11 +108,12 @@ func TestX509SANStrictInput(t *testing.T) {
 // TestX509SANOrdinaryURIs retains valid opaque, hostless, query and fragment URI forms.
 func TestX509SANOrdinaryURIs(t *testing.T) {
 	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
+	ca := newCSRSignatureTestCA(t, key)
 	for _, value := range []string{"https://example.org/service?a=b#part", "urn:example:service", "mailto:alice@example.org", "file:/service"} {
 		t.Run(value, func(t *testing.T) {
 			uri, err := url.Parse(value)
 			require.NoError(t, err)
-			der, err := NewX509Cert(key, WithX509CertAllowEmptySubject(), WithX509CertURIs(uri))
+			der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertAllowEmptySubject(), WithX509CertURIs(uri))
 			require.NoError(t, err)
 			require.Equal(t, value, svidTestParse(t, der).URIs[0].String())
 			csrDER, err := NewX509CSR(key, WithX509CSRAllowEmptySubject(), WithX509CSRURIs(uri))

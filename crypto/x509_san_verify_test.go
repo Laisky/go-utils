@@ -100,7 +100,7 @@ func TestX509SANMailboxGrammar(t *testing.T) {
 			require.NoError(t, err, "chain control")
 			_, err = VerifyX509CertEmail(cert, value, x509.VerifyOptions{Roots: roots})
 			require.NoError(t, err)
-			der, err := NewX509Cert(key, WithX509CertAllowEmptySubject(), WithX509CertEmailAddrs(value))
+			der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertAllowEmptySubject(), WithX509CertEmailAddrs(value))
 			require.NoError(t, err)
 			require.Equal(t, []string{value}, svidTestParse(t, der).EmailAddresses)
 			csrDER, err := NewX509CSR(key, WithX509CSRAllowEmptySubject(), WithX509CSREmailAddrs(value))

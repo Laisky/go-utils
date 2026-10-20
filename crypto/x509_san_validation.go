@@ -13,7 +13,8 @@ import (
 
 // WithX509CertAllowEmptySubject opts into a DN without CN and strict SAN encoding.
 // This option is Go-only. An empty leaf Subject requires a nonempty critical SAN. CA and CRL
-// signing certificates still require a nonempty DN. Legacy CN rules are unchanged.
+// signing certificates still require a nonempty DN. The final Issuer DN must be nonempty,
+// so an empty-Subject certificate requires a named parent. Legacy CN rules are unchanged.
 func WithX509CertAllowEmptySubject() X509CertOption {
 	return func(o *x509V3CertOption) error {
 		o.allowEmptySubject, o.validateSAN = true, true
@@ -29,6 +30,14 @@ func WithX509CSRAllowEmptySubject() X509CSROption {
 		o.allowEmptySubject, o.validateSAN = true, true
 		return nil
 	}
+}
+
+// validateX509Issuer requires a nonempty distinguished name in the final encoded Issuer.
+func validateX509Issuer(rawIssuer []byte) error {
+	if bytes.Equal(rawIssuer, []byte{0x30, 0}) {
+		return errors.New("certificate requires a nonempty Issuer DN; use a parent with a nonempty Subject DN")
+	}
+	return nil
 }
 
 // validateX509SANValues validates effective SAN input before the standard writer,

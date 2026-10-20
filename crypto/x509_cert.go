@@ -146,6 +146,9 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		if len(parsed.Subject.ToRDNSequence()) == 0 && (parsed.IsCA || parsed.KeyUsage&x509.KeyUsageCRLSign != 0) {
 			return nil, errors.New("CA and CRL signing certificates require a nonempty Subject")
 		}
+		if err := validateX509Issuer(parsed.RawIssuer); err != nil {
+			return nil, err
+		}
 	}
 
 	return certDer, nil

@@ -71,7 +71,11 @@ before encoding, including nil URI and malformed IP checks. A populated DN
 without CN is allowed. An actually empty leaf Subject requires a nonempty,
 critical SAN in the issued certificate. An empty request DN requires SAN
 claims; request criticality does not authorize issuer policy. CA/CRL signing
-certificates require a populated Subject. Tongsuo rejects the new options;
+certificates require a populated Subject. The final encoded Issuer DN must be
+nonempty in these issuance and SVID profile paths. An empty-Subject leaf must
+therefore use a parent with a nonempty Subject DN; a populated CN-less DN can
+still self-sign. The check uses original Issuer DER, including raw parent-name
+precedence, rather than mutable parsed-name fields. Tongsuo rejects the new options;
 its existing behavior and feature freeze remain unchanged.
 
 These options and policy APIs opt into validation. Existing generic callers
