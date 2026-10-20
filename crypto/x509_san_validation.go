@@ -208,35 +208,8 @@ func validX509URIBrackets(value string, parsed *url.URL) bool {
 		strings.LastIndexByte(value, ']') != hostStart+closeBracket {
 		return false
 	}
-	if addr, err := netip.ParseAddr(parsed.Hostname()); err == nil && addr.Is6() {
-		return true
-	}
-	return validX509IPvFuture(hostPort[1:closeBracket])
-}
-
-// validX509IPvFuture checks RFC 3986 IPvFuture host-literal syntax without
-// interpreting future address versions or normalizing the host.
-func validX509IPvFuture(value string) bool {
-	if len(value) < 4 || (value[0] != 'v' && value[0] != 'V') {
-		return false
-	}
-	dot := strings.IndexByte(value, '.')
-	if dot < 2 || dot == len(value)-1 {
-		return false
-	}
-	for i := 1; i < dot; i++ {
-		if strings.IndexByte("0123456789abcdefABCDEF", value[i]) < 0 {
-			return false
-		}
-	}
-	for i := dot + 1; i < len(value); i++ {
-		c := value[i]
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			strings.IndexByte("-._~!$&'()*+,;=:", c) >= 0) {
-			return false
-		}
-	}
-	return true
+	addr, err := netip.ParseAddr(parsed.Hostname())
+	return err == nil && addr.Is6()
 }
 
 // validX509Email accepts a bare ASCII mailbox with a preferred DNS domain or IP literal.
