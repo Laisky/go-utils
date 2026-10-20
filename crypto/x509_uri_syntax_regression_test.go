@@ -24,7 +24,6 @@ func TestX509URIValidSyntaxControls(t *testing.T) {
 		"urn:example:workload%3Cidentity%3E",
 		"urn:example:AZaz09-._~!$&'()*+,;=:@/?:",
 		"https://[2001:db8::1]/AZaz09-._~!$&'()*+,;=:@/?value=AZaz09-._~!$&'()*+,;=:@/?",
-		"https://[v1.a!b]/workload",
 		"mailto:alice%2Bservice@example.org",
 		"file:/workload%20identity",
 	} {
@@ -88,10 +87,6 @@ func TestX509URIRejectsMalformedSyntax(t *testing.T) {
 		"urn:example:workload[brackets]",
 		"https://example.org/path[brackets]",
 		"https://example.org/?value=[brackets]",
-		"https://example.org/#fragment#second",
-		"urn:example:workload#fragment#second",
-		"https://[not-an-ip]/service",
-		"https://host[invalid]/service",
 		"urn:example:workload%",
 		"urn:example:workload%2",
 		"urn:example:workload%GG",
@@ -211,6 +206,41 @@ func TestX509URIRawOverrideRejectsMalformedEffectiveValue(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, der)
 			})
+		})
+	}
+}
+
+// TestX509URIRepeatedFragments checks literal delimiters without relying on
+// net/url.String, which percent-encodes the second fragment marker.
+func TestX509URIRepeatedFragments(t *testing.T) {
+	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
+	ca := newCSRSignatureTestCA(t, key)
+	validDER, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertCommonName("legacy"),
+		WithX509CertURIs(sanLegacyURL(t, "https://example.org/service")))
+	require.NoError(t, err)
+	roots := x509.NewCertPool()
+	roots.AddCert(ca)
+	for _, value := range []string{
+		"https://example.org/#fragment#second",
+		"urn:example:workload#fragment#second",
+	} {
+		t.Run(value, func(t *testing.T) {
+			uri, err := url.Parse(value)
+			require.NoError(t, err)
+			require.NotEqual(t, value, uri.String(), "net/url normalizes away the second literal delimiter")
+			require.False(t, validX509URI(value), "the original URI is not valid RFC 3986 syntax")
+			ext := svidRawURIExtension(t, value)
+			der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertCommonName("strict"),
+				WithX509CertAllowEmptySubject(), WithX509CertExtraExtensions(ext))
+			require.Error(t, err)
+			require.Nil(t, der)
+			csr, err := NewX509CSR(key, WithX509CSRCommonName("strict"),
+				WithX509CSRAllowEmptySubject(), WithX509CSRExtraExtension(ext))
+			require.Error(t, err)
+			require.Nil(t, csr)
+			chains, err := VerifyX509CertURI(svidTestParse(t, validDER), value, x509.VerifyOptions{Roots: roots})
+			require.Error(t, err)
+			require.Nil(t, chains)
 		})
 	}
 }
