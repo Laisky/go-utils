@@ -70,6 +70,7 @@ necessary local/staging dependencies; no test files are removed.
 Govulncheck keeps its existing automatic push/PR triggers in
 `security-scan.yml`, using the pinned Go 1.26.10 toolchain. The separate
 `crypto-tests.yml` qualifies its existing checks on Go 1.26.10 and 1.27.3;
+`crypto` retains its existing check name and requires both compiler jobs to pass.
 `rbac-security.yml` pins Go 1.26.10. Their events, permissions, test commands,
 timeouts, race, full-suite and fuzz checks remain unchanged. These security jobs
 can exceed the essential gate's five-minute target; changing them requires a separately scoped

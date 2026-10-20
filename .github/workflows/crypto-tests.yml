@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  crypto:
+  crypto-matrix:
+    name: crypto (${{ matrix.go }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -41,3 +42,14 @@ jobs:
         run: go build ./...
       - name: Crypto regression suite with race detection
         run: go test -race -count=1 -timeout=5m ./crypto/...
+
+  crypto:
+    needs: crypto-matrix
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require both compiler checks
+        env:
+          CRYPTO_MATRIX_RESULT: ${{ needs.crypto-matrix.result }}
+        run: test "$CRYPTO_MATRIX_RESULT" = success
