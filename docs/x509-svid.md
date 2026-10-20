@@ -7,10 +7,19 @@ common-name requirement and extension behavior. Tongsuo has no new SVID API.
 already authorized. Pass the issuer with `WithX509CertParent` and the workload's
 public key with `WithX509CertPubkey` when the signing key belongs to a CA.
 `NewX509SVIDCSR` creates a signed identity claim, including an empty Subject when
-desired. `NewX509SVIDByCSR` requires an independently authorized SPIFFE ID and
-checks that the signed request claims exactly that ID. A valid CSR signature
-proves possession of its key; it does not establish enrollment authorization.
-CSR-requested raw extensions do not become issuance policy.
+desired. Prefer `NewX509SVIDByCSRWithPolicy`: it requires an independently
+authorized SPIFFE ID and two explicit issuer checks for the signed request and
+actual final certificate. Each check must independently authorize every included
+Subject, DNS, IP and email claim. The compatibility helper
+`NewX509SVIDByCSR` checks only the SPIFFE ID and preserves other claims, so it is
+deprecated in favor of that policy API. A CSR signature proves possession, not
+enrollment authorization; requested raw extensions do not become issuer policy.
+
+General DNS, IPv4/IPv6, email and ordinary URI SANs remain supported independently
+of SPIFFE. See [general SAN and issuer policy](x509-san-policy.md) for mixed
+issuance, CN-less subjects and DNS/IP/URI/email verification. A strict SVID may
+include DNS/IP/email alongside its one SPIFFE URI; a second ordinary URI is
+not permitted by the profile.
 
 The builders validate original URI bytes in the final encoded certificate or
 request after all options and raw overrides. URL parsing can drop an empty `#`
