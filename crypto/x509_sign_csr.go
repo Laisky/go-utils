@@ -44,19 +44,17 @@ type signCSROption struct {
 
 // applyOpts fills the signing defaults into o and then applies opts in order. The defaults are a
 // seven-day validity period starting now in UTC, digital-signature and key-encipherment key usage,
-// and the package-level serial number generator. When csr is not nil, its ExtraExtensions are
+// and cryptographically random serial generation. When csr is not nil, its ExtraExtensions are
 // appended to o.extraExtensions before the options run. Afterwards a serial number is drawn from
-// o.serialNumGenerator if none was set. It returns o on success, or the first option error.
+// the explicitly selected legacy hook or the secure default if none was set. It returns o on
+// success, or the first option or entropy error.
 func (o *signCSROption) applyOpts(
 	// parent *x509.Certificate,
 	csr *x509.CertificateRequest,
 	opts ...SignCSROption,
 ) (*signCSROption, error) {
 	// fill default
-	o.notBefore = time.Now().UTC()
-	o.notAfter = o.notBefore.Add(7 * 24 * time.Hour)
-	o.keyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
-	o.serialNumGenerator = internalCertSerialNumGenerator
+	o.fillSigningDefaults()
 
 	// if parent != nil {
 	// 	if o.signatureAlgo == x509.UnknownSignatureAlgorithm {
@@ -86,9 +84,8 @@ func (o *signCSROption) applyOpts(
 		}
 	}
 
-	if o.serialNumber == nil {
-		// generate serial number by internal generator if not set
-		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
+	if err := o.resolveSerialNumber(GenerateX509CertificateSerialNumber); err != nil {
+		return nil, errors.Wrap(err, "resolve signing serial number")
 	}
 
 	return o, nil
@@ -110,6 +107,9 @@ func WithX509CaMaxPathLen(maxPathLen int) SignCSROption {
 // WithX509SerialNumGenerator set serial number generator
 func WithX509SerialNumGenerator(gen X509CertSerialNumberGenerator) SignCSROption {
 	return func(o *signCSROption) error {
+		if gen == nil {
+			return errors.New("serial number generator should not be empty")
+		}
 		o.serialNumGenerator = gen
 		return nil
 	}
@@ -197,12 +197,15 @@ func WithX509SignCSROCSPServers(ocsp ...string) SignCSROption {
 //   - (optional): generate certificate
 //   - (required): generate CRL
 func WithX509SignCSRSeriaNumber(serialNumber *big.Int) SignCSROption {
+	if serialNumber != nil {
+		serialNumber = new(big.Int).Set(serialNumber)
+	}
 	return func(o *signCSROption) error {
 		if serialNumber == nil {
 			return errors.Errorf("serial number shoule not be empty")
 		}
 
-		o.serialNumber = serialNumber
+		o.serialNumber = new(big.Int).Set(serialNumber)
 		return nil
 	}
 }
