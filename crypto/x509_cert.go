@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
@@ -70,6 +71,7 @@ func x509CertOption2Template(opts ...X509CertOption) (
 		SignatureAlgorithm:    opt.signatureAlgorithm,
 		SerialNumber:          opt.serialNumber,
 		Subject:               opt.subject,
+		RawSubject:            bytes.Clone(opt.rawSubject),
 		NotBefore:             opt.notBefore,
 		NotAfter:              opt.notAfter,
 		KeyUsage:              opt.keyUsage,
@@ -143,7 +145,7 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 		if err := validateX509IdentitySAN(parsed.RawSubject, parsed.Extensions, true, false); err != nil {
 			return nil, err
 		}
-		if len(parsed.Subject.ToRDNSequence()) == 0 && (parsed.IsCA || parsed.KeyUsage&x509.KeyUsageCRLSign != 0) {
+		if bytes.Equal(parsed.RawSubject, []byte{0x30, 0}) && (parsed.IsCA || parsed.KeyUsage&x509.KeyUsageCRLSign != 0) {
 			return nil, errors.New("CA and CRL signing certificates require a nonempty Subject")
 		}
 		if err := validateX509Issuer(parsed.RawIssuer); err != nil {

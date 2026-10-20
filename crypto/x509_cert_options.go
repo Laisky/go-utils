@@ -15,6 +15,8 @@ import (
 
 type x509V3CertOption struct {
 	parent *x509.Certificate
+	// rawSubject preserves original request DER only in the new opt-in issuance paths.
+	rawSubject []byte
 	signCSROption
 	x509CSROption
 }

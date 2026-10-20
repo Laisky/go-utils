@@ -13,7 +13,7 @@ import (
 
 type x509CSROption struct {
 	err error
-	// allowEmptySubject is restricted to the opt-in SVID builders.
+	// allowEmptySubject is enabled only by opt-in SAN, SVID and policy issuance paths.
 	allowEmptySubject bool
 	// validateSAN enables the additive strict SAN contract without changing legacy options.
 	validateSAN bool

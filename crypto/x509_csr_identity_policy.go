@@ -73,7 +73,7 @@ func preserveX509CSRSubjectAltName(request *x509.CertificateRequest) SignCSROpti
 		for _, ext := range request.Extensions {
 			if ext.Id.Equal(oid) {
 				ext = pkix.Extension{Id: oid, Critical: ext.Critical, Value: bytes.Clone(ext.Value)}
-				if len(request.Subject.ToRDNSequence()) == 0 {
+				if bytes.Equal(request.RawSubject, []byte{0x30, 0}) {
 					ext.Critical = true
 				}
 				o.extraExtensions = append(o.extraExtensions, ext)
@@ -119,7 +119,7 @@ func authorizeX509IssuedCertificate(der []byte, policy X509CSRIdentityPolicy) ([
 	if err := validateX509IdentitySAN(cert.RawSubject, cert.Extensions, true, true); err != nil {
 		return nil, err
 	}
-	if len(cert.RawSubject) == 2 && (cert.IsCA || cert.KeyUsage&x509.KeyUsageCRLSign != 0) {
+	if bytes.Equal(cert.RawSubject, []byte{0x30, 0}) && (cert.IsCA || cert.KeyUsage&x509.KeyUsageCRLSign != 0) {
 		return nil, errors.New("CA and CRL signing certificates require a nonempty Subject")
 	}
 	if err := validateX509Issuer(cert.RawIssuer); err != nil {

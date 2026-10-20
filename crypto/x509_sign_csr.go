@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -313,7 +314,7 @@ func NewX509CertByCSR(
 	return newX509CertByCSR(parent, prikey, csrDer, false, opts...)
 }
 
-// newX509CertByCSR signs a verified CSR and permits an empty subject only for the SVID caller.
+// newX509CertByCSR signs a verified CSR, preserving original Subject DER for the opt-in SVID and policy callers.
 func newX509CertByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDer []byte,
 	allowEmptySubject bool, opts ...SignCSROption) (certDer []byte, err error) {
 	if parent == nil {
@@ -343,7 +344,13 @@ func newX509CertByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDer
 	}
 
 	certOpts := []X509CertOption{
-		func(o *x509V3CertOption) error { o.allowEmptySubject = allowEmptySubject; return nil },
+		func(o *x509V3CertOption) error {
+			o.allowEmptySubject = allowEmptySubject
+			if allowEmptySubject {
+				o.rawSubject = bytes.Clone(csr.RawSubject)
+			}
+			return nil
+		},
 		WithX509Subject(csr.Subject),
 		WithX509CertParent(parent),
 		WithX509CertNotBefore(opt.notBefore),
