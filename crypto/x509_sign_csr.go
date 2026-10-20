@@ -314,14 +314,11 @@ func NewX509CertByCSR(
 	return newX509CertByCSR(parent, prikey, csrDer, false, opts...)
 }
 
-// newX509CertByCSR signs a verified CSR, preserving original Subject DER for the opt-in SVID and policy callers.
+// newX509CertByCSR authenticates external CSR bytes before issuing a certificate.
 func newX509CertByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDer []byte,
 	allowEmptySubject bool, opts ...SignCSROption) (certDer []byte, err error) {
-	if parent == nil {
-		return nil, errors.New("parent certificate is required")
-	}
-	if err = validPrikey(prikey); err != nil {
-		return nil, errors.Wrap(err, "invalid CA private key")
+	if err := validateX509CSRSigner(parent, prikey); err != nil {
+		return nil, err
 	}
 
 	csr, err := Der2CSR(csrDer)
@@ -334,6 +331,25 @@ func newX509CertByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDer
 		return nil, errors.Wrap(err, "verify csr signature")
 	}
 
+	return signAuthenticatedX509CSR(parent, prikey, csr, allowEmptySubject, opts...)
+}
+
+// validateX509CSRSigner checks the required parent and private key before issuance.
+func validateX509CSRSigner(parent *x509.Certificate, prikey crypto.PrivateKey) error {
+	if parent == nil {
+		return errors.New("parent certificate is required")
+	}
+	if err := validPrikey(prikey); err != nil {
+		return errors.Wrap(err, "invalid CA private key")
+	}
+	return nil
+}
+
+// signAuthenticatedX509CSR issues an internally authenticated request with a validated signer.
+// Callers must check possession and validateX509CSRSigner before calling this core.
+// Opt-in callers retain original Subject DER; legacy callers retain reconstruction.
+func signAuthenticatedX509CSR(parent *x509.Certificate, prikey crypto.PrivateKey, csr *x509.CertificateRequest,
+	allowEmptySubject bool, opts ...SignCSROption) ([]byte, error) {
 	opt, err := new(signCSROption).applyOpts(csr, opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "apply options")

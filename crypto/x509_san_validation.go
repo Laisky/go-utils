@@ -176,8 +176,16 @@ func validX509URI(value string) bool {
 		}
 	}
 	uri, err := url.Parse(value)
-	return err == nil && uri.Scheme != "" && (uri.Host != "" || uri.Path != "" || uri.Opaque != "") &&
-		validX509URIBrackets(value, uri)
+	if err != nil || uri.Scheme == "" || (uri.Host == "" && uri.Path == "" && uri.Opaque == "") {
+		return false
+	}
+	// RFC 5280 requires a host when an authority is present. An absent
+	// authority remains valid, so retain file:/service and opaque URIs.
+	schemeEnd := strings.IndexByte(value, ':')
+	if strings.HasPrefix(value[schemeEnd+1:], "//") && uri.Hostname() == "" {
+		return false
+	}
+	return validX509URIBrackets(value, uri)
 }
 
 // validX509URIBrackets permits raw square brackets only around an authority IP-literal.

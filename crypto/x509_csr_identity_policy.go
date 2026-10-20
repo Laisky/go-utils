@@ -29,12 +29,15 @@ type X509CSRIdentityPolicy struct {
 // not a chain verifier or an automatic source of identity authorization.
 func NewX509CertByCSRWithPolicy(parent *x509.Certificate, prikey crypto.PrivateKey,
 	csrDER []byte, policy X509CSRIdentityPolicy, opts ...SignCSROption) ([]byte, error) {
-	requestDER, request, err := authorizeX509CSRRequest(csrDER, policy)
+	request, err := authorizeX509CSRRequest(csrDER, policy)
 	if err != nil {
 		return nil, err
 	}
+	if err := validateX509CSRSigner(parent, prikey); err != nil {
+		return nil, err
+	}
 	options := append(append([]SignCSROption(nil), opts...), preserveX509CSRSubjectAltName(request))
-	der, err := newX509CertByCSR(parent, prikey, requestDER, true, options...)
+	der, err := signAuthenticatedX509CSR(parent, prikey, request, true, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,12 +50,16 @@ func NewX509CertByCSRWithPolicy(parent *x509.Certificate, prikey crypto.PrivateK
 // URI is incompatible with the SVID profile. Both policy checks must succeed.
 func NewX509SVIDByCSRWithPolicy(parent *x509.Certificate, prikey crypto.PrivateKey,
 	csrDER []byte, authorizedID string, policy X509CSRIdentityPolicy, opts ...SignCSROption) ([]byte, error) {
-	requestDER, request, err := authorizeX509CSRRequest(csrDER, policy)
+	request, err := authorizeX509CSRRequest(csrDER, policy)
+	if err != nil {
+		return nil, err
+	}
+	id, err := ParseX509SVIDID(authorizedID)
 	if err != nil {
 		return nil, err
 	}
 	options := append(append([]SignCSROption(nil), opts...), preserveX509CSRSubjectAltName(request))
-	der, err := NewX509SVIDByCSR(parent, prikey, requestDER, authorizedID, options...)
+	der, err := issueAuthenticatedX509SVID(parent, prikey, request, id, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,29 +92,29 @@ func preserveX509CSRSubjectAltName(request *x509.CertificateRequest) SignCSROpti
 }
 
 // authorizeX509CSRRequest authenticates request bytes and authorizes a detached snapshot.
-func authorizeX509CSRRequest(csrDER []byte, policy X509CSRIdentityPolicy) ([]byte, *x509.CertificateRequest, error) {
+func authorizeX509CSRRequest(csrDER []byte, policy X509CSRIdentityPolicy) (*x509.CertificateRequest, error) {
 	if policy.AuthorizeRequest == nil || policy.AuthorizeCertificate == nil {
-		return nil, nil, errors.New("both CSR request and certificate identity policies are required")
+		return nil, errors.New("both CSR request and certificate identity policies are required")
 	}
 	der := bytes.Clone(csrDER)
 	csr, err := x509.ParseCertificateRequest(der)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "parse policy CSR")
+		return nil, errors.Wrap(err, "parse policy CSR")
 	}
 	if err := csr.CheckSignature(); err != nil {
-		return nil, nil, errors.Wrap(err, "verify policy CSR possession")
+		return nil, errors.Wrap(err, "verify policy CSR possession")
 	}
 	if err := validateX509IdentitySAN(csr.RawSubject, csr.Extensions, false, true); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	snapshot, err := x509.ParseCertificateRequest(bytes.Clone(der))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "parse request policy snapshot")
+		return nil, errors.Wrap(err, "parse request policy snapshot")
 	}
 	if err := policy.AuthorizeRequest(snapshot); err != nil {
-		return nil, nil, errors.Wrap(err, "authorize CSR identities")
+		return nil, errors.Wrap(err, "authorize CSR identities")
 	}
-	return der, csr, nil
+	return csr, nil
 }
 
 // authorizeX509IssuedCertificate validates and authorizes a detached final DER snapshot.

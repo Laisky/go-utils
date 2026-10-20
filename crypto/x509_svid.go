@@ -123,6 +123,9 @@ func x509SVIDURI(extensions []pkix.Extension) (spiffeid.ID, error) {
 // NewX509SVID creates a Go X.509 leaf for the caller-authorized SPIFFE ID.
 // Options retain their usual meanings, but contradictory final DER is rejected.
 // A parent CA and the leaf public key can be selected with the existing certificate options.
+// Omitting the parent permits self-signed profile construction only with a nonempty
+// Subject. Such a leaf cannot authenticate through VerifyX509SVID, even if bundled
+// directly as a trust anchor; authentication requires a valid signing-authority chain.
 func NewX509SVID(prikey crypto.PrivateKey, authorizedID string, opts ...X509CertOption) ([]byte, error) {
 	id, err := ParseX509SVIDID(authorizedID)
 	if err != nil {
@@ -190,6 +193,13 @@ func NewX509SVIDByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDER
 	if err := csr.CheckSignature(); err != nil {
 		return nil, errors.Wrap(err, "verify X.509-SVID CSR possession")
 	}
+	return issueAuthenticatedX509SVID(parent, prikey, csr, id, opts...)
+}
+
+// issueAuthenticatedX509SVID issues an internally authenticated request for the authorized ID.
+// Public entry points must authenticate possession before calling this private core.
+func issueAuthenticatedX509SVID(parent *x509.Certificate, prikey crypto.PrivateKey, csr *x509.CertificateRequest,
+	id spiffeid.ID, opts ...SignCSROption) ([]byte, error) {
 	requestedID, err := x509SVIDURI(csr.Extensions)
 	if err != nil {
 		return nil, err
@@ -197,8 +207,11 @@ func NewX509SVIDByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDER
 	if requestedID != id {
 		return nil, errors.New("CSR SPIFFE ID is not the authorized identity")
 	}
+	if err := validateX509CSRSigner(parent, prikey); err != nil {
+		return nil, errors.Wrap(err, "issue X.509-SVID CSR")
+	}
 	defaults := []SignCSROption{WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth)}
-	der, err := newX509CertByCSR(parent, prikey, csrDER, true, append(defaults, opts...)...)
+	der, err := signAuthenticatedX509CSR(parent, prikey, csr, true, append(defaults, opts...)...)
 	if err != nil {
 		return nil, errors.Wrap(err, "issue X.509-SVID CSR")
 	}
@@ -262,14 +275,21 @@ func VerifyX509SVID(certs []*x509.Certificate, bundles x509bundle.Source,
 		return spiffeid.ID{}, nil, errors.Wrap(err, "verify X.509-SVID trust")
 	}
 	validChains := make([][]*x509.Certificate, 0, len(chains))
-	for _, chain := range chains {
+	var firstRejection error
+	for chainIndex, chain := range chains {
 		// A trusted leaf alone is not a chain to an SVID signing authority.
 		if len(chain) < 2 {
+			if firstRejection == nil {
+				firstRejection = errors.Errorf("chain %d: trusted leaf is not a signing-authority chain", chainIndex)
+			}
 			continue
 		}
 		valid := true
-		for _, authority := range chain[1:] {
+		for authorityIndex, authority := range chain[1:] {
 			if err := validateX509SVIDAuthority(authority); err != nil {
+				if firstRejection == nil {
+					firstRejection = errors.Wrapf(err, "chain %d authority %d", chainIndex, authorityIndex+1)
+				}
 				valid = false
 				break
 			}
@@ -279,6 +299,9 @@ func VerifyX509SVID(certs []*x509.Certificate, bundles x509bundle.Source,
 		}
 	}
 	if len(validChains) == 0 {
+		if firstRejection != nil {
+			return spiffeid.ID{}, nil, errors.Wrap(firstRejection, "no chain has valid X.509-SVID signing certificates")
+		}
 		return spiffeid.ID{}, nil, errors.New("no chain has valid X.509-SVID signing certificates")
 	}
 	return id, validChains, nil

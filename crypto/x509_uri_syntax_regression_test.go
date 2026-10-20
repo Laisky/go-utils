@@ -77,7 +77,36 @@ func TestX509URIValidSyntaxControls(t *testing.T) {
 	}
 }
 
-// TestX509URIRejectsMalformedSyntax rejects malformed escapes and forbidden literals accepted by net/url.
+// TestX509URIAuthorityTypedControls retains authority-free and host URI spelling in typed public APIs.
+func TestX509URIAuthorityTypedControls(t *testing.T) {
+	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
+	ca := newCSRSignatureTestCA(t, key)
+	roots := x509.NewCertPool()
+	roots.AddCert(ca)
+	for _, value := range []string{"file:/service", "urn:example:service", "https://example.org/service",
+		"https://192.0.2.1/service", "https://[2001:db8::1]:443/service", "urn:example://service"} {
+		t.Run(value, func(t *testing.T) {
+			uri, err := url.Parse(value)
+			require.NoError(t, err)
+			require.Equal(t, value, uri.String())
+			der, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertAllowEmptySubject(), WithX509CertURIs(uri))
+			require.NoError(t, err)
+			_, err = VerifyX509CertURI(svidTestParse(t, der), value, x509.VerifyOptions{Roots: roots})
+			require.NoError(t, err)
+			requestDER, err := NewX509CSR(key, WithX509CSRAllowEmptySubject(), WithX509CSRURIs(uri))
+			require.NoError(t, err)
+			request, err := x509.ParseCertificateRequest(requestDER)
+			require.NoError(t, err)
+			require.NoError(t, request.CheckSignature())
+			der, err = NewX509CertByCSRWithPolicy(ca, key, requestDER, sanPolicyExact(request, request))
+			require.NoError(t, err)
+			_, err = VerifyX509CertURI(svidTestParse(t, der), value, x509.VerifyOptions{Roots: roots})
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestX509URIRejectsMalformedSyntax rejects invalid authority hosts, escapes and forbidden literals accepted by net/url.
 func TestX509URIRejectsMalformedSyntax(t *testing.T) {
 	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
 	ca := newCSRSignatureTestCA(t, key)

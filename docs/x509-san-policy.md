@@ -25,7 +25,11 @@ and `Extensions`. Mutation cannot change the bytes later issued or returned.
 Opt-in issuance preserves the original CSR Subject DER, including unknown DN
 attributes and RDN grouping, rather than reconstructing it from parsed fields.
 Errors return nil DER. Obtain approved identities from authenticated enrollment
-policy, not from the untrusted CSR itself. For example:
+policy, not from the untrusted CSR itself. Two non-nil callbacks alone provide
+no enrollment authorization if they simply approve every claim. The final
+callback runs after signing, so rejection can still consume signing resources
+or produce a signer audit record, although no certificate DER is returned.
+For example:
 
 ```go
 policy := crypto.X509CSRIdentityPolicy{
@@ -55,6 +59,12 @@ leftmost wildcard); internationalized names require their ASCII representation.
 Mailbox local-part spelling is preserved, including valid quoted forms.
 Ordinary URIs can be opaque or hostless (`urn:`, `mailto:`, `file:`), and can
 contain queries and fragments. URI normalization is not authorization.
+An explicit authority separator (`//` immediately after the scheme) requires a
+nonempty host under RFC 5280. Thus `file:/service`, `urn:example:service` and
+`https://example.org/service` remain valid, while `file:///service`,
+`https:///service` and userinfo- or port-only authorities are rejected. Legacy
+generic encoding remains unchanged; these rules apply to strict issuance,
+policy issuance and URI identity verification.
 Percent escapes must contain two hexadecimal digits in every URI component,
 including queries and opaque values. Validation does not decode or normalize
 the original identity spelling, including escape case or an empty `#` delimiter.
