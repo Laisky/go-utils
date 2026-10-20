@@ -18,14 +18,18 @@ jobs:
   crypto:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.26.10', '1.27.3']
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          # go.mod declares the Go 1.26 floor; test on the latest 1.26 patch.
-          go-version: '1.26.x'
+          # Keep the Go 1.26 floor and qualify both patched compiler lines.
+          go-version: ${{ matrix.go }}
           cache: true
       - name: Check CSR source formatting
         run: test -z "$(gofmt -l crypto/x509.go crypto/x509_csr_signature_test.go)"

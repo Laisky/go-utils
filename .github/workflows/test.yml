@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.9'
+          go-version: '1.26.10'
           cache: true
       - name: Check gate failure reporting
         run: python3 -m unittest discover -s .scripts -p test_fast_ci.py -v
@@ -65,7 +65,7 @@ jobs:
         with:
           # go.mod declares the Go 1.26 floor; pin the patched CI compiler
           # so a matching older runner tool cache cannot satisfy this selector.
-          go-version: '1.26.9'
+          go-version: '1.26.10'
           cache: true
 
       - name: Check formatting
@@ -101,8 +101,8 @@ jobs:
       fail-fast: false
       matrix:
         # The module supports every Go 1.26 release and newer; qualify these
-        # explicit patched compilers released on 2026-10-08 during dispatch.
-        go: ['1.26.9', '1.27.2']
+        # explicit patched compilers released on 2026-10-19 during dispatch.
+        go: ['1.26.10', '1.27.3']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -143,7 +143,7 @@ jobs:
         run: go test -race -timeout 45m -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && matrix.go == '1.26.9' }}
+        if: ${{ !cancelled() && matrix.go == '1.26.10' }}
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.txt
