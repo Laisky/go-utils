@@ -103,12 +103,15 @@ func WithX509CertOCSPServers(ocsp ...string) X509CertOption {
 //   - (optional): generate certificate
 //   - (required): generate CRL
 func WithX509CertSeriaNumber(serialNumber *big.Int) X509CertOption {
+	if serialNumber != nil {
+		serialNumber = new(big.Int).Set(serialNumber)
+	}
 	return func(o *x509V3CertOption) error {
 		if serialNumber == nil {
 			return errors.Errorf("serial number shoule not be empty")
 		}
 
-		o.serialNumber = serialNumber
+		o.serialNumber = new(big.Int).Set(serialNumber)
 		return nil
 	}
 }
@@ -361,16 +364,15 @@ func WithX509CertPubkey(pubkey crypto.PublicKey) X509CertOption {
 
 // applyOpts fills defaults into o and then applies opts in order. The defaults come from the
 // embedded signCSROption (a seven-day validity period starting now in UTC, digital-signature and
-// key-encipherment key usage, and a generated serial number) and from the embedded x509CSROption. A
+// key-encipherment key usage) and from the embedded x509CSROption. A
 // previously recorded o.err is returned before any option runs, and a serial number is drawn from
-// o.serialNumGenerator if none is set after the options run. It returns o on success, or an error
+// the explicit legacy hook or the secure default if none is set after the options run.
+// It returns o on success, or an error
 // if filling the defaults or any option fails, or if the subject common name is empty.
 func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 	*x509V3CertOption, error) {
 	// fill default
-	if _, err := o.signCSROption.applyOpts(nil); err != nil {
-		return nil, errors.Wrap(err, "sign csr option")
-	}
+	o.fillSigningDefaults()
 
 	o.fillDefault()
 
@@ -385,9 +387,8 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 		}
 	}
 
-	if o.serialNumber == nil {
-		// generate serial number by internal generator if not set
-		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
+	if err := o.resolveSerialNumber(GenerateX509CertificateSerialNumber); err != nil {
+		return nil, errors.Wrap(err, "resolve certificate serial number")
 	}
 	if o.subject.CommonName == "" && !o.allowEmptySubject {
 		return nil, errors.Errorf("common name must be set")

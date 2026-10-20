@@ -74,6 +74,7 @@ func x509CertOption2Template(opts ...X509CertOption) (
 		NotAfter:              opt.notAfter,
 		KeyUsage:              opt.keyUsage,
 		ExtKeyUsage:           opt.extKeyUsage,
+		UnknownExtKeyUsage:    opt.unknownExtKeyUsage,
 		BasicConstraintsValid: true,
 		IsCA:                  opt.isCA,
 		PolicyIdentifiers:     opt.policies,

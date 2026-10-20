@@ -125,6 +125,9 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if opt.validateSAN {
 		return nil, errors.New("Go-only SAN options are not supported by Tongsuo")
 	}
+	if len(opt.unknownExtKeyUsage) != 0 {
+		return nil, errors.New("unknown extended key usage options are only supported by Go issuance")
+	}
 
 	opensslConf, err := x509Cert2OpensslConf(tpl, opensslConfEncoder{})
 	if err != nil {
