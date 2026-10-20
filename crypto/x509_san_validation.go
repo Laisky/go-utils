@@ -5,6 +5,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -153,8 +154,13 @@ func validateX509IdentitySAN(subject []byte, extensions []pkix.Extension, requir
 	return nil
 }
 
-// validX509URI checks absolute ASCII URI syntax without decoding or normalizing identity bytes.
+// validX509URI checks RFC 3986 URI syntax without decoding or normalizing identity bytes.
+// It validates percent escapes and delimiter placement because net/url accepts
+// some invalid opaque, query, and fragment spellings.
 func validX509URI(value string) bool {
+	if strings.Count(value, "#") > 1 {
+		return false
+	}
 	for i := 0; i < len(value); i++ {
 		c := value[i]
 		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
@@ -170,7 +176,67 @@ func validX509URI(value string) bool {
 		}
 	}
 	uri, err := url.Parse(value)
-	return err == nil && uri.Scheme != "" && (uri.Host != "" || uri.Path != "" || uri.Opaque != "")
+	return err == nil && uri.Scheme != "" && (uri.Host != "" || uri.Path != "" || uri.Opaque != "") &&
+		validX509URIBrackets(value, uri)
+}
+
+// validX509URIBrackets permits raw square brackets only around an authority IP-literal.
+// Other components must percent-encode them; Go's URL parser alone does not enforce this.
+func validX509URIBrackets(value string, parsed *url.URL) bool {
+	if !strings.ContainsAny(value, "[]") {
+		return true
+	}
+	schemeEnd := strings.IndexByte(value, ':')
+	if schemeEnd < 0 || !strings.HasPrefix(value[schemeEnd+1:], "//") {
+		return false
+	}
+	authorityStart := schemeEnd + 3
+	authorityEnd := authorityStart
+	for authorityEnd < len(value) && strings.IndexByte("/?#", value[authorityEnd]) < 0 {
+		authorityEnd++
+	}
+	authority := value[authorityStart:authorityEnd]
+	hostStart := authorityStart + strings.LastIndexByte(authority, '@') + 1
+	hostPort := value[hostStart:authorityEnd]
+	closeBracket := strings.IndexByte(hostPort, ']')
+	if len(hostPort) < 3 || hostPort[0] != '[' || closeBracket <= 1 ||
+		(closeBracket+1 < len(hostPort) && hostPort[closeBracket+1] != ':') {
+		return false
+	}
+	if strings.IndexByte(value, '[') != hostStart || strings.LastIndexByte(value, '[') != hostStart ||
+		strings.IndexByte(value, ']') != hostStart+closeBracket ||
+		strings.LastIndexByte(value, ']') != hostStart+closeBracket {
+		return false
+	}
+	if addr, err := netip.ParseAddr(parsed.Hostname()); err == nil && addr.Is6() {
+		return true
+	}
+	return validX509IPvFuture(hostPort[1:closeBracket])
+}
+
+// validX509IPvFuture checks RFC 3986 IPvFuture host-literal syntax without
+// interpreting future address versions or normalizing the host.
+func validX509IPvFuture(value string) bool {
+	if len(value) < 4 || (value[0] != 'v' && value[0] != 'V') {
+		return false
+	}
+	dot := strings.IndexByte(value, '.')
+	if dot < 2 || dot == len(value)-1 {
+		return false
+	}
+	for i := 1; i < dot; i++ {
+		if strings.IndexByte("0123456789abcdefABCDEF", value[i]) < 0 {
+			return false
+		}
+	}
+	for i := dot + 1; i < len(value); i++ {
+		c := value[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			strings.IndexByte("-._~!$&'()*+,;=:", c) >= 0) {
+			return false
+		}
+	}
+	return true
 }
 
 // validX509Email accepts a bare ASCII mailbox with a preferred DNS domain or IP literal.
