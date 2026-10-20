@@ -389,7 +389,7 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 		// generate serial number by internal generator if not set
 		o.serialNumber = big.NewInt(o.serialNumGenerator.SerialNum())
 	}
-	if o.subject.CommonName == "" {
+	if o.subject.CommonName == "" && !o.allowEmptySubject {
 		return nil, errors.Errorf("common name must be set")
 	}
 

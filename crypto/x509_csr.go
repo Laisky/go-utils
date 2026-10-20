@@ -13,6 +13,8 @@ import (
 
 type x509CSROption struct {
 	err error
+	// allowEmptySubject is restricted to the opt-in SVID builders.
+	allowEmptySubject bool
 
 	subject pkix.Name
 
@@ -272,7 +274,7 @@ func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest
 	// kept only for compatibility.
 	tpl.Attributes = opt.attributes //nolint:staticcheck // SA1019: see above.
 
-	if opt.subject.CommonName == "" {
+	if opt.subject.CommonName == "" && !opt.allowEmptySubject {
 		return nil, errors.Errorf("common name is required")
 	}
 

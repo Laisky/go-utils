@@ -306,6 +306,12 @@ func NewX509CertByCSR(
 	prikey crypto.PrivateKey,
 	csrDer []byte,
 	opts ...SignCSROption) (certDer []byte, err error) {
+	return newX509CertByCSR(parent, prikey, csrDer, false, opts...)
+}
+
+// newX509CertByCSR signs a verified CSR and permits an empty subject only for the SVID caller.
+func newX509CertByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDer []byte,
+	allowEmptySubject bool, opts ...SignCSROption) (certDer []byte, err error) {
 	if parent == nil {
 		return nil, errors.New("parent certificate is required")
 	}
@@ -333,6 +339,7 @@ func NewX509CertByCSR(
 	}
 
 	certOpts := []X509CertOption{
+		func(o *x509V3CertOption) error { o.allowEmptySubject = allowEmptySubject; return nil },
 		WithX509Subject(csr.Subject),
 		WithX509CertParent(parent),
 		WithX509CertNotBefore(opt.notBefore),
