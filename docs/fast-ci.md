@@ -1,14 +1,14 @@
-# CI testing policy (2026-10-08)
+# CI testing policy (2026-10-20)
 
-At the maintainer's request, general automatic pre-merge testing is formatting
-plus the fastest essential unit tests. This scheduling policy supersedes the
+Under the maintainer's 2026-10-08 scheduling policy, general automatic pre-merge
+testing is formatting plus the fastest essential unit tests. This policy supersedes the
 earlier requirement to run full general lint and race/coverage qualification on
 every update. Tests and assertions are unchanged. Developers remain responsible
 for full local dev/staging verification before promoting relevant Go changes.
 
 ## Automatic gate
 
-`Test / test` pins Go 1.26.9 with `GOTOOLCHAIN=local`, checks every
+`Test / test` pins Go 1.26.10 with `GOTOOLCHAIN=local`, checks every
 tracked Go source with `gofmt -s -l`, and runs twenty named tests from
 `.scripts/fast_ci_tests.json`. These cover a SHA-256 vector, URL password masking,
 slice cleanup, JSON validation/comment handling, logger field isolation/filtering,
@@ -25,8 +25,8 @@ Raw discovery, Go JSON, native exits and wall times are uploaded for successful
 and failed executions. The five-minute job timeout bounds this essential gate.
 It does not establish full library correctness or production readiness.
 
-The CI compiler pins reflect the Go 1.26.9 and 1.27.2 patches available on
-2026-10-08. Exact versions prevent `setup-go` from selecting an older matching
+The CI compiler pins reflect the Go 1.26.10 and 1.27.3 patches released on
+2026-10-19. Exact versions prevent `setup-go` from selecting an older matching
 runner tool cache for a floating `1.26.x` selector. Module and build caching
 remain enabled. Keep these pins current through scoped patch updates; they do
 not change the module's Go 1.26.0 compatibility floor or its supported API.
@@ -41,7 +41,7 @@ python3 .scripts/fast_ci.py --evidence /tmp/go-utils-fast-ci
 ## Retained manual qualification
 
 Dispatch the `Test` workflow on the candidate branch to run the retained full
-lint job and Go 1.26.9/1.27.2 build and race/coverage matrix, including the
+lint job and Go 1.26.10/1.27.3 build and race/coverage matrix, including the
 pinned Tongsuo 8.5.0 build/install and coverage upload. The essential gate also
 runs on dispatch. These full jobs keep their existing timeouts and assertions.
 
@@ -68,9 +68,10 @@ necessary local/staging dependencies; no test files are removed.
 ## Security boundary
 
 Govulncheck keeps its existing automatic push/PR triggers in
-`security-scan.yml`, using the pinned Go 1.26.9 toolchain. The separate
-`crypto-tests.yml` and `rbac-security.yml` workflows are unchanged, including
-their race, full-suite and fuzz checks. These security jobs can exceed the
-essential gate's five-minute target; changing them requires a separately scoped
+`security-scan.yml`, using the pinned Go 1.26.10 toolchain. The separate
+`crypto-tests.yml` qualifies its existing checks on Go 1.26.10 and 1.27.3;
+`rbac-security.yml` pins Go 1.26.10. Their events, permissions, test commands,
+timeouts, race, full-suite and fuzz checks remain unchanged. These security jobs
+can exceed the essential gate's five-minute target; changing them requires a separately scoped
 security decision. Branch protection, secrets and deployment settings are
 unchanged by this scheduling amendment.

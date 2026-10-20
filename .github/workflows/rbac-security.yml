@@ -40,8 +40,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          # go.mod declares the Go 1.26 floor; test on the latest 1.26 patch.
-          go-version: '1.26.x'
+          # Keep the Go 1.26 floor and pin the patched CI compiler.
+          go-version: '1.26.10'
           cache: true
       - name: Check RBAC formatting
         run: test -z "$(gofmt -l rbac*.go)"
@@ -64,8 +64,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          # go.mod declares the Go 1.26 floor; test on the latest 1.26 patch.
-          go-version: '1.26.x'
+          # Keep the Go 1.26 floor and pin the patched CI compiler.
+          go-version: '1.26.10'
           cache: true
       - name: Vet all packages
         run: go vet ./...
