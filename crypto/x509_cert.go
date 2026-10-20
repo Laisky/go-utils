@@ -108,6 +108,11 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 	if err != nil {
 		return nil, errors.Wrap(err, "convert options to template")
 	}
+	if opt.validateSAN {
+		if err := validateX509SANValues(tpl.DNSNames, tpl.EmailAddresses, tpl.IPAddresses, tpl.URIs, tpl.ExtraExtensions); err != nil {
+			return nil, err
+		}
+	}
 
 	if opt.pubkey == nil {
 		opt.pubkey = Prikey2Pubkey(prikey)
@@ -128,6 +133,18 @@ func NewX509Cert(prikey crypto.PrivateKey, opts ...X509CertOption) (certDer []by
 	certDer, err = x509.CreateCertificate(rand.Reader, tpl, parent, opt.pubkey, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
+	}
+	if opt.validateSAN {
+		parsed, err := x509.ParseCertificate(certDer)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse opt-in SAN certificate")
+		}
+		if err := validateX509IdentitySAN(parsed.RawSubject, parsed.Extensions, true, false); err != nil {
+			return nil, err
+		}
+		if len(parsed.Subject.ToRDNSequence()) == 0 && (parsed.IsCA || parsed.KeyUsage&x509.KeyUsageCRLSign != 0) {
+			return nil, errors.New("CA and CRL signing certificates require a nonempty Subject")
+		}
 	}
 
 	return certDer, nil

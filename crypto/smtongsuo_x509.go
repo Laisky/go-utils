@@ -122,6 +122,9 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrap(err, "X509CertOption2Template")
 	}
+	if opt.validateSAN {
+		return nil, errors.New("Go-only SAN options are not supported by Tongsuo")
+	}
 
 	opensslConf, err := x509Cert2OpensslConf(tpl, opensslConfEncoder{})
 	if err != nil {
@@ -208,9 +211,12 @@ func (t *Tongsuo) NewX509Cert(ctx context.Context,
 // parsed, its signature verified and its subject and SANs compared with the
 // request before it is returned.
 func (t *Tongsuo) NewX509CSR(ctx context.Context, prikeyPem []byte, opts ...X509CSROption) (csrDer []byte, err error) {
-	tpl, err := X509CsrOption2Template(opts...)
+	opt, tpl, err := x509CSROptions2Template(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "X509CsrOption2Template")
+	}
+	if opt.validateSAN {
+		return nil, errors.New("Go-only SAN options are not supported by Tongsuo")
 	}
 
 	opensslConf, err := x509Csr2OpensslConf(tpl, opensslConfEncoder{})

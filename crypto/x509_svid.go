@@ -172,6 +172,8 @@ func NewX509SVIDCSR(prikey crypto.PrivateKey, requestedID string, opts ...X509CS
 // NewX509SVIDByCSR checks possession and requires the CSR's ID to equal authorizedID.
 // Callers must obtain authorizedID from their enrollment policy, independently of the CSR.
 // Requested raw extensions are not automatically issuance authorization.
+// This compatibility helper preserves other CSR identities without authorizing them.
+// Deprecated: Use NewX509SVIDByCSRWithPolicy to authorize every Subject and SAN claim.
 func NewX509SVIDByCSR(parent *x509.Certificate, prikey crypto.PrivateKey, csrDER []byte,
 	authorizedID string, opts ...SignCSROption) ([]byte, error) {
 	id, err := ParseX509SVIDID(authorizedID)
