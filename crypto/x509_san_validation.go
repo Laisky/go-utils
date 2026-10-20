@@ -156,7 +156,9 @@ func validateX509IdentitySAN(subject []byte, extensions []pkix.Extension, requir
 // validX509URI checks absolute ASCII URI syntax without decoding or normalizing identity bytes.
 func validX509URI(value string) bool {
 	for i := 0; i < len(value); i++ {
-		if value[i] <= 0x20 || value[i] > 0x7e {
+		c := value[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			strings.IndexByte("-._~:/?#[]@!$&'()*+,;=%", c) >= 0) {
 			return false
 		}
 		if value[i] == '%' {

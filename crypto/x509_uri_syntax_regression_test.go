@@ -21,6 +21,9 @@ func TestX509URIValidSyntaxControls(t *testing.T) {
 		"https://example.org/workload#",
 		"urn:example:workload%2fpart",
 		"urn:example:workload%25GG",
+		"urn:example:workload%3Cidentity%3E",
+		"urn:example:AZaz09-._~!$&'()*+,;=:@/?:",
+		"https://[2001:db8::1]/AZaz09-._~!$&'()*+,;=:@/?value=AZaz09-._~!$&'()*+,;=:@/?",
 		"mailto:alice%2Bservice@example.org",
 		"file:/workload%20identity",
 	} {
@@ -68,8 +71,8 @@ func TestX509URIValidSyntaxControls(t *testing.T) {
 	}
 }
 
-// TestX509URIRejectsMalformedEscapes rejects malformed escapes that net/url permits in query and opaque fields.
-func TestX509URIRejectsMalformedEscapes(t *testing.T) {
+// TestX509URIRejectsMalformedSyntax rejects malformed escapes and forbidden literals accepted by net/url.
+func TestX509URIRejectsMalformedSyntax(t *testing.T) {
 	key := newCSRSignatureTestKey(t, x509.ECDSAWithSHA256)
 	ca := newCSRSignatureTestCA(t, key)
 	roots := x509.NewCertPool()
@@ -84,10 +87,26 @@ func TestX509URIRejectsMalformedEscapes(t *testing.T) {
 		"urn:example:workload%",
 		"urn:example:workload%2",
 		"urn:example:workload%GG",
+		"urn:example:workload<",
+		"urn:example:workload>",
+		"urn:example:workload\\",
+		"urn:example:workload\"",
+		"urn:example:workload`",
+		"urn:example:workload{",
+		"urn:example:workload}",
+		"urn:example:workload|",
+		"https://example.org/workload?value=<",
+		"https://example.org/workload?value=>",
+		"https://example.org/workload?value=\\",
+		"https://example.org/workload?value=\"",
+		"https://example.org/workload?value=`",
+		"https://example.org/workload?value={",
+		"https://example.org/workload?value=}",
+		"https://example.org/workload?value=|",
 	} {
 		t.Run(value, func(t *testing.T) {
 			uri, err := url.Parse(value)
-			require.NoError(t, err, "net/url parser accepts this malformed opaque/query escape")
+			require.NoError(t, err, "net/url parser accepts this malformed opaque/query syntax")
 			require.Equal(t, value, uri.String())
 			raw := svidRawURIExtension(t, value)
 			legacyDER, err := NewX509Cert(key, WithX509CertParent(ca), WithX509CertCommonName("legacy URI"), WithX509CertExtraExtensions(raw))
