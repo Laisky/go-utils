@@ -145,13 +145,30 @@ func validateX509IdentitySAN(subject []byte, extensions []pkix.Extension, requir
 				return errors.New("email SAN requires a bare mailbox")
 			}
 		case 6:
-			uri, err := url.Parse(value)
-			if err != nil || strings.Contains(value, " ") || uri.Scheme == "" || (uri.Host == "" && uri.Path == "" && uri.Opaque == "") {
+			if !validX509URI(value) {
 				return errors.New("URI SAN requires an absolute URI with scheme-specific content")
 			}
 		}
 	}
 	return nil
+}
+
+// validX509URI checks absolute ASCII URI syntax without decoding or normalizing identity bytes.
+func validX509URI(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if value[i] <= 0x20 || value[i] > 0x7e {
+			return false
+		}
+		if value[i] == '%' {
+			if i+2 >= len(value) || strings.IndexByte("0123456789abcdefABCDEF", value[i+1]) < 0 ||
+				strings.IndexByte("0123456789abcdefABCDEF", value[i+2]) < 0 {
+				return false
+			}
+			i += 2
+		}
+	}
+	uri, err := url.Parse(value)
+	return err == nil && uri.Scheme != "" && (uri.Host != "" || uri.Path != "" || uri.Opaque != "")
 }
 
 // validX509Email accepts a bare ASCII mailbox with a preferred DNS domain or IP literal.

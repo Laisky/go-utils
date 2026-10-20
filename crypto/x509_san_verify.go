@@ -3,8 +3,6 @@ package crypto
 import (
 	"bytes"
 	"crypto/x509"
-	"net/url"
-	"strings"
 
 	"github.com/Laisky/errors/v2"
 )
@@ -14,8 +12,7 @@ import (
 // This is URI identity authorization, not VerifyHostname or authorization of other
 // names in the certificate. The caller selects roots and application KeyUsages.
 func VerifyX509CertURI(cert *x509.Certificate, authorizedURI string, opts x509.VerifyOptions) ([][]*x509.Certificate, error) {
-	uri, err := url.Parse(authorizedURI)
-	if err != nil || strings.ContainsAny(authorizedURI, " \t\r\n") || uri.Scheme == "" || (uri.Host == "" && uri.Path == "" && uri.Opaque == "") {
+	if !validX509URI(authorizedURI) {
 		return nil, errors.New("authorized URI must be absolute")
 	}
 	parsed, chains, err := verifyX509IdentityChain(cert, opts)
