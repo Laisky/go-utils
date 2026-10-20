@@ -12,12 +12,13 @@ import (
 )
 
 type signCSROption struct {
-	notBefore    time.Time
-	notAfter     time.Time
-	isCA         bool
-	keyUsage     x509.KeyUsage
-	extKeyUsage  []x509.ExtKeyUsage
-	serialNumber *big.Int
+	notBefore          time.Time
+	notAfter           time.Time
+	isCA               bool
+	keyUsage           x509.KeyUsage
+	extKeyUsage        []x509.ExtKeyUsage
+	unknownExtKeyUsage []asn1.ObjectIdentifier
+	serialNumber       *big.Int
 	// policies certificate policies
 	//
 	// refer to RFC-5280 4.2.1.4
@@ -342,6 +343,7 @@ func NewX509CertByCSR(
 		WithX509CertOCSPServers(opt.ocsps...),
 		WithX509CertKeyUsage(opt.keyUsage),
 		WithX509CertExtKeyUsage(opt.extKeyUsage...),
+		WithX509CertUnknownExtKeyUsage(opt.unknownExtKeyUsage...),
 		WithX509CertSeriaNumber(opt.serialNumber),
 		WithX509CertDNSNames(csr.DNSNames...),
 		WithX509CertEmailAddrs(csr.EmailAddresses...),

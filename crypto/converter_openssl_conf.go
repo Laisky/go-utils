@@ -344,6 +344,9 @@ func x509SignCsrOptions2OpensslConf(opts ...SignCSROption) (opt *signCSROption, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "apply options")
 	}
+	if len(opt.unknownExtKeyUsage) != 0 {
+		return nil, nil, errors.New("unknown extended key usage options are only supported by Go issuance")
+	}
 
 	constraints, err := tongsuoCSRConstraints(opt)
 	if err != nil {
