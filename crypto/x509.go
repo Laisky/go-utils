@@ -9,11 +9,9 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/asn1"
-	"math/big"
 	"net"
 	"net/mail"
 	"net/url"
-	"time"
 
 	"github.com/Laisky/errors/v2"
 	"github.com/Laisky/zap"
@@ -27,22 +25,8 @@ type X509CertSerialNumberGenerator interface {
 	SerialNum() int64
 }
 
-var (
-	internalCertSerialNumGenerator X509CertSerialNumberGenerator
-)
-
-// init creates the package-level default X509CertSerialNumberGenerator that certificate builders
-// use when no serial number is supplied. It takes no parameters, returns nothing, and panics if the
-// generator cannot be constructed.
-func init() {
-	var err error
-	if internalCertSerialNumGenerator, err = NewDefaultX509CertSerialNumGenerator(); err != nil {
-		glog.Shared.Panic("new default cert serial number generator", zap.Error(err))
-	}
-}
-
-// DefaultX509CertSerialNumGenerator generates cryptographically random
-// certificate serial numbers per RFC 5280 Section 4.1.2.2.
+// DefaultX509CertSerialNumGenerator preserves the legacy int64 serial hook.
+// Default certificate issuance uses GenerateX509CertificateSerialNumber instead.
 type DefaultX509CertSerialNumGenerator struct{}
 
 // NewDefaultX509CertSerialNumGenerator new DefaultX509CertSerialNumGenerator
@@ -50,17 +34,13 @@ func NewDefaultX509CertSerialNumGenerator() (*DefaultX509CertSerialNumGenerator,
 	return &DefaultX509CertSerialNumGenerator{}, nil
 }
 
-// SerialNum generates a cryptographically random positive int64 serial number.
-//
-// Uses crypto/rand to ensure unpredictability as required by RFC 5280.
-// The result is always positive (63 bits of entropy).
+// SerialNum returns a positive cryptographically random int64 serial number.
+// It panics on entropy failure because the legacy signature cannot return errors.
+// Use GenerateX509CertificateSerialNumber for wider serials and error handling.
 func (g *DefaultX509CertSerialNumGenerator) SerialNum() int64 {
-	// Generate 63 bits of randomness (positive int64)
-	maxSerial := new(big.Int).SetInt64(1<<63 - 1)
-	n, err := rand.Int(rand.Reader, maxSerial)
+	n, err := randomPositiveSerialNumber(rand.Reader, 63)
 	if err != nil {
-		// Fall back to timestamp-based if crypto/rand fails (extremely unlikely)
-		return time.Now().UnixNano()
+		panic(errors.Wrap(err, "generate legacy certificate serial number"))
 	}
 	return n.Int64()
 }
