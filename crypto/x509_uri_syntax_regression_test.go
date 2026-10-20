@@ -26,6 +26,12 @@ func TestX509URIValidSyntaxControls(t *testing.T) {
 		"https://[2001:db8::1]/AZaz09-._~!$&'()*+,;=:@/?value=AZaz09-._~!$&'()*+,;=:@/?",
 		"mailto:alice%2Bservice@example.org",
 		"file:/workload%20identity",
+		"file:/service",
+		"urn:example:service",
+		"https://example.org/service",
+		"https://192.0.2.1/service",
+		"https://[2001:db8::1]:443/service",
+		"urn:example://service",
 	} {
 		t.Run(value, func(t *testing.T) {
 			raw := svidRawURIExtension(t, value)
@@ -81,6 +87,10 @@ func TestX509URIRejectsMalformedSyntax(t *testing.T) {
 		WithX509CSRURIs(&url.URL{Scheme: "https", Host: "example.org", Path: "/workload"}))
 	require.NoError(t, err)
 	for _, value := range []string{
+		"file:///service",
+		"https:///service",
+		"https://:443/service",
+		"https://user@/service",
 		"https://example.org/workload?value=%",
 		"https://example.org/workload?value=%2",
 		"https://example.org/workload?value=%ZZ",
