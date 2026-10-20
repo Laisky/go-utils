@@ -60,6 +60,9 @@ including queries and opaque values. Validation does not decode or normalize
 the original identity spelling, including escape case or an empty `#` delimiter.
 Unescaped characters outside the URI reserved/unreserved ASCII sets are rejected;
 percent-encoded forms such as `%3Cidentity%3E` remain valid identity text.
+A URI has at most one literal `#` fragment separator. Unescaped square
+brackets are accepted only around an IPv6 authority IP-literal supported by
+Go's X.509 URI parser; path, query, and opaque URI components must encode them.
 
 Legacy `NewX509CertByCSR` keeps its existing behavior. The older
 `NewX509SVIDByCSR` compatibility helper checks only the independently approved
