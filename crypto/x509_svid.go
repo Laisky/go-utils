@@ -131,7 +131,7 @@ func NewX509SVID(prikey crypto.PrivateKey, authorizedID string, opts ...X509Cert
 	defaults := []X509CertOption{
 		WithX509CertURIs(id.URL()),
 		WithX509CertExtKeyUsage(x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth),
-		func(o *x509V3CertOption) error { o.allowEmptySubject = true; return nil },
+		WithX509CertAllowEmptySubject(),
 	}
 	der, err := NewX509Cert(prikey, append(defaults, opts...)...)
 	if err != nil {
@@ -149,7 +149,7 @@ func NewX509SVIDCSR(prikey crypto.PrivateKey, requestedID string, opts ...X509CS
 	}
 	defaults := []X509CSROption{
 		WithX509CSRURIs(id.URL()),
-		func(o *x509CSROption) error { o.allowEmptySubject = true; return nil },
+		WithX509CSRAllowEmptySubject(),
 	}
 	der, err := NewX509CSR(prikey, append(defaults, opts...)...)
 	if err != nil {
