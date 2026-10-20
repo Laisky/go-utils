@@ -223,6 +223,10 @@ func VerifyX509SVID(certs []*x509.Certificate, bundles x509bundle.Source,
 	}
 	validChains := make([][]*x509.Certificate, 0, len(chains))
 	for _, chain := range chains {
+		// A trusted leaf alone is not a chain to an SVID signing authority.
+		if len(chain) < 2 {
+			continue
+		}
 		valid := true
 		for _, authority := range chain[1:] {
 			if err := validateX509SVIDAuthority(authority); err != nil {

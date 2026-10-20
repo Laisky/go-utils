@@ -76,6 +76,9 @@ func TestX509SVIDChain(t *testing.T) {
 	require.Error(t, err)
 	_, _, err = VerifyX509SVID(chain, nil)
 	require.Error(t, err)
+	selfSigned := svidTestSign(t, svidTestTemplate(t), svidTestTemplate(t), leafKey, leafKey)
+	_, _, err = VerifyX509SVID([]*x509.Certificate{selfSigned}, svidTestBundle("example.org", selfSigned))
+	require.Error(t, err, "a leaf is not an X.509-SVID signing authority")
 }
 
 // TestX509SVIDChainConstraints covers signatures, pathLen, name constraints, and unknown critical extensions.
