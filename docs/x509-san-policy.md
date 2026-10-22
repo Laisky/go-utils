@@ -1,146 +1,152 @@
-# General X.509 SANs and CSR issuer policy
+# X.509 identities and CSR authorization
 
-DNS names, IPv4/IPv6 addresses, email mailboxes and ordinary URI SANs are already
-supported by the generic certificate, CSR and CSR-signing APIs. Their typed
-options preserve those identities; `WithX509CertSANS` / `WithX509CSRSANS` retain
-their existing permissive string classification. SPIFFE is an optional URI
-identity profile, not a replacement for these name forms.
-Legacy CSR signing reconstructs parsed SAN fields; the additive policy APIs
-below preserve the approved original SAN encoding without changing that contract.
+## Why use this
 
-## Explicit issuance authorization
+A CA may serve many applications and tenants. A valid CSR proves control of a
+private key, but it does not entitle that key to a production hostname, mailbox
+or service URI. Issuing every name in a signed CSR lets one workload request
+another workload's identity.
 
-A CSR signature proves possession and integrity. It does not authorize Subject,
-DNS, IP, email, URI or requested extensions. `NewX509CertByCSRWithPolicy` requires
-an `X509CSRIdentityPolicy` with two non-nil callbacks:
+`NewX509CertByCSRWithPolicy` separates possession from enrollment authorization:
+one callback approves the signed request, and another approves the actual issued
+Subject and SANs after issuer options. Peer verification then checks both chain
+trust and the identity the application expects. These Go APIs are opt-in;
+existing generic builders keep their previous behavior.
 
-- `AuthorizeRequest` examines the signed request after signature validation and
-  before signing. Reject any unapproved claim.
-- `AuthorizeCertificate` examines the actual encoded certificate after all
-  issuer options and raw overrides. Request approval does not approve a
-  substituted final name.
+## Issue and verify a service identity
 
-Both callbacks receive independently parsed snapshots, including `RawSubject`
-and `Extensions`. Mutation cannot change the bytes later issued or returned.
-Opt-in issuance preserves the original CSR Subject DER, including unknown DN
-attributes and RDN grouping, rather than reconstructing it from parsed fields.
-Errors return nil DER. Obtain approved identities from authenticated enrollment
-policy, not from the untrusted CSR itself. Two non-nil callbacks alone provide
-no enrollment authorization if they simply approve every claim. The final
-callback runs after signing, so rejection can still consume signing resources
-or produce a signer audit record, although no certificate DER is returned.
-For example:
+Save this complete program as `main.go` in a directory below the repository root
+and run `GOTOOLCHAIN=local go run .` with Go 1.26 or newer.
+
+The enrollment record in this example permits an empty Subject and exactly
+`urn:example:payments`. It is a trusted constant, not data taken from the CSR.
+Comparing original SAN DER also rejects extra names and alternate URI spellings.
 
 ```go
-policy := crypto.X509CSRIdentityPolicy{
-    AuthorizeRequest: func(request *x509.CertificateRequest) error {
-        // Compare every Subject and SAN claim, including original extension
-        // bytes where exact URI spelling matters, with the enrollment record.
-        return enrollment.AuthorizeRequest(request)
-    },
-    AuthorizeCertificate: func(cert *x509.Certificate) error {
-        return enrollment.AuthorizeCertificate(cert)
-    },
+package main
+
+import (
+	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"fmt"
+	"net/url"
+	"time"
+
+	"github.com/Laisky/errors/v2"
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
+)
+
+// must returns a successful result or stops this example on an unexpected error.
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
-der, err := crypto.NewX509CertByCSRWithPolicy(ca, caKey, csrDER, policy)
+
+// newKey creates an independent Ed25519 private key for the example.
+func newKey() ed25519.PrivateKey {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	return must(key, err)
+}
+
+// check stops on an unexpected outcome and reports each successful check.
+func check(name string, ok bool) {
+	if !ok {
+		panic(name)
+	}
+	fmt.Println(name + ": ok")
+}
+
+// main demonstrates enrollment approval, issuance and exact peer authorization.
+func main() {
+	const approvedURI = "urn:example:payments"
+	now := time.Now().UTC()
+	caKey, workloadKey := newKey(), newKey()
+	ca := must(x509.ParseCertificate(must(gcrypto.NewX509Cert(caKey,
+		gcrypto.WithX509CertCommonName("Example CA"), gcrypto.WithX509CertIsCA(),
+		gcrypto.WithX509CertNotBefore(now.Add(-time.Minute)),
+		gcrypto.WithX509CertNotAfter(now.Add(24*time.Hour))))))
+	sanOID := asn1.ObjectIdentifier{2, 5, 29, 17}
+	sanFor := func(identity string) []byte {
+		return must(asn1.Marshal([]asn1.RawValue{{
+			Class: asn1.ClassContextSpecific, Tag: 6, Bytes: []byte(identity),
+		}}))
+	}
+	approvedSAN := sanFor(approvedURI)
+	authorize := func(subject []byte, extensions []pkix.Extension) error {
+		if bytes.Equal(subject, []byte{0x30, 0}) {
+			for _, ext := range extensions {
+				if ext.Id.Equal(sanOID) && bytes.Equal(ext.Value, approvedSAN) {
+					return nil
+				}
+			}
+		}
+		return errors.New("Subject or SANs are outside the enrollment record")
+	}
+	policy := gcrypto.X509CSRIdentityPolicy{
+		AuthorizeRequest: func(csr *x509.CertificateRequest) error {
+			return authorize(csr.RawSubject, csr.Extensions)
+		},
+		AuthorizeCertificate: func(cert *x509.Certificate) error {
+			return authorize(cert.RawSubject, cert.Extensions)
+		},
+	}
+	request := func(extra ...gcrypto.X509CSROption) []byte {
+		opts := []gcrypto.X509CSROption{gcrypto.WithX509CSRAllowEmptySubject(),
+			gcrypto.WithX509CSRURIs(must(url.Parse(approvedURI))),
+			gcrypto.WithX509CSRSignatureAlgorithm(x509.PureEd25519)}
+		return must(gcrypto.NewX509CSR(workloadKey, append(opts, extra...)...))
+	}
+	issue := func(csr []byte, extra ...gcrypto.SignCSROption) ([]byte, error) {
+		opts := []gcrypto.SignCSROption{
+			gcrypto.WithX509SignCSRNotBefore(now.Add(-time.Minute)),
+			gcrypto.WithX509SignCSRNotAfter(now.Add(time.Hour)),
+			gcrypto.WithX509SignCSRExtKeyUsage(x509.ExtKeyUsageServerAuth)}
+		return gcrypto.NewX509CertByCSRWithPolicy(ca, caKey, csr, policy, append(opts, extra...)...)
+	}
+	csr := request()
+	cert := must(x509.ParseCertificate(must(issue(csr))))
+	roots := x509.NewCertPool()
+	roots.AddCert(ca)
+	verify := x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	_, err := gcrypto.VerifyX509CertURI(cert, approvedURI, verify)
+	check("trusted expected URI", err == nil)
+	_, err = gcrypto.VerifyX509CertURI(cert, "urn:example:other", verify)
+	check("wrong peer rejected", err != nil)
+	der, err := issue(request(gcrypto.WithX509CSRDNSNames("unapproved.example.org")))
+	check("extra requested DNS denied", err != nil && der == nil)
+	der, err = issue(csr, gcrypto.WithX509SignCSRExtraExtenstions(pkix.Extension{
+		Id: sanOID, Critical: true, Value: sanFor("urn:example:other")}))
+	check("issuer substitution denied", err != nil && der == nil)
+	der, err = gcrypto.NewX509CSR(workloadKey, gcrypto.WithX509CSRAllowEmptySubject(),
+		gcrypto.WithX509CSRURIs(must(url.Parse("https:///service"))))
+	check("empty authority rejected", err != nil && der == nil)
+}
 ```
 
-The policy APIs preserve the approved original SAN extension bytes, avoiding
-lossy URL re-encoding. Empty-Subject issuance makes the SAN critical. Explicit
-issuer SAN overrides retain precedence and require separate final approval;
-other CSR-requested extensions are not automatically copied or authorized.
+All five checks should print `ok`; an unexpected result panics. The extra-DNS
+request has a valid signature but fails enrollment approval. The issuer override
+passes request approval and fails final certificate approval, which occurs
+**after signing** and returns no DER. The wrong-peer case has trusted chain
+material but fails the exact identity comparison.
 
-The policy entry points validate the four supported SAN forms and reject
-unsupported GeneralName forms rather than silently dropping identities from
-authorization. Duplicate extension OIDs, empty/malformed SAN sequences, invalid
-IP lengths, relative URI references and mailbox display-name wrappers are
-rejected. DNS names use ASCII preferred-name labels (including a single
-leftmost wildcard); internationalized names require their ASCII representation.
-Mailbox local-part spelling is preserved, including valid quoted forms.
-Ordinary URIs can be opaque or hostless (`urn:`, `mailto:`, `file:`), and can
-contain queries and fragments. URI normalization is not authorization.
-An explicit authority separator (`//` immediately after the scheme) requires a
-nonempty host under RFC 5280. Thus `file:/service`, `urn:example:service` and
-`https://example.org/service` remain valid, while `file:///service`,
-`https:///service` and userinfo- or port-only authorities are rejected. Legacy
-generic encoding remains unchanged; these rules apply to strict issuance,
-policy issuance and URI identity verification.
-Percent escapes must contain two hexadecimal digits in every URI component,
-including queries and opaque values. Validation does not decode or normalize
-the original identity spelling, including escape case or an empty `#` delimiter.
-Unescaped characters outside the URI reserved/unreserved ASCII sets are rejected;
-percent-encoded forms such as `%3Cidentity%3E` remain valid identity text.
-A URI has at most one literal `#` fragment separator. Unescaped square
-brackets are accepted only around an IPv6 authority IP-literal supported by
-Go's X.509 URI parser; path, query, and opaque URI components must encode them.
+For DNS/IP peers use `Certificate.Verify` with `VerifyOptions.DNSName`;
+alternatively, verify the chain first and then call `VerifyHostname`.
+For mail use `VerifyX509CertEmail` with the expected bare mailbox
+and suitable `KeyUsages`. URI/mailbox helpers authorize the selected name only;
+they do not authorize other identities in the certificate. Supply explicit roots
+when system trust is inappropriate. Ordinary authority-free `urn:` and `file:`
+URIs are allowed; an explicit `//` authority needs a host. SPIFFE identities add
+the profile and trust-domain rules in [X.509-SVID usage](x509-svid.md).
 
-Legacy `NewX509CertByCSR` keeps its existing behavior. The older
-`NewX509SVIDByCSR` compatibility helper checks only the independently approved
-SPIFFE ID and preserves other identities. Prefer `NewX509SVIDByCSRWithPolicy`:
-it additionally requires both callbacks for all Subject/DNS/IP/email claims.
-The strict SVID profile permits those other SAN types alongside exactly one
-SPIFFE URI; an additional ordinary URI violates that profile. Generic
-certificates can carry multiple ordinary or SPIFFE-form URI values without
-automatically acquiring SVID semantics.
+## Specification index
 
-## CN-less and empty subjects
-
-`WithX509CertAllowEmptySubject` and `WithX509CSRAllowEmptySubject` are explicit
-Go-only options. They waive the legacy CN requirement and validate SAN inputs
-before encoding, including nil URI and malformed IP checks. A populated DN
-without CN is allowed. An actually empty leaf Subject requires a nonempty,
-critical SAN in the issued certificate. An empty request DN requires SAN
-claims; request criticality does not authorize issuer policy. CA/CRL signing
-certificates require a populated Subject. The final encoded Issuer DN must be
-nonempty in these issuance and SVID profile paths. An empty-Subject leaf must
-therefore use a parent with a nonempty Subject DN; a populated CN-less DN can
-still self-sign. The check uses original Issuer DER, including raw parent-name
-precedence, rather than mutable parsed-name fields. Tongsuo rejects the new options;
-its existing behavior and feature freeze remain unchanged.
-Subject emptiness is likewise checked in the original DER, so a nonempty DN
-containing only an unfamiliar attribute such as UID remains a valid named Subject.
-
-These options and policy APIs opt into validation. Existing generic callers
-retain their former encoding, raw-extension precedence and CN rules. Raw
-extensions remain authoritative over typed options; new paths validate their
-effective final contents. Standard certificate/CSR encodings remain unchanged.
-
-## Verification and identity matching
-
-Use `Certificate.Verify` with explicit roots, intermediates, time and usages for
-chain validation. Set `VerifyOptions.DNSName` or call `VerifyHostname` for DNS/IP
-matching. Trust alone does not mean the peer has the expected name.
-
-`VerifyX509CertURI` and `VerifyX509CertEmail` verify original certificate DER with
-the caller's `x509.VerifyOptions`, then require an exact authorized SAN match.
-They do not use `VerifyHostname`. URI comparisons preserve original SAN bytes,
-including an empty fragment delimiter; email comparisons preserve case and
-mailbox spelling. This conservative exact policy does not normalize equivalent
-URI/mailbox spellings. Select application-appropriate `KeyUsages` (for example,
-`EmailProtection` for mail). Roots follow ordinary Go verification semantics,
-including system roots when `Roots` is nil; configure explicit roots where
-required. These helpers authorize only the identity being matched.
-
-For a strict SPIFFE identity use `VerifyX509SVIDForID`, which checks the profile,
-domain-selected bundle and expected SPIFFE ID. Independently verify DNS/IP or
-other names if the application uses them. Neither generic CSR policy issuance
-nor profile validation alone verifies the complete certificate chain.
-
-## Tests and compatibility
-
-Permanent tests cover mixed typed/string SANs through self/direct/CSR issuance,
-signed request and final policy decisions for every field, raw overrides in both
-orders, duplicate/unsupported extensions, malformed input, tampered signatures,
-callback mutation isolation, empty-Subject criticality, DNS/IP/URI/email identity
-positives and trusted-but-wrong-identity negatives. Path-length tests compare
-omitted/`-1`/zero/positive DER values on direct and CSR issuance, and check exact
-`TooManyIntermediates` failures at `N+1` with `N` acceptance controls.
-
-Rollback can return to the previous generic API while retaining standard DER.
-Do not remove issuer authorization checks as a rollback shortcut. No workload
-attestation service, credential delivery service or new Tongsuo feature is added.
-
-References: [RFC5280 SANs](https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.6),
-[RFC3986 URIs](https://www.rfc-editor.org/rfc/rfc3986),
-[RFC5321 mailbox grammar](https://www.rfc-editor.org/rfc/rfc5321#section-4.1.2),
-[X.509-SVID](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md).
+- [RFC 5280 §4.1.2.6](https://www.rfc-editor.org/rfc/rfc5280#section-4.1.2.6): Subject names and empty-Subject certificates.
+- [RFC 5280 §4.2.1.6](https://www.rfc-editor.org/rfc/rfc5280#section-4.2.1.6): DNS, IP, email and URI SANs.
+- [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986): URI syntax and authority components.
+- [RFC 5321 §4.1.2](https://www.rfc-editor.org/rfc/rfc5321#section-4.1.2): mailbox syntax.

@@ -1,84 +1,119 @@
-# X.509-SVIDs with the Go backend
+# SPIFFE X.509 workload identities
 
-The SVID APIs are opt-in. Existing certificate and CSR functions keep their
-common-name requirement and extension behavior. Tongsuo has no new SVID API.
+## Why use this
 
-`NewX509SVID` creates a leaf certificate for an identity that the caller has
-already authorized. Pass the issuer with `WithX509CertParent` and the workload's
-public key with `WithX509CertPubkey` when the signing key belongs to a CA.
-Without a parent, a nonempty Subject permits self-signed profile construction
-for testing or interoperability; an empty Subject still requires a named issuer.
-Successful creation or `ValidateX509SVID` does not establish trust. A self-signed
-leaf cannot authenticate through `VerifyX509SVID`, even if included directly in
-the domain bundle: verification requires a chain to a valid signing authority.
-`NewX509SVIDCSR` creates a signed identity claim, including an empty Subject when
-desired. Prefer `NewX509SVIDByCSRWithPolicy`: it requires an independently
-authorized SPIFFE ID and two explicit issuer checks for the signed request and
-actual final certificate. Each check must independently authorize every included
-Subject, DNS, IP and email claim. The compatibility helper
-`NewX509SVIDByCSR` checks only the SPIFFE ID and preserves other claims, so it is
-deprecated in favor of that policy API. A CSR signature proves possession, not
-enrollment authorization; requested raw extensions do not become issuer policy.
-The callbacks must obtain approved identities from authenticated enrollment data,
-rather than approve whatever identities the CSR requests. Final certificate
-authorization runs after signing and can reject the output without returning DER;
-deployments using external signers should account for that signing work.
+Service addresses change as workloads move between hosts, containers and clouds.
+SPIFFE gives a workload a service identity such as
+`spiffe://example.org/payments`, independent of its current IP address. An
+X.509-SVID binds that identity to a public key so services can authenticate each
+other with certificates and explicitly authorize the expected peer.
 
-General DNS, IPv4/IPv6, email and ordinary URI SANs remain supported independently
-of SPIFFE. See [general SAN and issuer policy](x509-san-policy.md) for mixed
-issuance, CN-less subjects and DNS/IP/URI/email verification. A strict SVID may
-include DNS/IP/email alongside its one SPIFFE URI; a second ordinary URI is
-not permitted by the profile.
+The Go APIs here issue and verify that certificate profile. Workload attestation,
+credential delivery and rotation belong to the surrounding identity system.
 
-The builders validate original URI bytes in the final encoded certificate or
-request after all options and raw overrides. URL parsing can drop an empty `#`
-fragment delimiter, so checking only a parsed URL string is insufficient.
-Both direct builders also use the common strict SAN validation before encoding:
-nil URI values return errors, and ancillary DNS/IP/email validation is the same
-for named and empty Subjects. Effective raw SAN overrides retain precedence.
-A leaf has exactly one canonical `spiffe` URI with a non-root
-path, `CA=false`, critical digital-signature key usage, and no certificate/CRL
-signing usage. Empty Subject requires a critical SAN extension. Other SAN types
-are permitted. Builders include both TLS EKUs by default. Verification permits
-an absent EKU (SPIFFE says SHOULD); an existing EKU must include clientAuth and
-serverAuth. Conflicting raw overrides return an error and no DER.
+## Issue and verify an SVID
 
-`ValidateX509SVID` checks the profile in the certificate's DER only. It does not
-authenticate the certificate. `VerifyX509SVID` additionally checks the real
-X.509 chain and returns the authenticated ID. It uses a go-spiffe `x509bundle.Source`
-to select the bundle associated with the leaf's trust domain, with no OS-root or
-global-bundle fallback. `VerifyX509SVIDForID` also requires an exact authorized ID.
-Applications may instead apply their own authorization policy to the returned ID.
-Bundle rotation and federation are explicit changes to the domain-associated
-bundle source. Signing CAs need not carry a SPIFFE URI; when they do, its path
-must be empty, and its domain may differ from the leaf's domain.
+Save this complete program as `main.go` in a directory below the repository root
+and run `GOTOOLCHAIN=local go run .` with Go 1.26 or newer.
+
+The fixed ID represents a decision already made by trusted enrollment policy.
+The CA signs the workload's **public key**; its private key remains separate.
 
 ```go
-bundles := x509bundle.NewSet(x509bundle.FromX509Authorities(
-    spiffeid.RequireTrustDomainFromString("example.org"), roots))
-chains, err := crypto.VerifyX509SVIDForID(peerCertificates, bundles,
-    "spiffe://example.org/service")
+package main
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"fmt"
+	"time"
+
+	gcrypto "github.com/Laisky/go-utils/v6/crypto"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+)
+
+// must returns a successful result or stops this example on an unexpected error.
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// newKey creates an independent Ed25519 private key for the example.
+func newKey() ed25519.PrivateKey {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	return must(key, err)
+}
+
+// check stops on an unexpected outcome and reports each successful check.
+func check(name string, ok bool) {
+	if !ok {
+		panic(name)
+	}
+	fmt.Println(name + ": ok")
+}
+
+// main demonstrates profile validation, domain-selected trust and peer authorization.
+func main() {
+	const id = "spiffe://example.org/payments"
+	now := time.Now().UTC()
+	caKey, workloadKey := newKey(), newKey()
+	ca := must(x509.ParseCertificate(must(gcrypto.NewX509Cert(caKey,
+		gcrypto.WithX509CertCommonName("Example CA"), gcrypto.WithX509CertIsCA(),
+		gcrypto.WithX509CertNotBefore(now.Add(-time.Minute)),
+		gcrypto.WithX509CertNotAfter(now.Add(24*time.Hour))))))
+	leaf := must(x509.ParseCertificate(must(gcrypto.NewX509SVID(caKey, id,
+		gcrypto.WithX509CertParent(ca), gcrypto.WithX509CertPubkey(workloadKey.Public()),
+		gcrypto.WithX509CertNotBefore(now.Add(-time.Minute)),
+		gcrypto.WithX509CertNotAfter(now.Add(time.Hour))))))
+	chain := []*x509.Certificate{leaf}
+	bundleFor := func(domain string) *x509bundle.Set {
+		return x509bundle.NewSet(x509bundle.FromX509Authorities(
+			spiffeid.RequireTrustDomainFromString(domain), []*x509.Certificate{ca}))
+	}
+	bundles := bundleFor("example.org")
+	_, err := gcrypto.ValidateX509SVID(leaf)
+	check("profile valid", err == nil)
+	_, err = gcrypto.VerifyX509SVIDForID(chain, bundles, id)
+	check("trusted expected workload", err == nil)
+	_, err = gcrypto.VerifyX509SVIDForID(chain, bundles, "spiffe://example.org/other")
+	check("wrong identity rejected", err != nil)
+	_, err = gcrypto.VerifyX509SVIDForID(chain, bundleFor("other.org"), id)
+	check("missing trust-domain bundle rejected", err != nil)
+	_, err = gcrypto.ParseX509SVIDID("spiffe://example.org/payments?role=admin")
+	check("invalid SPIFFE syntax rejected", err != nil)
+}
 ```
 
-For TLS, run this verification from `tls.Config.VerifyConnection` on both sides
-and require the peer's certificate. SPIFFE URI authorization replaces DNS-name
-verification, so a client using `InsecureSkipVerify` must always install the full
-chain, profile, and identity verification callback. The SPIFFE identity verifier
-follows go-spiffe's `ExtKeyUsageAny` chain policy: it enforces the leaf profile,
-but does not enforce TLS-role EKU restrictions on signing CAs. If the application's
-policy requires those restrictions, additionally call `Certificate.Verify` with
-the same trust-domain roots and intermediates, `KeyUsages` set to the required
-clientAuth or serverAuth purpose, and no DNS name for URI-based authentication.
-Do not use OS roots or pool unrelated trust domains for that additional check.
-The mutual TLS regression
-test demonstrates successful authentication and distinct wrong-identity and
-wrong-domain failures without a network listener.
+All five checks should print `ok`. `ValidateX509SVID` checks the encoded profile;
+it does not establish trust. `VerifyX509SVID` also authenticates the chain and
+returns its identity. `VerifyX509SVIDForID` additionally requires the expected
+workload ID. The wrong-ID case tests authorization; the other-domain bundle case
+tests trust-domain selection, even though both bundles contain the same CA.
+SVID verification uses the leaf's domain bundle and never falls back to OS roots.
 
-Existing PEM/PKCS8 and standard X.509 DER remain interoperable. Consumers can
-roll back by returning to their previous generic APIs; no stored-format migration
-is needed. Generic certificate APIs do not apply SVID policy automatically.
-These APIs do not supply workload attestation, a Workload API daemon, JWT-SVIDs,
-revocation infrastructure, or automatic credential rotation.
+For CSR enrollment, use `NewX509SVIDCSR` and
+`NewX509SVIDByCSRWithPolicy`, obtaining the authorized ID independently of the CSR
+and approving every Subject/SAN claim as in the [issuer-policy example](x509-san-policy.md).
+The deprecated `NewX509SVIDByCSR` checks the SPIFFE ID without authorizing other
+claims. A strict SVID has one workload SPIFFE URI; DNS/IP/email SANs may accompany
+it, but an additional ordinary URI may not.
 
-References: [X.509-SVID standard](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md),
-[SPIFFE ID standard](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md).
+For mTLS, call the complete chain/profile/expected-ID verifier from
+`tls.Config.VerifyConnection` on both peers and require the peer certificate.
+If setting `InsecureSkipVerify` for URI identities, that callback must perform
+the full verification. SVID chain verification follows go-spiffe's
+`ExtKeyUsageAny` policy; applications requiring TLS-role restrictions on signing
+CAs must additionally use standard verification with the same domain roots and
+the required `KeyUsages`. Named self-signed leaf construction can pass profile
+validation but cannot satisfy SVID signing-authority-chain verification.
+
+## Specification index
+
+- [SPIFFE ID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md): identity syntax and trust domains.
+- [X.509-SVID](https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md): leaf/signing profiles and certificate validation.
+- [Trust Domain and Bundle](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md): domain-associated trust material.
+- [RFC 5280](https://www.rfc-editor.org/rfc/rfc5280): X.509 certificate and path-validation rules.
