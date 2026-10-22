@@ -13,6 +13,10 @@ import (
 
 type x509CSROption struct {
 	err error
+	// allowEmptySubject is enabled only by opt-in SAN, SVID and policy issuance paths.
+	allowEmptySubject bool
+	// validateSAN enables the additive strict SAN contract without changing legacy options.
+	validateSAN bool
 
 	subject pkix.Name
 
@@ -249,12 +253,25 @@ func (o *x509CSROption) applyOpts(opts ...X509CSROption) (*x509CSROption, error)
 
 // X509CsrOption2Template convert X509CSROption to x509.CertificateRequest
 func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest, err error) {
+	_, tpl, err = x509CSROptions2Template(opts...)
+	return tpl, err
+}
+
+// x509CSROptions2Template returns the applied options and matching request template.
+func x509CSROptions2Template(opts ...X509CSROption) (*x509CSROption, *x509.CertificateRequest, error) {
 	opt, err := new(x509CSROption).fillDefault().applyOpts(opts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "apply x509 CSR options")
+		return nil, nil, errors.Wrap(err, "apply x509 CSR options")
+	}
+	if opt.validateSAN {
+		if err := validateX509SANValues(
+			opt.dnsNames, opt.emailAddresses, opt.ipAddresses, opt.uris, opt.extraExtensions,
+		); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	tpl = &x509.CertificateRequest{
+	tpl := &x509.CertificateRequest{
 		SignatureAlgorithm: opt.signatureAlgorithm,
 		Subject:            opt.subject,
 		ExtraExtensions:    opt.extraExtensions,
@@ -272,11 +289,11 @@ func X509CsrOption2Template(opts ...X509CSROption) (tpl *x509.CertificateRequest
 	// kept only for compatibility.
 	tpl.Attributes = opt.attributes //nolint:staticcheck // SA1019: see above.
 
-	if opt.subject.CommonName == "" {
-		return nil, errors.Errorf("common name is required")
+	if opt.subject.CommonName == "" && !opt.allowEmptySubject {
+		return nil, nil, errors.Errorf("common name is required")
 	}
 
-	return tpl, nil
+	return opt, tpl, nil
 }
 
 // NewX509CSR new CSR
@@ -292,7 +309,7 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 		return nil, errors.Wrap(err, "invalid CSR private key")
 	}
 
-	csrTpl, err := X509CsrOption2Template(opts...)
+	opt, csrTpl, err := x509CSROptions2Template(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "X509CsrOption2Template")
 	}
@@ -300,6 +317,16 @@ func NewX509CSR(prikey crypto.PrivateKey, opts ...X509CSROption) (csrDer []byte,
 	csrDer, err = x509.CreateCertificateRequest(rand.Reader, csrTpl, prikey)
 	if err != nil {
 		return nil, errors.Wrap(err, "create certificate")
+	}
+	// Empty subjects are an explicit opt-in; the legacy builder still requires CN.
+	if opt.validateSAN || len(csrTpl.Subject.ToRDNSequence()) == 0 {
+		parsed, err := x509.ParseCertificateRequest(csrDer)
+		if err != nil {
+			return nil, errors.Wrap(err, "parse empty-subject CSR")
+		}
+		if err := validateX509IdentitySAN(parsed.RawSubject, parsed.Extensions, false, false); err != nil {
+			return nil, err
+		}
 	}
 
 	return csrDer, nil

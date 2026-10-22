@@ -31,6 +31,8 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gammazero/deque v1.2.1 h1:9fnQVFCCZ9/NOc7ccTNqzoKd1tCWOqeI05/lPqFPMGQ=
 github.com/gammazero/deque v1.2.1/go.mod h1:5nSFkzVm+afG9+gy0VIowlqVAW4N8zNcMne+CMQVD2g=
+github.com/go-jose/go-jose/v4 v4.1.5 h1:RjgjO2LOtWOJKUC5wpwY9LR3B3vwVAz6JS2YHfYU6eA=
+github.com/go-jose/go-jose/v4 v4.1.5/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801 h1:PRieymvnGuBZUnWVQPBOemqlIhRznqtSxs/1LqlWe20=
 github.com/go-json-experiment/json v0.0.0-20231011163920-8aa127fd5801/go.mod h1:6daplAwHHGbUGib4990V3Il26O0OC4aRyvewaaAihaA=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
@@ -78,6 +80,8 @@ github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/pflag v1.0.9 h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
 github.com/spf13/pflag v1.0.9/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
+github.com/spiffe/go-spiffe/v2 v2.9.0 h1:g5qTg3qIP1HXV+GzuyEfSJFVxUCpEP5Ui1OINVJHPB4=
+github.com/spiffe/go-spiffe/v2 v2.9.0/go.mod h1:w2CLWKLMTX/PPYUEUPv3ltH0RXsw5S8suwNF46w9/Aw=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.5.3 h1:jmXUvGomnU1o3W/V5h2VEradbpJDwGrzugQQvL0POH4=
 github.com/stretchr/objx v0.5.3/go.mod h1:rDQraq+vQZU7Fde9LOZLr8Tax6zZvy4kuNKF+QYS+U0=

@@ -15,6 +15,8 @@ import (
 
 type x509V3CertOption struct {
 	parent *x509.Certificate
+	// rawSubject preserves original request DER only in the new opt-in issuance paths.
+	rawSubject []byte
 	signCSROption
 	x509CSROption
 }
@@ -390,7 +392,7 @@ func (o *x509V3CertOption) applyOpts(opts ...X509CertOption) (
 	if err := o.resolveSerialNumber(GenerateX509CertificateSerialNumber); err != nil {
 		return nil, errors.Wrap(err, "resolve certificate serial number")
 	}
-	if o.subject.CommonName == "" {
+	if o.subject.CommonName == "" && !o.allowEmptySubject {
 		return nil, errors.Errorf("common name must be set")
 	}
 
