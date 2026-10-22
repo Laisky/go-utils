@@ -264,7 +264,9 @@ func x509CSROptions2Template(opts ...X509CSROption) (*x509CSROption, *x509.Certi
 		return nil, nil, errors.Wrap(err, "apply x509 CSR options")
 	}
 	if opt.validateSAN {
-		if err := validateX509SANValues(opt.dnsNames, opt.emailAddresses, opt.ipAddresses, opt.uris, opt.extraExtensions); err != nil {
+		if err := validateX509SANValues(
+			opt.dnsNames, opt.emailAddresses, opt.ipAddresses, opt.uris, opt.extraExtensions,
+		); err != nil {
 			return nil, nil, err
 		}
 	}

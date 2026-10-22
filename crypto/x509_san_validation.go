@@ -73,7 +73,9 @@ func validateX509SANValues(dns, email []string, ips []net.IP, uris []*url.URL, e
 		if err != nil {
 			return errors.Wrap(err, "encode SAN validation input")
 		}
-		extensions = append(append([]pkix.Extension(nil), extensions...), pkix.Extension{Id: asn1.ObjectIdentifier{2, 5, 29, 17}, Value: value})
+		extensions = append(append([]pkix.Extension(nil), extensions...), pkix.Extension{
+			Id: asn1.ObjectIdentifier{2, 5, 29, 17}, Value: value,
+		})
 	}
 	return validateX509IdentitySAN(nil, extensions, false, false)
 }
@@ -112,43 +114,51 @@ func validateX509IdentitySAN(subject []byte, extensions []pkix.Extension, requir
 		return errors.New("SAN must contain nonempty GeneralNames without trailing data")
 	}
 	for _, name := range names {
-		if name.Class != asn1.ClassContextSpecific {
-			return errors.New("SAN GeneralName must be context-specific")
+		if err := validateX509GeneralName(name, rejectUnknown); err != nil {
+			return err
 		}
-		if name.Tag != 1 && name.Tag != 2 && name.Tag != 6 && name.Tag != 7 {
-			if rejectUnknown {
-				return errors.New("identity policy supports only DNS, IP, email and URI SANs")
-			}
-			continue
+	}
+	return nil
+}
+
+// validateX509GeneralName checks one original SAN value while preserving unknown-name policy.
+func validateX509GeneralName(name asn1.RawValue, rejectUnknown bool) error {
+	if name.Class != asn1.ClassContextSpecific {
+		return errors.New("SAN GeneralName must be context-specific")
+	}
+	if name.Tag != 1 && name.Tag != 2 && name.Tag != 6 && name.Tag != 7 {
+		if rejectUnknown {
+			return errors.New("identity policy supports only DNS, IP, email and URI SANs")
 		}
-		if name.IsCompound {
-			return errors.New("DNS, IP, email and URI SANs must be primitive")
+		return nil
+	}
+	if name.IsCompound {
+		return errors.New("DNS, IP, email and URI SANs must be primitive")
+	}
+	value := string(name.Bytes)
+	if name.Tag == 7 {
+		if len(name.Bytes) != net.IPv4len && len(name.Bytes) != net.IPv6len {
+			return errors.New("IP SAN must contain exactly 4 or 16 octets")
 		}
-		value := string(name.Bytes)
-		if name.Tag == 7 {
-			if len(name.Bytes) != net.IPv4len && len(name.Bytes) != net.IPv6len {
-				return errors.New("IP SAN must contain exactly 4 or 16 octets")
-			}
-			continue
+		return nil
+	}
+	for _, b := range name.Bytes {
+		if b < 0x20 || b > 0x7e {
+			return errors.New("SAN identity requires printable nonempty IA5 text")
 		}
-		for _, b := range name.Bytes {
-			if b < 0x20 || b > 0x7e {
-				return errors.New("SAN identity requires printable nonempty IA5 text")
-			}
+	}
+	switch name.Tag {
+	case 2:
+		if !validX509DNSName(value) {
+			return errors.New("invalid DNS SAN")
 		}
-		switch name.Tag {
-		case 2:
-			if !validX509DNSName(value) {
-				return errors.New("invalid DNS SAN")
-			}
-		case 1:
-			if !validX509Email(value) {
-				return errors.New("email SAN requires a bare mailbox")
-			}
-		case 6:
-			if !validX509URI(value) {
-				return errors.New("URI SAN requires an absolute URI with scheme-specific content")
-			}
+	case 1:
+		if !validX509Email(value) {
+			return errors.New("email SAN requires a bare mailbox")
+		}
+	case 6:
+		if !validX509URI(value) {
+			return errors.New("URI SAN requires an absolute URI with scheme-specific content")
 		}
 	}
 	return nil
@@ -163,8 +173,8 @@ func validX509URI(value string) bool {
 	}
 	for i := 0; i < len(value); i++ {
 		c := value[i]
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			strings.IndexByte("-._~:/?#[]@!$&'()*+,;=%", c) >= 0) {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') &&
+			strings.IndexByte("-._~:/?#[]@!$&'()*+,;=%", c) < 0 {
 			return false
 		}
 		if value[i] == '%' {
@@ -231,35 +241,8 @@ func validX509Email(value string) bool {
 	if index < 0 {
 		return false
 	}
-	local := value[:index]
-	if len(local) == 0 {
+	if !validX509EmailLocal(value[:index]) {
 		return false
-	}
-	if local[0] == '"' {
-		if len(local) < 2 || local[len(local)-1] != '"' {
-			return false
-		}
-		for i := 1; i < len(local)-1; i++ {
-			if local[i] == '\\' {
-				i++
-				if i >= len(local)-1 {
-					return false
-				}
-			} else if local[i] == '"' {
-				return false
-			}
-		}
-	} else {
-		for _, atom := range strings.Split(local, ".") {
-			if atom == "" {
-				return false
-			}
-			for _, c := range atom {
-				if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strings.ContainsRune("!#$%&'*+-/=?^_`{|}~", c)) {
-					return false
-				}
-			}
-		}
 	}
 	domain := value[index+1:]
 	if strings.HasPrefix(domain, "[") && strings.HasSuffix(domain, "]") {
@@ -270,6 +253,47 @@ func validX509Email(value string) bool {
 		return !strings.Contains(literal, ":") && net.ParseIP(literal).To4() != nil
 	}
 	return !strings.HasPrefix(domain, "*.") && validX509DNSName(domain)
+}
+
+// validX509EmailLocal validates an unchanged quoted or dot-atom mailbox local part.
+func validX509EmailLocal(local string) bool {
+	if len(local) == 0 {
+		return false
+	}
+	if local[0] == '"' {
+		return validX509QuotedMailboxLocal(local)
+	}
+	for _, atom := range strings.Split(local, ".") {
+		if atom == "" {
+			return false
+		}
+		for _, c := range atom {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') &&
+				!strings.ContainsRune("!#$%&'*+-/=?^_`{|}~", c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// validX509QuotedMailboxLocal checks closing quotes and quoted-pair boundaries without unescaping bytes.
+func validX509QuotedMailboxLocal(local string) bool {
+	if len(local) < 2 || local[len(local)-1] != '"' {
+		return false
+	}
+	for i := 1; i < len(local)-1; i++ {
+		switch local[i] {
+		case '\\':
+			i++
+			if i >= len(local)-1 {
+				return false
+			}
+		case '"':
+			return false
+		}
+	}
+	return true
 }
 
 // validX509DNSName accepts ASCII preferred-name labels and a single leftmost wildcard.
@@ -284,7 +308,7 @@ func validX509DNSName(value string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
 				return false
 			}
 		}
