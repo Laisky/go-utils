@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           # go.mod declares the Go 1.26 floor; test on the latest 1.26 patch.
-          go-version: '1.26.x'
+          go-version: '1.26.10'
           cache: true
       - name: Check CSR source formatting
         run: test -z "$(gofmt -l crypto/x509.go crypto/x509_csr_signature_test.go)"
