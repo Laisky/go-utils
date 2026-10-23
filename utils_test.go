@@ -196,7 +196,7 @@ func ExampleFallBack() {
 
 func TestRegexNamedSubMatch(t *testing.T) {
 	reg := regexp.MustCompile(`^(?P<time>.{23}) {0,}\| {0,}(?P<app>[^ ]+) {0,}\| {0,}(?P<level>[^ ]+) {0,}\| {0,}(?P<thread>[^ ]+) {0,}\| {0,}(?P<class>[^ ]+) {0,}\| {0,}(?P<line>\d+) {0,}([\|:] {0,}(?P<args>\{.*\})){0,1}([\|:] {0,}(?P<message>.*)){0,1}`)
-	str := "2018-04-02 02:02:10.928 | sh-datamining | INFO | http-nio-8080-exec-80 | com.pateo.qingcloud.gateway.core.zuul.filters.post.LogFilter | 74 | xxx"
+	str := "2020-01-02 03:04:05.678 | example-service | INFO | worker-1 | org.example.gateway.filters.LogFilter | 74 | synthetic message"
 	submatchMap := map[string]string{}
 	if err := RegexNamedSubMatch(reg, str, submatchMap); err != nil {
 		t.Fatalf("got error: %+v", err)

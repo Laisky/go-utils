@@ -91,7 +91,6 @@
 *v1.10.4*
 ---
     
-* 2020-05-27 (Laisky) feat: add throttle to pateo log pusher -> [view commit](https://github.com/Laisky/go-utils/commit/49c005070c4923797b9a8be5102dda45728a658b)    
        
 *v1.10.3*
 ---
@@ -110,9 +109,6 @@
 * 2020-01-21 (Laisky) fix: use gz in journal -> [view commit](https://github.com/Laisky/go-utils/commit/749562fbca334e3fce2371df0a0c349e964a0724)
 * 2020-01-16 (Laisky) perf: journal do not write duplicate data -> [view commit](https://github.com/Laisky/go-utils/commit/c7022342519ee235a624252fa2d7c7a5cd361cf0)
 * 2020-01-07 (Laisky) refact: alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/4f152bb79235aaf608249e9eec2564b8c2115d35)
-* 2020-01-07 (Laisky) fix: pateo alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/2bf63a57b91e8cbb9db0fcfca66eeae0736c3ede)
-* 2020-01-06 (Laisky) fix: pateo alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/5f9ec656e40b9907dc95f2432b29dddf4ef5aef7)
-* 2020-01-06 (Laisky) feat: add pateo alert wechat service -> [view commit](https://github.com/Laisky/go-utils/commit/d6029560428d10a99ab6e9c42dbc2026e43d549a)
 * 2019-12-31 (Laisky) docs: update jwt err message -> [view commit](https://github.com/Laisky/go-utils/commit/035988bc41890c0f7d859cd125d882c0f0e3352f)
 * 2019-12-19 (Laisky) ci: upgrade graphql -> [view commit](https://github.com/Laisky/go-utils/commit/824832410db6186a3f72c4cb6345ea8eb6945020)
 * 2019-12-19 (Laisky) ci: upgrade graphql -> [view commit](https://github.com/Laisky/go-utils/commit/8002021a5d1b84938feddf0c5422d37f89b03b49)
@@ -1017,9 +1013,6 @@
 * 2020-01-21 (Laisky) fix: use gz in journal -> [view commit](https://github.com/Laisky/go-utils/commit/749562fbca334e3fce2371df0a0c349e964a0724)
 * 2020-01-16 (Laisky) perf: journal do not write duplicate data -> [view commit](https://github.com/Laisky/go-utils/commit/c7022342519ee235a624252fa2d7c7a5cd361cf0)
 * 2020-01-07 (Laisky) refact: alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/4f152bb79235aaf608249e9eec2564b8c2115d35)
-* 2020-01-07 (Laisky) fix: pateo alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/2bf63a57b91e8cbb9db0fcfca66eeae0736c3ede)
-* 2020-01-06 (Laisky) fix: pateo alert pusher -> [view commit](https://github.com/Laisky/go-utils/commit/5f9ec656e40b9907dc95f2432b29dddf4ef5aef7)
-* 2020-01-06 (Laisky) feat: add pateo alert wechat service -> [view commit](https://github.com/Laisky/go-utils/commit/d6029560428d10a99ab6e9c42dbc2026e43d549a)
 * 2019-12-31 (Laisky) docs: update jwt err message -> [view commit](https://github.com/Laisky/go-utils/commit/035988bc41890c0f7d859cd125d882c0f0e3352f)
 * 2019-12-19 (Laisky) ci: upgrade graphql -> [view commit](https://github.com/Laisky/go-utils/commit/824832410db6186a3f72c4cb6345ea8eb6945020)
 * 2019-12-19 (Laisky) ci: upgrade graphql -> [view commit](https://github.com/Laisky/go-utils/commit/8002021a5d1b84938feddf0c5422d37f89b03b49)    

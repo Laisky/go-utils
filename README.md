@@ -54,3 +54,7 @@ Contains some useful tools in different directories:
 Thanks to JetBrain support OpenSource License.
 
 <https://www.jetbrains.com/community/opensource/#support>
+
+## Logger API compatibility
+
+See [the v1 logger contract and interface migration notes](docs/logger-api-compatibility.md).

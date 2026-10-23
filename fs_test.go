@@ -12,7 +12,6 @@ import (
 )
 
 func TestDirSize(t *testing.T) {
-	// size, err := DirSize("/Users/laisky/Projects/go/src/pateo.com/go-fluentd")
 	size, err := DirSize(".")
 	if err != nil {
 		t.Fatalf("%+v", err)

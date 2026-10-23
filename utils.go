@@ -538,7 +538,7 @@ func SetStructFieldsBySlice(structs, vals interface{}) (err error) {
 		case reflect.Slice:
 		case reflect.Array:
 		default:
-			return errors.Errorf(name + " must be array/slice")
+			return errors.Errorf("%s must be array/slice", name)
 		}
 
 		return nil

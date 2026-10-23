@@ -245,8 +245,8 @@ func WithLoggerLevel(level string) LoggerOptFunc {
 	}
 }
 
-// NewLogger create new logger
-func NewLogger(optfs ...LoggerOptFunc) (l LoggerItf, err error) {
+// newConcreteLogger builds the shared concrete implementation.
+func newConcreteLogger(optfs ...LoggerOptFunc) (l *LoggerType, err error) {
 	opt, err := new(loggerOption).fillDefault().applyOpts(optfs...)
 	if err != nil {
 		return nil, err
@@ -317,39 +317,26 @@ func (l *LoggerType) WarnSample(sample int, msg string, fields ...zapcore.Field)
 
 // Clone clone new Logger that inherit all config
 func (l *LoggerType) Clone() LoggerItf {
-	return &LoggerType{
-		Logger: l.Logger.With(),
-		level:  l.level,
-	}
+	return l.CloneConcrete()
 }
 
 // Named adds a new path segment to the logger's name. Segments are joined by
 // periods. By default, Loggers are unnamed.
 func (l *LoggerType) Named(s string) LoggerItf {
-	return &LoggerType{
-		Logger: l.Logger.Named(s),
-		level:  l.level,
-	}
+	return l.NamedConcrete(s)
 }
 
 // With creates a child logger and adds structured context to it. Fields added
 // to the child don't affect the parent, and vice versa.
 func (l *LoggerType) With(fields ...zapcore.Field) LoggerItf {
-	return &LoggerType{
-		Logger: l.Logger.With(fields...),
-		level:  l.level,
-	}
+	return l.WithConcrete(fields...)
 }
 
 // WithOptions clones the current Logger, applies the supplied Options, and
 // returns the resulting Logger. It's safe to use concurrently.
 func (l *LoggerType) WithOptions(opts ...zap.Option) LoggerItf {
-	return &LoggerType{
-		Logger: l.Logger.WithOptions(opts...),
-		level:  l.level,
-	}
+	return l.WithOptionsConcrete(opts...)
 }
-
 func init() {
 	var err error
 	if Logger, err = NewConsoleLoggerWithName("go-utils", "info"); err != nil {

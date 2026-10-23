@@ -2,9 +2,13 @@ package utils
 
 import (
 	"context"
+	stdjson "encoding/json"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,7 +56,7 @@ func TestWriteToFile(t *testing.T) {
 
 	content, err := ioutil.ReadFile(file)
 	require.NoError(t, err)
-	require.Contains(t, string(content), "go-utils/logger_test.go")
+	require.Contains(t, string(content), "/logger_test.go:")
 	require.Contains(t, string(content), "yoo\n")
 }
 
@@ -178,35 +182,51 @@ func BenchmarkSampleLogger(b *testing.B) {
 }
 
 func TestAlertHook(t *testing.T) {
-	pusher, err := NewAlertPusherWithAlertType(
-		context.Background(),
-		"https://blog.laisky.com/graphql/query/",
-		"hello",
-		"rwkpVuAgaBZQBASKndHK",
-	)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
+	requests := make(chan map[string]string, 2)
+	failures := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Query     string            `json:"query"`
+			Variables map[string]string `json:"variables"`
+		}
+		if r.Method != http.MethodPost || stdjson.NewDecoder(r.Body).Decode(&payload) != nil || !strings.Contains(payload.Query, "TelegramMonitorAlert") {
+			failures <- "invalid synthetic alert request"
+			http.Error(w, "invalid fixture", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"TelegramMonitorAlert":{"name":"fixture"}}}`))
+		requests <- payload.Variables
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pusher, err := NewAlertPusherWithAlertType(ctx, server.URL, "fixture", "synthetic-alert-token")
+	require.NoError(t, err)
 	defer pusher.Close()
-	logger := Logger.WithOptions(
-		zap.Fields(zap.String("logger", "test")),
-		zap.HooksWithFields(pusher.GetZapHook()),
-	)
-
-	logger.Debug("DEBUG", zap.String("yo", "hello"))
-	logger.Info("Info", zap.String("yo", "hello"))
-	logger.Warn("Warn", zap.String("yo", "hello"))
-	logger.Error("Error", zap.String("yo", "hello"), zap.Bool("bool", true), zap.Error(errors.Errorf("xxx")))
-	// t.Error()
-
-	time.Sleep(5 * time.Second)
+	logger := Logger.WithOptions(zap.HooksWithFields(pusher.GetZapHook()))
+	// FIFO negative control: an incorrectly admitted info entry would arrive first.
+	logger.Info("synthetic ignored info")
+	logger.Error("synthetic expected error", zap.String("context", "preserved"), zap.Error(errors.New("synthetic cause")))
+	select {
+	case variables := <-requests:
+		require.Equal(t, "fixture", variables["type"])
+		require.Equal(t, "synthetic-alert-token", variables["token"])
+		require.Contains(t, variables["msg"], "synthetic expected error")
+		require.Contains(t, variables["msg"], "preserved")
+		require.NotContains(t, variables["msg"], "synthetic ignored info")
+	case failure := <-failures:
+		t.Fatal(failure)
+	case <-time.After(5 * time.Second):
+		t.Fatal("synthetic alert did not reach the loopback receiver")
+	}
 }
 func ExampleAlertPusher() {
 	pusher, err := NewAlertPusherWithAlertType(
 		context.Background(),
-		"https://blog.laisky.com/graphql/query/",
+		"https://alerts.example.invalid/graphql",
 		"hello",
-		"rwkpVuAgaBZQBASKndHK",
+		"synthetic-alert-token",
 	)
 	if err != nil {
 		Logger.Panic("create alert pusher", zap.Error(err))
@@ -224,31 +244,6 @@ func ExampleAlertPusher() {
 
 	time.Sleep(1 * time.Second)
 }
-
-// func TestPateoAlertPusher(t *testing.T) {
-// 	ctx := context.Background()
-
-// 	Settings.SetupFromFile("/Users/laisky/repo/pateo/configs/go-fluentd/settings.yml")
-
-// 	alert, err := NewPateoAlertPusher(
-// 		ctx,
-// 		Settings.GetString("settings.pateo_logger.push_api"),
-// 		Settings.GetString("settings.pateo_logger.token"),
-// 	)
-// 	if err != nil {
-// 		t.Fatalf("%+v", err)
-// 	}
-
-// 	// if err = alert.Send("test", "test content", Clock.GetUTCNow()); err != nil {
-// 	// 	t.Fatalf("%+v", err)
-// 	// }
-
-// 	logger := Logger.WithOptions(zap.HooksWithFields(alert.GetZapHook("test")))
-// 	logger.Error("test content", zap.String("field", "value"))
-
-// 	time.Sleep(1 * time.Second)
-// 	t.Error()
-// }
 
 func TestChangeLoggerLevel(t *testing.T) {
 	var allLogs []string
