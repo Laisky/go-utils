@@ -1,27 +1,11 @@
-# v1 logger contracts
+# Legacy v1 logger contracts
 
-The interface-returning factories, `Logger` global and fluent methods introduced
-in v1.17 remain unchanged. `LoggerItf` and custom implementations continue to work,
-including replacing the interface-valued global default. This change does not
-silently restore the incompatible pre-v1.17 signatures under the same names.
+The v1.17 interface-returning factories, global default and fluent signatures remain unchanged. This maintenance change adds no new public logger API and does not reverse a published contract.
 
-Consumers that require `*LoggerType` can opt into `NewConcreteLogger`,
-`NewConcreteLoggerWithName`, `NewConcreteConsoleLoggerWithName`, and
-`CreateNewDefaultConcreteLogger`. Concrete chains use `CloneConcrete`,
-`NamedConcrete`, `WithConcrete`, and `WithOptionsConcrete`. These methods share
-the same construction, Zap logger and dynamic-level behavior as their interface
-counterparts. No type assertion, reflection or interface unwrapping is required.
-`LoggerConfig` and `LoggerOption` are additive aliases for the former public option
-names; the existing `LoggerOptFunc` remains available.
+The proposed parallel `Concrete` factory/method family was withdrawn before release: it duplicated the public API to work around one legacy dependency graph. Current logging integrations should use the existing typed `github.com/Laisky/go-utils/v6/log` API, after testing the real consumer graph and its Go requirements.
 
-The historical v1.16-to-v1.17 return-type change was source-incompatible. Restoring
-the old same-name concrete signatures now would in turn break valid v1.17 interface
-assignments. Compile controls cover both sides; the rejected restoration prototype
-is not the shipped design. The additive concrete entry points avoid a second
-breaking change. Legacy callers that require concrete values must intentionally
-adopt these entry points after an appropriate dependency version is available.
+`v6/log.New` returns `*log.LoggerT`; `Named`, `With` and `WithOptions` preserve that concrete type. Consumers should define the small logging interfaces they actually use instead of requiring this package's entire historical interface or concrete wrapper.
 
-No removed company-specific notification API is restored, and no published tag
-is rewritten or new version published. Local module replacements qualify source
-candidates only. Downstream use of the new entry points still requires dependency
-adoption; a local passing test is not a released module.
+Migrating from v1 to v6 is explicit, not a drop-in promise: import paths, logger/global names, level types and other utility APIs can differ. Legacy v1 tags remain immutable. No API version, tag or package is published by this source change.
+
+Mixing the current v6 module with the old v1 root utility dependency graph also exposes a separate `gammazero/deque` generic-API conflict. The logging shape is coherent, but that whole mixed graph has not passed qualification; a real v6 migration must resolve the utility graph rather than add a logger cast.

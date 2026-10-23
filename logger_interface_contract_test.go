@@ -9,15 +9,15 @@ import (
 	"testing"
 )
 
-func TestLoggerConcreteChildrenPreserveFieldsAndLevel(t *testing.T) {
+func TestLegacyLoggerChildrenPreserveFieldsAndLevel(t *testing.T) {
 	var output bytes.Buffer
-	logger, err := utils.NewConcreteLogger(utils.WithLoggerName("typed"), utils.WithLoggerLevel("debug"), utils.WithLoggerZapOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+	logger, err := utils.NewLogger(utils.WithLoggerName("typed"), utils.WithLoggerLevel("debug"), utils.WithLoggerZapOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
 		return zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(&output), core)
 	})))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var child *utils.LoggerType = logger.CloneConcrete().NamedConcrete("child").WithConcrete(zap.String("context", "kept")).WithOptionsConcrete()
+	var child utils.LoggerItf = logger.Clone().Named("child").With(zap.String("context", "kept")).WithOptions()
 	if err := child.ChangeLevel("error"); err != nil {
 		t.Fatal(err)
 	}
@@ -107,10 +107,6 @@ func TestLoggerInterfaceFactoriesAndCustomConsumer(t *testing.T) {
 	consumeContractLogger(custom)
 	if custom.message != "custom implementation control" {
 		t.Fatal("interface consumer required a concrete logger")
-	}
-	invalid, err := utils.NewConcreteConsoleLoggerWithName("invalid", "invalid-level")
-	if err == nil || invalid != nil {
-		t.Fatal("concrete factory did not preserve nil-on-error")
 	}
 	utils.Logger = custom
 	utils.Logger.Info("global interface replacement control")
