@@ -1,6 +1,8 @@
 # Go-Utils
 
-Many useful golang tools, support >= v1.16.
+Many useful golang tools. This legacy maintenance branch requires Go >= 1.18.
+
+The JWT v4.5.2 security fix uses a Go 1.18 standard-library API. Earlier released tags retain their historical requirements; this candidate is not a Go 1.16/1.17-compatible security patch. Public v1 logger signatures remain unchanged.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
