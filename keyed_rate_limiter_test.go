@@ -135,6 +135,65 @@ func TestKeyedConcurrentAdmissionsAreAtomic(t *testing.T) {
 	require.EqualValues(t, 37, n.Load())
 }
 
+func TestKeyedConcurrentKeyBudget(t *testing.T) {
+	cfg := config()
+	cfg.TotalBurst, cfg.KeyBurst, cfg.MaxKeys = 1000, 37, 1
+	l, err := NewKeyedRateLimiter[string](cfg)
+	require.NoError(t, err)
+	now := time.Unix(100, 0)
+	var admitted atomic.Int64
+	var wg sync.WaitGroup
+	for range 1000 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if l.allowAt("same", now) {
+				admitted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	require.EqualValues(t, 37, admitted.Load())
+}
+
+func TestKeyedEvictionRevisitMatchesRetained(t *testing.T) {
+	cfg := config()
+	cfg.TotalBurst, cfg.KeyBurst, cfg.MaxKeys = 100, 1, 1
+	evicting, err := NewKeyedRateLimiter[string](cfg)
+	require.NoError(t, err)
+	cfg.MaxKeys = 2
+	retained, err := NewKeyedRateLimiter[string](cfg)
+	require.NoError(t, err)
+	t0 := time.Unix(100, 0)
+	for _, step := range []struct {
+		key string
+		at  time.Time
+	}{{"a", t0}, {"b", t0.Add(time.Second)}, {"a", t0.Add(2 * time.Second)},
+		{"a", t0.Add(2 * time.Second)}} {
+		require.Equal(t, retained.allowAt(step.key, step.at), evicting.allowAt(step.key, step.at))
+	}
+}
+
+func TestKeyedPublicAllowConcurrent(t *testing.T) {
+	cfg := config()
+	cfg.TotalBurst, cfg.KeyBurst, cfg.MaxKeys = 1000, 1000, 1
+	l, err := NewKeyedRateLimiter[string](cfg)
+	require.NoError(t, err)
+	var admitted atomic.Int64
+	var wg sync.WaitGroup
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if l.Allow("same") {
+				admitted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	require.EqualValues(t, 100, admitted.Load())
+}
+
 func TestKeyedNumericLimitsAndNoNanosecondOverflow(t *testing.T) {
 	cfg := config()
 	cfg.TotalBurst = 1_000_000_000
