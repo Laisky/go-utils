@@ -26,3 +26,23 @@ never substitutes a marker or omits a field to fit. The existing nonblocking
 Local admission is not recipient delivery. `Close` cancels rather than flushes;
 `Done` follows release of queued payload references. Transport diagnostics remain
 fixed messages without application payload, alert token or raw remote error.
+
+## Secure HTTP transport
+
+Prefer `NewSecureAlert(ctx, endpoint, client, opts...)`. A nil client uses the
+standard HTTP transport. The endpoint must be explicit HTTPS without URL userinfo;
+all redirects are rejected before transmission, even on the same origin. Set the
+final HTTPS URL rather than relying on a redirect. Invalid endpoints start no worker.
+
+The constructor shallow-copies the supplied client, replacing its redirect policy
+without mutating the caller. Transport and cookie jar remain shared and trusted.
+Custom transports must verify TLS, honor context, and not redirect internally;
+TLS verification disabled by a caller is outside the security guarantee. This is
+not an SSRF filter. `WithAlertPushTimeout` still bounds each request, and a shorter
+client timeout also applies. GraphQL mutation names, variables (including the
+body token), field handling, queue admission, Close, and Done are unchanged.
+
+`NewAlert` is deprecated but retains legacy HTTP and redirect behavior. Migration
+requires a final HTTPS endpoint; no server or payload migration is needed. Old
+and new clients can coexist against that endpoint. Rolling back to `NewAlert`
+restores the legacy transport risks; secure clients never silently fall back.

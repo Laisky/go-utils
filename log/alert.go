@@ -150,12 +150,20 @@ type alertMsg struct {
 	alertType, pushToken, msg string
 }
 
-// NewAlert creates a new Alert hook.
+// NewAlert creates a new Alert hook with the legacy HTTP policy.
+//
+// Deprecated: Use NewSecureAlert for HTTPS-only, redirect-free delivery.
+// Migration requires an explicit HTTPS endpoint; this API retains HTTP and redirects.
 //
 // It's better to set an ratelimiter by WithRateLimiter
 // to avoid sending too many alerts.
 func NewAlert(ctx context.Context, pushAPI string,
 	opts ...AlertOption) (a *Alert, err error) {
+	return newAlert(ctx, pushAPI, nil, opts...)
+}
+
+// newAlert constructs an alert with client, or the legacy default when nil.
+func newAlert(ctx context.Context, pushAPI string, client *http.Client, opts ...AlertOption) (a *Alert, err error) {
 	Shared.Debug("create new Alert")
 	if pushAPI == "" {
 		return nil, errors.Errorf("pushAPI should not be empty")
@@ -178,9 +186,10 @@ func NewAlert(ctx context.Context, pushAPI string,
 		ctx:         ctx, cancel: cancel, done: make(chan struct{}),
 	}
 
-	a.cli = graphql.NewClient(a.pushAPI, &http.Client{
-		Timeout: a.timeout,
-	})
+	if client == nil {
+		client = &http.Client{Timeout: a.timeout}
+	}
+	a.cli = graphql.NewClient(a.pushAPI, client)
 
 	go a.runSender(ctx)
 	return a, nil

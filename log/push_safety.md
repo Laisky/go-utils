@@ -30,3 +30,23 @@ through explicit `errors.Is`/`errors.As` classification, but is not part of a
 printable `Unwrap` chain. Do not log an original error extracted with `errors.As`.
 HTTP response payloads and user-provided message bodies are separate data and
 must not contain credentials intended to remain secret from their recipients.
+
+## Secure HTTP transport
+
+Prefer `NewSecurePusherHTTPSender(client, endpoint, headers)`, which returns
+`(*PusherHTTPSender, error)`. It validates an explicit HTTPS endpoint without URL
+userinfo, and refuses **all** redirects before forwarding headers or replaying a
+body, including same-origin redirects. Configure the final HTTPS URL directly.
+The legacy `NewPusherHTTPSender` remains available with its original plaintext
+and caller-selected redirect behavior, but is deprecated for security-sensitive use.
+
+The secure constructor copies the client configuration and headers, replacing
+only the copy's redirect policy. Its transport and cookie jar remain shared.
+Custom transports are trusted code: they must verify TLS, honor context, and not
+follow redirects internally. A custom TLS configuration disabling verification
+voids the confidentiality guarantee. The endpoint policy is not an SSRF filter;
+choose a trusted destination and restrict egress separately where required.
+Payloads, status handling, deadlines, and Pusher lifecycle semantics are unchanged.
+There is no automatic retry through the legacy transport after a secure failure.
+Rolling upgrades can use either constructor against the same final HTTPS endpoint
+and unchanged receiver; rollback to the legacy constructor loses these guarantees.
