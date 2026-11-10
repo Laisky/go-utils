@@ -33,6 +33,10 @@ type fifoNode struct {
 
 // FIFO is a lock-free First-In-First-Out queue
 //
+// Dequeued nodes are reclaimed by the garbage collector after concurrent
+// operations release their references. The current head is a sentinel and may
+// retain the most recently dequeued value until the next successful Get.
+//
 // paper: https://1drv.ms/b/s!Au45o0W1gVVLuNxYkPzfBo4fOssFPQ?e=TYxHKl
 type FIFO struct {
 	// head the node that before real head node
@@ -42,9 +46,8 @@ type FIFO struct {
 	// unsafe.pointer will tell gc not to remove object in heap
 	head unsafe.Pointer
 	// tail maybe(maynot) the tail node in queue
-	tail  unsafe.Pointer
-	len   int64
-	dummy unsafe.Pointer
+	tail unsafe.Pointer
+	len  int64
 }
 
 // emptyNode is the default value to unsafe.pointer as an empty pointer
@@ -62,10 +65,11 @@ func NewFIFO() *FIFO {
 	dummyNode.d = "dummy"
 	dummyNode.next = unsafe.Pointer(emptyNode) // #nosec G103 -- lock-free queue relies on atomic pointer sentinel.
 
+	// Keep only the moving head and tail roots. Retaining the original dummy
+	// would keep every node and payload reachable through its next links.
 	return &FIFO{
-		head:  unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
-		tail:  unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
-		dummy: unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
+		head: unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
+		tail: unsafe.Pointer(dummyNode), // #nosec G103 -- lock-free queue uses unsafe pointers for atomic CAS.
 	}
 }
 
