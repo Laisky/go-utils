@@ -61,7 +61,7 @@ const (
 	argon2idMaxDecimalDigits = 10
 
 	// argon2idMemoryBudgetKiB bounds the Argon2id memory that all concurrent
-	// PasswordHash and VerifyHashedPassword calls may hold at once (512 MiB):
+	// password hashing, password encryption and mnemonic calls may hold at once (512 MiB):
 	// eight default-cost operations, or two operations at argon2idMaxMemoryKiB.
 	argon2idMemoryBudgetKiB = 2 * argon2idMaxMemoryKiB
 )

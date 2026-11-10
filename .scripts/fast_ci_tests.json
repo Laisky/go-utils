@@ -33,5 +33,13 @@
       "TestAlertCoverageCoreRejectedAdmission",
       "TestAlertCoverageDirectTextRejectsInvalid"
     ]
+  },
+  {
+    "package": "./crypto",
+    "tests": [
+      "TestMnemonicSecurity_SharedBudget",
+      "TestMnemonicSecurity_ContextAdmission",
+      "TestMnemonicSecurity_HistoricalCompatibility"
+    ]
   }
 ]

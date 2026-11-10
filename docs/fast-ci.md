@@ -9,11 +9,13 @@ for full local dev/staging verification before promoting relevant Go changes.
 ## Automatic gate
 
 `Test / test` pins Go 1.26.10 with `GOTOOLCHAIN=local`, checks every
-tracked Go source with `gofmt -s -l`, and runs twenty named tests from
+tracked Go source with `gofmt -s -l`, and runs the named tests from
 `.scripts/fast_ci_tests.json`. These cover a SHA-256 vector, URL password masking,
 slice cleanup, JSON validation/comment handling, logger field isolation/filtering,
 and HTTP alert content, bounds, callback failures, context snapshots, native and
 nested values, rich error groups, panic rejection and direct-text validation.
+The crypto allowlist also checks shared Argon2id admission for mnemonic import
+and export, queued cancellation, and frozen historical-format interoperability.
 They need no external service, Tongsuo, benchmark, fuzz or long timing campaign.
 The selected packages compile normally, including their existing test files.
 

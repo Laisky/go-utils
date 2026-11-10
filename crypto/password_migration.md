@@ -113,3 +113,30 @@ Argon2id records do not pass through general-purpose digest iteration. Legacy
 writing and verification still do by design for compatibility. Deprecation does
 not make those legacy records memory-hard. Full security qualification should
 include the application migration gate and its permitted rollback versions.
+
+## Mnemonic key import and export admission
+
+Encrypted `PrikeyToMnemonic` and `MnemonicToPrikey` operations share the same
+512 MiB Argon2id memory budget as password hashing and password encryption.
+Previously these two paths bypassed that budget. Their existing signatures
+remain unchanged and wait for admission with a background context.
+
+Use `PrikeyToMnemonicContext(ctx, key, opts...)` and
+`MnemonicToPrikeyContext(ctx, mnemonic, opts...)` to cancel waiting for budget.
+Cancellation does not interrupt an already admitted Argon2id computation.
+Unencrypted mnemonic operations do not acquire budget and are unaffected by
+context cancellation. Applications should additionally bound incoming request
+concurrency and queue duration; this memory budget is not an ingress rate limit.
+
+This is an admission-only correction: the historical Argon2id parameters
+(`m=65536`, `t=3`, `p=4`, 32-byte salt, 32-byte key), encrypted marker, extended
+mnemonic checksum and AES-GCM layout are unchanged. Existing backups remain
+readable, and new backups remain readable by historical releases, including
+rollback readers. No re-encryption or format migration is needed. Password
+ciphertext parameter acceptance has not been tightened by this change.
+
+`testdata/mnemonic_v1_compatibility.json` freezes synthetic historical-format
+ciphertext generated independently with Python cryptography. Regression tests
+check old-format writer/new-reader and new-writer/independent legacy-reader
+interoperability, including both original and context-aware APIs. They also
+hold the full shared budget to demonstrate blocking, release, and cancellation.
