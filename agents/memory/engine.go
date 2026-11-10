@@ -17,6 +17,9 @@ func newStandardEngine(storage storageengine.Engine, conf Config) (*StandardEngi
 	if storage == nil {
 		return nil, errors.Errorf("storage is required")
 	}
+	if err := validateArchiveFormat(conf.ArchiveFormat); err != nil {
+		return nil, errors.Wrap(err, "validate archive format")
+	}
 
 	if conf.RecentContextItems <= 0 {
 		conf.RecentContextItems = defaultRecentContextItems

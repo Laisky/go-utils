@@ -101,15 +101,11 @@ func (engine *StandardEngine) archiveRawShards(ctx context.Context, project, ses
 		}
 
 		archivePath := archiveShardPath(sessionID, shardDate, path.Base(info.Path))
-		if writeErr := engine.storage.Write(
-			ctx,
-			project,
-			archivePath,
-			string(compressed),
-			storageengine.WriteModeTruncate,
-			0,
-		); writeErr != nil {
-			return errors.Wrapf(writeErr, "write archive shard %s", archivePath)
+		if engine.conf.ArchiveFormat == ArchiveFormatZstdBase64V1 {
+			archivePath += ".b64.json"
+		}
+		if writeErr := engine.writeVerifiedArchive(ctx, project, archivePath, compressed); writeErr != nil {
+			return errors.Wrapf(writeErr, "persist archive shard %s", archivePath)
 		}
 		if delErr := engine.storage.Delete(ctx, project, info.Path, false); delErr != nil {
 			return errors.Wrapf(delErr, "delete raw shard %s", info.Path)

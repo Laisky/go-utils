@@ -33,5 +33,15 @@
       "TestAlertCoverageCoreRejectedAdmission",
       "TestAlertCoverageDirectTextRejectsInvalid"
     ]
+  },
+  {
+    "package": "./agents/memory",
+    "tests": [
+      "TestArchiveLegacyMCPRetainsRaw",
+      "TestArchivePortableJSONRoundTrip",
+      "TestArchiveLocalCompatibility",
+      "TestArchiveReadFailureRetainsRaw",
+      "TestArchiveFormatRejectsInvalid"
+    ]
   }
 ]

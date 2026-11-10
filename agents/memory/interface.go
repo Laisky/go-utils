@@ -99,6 +99,10 @@ type Config struct {
 	CompactionMinAge       time.Duration
 	SummaryRefreshInterval time.Duration
 	MaxProcessedTurns      int
+	// ArchiveFormat selects the representation for newly archived raw shards.
+	// The zero value preserves historical binary .zst files. Text-only backends
+	// such as MCP require the explicit ArchiveFormatZstdBase64V1 opt-in.
+	ArchiveFormat ArchiveFormat
 	// LLMAPIBase is the OpenAI-compatible endpoint base.
 	// Supported forms:
 	//   - full endpoint: https://host[/optional-prefix]/v1/responses
