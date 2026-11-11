@@ -15,7 +15,8 @@ slice cleanup, JSON validation/comment handling, logger field isolation/filterin
 and HTTP alert content, bounds, callback failures, context snapshots, native and
 nested values, rich error groups, panic rejection and direct-text validation.
 The crypto allowlist also checks shared Argon2id admission for mnemonic import
-and export, queued cancellation, and frozen historical-format interoperability.
+and export, queued/admitted cancellation, a bounded service-ingress example,
+and frozen historical-format interoperability.
 They need no external service, Tongsuo, benchmark, fuzz or long timing campaign.
 The selected packages compile normally, including their existing test files.
 

@@ -135,7 +135,7 @@ func TestMnemonicSecurity_SharedBudget(t *testing.T) {
 			select {
 			case err := <-done:
 				t.Fatalf("mnemonic %s bypassed occupied Argon2id budget: %v", operation.name, err)
-			case <-time.After(2 * time.Second):
+			case <-time.After(50 * time.Millisecond):
 			}
 			require.Equal(t, before, argon2idDerivations.Load())
 			argon2idMemoryBudget.Release(argon2idMemoryBudgetKiB)

@@ -39,6 +39,8 @@
     "tests": [
       "TestMnemonicSecurity_SharedBudget",
       "TestMnemonicSecurity_ContextAdmission",
+      "TestMnemonicSecurity_CancelAdmittedKDF",
+      "TestMnemonicSecurity_ServiceAdmission",
       "TestMnemonicSecurity_HistoricalCompatibility"
     ]
   }

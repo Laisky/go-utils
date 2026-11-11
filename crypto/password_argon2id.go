@@ -268,7 +268,8 @@ func decodeArgon2idBase64(field string, minLen, maxLen int) ([]byte, error) {
 // returns keyLen bytes. It re-validates params and keyLen, then waits on the
 // package memory budget so concurrent derivations stay within
 // argon2idMemoryBudgetKiB. It returns an error when the parameters are out of
-// bounds or ctx ends before the budget becomes available.
+// bounds or ctx ends while waiting or deriving. An admitted derivation cannot be
+// interrupted, but its result is discarded if cancellation is observed afterward.
 func deriveArgon2idKey(ctx context.Context,
 	password, salt []byte, params argon2idParams, keyLen int) ([]byte, error) {
 	if err := params.validate(); err != nil {
@@ -286,12 +287,17 @@ func deriveArgon2idKey(ctx context.Context,
 	defer argon2idMemoryBudget.Release(weight)
 
 	argon2idDerivations.Add(1)
-	glog.Shared.Debug("derive argon2id password key",
+	glog.Shared.Debug("derive argon2id key",
 		zap.Uint32("memory_kib", params.memoryKiB),
 		zap.Uint32("time", params.time),
 		zap.Uint8("threads", params.threads))
 
-	return argon2.IDKey(password, salt, params.time, params.memoryKiB, params.threads, uint32(keyLen)), nil
+	key := argon2.IDKey(password, salt, params.time, params.memoryKiB, params.threads, uint32(keyLen))
+	if err := ctx.Err(); err != nil {
+		clear(key)
+		return nil, errors.Wrap(err, "argon2id derivation canceled")
+	}
+	return key, nil
 }
 
 // newArgon2idPasswordRecord derives a new record for password with params, a

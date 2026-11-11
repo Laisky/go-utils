@@ -266,7 +266,8 @@ func PrikeyToMnemonic(key crypto.PrivateKey, opts ...MnemonicOption) (string, er
 
 // PrikeyToMnemonicContext encodes key with the same format and options as
 // PrikeyToMnemonic, returning the phrase or an error. ctx may cancel waiting for
-// the shared Argon2id memory budget; it cannot interrupt an admitted derivation.
+// the shared Argon2id memory budget; it cannot interrupt an admitted derivation,
+// but a canceled derivation returns an error rather than a successful result.
 func PrikeyToMnemonicContext(ctx context.Context, key crypto.PrivateKey, opts ...MnemonicOption) (string, error) {
 	var o mnemonicOption
 	if err := o.apply(opts...); err != nil {
@@ -300,7 +301,8 @@ func MnemonicToPrikey(mnemonic string, opts ...MnemonicOption) (crypto.PrivateKe
 
 // MnemonicToPrikeyContext decodes mnemonic with the same format and options as
 // MnemonicToPrikey, returning the key or an error. ctx may cancel waiting for
-// the shared Argon2id memory budget; it cannot interrupt an admitted derivation.
+// the shared Argon2id memory budget; it cannot interrupt an admitted derivation,
+// but a canceled derivation returns an error rather than a successful result.
 func MnemonicToPrikeyContext(ctx context.Context, mnemonic string, opts ...MnemonicOption) (crypto.PrivateKey, error) {
 	var o mnemonicOption
 	if err := o.apply(opts...); err != nil {
@@ -349,6 +351,7 @@ func mnemonicEncryptDERContext(ctx context.Context, der []byte, passphrase strin
 	if err != nil {
 		return nil, errors.Wrap(err, "derive mnemonic encryption key")
 	}
+	defer clear(aesKey)
 
 	ciphertext, err := AEADEncrypt(aesKey, der, nil)
 	if err != nil {
@@ -361,11 +364,6 @@ func mnemonicEncryptDERContext(ctx context.Context, der []byte, passphrase strin
 	copy(result[1:], salt)
 	copy(result[1+mnemonicPassphraseSaltLen:], ciphertext)
 	return result, nil
-}
-
-// mnemonicDecryptDER decrypts DER bytes from the encrypted format.
-func mnemonicDecryptDER(data []byte, passphrase string) ([]byte, error) {
-	return mnemonicDecryptDERContext(context.Background(), data, passphrase)
 }
 
 // mnemonicDecryptDERContext decrypts data using passphrase, returning DER bytes
@@ -391,6 +389,7 @@ func mnemonicDecryptDERContext(ctx context.Context, data []byte, passphrase stri
 	if err != nil {
 		return nil, errors.Wrap(err, "derive mnemonic encryption key")
 	}
+	defer clear(aesKey)
 
 	der, err := AEADDecrypt(aesKey, ciphertext, nil)
 	if err != nil {
