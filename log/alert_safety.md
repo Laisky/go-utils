@@ -26,3 +26,18 @@ never substitutes a marker or omits a field to fit. The existing nonblocking
 Local admission is not recipient delivery. `Close` cancels rather than flushes;
 `Done` follows release of queued payload references. Transport diagnostics remain
 fixed messages without application payload, alert token or raw remote error.
+
+## Caller-controlled HTTP delivery
+
+Use `WithAlertHTTPClient(client)` to configure transport, TLS trust, proxy,
+cookies, redirects and client timeout. The supplied client is used without
+mutation. Do not mutate it concurrently with delivery. A nil or omitted client
+retains the existing standard `net/http` client with the alert timeout.
+`WithAlertPushTimeout` still bounds every request through its context; a shorter
+client timeout also applies. Close cancels in-flight requests rather than flushing.
+
+HTTP endpoints and redirects remain supported. Go 307/308 redirects can replay
+the GraphQL POST body, including its token and message, and custom headers can
+be forwarded to another origin. Choose destinations and redirect policy suitable
+for your application. This documented HTTP behavior is not an SDK-created
+vulnerability and does not justify overriding explicit caller policy.
