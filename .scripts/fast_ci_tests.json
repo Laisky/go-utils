@@ -55,5 +55,17 @@
       "TestFIFOCompatibility",
       "TestFIFOConcurrentExactlyOnce"
     ]
+  },
+  {
+    "package": "./agents/memory",
+    "tests": [
+      "TestArchiveLegacyMCPRetainsRaw",
+      "TestArchivePortableJSONRoundTrip",
+      "TestArchiveLocalCompatibility",
+      "TestArchiveReadFailureRetainsRaw",
+      "TestArchiveFormatRejectsInvalid",
+      "TestArchiveFailureDoesNotBlockRetention",
+      "TestMaintenancePartialFailure"
+    ]
   }
 ]

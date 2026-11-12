@@ -19,6 +19,7 @@ and export, queued/admitted cancellation, a bounded service-ingress example,
 and frozen historical-format interoperability.
 The FIFO regressions also cover bounded dequeued-payload retention, nil and
 ordering compatibility, and exactly-once delivery under concurrent GC.
+The archive tests also cover real JSON transport, readback failures and historical zstd compatibility, independent retention after archive failure, error aggregation and cancellation.
 They need no external service, Tongsuo, benchmark, fuzz or long timing campaign.
 The selected packages compile normally, including their existing test files.
 
