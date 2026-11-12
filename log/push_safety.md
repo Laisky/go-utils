@@ -30,3 +30,16 @@ through explicit `errors.Is`/`errors.As` classification, but is not part of a
 printable `Unwrap` chain. Do not log an original error extracted with `errors.As`.
 HTTP response payloads and user-provided message bodies are separate data and
 must not contain credentials intended to remain secret from their recipients.
+
+## Caller-controlled HTTP delivery
+
+`NewPusherHTTPSender` retains the supplied client's Transport, CheckRedirect,
+Timeout and Jar in its existing shallow configuration copy. Transport and jar
+remain shared; callers must not mutate them concurrently. A nil client uses
+standard `net/http` defaults. HTTP, TLS trust, proxy and redirect choices belong
+to the application. Existing payload, header-copy and deadline behavior is unchanged.
+
+Standard Go 307/308 redirects may replay POST bodies and forward custom credential
+headers to another origin. Configure the client and trusted destinations for your
+application's needs. Supporting that explicit policy is not itself an SDK defect.
+SDK diagnostics continue to redact endpoint secrets and raw transport errors.

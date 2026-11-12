@@ -54,6 +54,7 @@ type Alert struct {
 
 // alertOption holds configuration options for the Alert hook.
 type alertOption struct {
+	httpClient *http.Client
 	// encFactory permits deterministic encoder-failure testing without shared encoder state.
 	encFactory  func() zapcore.Encoder
 	level       zapcore.LevelEnabler
@@ -98,6 +99,17 @@ func WithAlertHookLevel(level zapcore.Level) AlertOption {
 			Shared.Warn("level is better higher than warn")
 		}
 		o.level = level
+		return nil
+	}
+}
+
+// WithAlertHTTPClient uses client as configured for alert delivery without mutating it.
+// A nil client retains the default client. Transport, redirects, cookies and TLS
+// remain caller-controlled; the per-request alert timeout and cancellation still apply.
+// Callers must not mutate the client concurrently with delivery.
+func WithAlertHTTPClient(client *http.Client) AlertOption {
+	return func(o *alertOption) error {
+		o.httpClient = client
 		return nil
 	}
 }
@@ -178,9 +190,11 @@ func NewAlert(ctx context.Context, pushAPI string,
 		ctx:         ctx, cancel: cancel, done: make(chan struct{}),
 	}
 
-	a.cli = graphql.NewClient(a.pushAPI, &http.Client{
-		Timeout: a.timeout,
-	})
+	client := opt.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: a.timeout}
+	}
+	a.cli = graphql.NewClient(a.pushAPI, client)
 
 	go a.runSender(ctx)
 	return a, nil

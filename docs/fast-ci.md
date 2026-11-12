@@ -79,3 +79,7 @@ their race, full-suite and fuzz checks are unchanged. These security jobs can
 exceed the essential gate's five-minute target; changing them requires a separately scoped
 security decision. Branch protection, secrets and deployment settings are
 unchanged by this scheduling amendment.
+
+The log transport contract gate also verifies default and caller-selected redirect
+behavior, HTTP client configuration fidelity, request cancellation, and nil-client
+compatibility using local fixtures. It does not impose application transport policy.

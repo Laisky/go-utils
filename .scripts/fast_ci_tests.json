@@ -31,7 +31,11 @@
       "TestAlertCoverageExpansionBudgetsRejectWholeRecord",
       "TestAlertCoverageCoreLegacyNamespace",
       "TestAlertCoverageCoreRejectedAdmission",
-      "TestAlertCoverageDirectTextRejectsInvalid"
+      "TestAlertCoverageDirectTextRejectsInvalid",
+      "TestLogCallerRedirectPolicy",
+      "TestAlertHTTPClientConfiguration",
+      "TestAlertHTTPClientCancellation",
+      "TestAlertNilHTTPClient"
     ]
   },
   {
