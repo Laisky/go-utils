@@ -87,7 +87,9 @@ func DecodeArchive(format ArchiveFormat, content string) ([]byte, error) {
 // writeVerifiedArchive persists frame and verifies byte-for-byte readback before
 // allowing the caller to remove its raw source. This proves the exact output of
 // compressZstd survived storage, including a real JSON/UTF-8 transport boundary.
-func (engine *StandardEngine) writeVerifiedArchive(ctx context.Context, project, archivePath string, frame []byte) error {
+func (engine *StandardEngine) writeVerifiedArchive(
+	ctx context.Context, project, archivePath string, frame []byte,
+) error {
 	body, err := encodeArchive(engine.conf.ArchiveFormat, frame)
 	if err != nil {
 		return errors.Wrap(err, "encode archive")
@@ -104,7 +106,8 @@ func (engine *StandardEngine) writeVerifiedArchive(ctx context.Context, project,
 		return errors.Wrap(err, "decode archive for verification; raw shard retained")
 	}
 	if !bytes.Equal(frame, persistedFrame) {
-		return errors.New("archive readback differs from compressed source; raw shard retained; text-only storage requires ArchiveFormatZstdBase64V1")
+		return errors.New("archive readback differs from compressed source; raw shard retained; " +
+			"text-only storage requires ArchiveFormatZstdBase64V1")
 	}
 	return nil
 }

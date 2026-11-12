@@ -2,10 +2,11 @@ package memory
 
 import (
 	"context"
-	"github.com/Laisky/errors/v2"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Laisky/errors/v2"
 
 	"github.com/stretchr/testify/require"
 

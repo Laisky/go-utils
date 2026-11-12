@@ -68,10 +68,14 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 	if !runStage("archive raw shards", func() error { return engine.archiveRawShards(ctx, project, sessionID) }) {
 		return errors.Join(stageErrors...)
 	}
-	if !runStage("sweep expired L1 facts", func() error { return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1) }) {
+	if !runStage("sweep expired L1 facts", func() error {
+		return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1)
+	}) {
 		return errors.Join(stageErrors...)
 	}
-	if !runStage("sweep expired L2 facts", func() error { return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2) }) {
+	if !runStage("sweep expired L2 facts", func() error {
+		return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2)
+	}) {
 		return errors.Join(stageErrors...)
 	}
 	if len(stageErrors) == 0 {
