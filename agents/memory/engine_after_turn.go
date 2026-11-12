@@ -239,6 +239,9 @@ func (engine *StandardEngine) processTurnFacts(
 	if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
 		metrics.DedupeSkipCount += mutationPlan.DedupeSkipCount
 	}); metricsErr != nil {
+		if engine.strictPersistence {
+			return ActiveFactsIndex{}, errors.Wrap(metricsErr, "update transactional fact metrics")
+		}
 		// Metrics must not break persistence.
 	}
 
@@ -256,6 +259,9 @@ func (engine *StandardEngine) finalizeAfterTurn(
 	persistedTrimCount int,
 ) error {
 	watermarks, watermarkErr := engine.loadWatermarks(ctx, in.Project, in.SessionID)
+	if watermarkErr != nil && engine.strictPersistence {
+		return errors.Wrap(watermarkErr, "load transactional turn watermarks")
+	}
 	if watermarkErr == nil {
 		watermarks.LastProcessedTurnID = in.TurnID
 		if len(events) > 0 {
@@ -265,11 +271,18 @@ func (engine *StandardEngine) finalizeAfterTurn(
 			watermarks.RuntimeContextCount += len(events)
 		}
 		watermarks.ActiveFactCount = len(activeIndex.Facts)
-		_ = engine.writeWatermarks(ctx, in.Project, in.SessionID, watermarks)
+		if err := engine.writeWatermarks(
+			ctx, in.Project, in.SessionID, watermarks,
+		); err != nil && engine.strictPersistence {
+			return errors.Wrap(err, "write transactional turn watermarks")
+		}
 	}
 	if metricsErr := engine.mutateMetrics(ctx, in.Project, in.SessionID, func(metrics *MemoryMetrics) {
 		metrics.PersistedHistoryTrimCount += max(0, persistedTrimCount)
 	}); metricsErr != nil {
+		if engine.strictPersistence {
+			return errors.Wrap(metricsErr, "update transactional turn metrics")
+		}
 		// Metrics must not break persistence.
 	}
 

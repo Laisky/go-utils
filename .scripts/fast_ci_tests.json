@@ -65,7 +65,11 @@
       "TestArchiveReadFailureRetainsRaw",
       "TestArchiveFormatRejectsInvalid",
       "TestArchiveFailureDoesNotBlockRetention",
-      "TestMaintenancePartialFailure"
+      "TestMaintenancePartialFailure",
+      "TestTransactionalTurnCommitAcknowledgementLost",
+      "TestTransactionalTurnConcurrentInstances",
+      "TestTransactionalTurnRecordCompatibility",
+      "TestTransactionalTurnMetadataReadFailure"
     ]
   }
 ]

@@ -83,3 +83,7 @@ unchanged by this scheduling amendment.
 The log transport contract gate also verifies default and caller-selected redirect
 behavior, HTTP client configuration fidelity, request cancellation, and nil-client
 compatibility using local fixtures. It does not impose application transport policy.
+
+The memory transaction contract gate also verifies independent concurrent engines,
+post-commit acknowledgement loss, byte-compatible legacy records, and rollback
+after ignored metadata-read failures using the opt-in local backend.

@@ -535,14 +535,17 @@ host (there is no implicit loopback exception). The built-in client only follows
 | `InputItems`        | No       | Legacy input path. When callers pass `BeforeTurnOutput.InputItems`, engine strips generated `<memory_reference>` blocks and trims a replayed recent-context prefix before persisting turn delta. |
 | `OutputItems`       | No       | Model output items to persist as turn events.                                                                                                                                                    |
 
+For atomic persistence with a capable backend, use the explicit
+[`NewTransactionalEngine`](../memory-transactions.md) API. The following limitation
+applies to the unchanged `NewEngine` API.
+
 **Persistence limitation:** `AfterTurn` suppresses a sequential repeat of a
 successfully recorded turn only while its `TurnID` remains in
 `processed_turn_ids` (bounded by `MaxProcessedTurns`). This is not atomic
 persistence or exactly-once processing. Retries after partial failures or
 ambiguous acknowledgements, and concurrent calls from independent engines,
 can duplicate events or lose updates. See [recovery and concurrency
-limitations](../../agents/memory/transaction_safety.md). Issue #145 remains
-unresolved.
+limitations](../../agents/memory/transaction_safety.md).
 
 
 V2 recommendation:
@@ -781,14 +784,17 @@ From `agents/memory/storage/local` implementation:
 
 ### 10.2 `AfterTurn`
 
+For atomic persistence with a capable backend, use the explicit
+[`NewTransactionalEngine`](../memory-transactions.md) API. The following limitation
+applies to the unchanged `NewEngine` API.
+
 **Persistence limitation:** `AfterTurn` suppresses a sequential repeat of a
 successfully recorded turn only while its `TurnID` remains in
 `processed_turn_ids` (bounded by `MaxProcessedTurns`). This is not atomic
 persistence or exactly-once processing. Retries after partial failures or
 ambiguous acknowledgements, and concurrent calls from independent engines,
 can duplicate events or lose updates. See [recovery and concurrency
-limitations](../../agents/memory/transaction_safety.md). Issue #145 remains
-unresolved.
+limitations](../../agents/memory/transaction_safety.md).
 
 1. Ensure scaffold files (`policy`, summaries, watermarks)
 2. Check retained processed-turn IDs for a previously completed sequential turn
