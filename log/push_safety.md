@@ -31,22 +31,15 @@ printable `Unwrap` chain. Do not log an original error extracted with `errors.As
 HTTP response payloads and user-provided message bodies are separate data and
 must not contain credentials intended to remain secret from their recipients.
 
-## Secure HTTP transport
+## Caller-controlled HTTP delivery
 
-Prefer `NewSecurePusherHTTPSender(client, endpoint, headers)`, which returns
-`(*PusherHTTPSender, error)`. It validates an explicit HTTPS endpoint without URL
-userinfo, and refuses **all** redirects before forwarding headers or replaying a
-body, including same-origin redirects. Configure the final HTTPS URL directly.
-The legacy `NewPusherHTTPSender` remains available with its original plaintext
-and caller-selected redirect behavior, but is deprecated for security-sensitive use.
+`NewPusherHTTPSender` retains the supplied client's Transport, CheckRedirect,
+Timeout and Jar in its existing shallow configuration copy. Transport and jar
+remain shared; callers must not mutate them concurrently. A nil client uses
+standard `net/http` defaults. HTTP, TLS trust, proxy and redirect choices belong
+to the application. Existing payload, header-copy and deadline behavior is unchanged.
 
-The secure constructor copies the client configuration and headers, replacing
-only the copy's redirect policy. Its transport and cookie jar remain shared.
-Custom transports are trusted code: they must verify TLS, honor context, and not
-follow redirects internally. A custom TLS configuration disabling verification
-voids the confidentiality guarantee. The endpoint policy is not an SSRF filter;
-choose a trusted destination and restrict egress separately where required.
-Payloads, status handling, deadlines, and Pusher lifecycle semantics are unchanged.
-There is no automatic retry through the legacy transport after a secure failure.
-Rolling upgrades can use either constructor against the same final HTTPS endpoint
-and unchanged receiver; rollback to the legacy constructor loses these guarantees.
+Standard Go 307/308 redirects may replay POST bodies and forward custom credential
+headers to another origin. Configure the client and trusted destinations for your
+application's needs. Supporting that explicit policy is not itself an SDK defect.
+SDK diagnostics continue to redact endpoint secrets and raw transport errors.

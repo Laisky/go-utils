@@ -27,22 +27,17 @@ Local admission is not recipient delivery. `Close` cancels rather than flushes;
 `Done` follows release of queued payload references. Transport diagnostics remain
 fixed messages without application payload, alert token or raw remote error.
 
-## Secure HTTP transport
+## Caller-controlled HTTP delivery
 
-Prefer `NewSecureAlert(ctx, endpoint, client, opts...)`. A nil client uses the
-standard HTTP transport. The endpoint must be explicit HTTPS without URL userinfo;
-all redirects are rejected before transmission, even on the same origin. Set the
-final HTTPS URL rather than relying on a redirect. Invalid endpoints start no worker.
+Use `WithAlertHTTPClient(client)` to configure transport, TLS trust, proxy,
+cookies, redirects and client timeout. The supplied client is used without
+mutation. Do not mutate it concurrently with delivery. A nil or omitted client
+retains the existing standard `net/http` client with the alert timeout.
+`WithAlertPushTimeout` still bounds every request through its context; a shorter
+client timeout also applies. Close cancels in-flight requests rather than flushing.
 
-The constructor shallow-copies the supplied client, replacing its redirect policy
-without mutating the caller. Transport and cookie jar remain shared and trusted.
-Custom transports must verify TLS, honor context, and not redirect internally;
-TLS verification disabled by a caller is outside the security guarantee. This is
-not an SSRF filter. `WithAlertPushTimeout` still bounds each request, and a shorter
-client timeout also applies. GraphQL mutation names, variables (including the
-body token), field handling, queue admission, Close, and Done are unchanged.
-
-`NewAlert` is deprecated but retains legacy HTTP and redirect behavior. Migration
-requires a final HTTPS endpoint; no server or payload migration is needed. Old
-and new clients can coexist against that endpoint. Rolling back to `NewAlert`
-restores the legacy transport risks; secure clients never silently fall back.
+HTTP endpoints and redirects remain supported. Go 307/308 redirects can replay
+the GraphQL POST body, including its token and message, and custom headers can
+be forwarded to another origin. Choose destinations and redirect policy suitable
+for your application. This documented HTTP behavior is not an SDK-created
+vulnerability and does not justify overriding explicit caller policy.

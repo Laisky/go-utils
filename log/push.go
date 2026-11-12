@@ -70,10 +70,7 @@ type PusherHTTPSender struct {
 	httpcli        *http.Client
 }
 
-// NewPusherHTTPSender creates a sender with the caller's legacy HTTP policy.
-//
-// Deprecated: Use NewSecurePusherHTTPSender for HTTPS-only, redirect-free delivery.
-// Migration requires an explicit HTTPS endpoint; legacy HTTP and redirects remain supported here.
+// NewPusherHTTPSender create new PusherHTTPSender
 func NewPusherHTTPSender(
 	httpcli *http.Client,
 	remoteEndpoint string,

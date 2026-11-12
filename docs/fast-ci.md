@@ -9,7 +9,7 @@ for full local dev/staging verification before promoting relevant Go changes.
 ## Automatic gate
 
 `Test / test` pins Go 1.26.10 with `GOTOOLCHAIN=local`, checks every
-tracked Go source with `gofmt -s -l`, and runs twenty-three named tests from
+tracked Go source with `gofmt -s -l`, and runs twenty-seven named tests from
 `.scripts/fast_ci_tests.json`. These cover a SHA-256 vector, URL password masking,
 slice cleanup, JSON validation/comment handling, logger field isolation/filtering,
 and HTTP alert content, bounds, callback failures, context snapshots, native and
@@ -75,3 +75,7 @@ their race, full-suite and fuzz checks are unchanged. These security jobs can
 exceed the essential gate's five-minute target; changing them requires a separately scoped
 security decision. Branch protection, secrets and deployment settings are
 unchanged by this scheduling amendment.
+
+The log transport contract gate also verifies default and caller-selected redirect
+behavior, HTTP client configuration fidelity, request cancellation, and nil-client
+compatibility using local fixtures. It does not impose application transport policy.

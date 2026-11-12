@@ -54,6 +54,7 @@ type Alert struct {
 
 // alertOption holds configuration options for the Alert hook.
 type alertOption struct {
+	httpClient *http.Client
 	// encFactory permits deterministic encoder-failure testing without shared encoder state.
 	encFactory  func() zapcore.Encoder
 	level       zapcore.LevelEnabler
@@ -98,6 +99,17 @@ func WithAlertHookLevel(level zapcore.Level) AlertOption {
 			Shared.Warn("level is better higher than warn")
 		}
 		o.level = level
+		return nil
+	}
+}
+
+// WithAlertHTTPClient uses client as configured for alert delivery without mutating it.
+// A nil client retains the default client. Transport, redirects, cookies and TLS
+// remain caller-controlled; the per-request alert timeout and cancellation still apply.
+// Callers must not mutate the client concurrently with delivery.
+func WithAlertHTTPClient(client *http.Client) AlertOption {
+	return func(o *alertOption) error {
+		o.httpClient = client
 		return nil
 	}
 }
@@ -150,20 +162,12 @@ type alertMsg struct {
 	alertType, pushToken, msg string
 }
 
-// NewAlert creates a new Alert hook with the legacy HTTP policy.
-//
-// Deprecated: Use NewSecureAlert for HTTPS-only, redirect-free delivery.
-// Migration requires an explicit HTTPS endpoint; this API retains HTTP and redirects.
+// NewAlert creates a new Alert hook.
 //
 // It's better to set an ratelimiter by WithRateLimiter
 // to avoid sending too many alerts.
 func NewAlert(ctx context.Context, pushAPI string,
 	opts ...AlertOption) (a *Alert, err error) {
-	return newAlert(ctx, pushAPI, nil, opts...)
-}
-
-// newAlert constructs an alert with client, or the legacy default when nil.
-func newAlert(ctx context.Context, pushAPI string, client *http.Client, opts ...AlertOption) (a *Alert, err error) {
 	Shared.Debug("create new Alert")
 	if pushAPI == "" {
 		return nil, errors.Errorf("pushAPI should not be empty")
@@ -186,6 +190,7 @@ func newAlert(ctx context.Context, pushAPI string, client *http.Client, opts ...
 		ctx:         ctx, cancel: cancel, done: make(chan struct{}),
 	}
 
+	client := opt.httpClient
 	if client == nil {
 		client = &http.Client{Timeout: a.timeout}
 	}
