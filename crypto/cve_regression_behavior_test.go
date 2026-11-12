@@ -7,6 +7,7 @@ package crypto
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -414,7 +415,7 @@ func TestCVE_Mnemonic_PassphraseTamperAndConfusion(t *testing.T) {
 func TestCVE_Mnemonic_TruncatedEnvelopeRejected(t *testing.T) {
 	t.Parallel()
 
-	_, err := mnemonicDecryptDER([]byte{mnemonicEncryptedMarker, 0x00, 0x01}, "pass")
+	_, err := mnemonicDecryptDERContext(context.Background(), []byte{mnemonicEncryptedMarker, 0x00, 0x01}, "pass")
 	require.Error(t, err, "truncated encrypted envelope must be rejected")
 }
 

@@ -1,0 +1,7 @@
+{
+  "provenance": "Independent reproduction of the pre-149 v1 format using Python cryptography Argon2id and AESGCM. Synthetic Ed25519 seed 00..1f, salt 20..3f, nonce 40..4b. Never regenerate in tests.",
+  "passphrase": "mnemonic compatibility fixture",
+  "der_hex": "302e020100300506032b657004220420000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "encrypted_hex": "e1202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b7163d99e8e5d8713d9d5c1ae19e4057a17a4e5c5d0dbf8447fc3cb2ba470c73bb17d7a2a0decf0ccf326d35132004975394a7f6da6dca470c9541ec8d92e6fb4",
+  "mnemonic": "absurd address joke doctor banana bag mountain pill cheese donor enhance film security novel rubber alert cram often ask hockey inform broken trophy guide diamond vehicle source little category peasant bench similar embark engage name tissue diesel soon defense rail because solid idea found oxygen actor tribe virus total company dad vacuum elevator tiger coach innocent ignore degree unable wife pencil alone record book veteran custom stairs goat afraid ritual topple exit horror dad cinnamon thunder next author casino chair hurry plate poverty feature theme"
+}

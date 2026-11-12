@@ -35,6 +35,24 @@
     ]
   },
   {
+    "package": "./crypto",
+    "tests": [
+      "TestMnemonicSecurity_SharedBudget",
+      "TestMnemonicSecurity_ContextAdmission",
+      "TestMnemonicSecurity_CancelAdmittedKDF",
+      "TestMnemonicSecurity_ServiceAdmission",
+      "TestMnemonicSecurity_HistoricalCompatibility"
+    ]
+  },
+  {
+    "package": "./algorithm",
+    "tests": [
+      "TestFIFOBoundedRetention",
+      "TestFIFOCompatibility",
+      "TestFIFOConcurrentExactlyOnce"
+    ]
+  },
+  {
     "package": "./agents/memory",
     "tests": [
       "TestArchiveLegacyMCPRetainsRaw",
