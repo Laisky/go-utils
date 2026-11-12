@@ -33,5 +33,13 @@
       "TestAlertCoverageCoreRejectedAdmission",
       "TestAlertCoverageDirectTextRejectsInvalid"
     ]
+  },
+  {
+    "package": "./algorithm",
+    "tests": [
+      "TestFIFOBoundedRetention",
+      "TestFIFOCompatibility",
+      "TestFIFOConcurrentExactlyOnce"
+    ]
   }
 ]
