@@ -110,7 +110,7 @@ For each turn:
     - recent context,
     - current input.
 4. If estimated token usage crosses a threshold relative to `MaxInputTok`, runtime context compaction is attempted.
-5. `AfterTurn` persists turn events, extracts facts, applies tier/retention policy, writes tier shards, and updates metadata idempotently via `processed_turn_ids`.
+5. `AfterTurn` persists turn events, extracts facts, applies tier/retention policy, writes tier shards, and records a bounded processed-turn marker after persistence.
 
 ### 3.3 Canonical Storage Topology
 
@@ -178,7 +178,16 @@ Output includes:
 
 ### 5.2 `AfterTurn` Pipeline
 
-`AfterTurn` is idempotent by `TurnID` and follows this sequence:
+**Persistence limitation:** `AfterTurn` suppresses a sequential repeat of a
+successfully recorded turn only while its `TurnID` remains in
+`processed_turn_ids` (bounded by `MaxProcessedTurns`). This is not atomic
+persistence or exactly-once processing. Retries after partial failures or
+ambiguous acknowledgements, and concurrent calls from independent engines,
+can duplicate events or lose updates. See [recovery and concurrency
+limitations](../../agents/memory/transaction_safety.md). Issue #145 remains
+unresolved.
+
+`AfterTurn` checks retained completed-turn IDs and follows this sequence:
 
 1. Validate required fields (`project`, `session_id`, `turn_id`).
 2. Ensure session scaffold exists (policy, summaries, watermarks).
@@ -384,6 +393,6 @@ Reliability model in current implementation:
 Operational implications:
 
 - The design favors turn availability over strict maintenance consistency.
-- Idempotency at `AfterTurn` protects against duplicate writes under retries for same `TurnID`.
+- `AfterTurn` suppresses only sequential repeats of successfully recorded turns while their IDs remain retained; partial-failure retries and concurrent writes are not guaranteed safe. See [the persistence contract](../../agents/memory/transaction_safety.md).
 - Without external transaction support, partial multi-file persistence remains possible during abrupt failures.
 - The system already has the structure for richer lifecycle management, but today it does not perform autonomous semantic consolidation across multiple memories; maintenance is operational, and semantic extraction remains turn-local.

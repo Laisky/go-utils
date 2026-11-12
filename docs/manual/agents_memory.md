@@ -472,7 +472,7 @@ Non-positive numeric values are normalized to defaults.
 | `ConsolidationMinEvents` | No       | `6`                   | Minimum raw events before consolidation writes new insight records.   |
 | `CompactionMinAge`       | No       | `24h`                 | Minimum shard age before archive compaction.                          |
 | `SummaryRefreshInterval` | No       | `1h`                  | Summary refresh interval used in policy metadata.                     |
-| `MaxProcessedTurns`      | No       | `1024`                | Max remembered turn IDs for idempotency dedup.                        |
+| `MaxProcessedTurns`      | No       | `1024`                | Maximum retained completed-turn IDs; bounds sequential repeat suppression, not recovery or concurrent-write safety.                        |
 | `LLMAPIBase`             | No       | Empty                 | HTTPS OpenAI-compatible API base/endpoint for heuristic extraction.   |
 | `LLMAPIKey`              | No       | Empty                 | API key for LLM heuristic extractor.                                  |
 | `LLMAllowInsecureHTTP`   | No       | `false`               | Insecure opt-in accepting an `http` `LLMAPIBase` (local dev only).    |
@@ -528,14 +528,22 @@ host (there is no implicit loopback exception). The built-in client only follows
 | `Project`           | Yes      | Tenant/project namespace.                                                                                                                                                                        |
 | `SessionID`         | Yes      | Session identifier.                                                                                                                                                                              |
 | `UserID`            | No       | Optional user identifier.                                                                                                                                                                        |
-| `TurnID`            | Yes      | Turn identifier used for idempotent write dedup (`processed_turn_ids`).                                                                                                                          |
+| `TurnID`            | Yes      | Identifier checked against retained processed-turn IDs; not a transaction or durable exactly-once receipt.                                                                                                                          |
 | `ConversationItems` | No       | Full caller-visible conversation slice used by explicit V2 reconciliation.                                                                                                                       |
 | `CurrentInputStart` | No       | Start index of current-turn items inside `ConversationItems`.                                                                                                                                    |
 | `CurrentInputCount` | No       | Count of current-turn items inside `ConversationItems`.                                                                                                                                          |
 | `InputItems`        | No       | Legacy input path. When callers pass `BeforeTurnOutput.InputItems`, engine strips generated `<memory_reference>` blocks and trims a replayed recent-context prefix before persisting turn delta. |
 | `OutputItems`       | No       | Model output items to persist as turn events.                                                                                                                                                    |
 
-Idempotency note: if `TurnID` already exists in `processed_turn_ids`, `AfterTurn` returns success without duplicating writes.
+**Persistence limitation:** `AfterTurn` suppresses a sequential repeat of a
+successfully recorded turn only while its `TurnID` remains in
+`processed_turn_ids` (bounded by `MaxProcessedTurns`). This is not atomic
+persistence or exactly-once processing. Retries after partial failures or
+ambiguous acknowledgements, and concurrent calls from independent engines,
+can duplicate events or lose updates. See [recovery and concurrency
+limitations](../../agents/memory/transaction_safety.md). Issue #145 remains
+unresolved.
+
 
 V2 recommendation:
 
@@ -773,8 +781,17 @@ From `agents/memory/storage/local` implementation:
 
 ### 10.2 `AfterTurn`
 
+**Persistence limitation:** `AfterTurn` suppresses a sequential repeat of a
+successfully recorded turn only while its `TurnID` remains in
+`processed_turn_ids` (bounded by `MaxProcessedTurns`). This is not atomic
+persistence or exactly-once processing. Retries after partial failures or
+ambiguous acknowledgements, and concurrent calls from independent engines,
+can duplicate events or lose updates. See [recovery and concurrency
+limitations](../../agents/memory/transaction_safety.md). Issue #145 remains
+unresolved.
+
 1. Ensure scaffold files (`policy`, summaries, watermarks)
-2. Enforce idempotency by `processed_turn_ids`
+2. Check retained processed-turn IDs for a previously completed sequential turn
 3. Normalize current-turn inputs from the explicit conversation boundary when provided
 4. Persist only turn-delta inputs (skip injected memory reference and trim replayed recent-context prefix in legacy mode)
 5. Append turn events into raw shard and runtime context
