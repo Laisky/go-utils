@@ -113,3 +113,55 @@ Argon2id records do not pass through general-purpose digest iteration. Legacy
 writing and verification still do by design for compatibility. Deprecation does
 not make those legacy records memory-hard. Full security qualification should
 include the application migration gate and its permitted rollback versions.
+
+## Mnemonic key import and export admission
+
+Encrypted `PrikeyToMnemonic` and `MnemonicToPrikey` operations share the same
+512 MiB Argon2id memory budget as password hashing and password encryption.
+Previously these two paths bypassed that budget. Their existing signatures
+remain unchanged and wait for admission with a background context.
+
+Use `PrikeyToMnemonicContext(ctx, key, opts...)` and
+`MnemonicToPrikeyContext(ctx, mnemonic, opts...)` to cancel waiting for budget.
+Cancellation does not interrupt an already admitted Argon2id computation.
+After it finishes, the shared helper discards its derived key and returns the
+context error if canceled, for every Argon2 consumer. No success result is
+returned by that canceled derivation.
+Unencrypted mnemonic operations do not acquire budget and are unaffected by
+context cancellation. Applications should additionally bound incoming request
+concurrency and queue duration; this memory budget is not an ingress rate limit.
+
+This is an admission-only correction: the historical Argon2id parameters
+(`m=65536`, `t=3`, `p=4`, 32-byte salt, 32-byte key), encrypted marker, extended
+mnemonic checksum and AES-GCM layout are unchanged. Existing backups remain
+readable, and new backups remain readable by historical releases, including
+rollback readers. No re-encryption or format migration is needed. Password
+ciphertext parameter acceptance has not been tightened by this change.
+
+`testdata/mnemonic_v1_compatibility.json` freezes synthetic historical-format
+ciphertext generated independently with Python cryptography. Regression tests
+check old-format writer/new-reader and new-writer/independent legacy-reader
+interoperability, including both original and context-aware APIs. They also
+hold the full shared budget to demonstrate blocking, release, and cancellation.
+
+### Bound ingress at the service boundary
+
+The library intentionally does not cap waiting callers or passphrase length:
+new implicit limits could reject existing callers or make valid historical
+backups unrecoverable. Treat this as a service-boundary requirement, not as a
+512 MiB process-RSS guarantee. Share one fail-fast ingress gate across all
+password and mnemonic routes. Acquire it before reading/decoding a body or
+starting application work; reject overload rather than placing it in another
+unbounded queue. Use `http.MaxBytesReader`, deployment-specific body limits,
+server read timeouts, and request context deadlines. A deadline alone does not
+interrupt arbitrary body reads or a running Argon2 computation. A rate limiter
+alone does not bound concurrent requests. Account for HTTP server connections
+and goroutines separately; application admission cannot bound those.
+
+`argon2_service_admission_test.go` contains an executable handler example and
+behavioral tests: a real mnemonic recovery waits behind the KDF budget, a
+second request is rejected without invoking crypto, cancellation frees the
+slot, oversized input is rejected before crypto, and a subsequent valid request
+succeeds. The example's limits are application policy, not library defaults.
+Choose limits appropriate for supported historical backups and offer an
+explicit administrative recovery path when service ingress policy is stricter.

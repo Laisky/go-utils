@@ -31,7 +31,29 @@
       "TestAlertCoverageExpansionBudgetsRejectWholeRecord",
       "TestAlertCoverageCoreLegacyNamespace",
       "TestAlertCoverageCoreRejectedAdmission",
-      "TestAlertCoverageDirectTextRejectsInvalid"
+      "TestAlertCoverageDirectTextRejectsInvalid",
+      "TestLogCallerRedirectPolicy",
+      "TestAlertHTTPClientConfiguration",
+      "TestAlertHTTPClientCancellation",
+      "TestAlertNilHTTPClient"
+    ]
+  },
+  {
+    "package": "./crypto",
+    "tests": [
+      "TestMnemonicSecurity_SharedBudget",
+      "TestMnemonicSecurity_ContextAdmission",
+      "TestMnemonicSecurity_CancelAdmittedKDF",
+      "TestMnemonicSecurity_ServiceAdmission",
+      "TestMnemonicSecurity_HistoricalCompatibility"
+    ]
+  },
+  {
+    "package": "./algorithm",
+    "tests": [
+      "TestFIFOBoundedRetention",
+      "TestFIFOCompatibility",
+      "TestFIFOConcurrentExactlyOnce"
     ]
   }
 ]
