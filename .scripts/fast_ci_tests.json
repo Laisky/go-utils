@@ -37,5 +37,13 @@
       "TestSecureLogEndpointValidation",
       "TestSecureLogHTTPSCompatibility"
     ]
+  },
+  {
+    "package": "./algorithm",
+    "tests": [
+      "TestFIFOBoundedRetention",
+      "TestFIFOCompatibility",
+      "TestFIFOConcurrentExactlyOnce"
+    ]
   }
 ]
