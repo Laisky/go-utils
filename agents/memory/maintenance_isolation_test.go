@@ -76,7 +76,7 @@ func TestArchiveFailureDoesNotBlockRetention(t *testing.T) {
 // TestMaintenancePartialFailure verifies error identity/aggregation, dependency
 // gating, independent L2 progress and absence of storage calls after cancellation.
 func TestMaintenancePartialFailure(t *testing.T) {
-	for _, scenario := range []string{"success", "archive", "L1", "multiple", "cancel", "already-canceled", "deadline"} {
+	for _, scenario := range []string{"success", "archive", "L1", "L2", "consolidation", "multiple", "cancel", "already-canceled", "deadline"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -132,6 +132,12 @@ func TestMaintenancePartialFailure(t *testing.T) {
 					check()
 					if f == eventsRawRootPath(session) && d == 16 {
 						rawLists++
+						if scenario == "consolidation" && rawLists == 2 {
+							return nil, false, tierErr
+						}
+					}
+					if scenario == "L2" && f == tierRootPath(session, memoryTierL2) && d == 16 {
+						return nil, false, tierErr
 					}
 					if (scenario == "L1" || scenario == "multiple") && f == tierRootPath(session, memoryTierL1) && d == 16 {
 						return nil, false, tierErr
@@ -163,6 +169,9 @@ func TestMaintenancePartialFailure(t *testing.T) {
 				require.ErrorIs(t, err, tierErr)
 				require.ErrorContains(t, err, "sweep expired L1 facts")
 			}
+			if scenario == "L2" || scenario == "consolidation" {
+				require.ErrorIs(t, err, tierErr)
+			}
 			if scenario == "multiple" {
 				require.ErrorIs(t, err, summaryErr)
 				require.ErrorContains(t, err, "refresh summaries")
@@ -174,7 +183,7 @@ func TestMaintenancePartialFailure(t *testing.T) {
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			}
 			expectedRawLists := 1
-			if scenario == "success" {
+			if scenario == "success" || scenario == "consolidation" {
 				expectedRawLists = 2
 			}
 			if scenario == "already-canceled" {
@@ -184,7 +193,7 @@ func TestMaintenancePartialFailure(t *testing.T) {
 			l2, statErr := backend.Stat(context.Background(), "demo", tierFactsShardPath(session, memoryTierL2, now))
 			require.NoError(t, statErr)
 			stopped := scenario == "cancel" || scenario == "already-canceled" || scenario == "deadline"
-			require.Equal(t, stopped, l2.Exists, "independent L2 retention proceeds unless cancellation stops the cycle")
+			require.Equal(t, stopped || scenario == "L2", l2.Exists, "independent L2 retention proceeds unless cancellation stops the cycle")
 			// Read through the backend, not the canceled/failing probe.
 			engine.storage = backend
 			after, metaErr := engine.loadMeta(context.Background(), "demo", session)

@@ -14,7 +14,8 @@ import (
 )
 
 // RunMaintenance runs compaction, retention sweeping, and summary refresh for one session.
-// Independent retention and summaries continue after ordinary stage failures.
+// Independent retention and summaries continue after ordinary archive/sweep failures.
+// Summary refresh also proceeds after an ordinary consolidation failure.
 // Consolidation and the success timestamp require all preceding stages to succeed.
 func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessionID string) error {
 	if strings.TrimSpace(project) == "" {
@@ -34,9 +35,16 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 		return errors.Wrap(err, "ensure session scaffold")
 	}
 
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
+	}
+
 	contextEvents, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
 	if err != nil {
 		return errors.Wrap(err, "load context for maintenance")
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 	if len(contextEvents) > engine.conf.RecentContextItems*2 {
 		if err = engine.compactRuntimeContext(ctx, project, sessionID, contextEvents, 0); err != nil {
@@ -95,6 +103,9 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 	meta, err := engine.loadMeta(ctx, project, sessionID)
 	if err != nil {
 		return errors.Wrap(err, "load meta")
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 	meta.LastMaintenanceAt = engine.conf.TimeNow().UTC().Format(time.RFC3339)
 	meta.UpdatedAt = meta.LastMaintenanceAt
