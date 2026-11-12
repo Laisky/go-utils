@@ -14,6 +14,8 @@ import (
 )
 
 // RunMaintenance runs compaction, retention sweeping, and summary refresh for one session.
+// Independent retention and summaries continue after ordinary stage failures.
+// Consolidation and the success timestamp require all preceding stages to succeed.
 func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessionID string) error {
 	if strings.TrimSpace(project) == "" {
 		return errors.Errorf("project is required")
@@ -22,6 +24,10 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 	// is built, preventing cross-session namespace escape under /memory/<session>/.
 	if err := validateSessionID(sessionID); err != nil {
 		return err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 
 	if err := engine.ensureSessionScaffold(ctx, project, sessionID); err != nil {
@@ -38,20 +44,48 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 		}
 	}
 
-	if err = engine.archiveRawShards(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "archive raw shards")
+	// Keep the original successful ordering. Retained raw shards and partially
+	// swept facts are not valid inputs for the usual consolidation cycle.
+	var stageErrors []error
+	// runStage records a named failure and stops the pipeline on cancellation.
+	runStage := func(name string, run func() error) bool {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(ctxErr, "maintenance canceled"))
+			return false
+		}
+		if stageErr := run(); stageErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(stageErr, name))
+			if errors.Is(stageErr, context.Canceled) || errors.Is(stageErr, context.DeadlineExceeded) {
+				return false
+			}
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(ctxErr, "maintenance canceled"))
+			return false
+		}
+		return true
 	}
-	if err = engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1); err != nil {
-		return errors.Wrap(err, "sweep expired L1 facts")
+	if !runStage("archive raw shards", func() error { return engine.archiveRawShards(ctx, project, sessionID) }) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2); err != nil {
-		return errors.Wrap(err, "sweep expired L2 facts")
+	if !runStage("sweep expired L1 facts", func() error { return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1) }) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.RunConsolidation(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "run consolidation")
+	if !runStage("sweep expired L2 facts", func() error { return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2) }) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.refreshSummaries(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "refresh summaries")
+	if len(stageErrors) == 0 {
+		if !runStage("run consolidation", func() error { return engine.RunConsolidation(ctx, project, sessionID) }) {
+			return errors.Join(stageErrors...)
+		}
+	}
+	// Summaries only describe current directory state; they do not require a
+	// successful archive or consolidation and are safe after partial cleanup.
+	if !runStage("refresh summaries", func() error { return engine.refreshSummaries(ctx, project, sessionID) }) {
+		return errors.Join(stageErrors...)
+	}
+	if len(stageErrors) != 0 {
+		return errors.Join(stageErrors...)
 	}
 
 	meta, err := engine.loadMeta(ctx, project, sessionID)

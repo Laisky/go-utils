@@ -85,3 +85,15 @@ ownership remains necessary until a storage-backed commit protocol exists.
   binary zstd that the historical reading path can decode.
 
 The bounded transport fixtures use synthetic data and no production endpoint.
+
+## Maintenance after partial failure
+
+An ordinary archive failure remains visible to the caller and retains the raw
+source. Independent L1 and L2 expiration sweeps and directory summary refresh
+still run. Stage errors are joined with stage names and remain discoverable via
+errors.Is. Consolidation is skipped if archival or either fact sweep failed:
+retained old raw events or partially swept facts must not change consolidation
+inputs. Prerequisite scaffold/context compaction failures still stop the cycle.
+Cancellation and deadline errors stop subsequent stages. LastMaintenanceAt is
+updated only after all required stages succeed; partial cleanup is not full
+maintenance success. Archive format selection and verification remain unchanged.

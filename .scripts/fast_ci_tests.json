@@ -59,7 +59,9 @@
       "TestArchivePortableJSONRoundTrip",
       "TestArchiveLocalCompatibility",
       "TestArchiveReadFailureRetainsRaw",
-      "TestArchiveFormatRejectsInvalid"
+      "TestArchiveFormatRejectsInvalid",
+      "TestArchiveFailureDoesNotBlockRetention",
+      "TestMaintenancePartialFailure"
     ]
   }
 ]
