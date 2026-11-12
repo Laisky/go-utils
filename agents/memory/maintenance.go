@@ -14,6 +14,9 @@ import (
 )
 
 // RunMaintenance runs compaction, retention sweeping, and summary refresh for one session.
+// Independent retention and summaries continue after ordinary archive/sweep failures.
+// Summary refresh also proceeds after an ordinary consolidation failure.
+// Consolidation and the success timestamp require all preceding stages to succeed.
 func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessionID string) error {
 	if strings.TrimSpace(project) == "" {
 		return errors.Errorf("project is required")
@@ -24,13 +27,24 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 		return err
 	}
 
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
+	}
+
 	if err := engine.ensureSessionScaffold(ctx, project, sessionID); err != nil {
 		return errors.Wrap(err, "ensure session scaffold")
+	}
+
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 
 	contextEvents, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
 	if err != nil {
 		return errors.Wrap(err, "load context for maintenance")
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 	if len(contextEvents) > engine.conf.RecentContextItems*2 {
 		if err = engine.compactRuntimeContext(ctx, project, sessionID, contextEvents, 0); err != nil {
@@ -38,25 +52,60 @@ func (engine *StandardEngine) RunMaintenance(ctx context.Context, project, sessi
 		}
 	}
 
-	if err = engine.archiveRawShards(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "archive raw shards")
+	// Keep the original successful ordering. Retained raw shards and partially
+	// swept facts are not valid inputs for the usual consolidation cycle.
+	var stageErrors []error
+	// runStage records a named failure and stops the pipeline on cancellation.
+	runStage := func(name string, run func() error) bool {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(ctxErr, "maintenance canceled"))
+			return false
+		}
+		if stageErr := run(); stageErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(stageErr, name))
+			if errors.Is(stageErr, context.Canceled) || errors.Is(stageErr, context.DeadlineExceeded) {
+				return false
+			}
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			stageErrors = append(stageErrors, errors.Wrap(ctxErr, "maintenance canceled"))
+			return false
+		}
+		return true
 	}
-	if err = engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1); err != nil {
-		return errors.Wrap(err, "sweep expired L1 facts")
+	if !runStage("archive raw shards", func() error { return engine.archiveRawShards(ctx, project, sessionID) }) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2); err != nil {
-		return errors.Wrap(err, "sweep expired L2 facts")
+	if !runStage("sweep expired L1 facts", func() error {
+		return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL1)
+	}) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.RunConsolidation(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "run consolidation")
+	if !runStage("sweep expired L2 facts", func() error {
+		return engine.sweepExpiredTierFacts(ctx, project, sessionID, memoryTierL2)
+	}) {
+		return errors.Join(stageErrors...)
 	}
-	if err = engine.refreshSummaries(ctx, project, sessionID); err != nil {
-		return errors.Wrap(err, "refresh summaries")
+	if len(stageErrors) == 0 {
+		if !runStage("run consolidation", func() error { return engine.RunConsolidation(ctx, project, sessionID) }) {
+			return errors.Join(stageErrors...)
+		}
+	}
+	// Summaries only describe current directory state; they do not require a
+	// successful archive or consolidation and are safe after partial cleanup.
+	if !runStage("refresh summaries", func() error { return engine.refreshSummaries(ctx, project, sessionID) }) {
+		return errors.Join(stageErrors...)
+	}
+	if len(stageErrors) != 0 {
+		return errors.Join(stageErrors...)
 	}
 
 	meta, err := engine.loadMeta(ctx, project, sessionID)
 	if err != nil {
 		return errors.Wrap(err, "load meta")
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "maintenance canceled")
 	}
 	meta.LastMaintenanceAt = engine.conf.TimeNow().UTC().Format(time.RFC3339)
 	meta.UpdatedAt = meta.LastMaintenanceAt
@@ -101,15 +150,11 @@ func (engine *StandardEngine) archiveRawShards(ctx context.Context, project, ses
 		}
 
 		archivePath := archiveShardPath(sessionID, shardDate, path.Base(info.Path))
-		if writeErr := engine.storage.Write(
-			ctx,
-			project,
-			archivePath,
-			string(compressed),
-			storageengine.WriteModeTruncate,
-			0,
-		); writeErr != nil {
-			return errors.Wrapf(writeErr, "write archive shard %s", archivePath)
+		if engine.conf.ArchiveFormat == ArchiveFormatZstdBase64V1 {
+			archivePath += ".b64.json"
+		}
+		if writeErr := engine.writeVerifiedArchive(ctx, project, archivePath, compressed); writeErr != nil {
+			return errors.Wrapf(writeErr, "persist archive shard %s", archivePath)
 		}
 		if delErr := engine.storage.Delete(ctx, project, info.Path, false); delErr != nil {
 			return errors.Wrapf(delErr, "delete raw shard %s", info.Path)
