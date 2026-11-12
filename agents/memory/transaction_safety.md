@@ -37,11 +37,31 @@ These are not passing regressions or a repair. They reproduce:
   Both calls succeed, but one processed ID and one independent fact are lost.
 - Two separate engines processing the same turn after identical initial reads.
   Both calls succeed and duplicate its raw event.
+- A single logical call through the shipped MCP write/retry adapter: a synthetic
+  transport persists the raw append and returns a retryable error instead of its
+  acknowledgement. The adapter retries and duplicates that event. This verifies
+  client behavior only, not the deployed MCP server or filesystem durability.
 
 The concurrency barriers capture both snapshots *before* either write can
 proceed. No sleep or scheduler luck is needed. A bounded context makes a broken
 barrier fail instead of hanging the suite. The fixture's mutex protects individual
 mock operations only; it intentionally does not hide logical storage races.
+
+The shared oracle compares exact IDs, timestamps, user provenance and payloads in
+all four event views, exact tier/legacy fact records and active-index entries,
+both metadata copies, processed IDs, metrics and watermarks. It accepts either
+record order for distinct turns (exact record multisets, not physical append
+ordering), but requires consistent latest-turn
+markers and complete counts. Ordinary passing controls verify correct sequential
+state and reject a same-sized corrupt fact map, malformed JSONL tails, missing
+or corrupt index files and invalid metadata versions. Reads use direct storage
+and strict decoding, never recovery loaders that could skip or repair damage.
+MCP controls distinguish no fault
+and failure-before-append from a lost acknowledgement. These controls validate the
+test harness, not transaction safety.
+
+Compile tagged cases without executing expected failures:
+`go test -tags memory_integrity_repro ./agents/memory -run '^$'`.
 
 Once a concrete remedy is implemented, apply these acceptance cases to the new
 API and remove the build tag for its regression tests. Preserve legacy format
@@ -55,7 +75,7 @@ backend-enforced conditional writes. An interface alone would transfer the whole
 problem to users without fixing either supplied backend; it is not offered as a
 solution here.
 
-A transaction-backed engine must include the *entire* operation: scaffold reads
+A transaction-backed engine must atomically validate and commit the *entire* persistence operation: scaffold reads
 and creation, processed-turn check, input-delta selection, all event and fact
 writes, active-index replacement, watermarks, metrics, and both metadata copies.
 It must use one transaction-bound storage handle throughout. Metadata is committed
@@ -89,6 +109,42 @@ Backend acceptance requirements:
 7. Backend limits, error semantics, isolation and durability are independently
    verified for both local files and the deployed MCP server. A server change may
    be necessary for MCP; do not emulate CAS with Stat followed by Write.
+
+## Proposed heuristic concurrency strategy (not implemented)
+
+Use an optimistic, backend-enforced session revision. Read a consistent snapshot
+and its revision, then release the read transaction before calling the external
+heuristic. The revision covers all inputs to its decisions, including fact
+changes, compaction, maintenance and consolidation. Hold no persistence
+transaction or session lock across an LLM/network call.
+
+After the result arrives, begin a short transaction, recheck the durable turn
+receipt and input identity, and compare the revision. If unchanged, validate and
+apply the staged result and commit required state atomically. If changed, abort
+without persisting stale decisions and return an explicit conflict. Never
+silently rerun the heuristic or overwrite newer facts. A caller-controlled,
+bounded retry may explicitly request a new snapshot and recomputation; that
+invokes and may charge the external service again.
+
+Resolve uncertain commit acknowledgements through the durable receipt before any
+recomputation. Transactions do not make external calls exactly once. Neither
+current backend provides this protocol; a local mutex or Stat-then-Write check
+is not a replacement.
+
+Acceptance must cover: a revision change during a blocked heuristic produces a
+conflict with zero staged writes and exactly one external invocation; explicit
+recomputation uses new facts and a second invocation; unchanged snapshots commit
+once; lost acknowledgements resolve receipts without another heuristic call;
+maintenance/consolidation invalidate stale snapshots. The stronger API must
+reject unsupported backends; the legacy API remains unchanged.
+
+## Remaining acceptance matrix
+
+The production remedy must also cover retries across UTC shard boundaries,
+TurnID reuse with different payloads (explicit conflict policy), processed-ID
+eviction at MaxProcessedTurns, and compaction/maintenance races. Define which
+records are authoritative and which indexes/metrics can be rebuilt from a
+committed revision; do not publish a mixed-revision reader view.
 
 ## Compatibility, migration, and rollback
 
