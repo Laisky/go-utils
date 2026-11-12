@@ -8,7 +8,7 @@ for full local dev/staging verification before promoting relevant Go changes.
 
 ## Automatic gate
 
-`Test / test` pins Go 1.26.10 with `GOTOOLCHAIN=local`, checks every
+`Test / test` pins Go 1.26.11 with `GOTOOLCHAIN=local`, checks every
 tracked Go source with `gofmt -s -l`, and runs the named tests from
 `.scripts/fast_ci_tests.json`. These cover a SHA-256 vector, URL password masking,
 slice cleanup, JSON validation/comment handling, logger field isolation/filtering,
@@ -17,6 +17,8 @@ nested values, rich error groups, panic rejection and direct-text validation.
 The crypto allowlist also checks shared Argon2id admission for mnemonic import
 and export, queued/admitted cancellation, a bounded service-ingress example,
 and frozen historical-format interoperability.
+The FIFO regressions also cover bounded dequeued-payload retention, nil and
+ordering compatibility, and exactly-once delivery under concurrent GC.
 They need no external service, Tongsuo, benchmark, fuzz or long timing campaign.
 The selected packages compile normally, including their existing test files.
 
@@ -28,7 +30,7 @@ Raw discovery, Go JSON, native exits and wall times are uploaded for successful
 and failed executions. The five-minute job timeout bounds this essential gate.
 It does not establish full library correctness or production readiness.
 
-The CI compiler pins reflect the Go 1.26.10 and 1.27.3 patches. Exact versions
+The CI compiler pins reflect the Go 1.26.11 and 1.27.4 patches. Exact versions
 prevent `setup-go` from selecting an older matching runner tool cache for a floating `1.26.x` selector. Module and build caching
 remain enabled. Keep these pins current through scoped patch updates; they do
 not change the module's Go 1.26.0 compatibility floor or its supported API.
@@ -43,7 +45,7 @@ python3 .scripts/fast_ci.py --evidence /tmp/go-utils-fast-ci
 ## Retained manual qualification
 
 Dispatch the `Test` workflow on the candidate branch to run the retained full
-lint job and Go 1.26.10/1.27.3 build and race/coverage matrix, including the
+lint job and Go 1.26.11/1.27.4 build and race/coverage matrix, including the
 pinned Tongsuo 8.5.0 build/install and coverage upload. The essential gate also
 runs on dispatch. These full jobs keep their existing timeouts and assertions.
 
@@ -70,8 +72,8 @@ necessary local/staging dependencies; no test files are removed.
 ## Security boundary
 
 Govulncheck keeps its existing automatic push/PR triggers in
-`security-scan.yml`, using the pinned Go 1.26.10 toolchain. The separate
-`crypto-tests.yml` and `rbac-security.yml` workflows also pin Go 1.26.10;
+`security-scan.yml`, using the pinned Go 1.26.11 toolchain. The separate
+`crypto-tests.yml` and `rbac-security.yml` workflows also pin Go 1.26.11;
 their race, full-suite and fuzz checks are unchanged. These security jobs can
 exceed the essential gate's five-minute target; changing them requires a separately scoped
 security decision. Branch protection, secrets and deployment settings are

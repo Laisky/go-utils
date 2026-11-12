@@ -43,5 +43,13 @@
       "TestMnemonicSecurity_ServiceAdmission",
       "TestMnemonicSecurity_HistoricalCompatibility"
     ]
+  },
+  {
+    "package": "./algorithm",
+    "tests": [
+      "TestFIFOBoundedRetention",
+      "TestFIFOCompatibility",
+      "TestFIFOConcurrentExactlyOnce"
+    ]
   }
 ]
