@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/Laisky/errors/v2"
 	"github.com/alexvec/go-bip39"
-	"golang.org/x/crypto/argon2"
 )
 
 const (
@@ -261,6 +261,14 @@ func MnemonicToBytes(mnemonic string) ([]byte, error) {
 //
 // Use MnemonicToPrikey with the same options to recover the key.
 func PrikeyToMnemonic(key crypto.PrivateKey, opts ...MnemonicOption) (string, error) {
+	return PrikeyToMnemonicContext(context.Background(), key, opts...)
+}
+
+// PrikeyToMnemonicContext encodes key with the same format and options as
+// PrikeyToMnemonic, returning the phrase or an error. ctx may cancel waiting for
+// the shared Argon2id memory budget; it cannot interrupt an admitted derivation,
+// but a canceled derivation returns an error rather than a successful result.
+func PrikeyToMnemonicContext(ctx context.Context, key crypto.PrivateKey, opts ...MnemonicOption) (string, error) {
 	var o mnemonicOption
 	if err := o.apply(opts...); err != nil {
 		return "", errors.Wrap(err, "apply mnemonic options")
@@ -273,7 +281,7 @@ func PrikeyToMnemonic(key crypto.PrivateKey, opts ...MnemonicOption) (string, er
 
 	data := der
 	if o.passphrase != "" {
-		data, err = mnemonicEncryptDER(der, o.passphrase)
+		data, err = mnemonicEncryptDERContext(ctx, der, o.passphrase)
 		if err != nil {
 			return "", errors.Wrap(err, "encrypt private key")
 		}
@@ -288,6 +296,14 @@ func PrikeyToMnemonic(key crypto.PrivateKey, opts ...MnemonicOption) (string, er
 // If the key was encrypted with WithMnemonicPassphrase, the same passphrase
 // must be provided here.
 func MnemonicToPrikey(mnemonic string, opts ...MnemonicOption) (crypto.PrivateKey, error) {
+	return MnemonicToPrikeyContext(context.Background(), mnemonic, opts...)
+}
+
+// MnemonicToPrikeyContext decodes mnemonic with the same format and options as
+// MnemonicToPrikey, returning the key or an error. ctx may cancel waiting for
+// the shared Argon2id memory budget; it cannot interrupt an admitted derivation,
+// but a canceled derivation returns an error rather than a successful result.
+func MnemonicToPrikeyContext(ctx context.Context, mnemonic string, opts ...MnemonicOption) (crypto.PrivateKey, error) {
 	var o mnemonicOption
 	if err := o.apply(opts...); err != nil {
 		return nil, errors.Wrap(err, "apply mnemonic options")
@@ -303,7 +319,7 @@ func MnemonicToPrikey(mnemonic string, opts ...MnemonicOption) (crypto.PrivateKe
 		if o.passphrase == "" {
 			return nil, errors.New("mnemonic data is encrypted but no passphrase provided")
 		}
-		der, err = mnemonicDecryptDER(data, o.passphrase)
+		der, err = mnemonicDecryptDERContext(ctx, data, o.passphrase)
 		if err != nil {
 			return nil, errors.Wrap(err, "decrypt private key")
 		}
@@ -317,21 +333,25 @@ func MnemonicToPrikey(mnemonic string, opts ...MnemonicOption) (crypto.PrivateKe
 	return key, nil
 }
 
-// mnemonicEncryptDER encrypts DER bytes with a passphrase using
+// mnemonicEncryptDERContext encrypts DER bytes with a passphrase using
 // Argon2id key derivation + AES-256-GCM.
 //
 // Format: encryptedMarker(1) || salt(32) || AES-GCM ciphertext (iv+cipher+tag)
-func mnemonicEncryptDER(der []byte, passphrase string) ([]byte, error) {
+func mnemonicEncryptDERContext(ctx context.Context, der []byte, passphrase string) ([]byte, error) {
 	salt := make([]byte, mnemonicPassphraseSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return nil, errors.Wrap(err, "generate salt")
 	}
 
-	aesKey := argon2.IDKey(
-		[]byte(passphrase), salt,
-		mnemonicArgon2Time, mnemonicArgon2Memory, mnemonicArgon2Threads,
-		mnemonicArgon2KeyLen,
-	)
+	aesKey, err := deriveArgon2idKey(ctx, []byte(passphrase), salt, argon2idParams{
+		memoryKiB: mnemonicArgon2Memory,
+		time:      mnemonicArgon2Time,
+		threads:   mnemonicArgon2Threads,
+	}, mnemonicArgon2KeyLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "derive mnemonic encryption key")
+	}
+	defer clear(aesKey)
 
 	ciphertext, err := AEADEncrypt(aesKey, der, nil)
 	if err != nil {
@@ -346,8 +366,9 @@ func mnemonicEncryptDER(der []byte, passphrase string) ([]byte, error) {
 	return result, nil
 }
 
-// mnemonicDecryptDER decrypts DER bytes from the encrypted format.
-func mnemonicDecryptDER(data []byte, passphrase string) ([]byte, error) {
+// mnemonicDecryptDERContext decrypts data using passphrase, returning DER bytes
+// or an error; ctx can cancel waiting for the shared Argon2id memory budget.
+func mnemonicDecryptDERContext(ctx context.Context, data []byte, passphrase string) ([]byte, error) {
 	minLen := 1 + mnemonicPassphraseSaltLen + AesGcmIvLen + AesGcmTagLen
 	if len(data) < minLen {
 		return nil, errors.Errorf("encrypted data too short: %d bytes, min %d", len(data), minLen)
@@ -360,11 +381,15 @@ func mnemonicDecryptDER(data []byte, passphrase string) ([]byte, error) {
 	salt := data[1 : 1+mnemonicPassphraseSaltLen]
 	ciphertext := data[1+mnemonicPassphraseSaltLen:]
 
-	aesKey := argon2.IDKey(
-		[]byte(passphrase), salt,
-		mnemonicArgon2Time, mnemonicArgon2Memory, mnemonicArgon2Threads,
-		mnemonicArgon2KeyLen,
-	)
+	aesKey, err := deriveArgon2idKey(ctx, []byte(passphrase), salt, argon2idParams{
+		memoryKiB: mnemonicArgon2Memory,
+		time:      mnemonicArgon2Time,
+		threads:   mnemonicArgon2Threads,
+	}, mnemonicArgon2KeyLen)
+	if err != nil {
+		return nil, errors.Wrap(err, "derive mnemonic encryption key")
+	}
+	defer clear(aesKey)
 
 	der, err := AEADDecrypt(aesKey, ciphertext, nil)
 	if err != nil {
