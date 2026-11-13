@@ -22,8 +22,11 @@ import (
 // Engine serializes transactions across processes and publishes durable snapshots.
 // Its root has a private generation layout; it is not a local.Engine root.
 type Engine struct {
-	conf local.Config
-	root string
+	conf         local.Config
+	root         string
+	rootIdentity os.FileInfo
+	// commitSync is an internal filesystem-fault seam; nil uses real directory fsync.
+	commitSync func(string) error
 }
 
 var _ storage.TransactionalEngine = (*Engine)(nil)
@@ -46,6 +49,10 @@ func NewEngine(conf local.Config) (*Engine, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve root symlinks")
 	}
+	identity, err := validateRoot(root, nil)
+	if err != nil {
+		return nil, err
+	}
 	conf.RootDir = root
 	validationBackend, err := local.NewEngine(conf)
 	if err != nil {
@@ -54,7 +61,7 @@ func NewEngine(conf local.Config) (*Engine, error) {
 	if err = validationBackend.Close(); err != nil {
 		return nil, errors.Wrap(err, "close configuration validation")
 	}
-	engine := &Engine{conf: conf, root: root}
+	engine := &Engine{conf: conf, root: root, rootIdentity: identity}
 	// A dedicated layout avoids accidentally reinterpreting legacy storage.
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -78,28 +85,56 @@ func NewEngine(conf local.Config) (*Engine, error) {
 	return engine, nil
 }
 
-// acquire obtains the process-wide filesystem lock, honoring cancellation.
+// acquire obtains the exclusive filesystem lock, honoring cancellation.
 func (engine *Engine) acquire(ctx context.Context) (*os.File, error) {
+	return engine.acquireMode(ctx, unix.LOCK_EX)
+}
+
+// acquireShared obtains a shared filesystem lock for an immutable read snapshot.
+func (engine *Engine) acquireShared(ctx context.Context) (*os.File, error) {
+	return engine.acquireMode(ctx, unix.LOCK_SH)
+}
+
+// acquireMode validates the root before opening its lock and checks the opened
+// inode before and after waiting. Trusted owners must not mutate this namespace
+// concurrently outside the transaction protocol.
+func (engine *Engine) acquireMode(ctx context.Context, mode int) (*os.File, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "wait for transaction lock")
+	}
+	if _, err := validateRoot(engine.root, engine.rootIdentity); err != nil {
+		return nil, err
+	}
 	fd, err := unix.Open(
 		filepath.Join(engine.root, "lock"),
-		unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600,
+		unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0o600,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "open transaction lock")
 	}
 	file := os.NewFile(uintptr(fd), "transaction lock")
+	fail := func(err error) (*os.File, error) {
+		return nil, errors.Join(err, errors.Wrap(file.Close(), "close transaction lock"))
+	}
+	if err := engine.validateLock(file); err != nil {
+		return fail(err)
+	}
 	for {
 		if err = ctx.Err(); err != nil {
-			_ = file.Close()
-			return nil, errors.Wrap(err, "wait for transaction lock")
+			return fail(errors.Wrap(err, "wait for transaction lock"))
 		}
-		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		err = unix.Flock(fd, mode|unix.LOCK_NB)
 		if err == nil {
+			if _, err = validateRoot(engine.root, engine.rootIdentity); err != nil {
+				return fail(err)
+			}
+			if err = engine.validateLock(file); err != nil {
+				return fail(err)
+			}
 			return file, nil
 		}
 		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
-			_ = file.Close()
-			return nil, errors.Wrap(err, "lock transaction root")
+			return fail(errors.Wrap(err, "lock transaction root"))
 		}
 		timer := time.NewTimer(10 * time.Millisecond)
 		select {
@@ -117,16 +152,28 @@ func (engine *Engine) current() (current string, result error) {
 		return "", errors.Wrap(err, "open transaction root")
 	}
 	defer func() { result = errors.Join(result, errors.Wrap(root.Close(), "close transaction root")) }()
-	pointer, err := root.Open("current")
+	linked, err := root.Lstat("current")
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", nil
 	}
+	if err != nil {
+		return "", errors.Wrap(err, "stat generation pointer")
+	}
+	if err = validateControlEntry(linked, "generation pointer", false); err != nil {
+		return "", err
+	}
+	pointer, err := root.OpenFile("current", os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
 	if err != nil {
 		return "", errors.Wrap(err, "open generation pointer")
 	}
 	info, statErr := pointer.Stat()
 	if statErr != nil {
 		return "", errors.Join(errors.Wrap(statErr, "stat pointer"), errors.Wrap(pointer.Close(), "close pointer"))
+	}
+	if !os.SameFile(linked, info) {
+		return "", errors.Join(
+			errors.New("generation pointer identity changed"), errors.Wrap(pointer.Close(), "close pointer"),
+		)
 	}
 	if !info.Mode().IsRegular() || info.Size() > 255 {
 		return "", errors.Join(
@@ -148,8 +195,8 @@ func (engine *Engine) current() (current string, result error) {
 	if err != nil {
 		return "", errors.Wrap(err, "stat generation")
 	}
-	if !info.IsDir() {
-		return "", errors.New("generation is not a directory")
+	if err = validateControlEntry(info, "generation", true); err != nil {
+		return "", err
 	}
 	return filepath.Join(engine.root, name), nil
 }
@@ -157,7 +204,8 @@ func (engine *Engine) current() (current string, result error) {
 // Transaction applies fn atomically in a private snapshot and returns its error.
 // All processes and instances using this root share one serialization lock.
 // Callback errors and cancellation before publication leave current unchanged.
-// Errors after pointer publication can have committed; callers must retry by ID.
+// Post-publication failures are classified with storage.CommitError; callers
+// must inspect the outcome and their operation replay semantics before retrying.
 func (engine *Engine) Transaction(
 	ctx context.Context, project, _ string, fn func(storage.Engine) error,
 ) (result error) {
@@ -168,43 +216,39 @@ func (engine *Engine) Transaction(
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, errors.Wrap(lock.Close(), "close transaction lock")) }()
+	published, durable := false, false
+	defer func() {
+		result = errors.Join(result, errors.Wrap(lock.Close(), "close transaction lock"))
+		if published && result != nil {
+			outcome := storage.CommitOutcomeUncertain
+			if durable {
+				outcome = storage.CommitOutcomeDurable
+			}
+			result = storage.NewCommitError(result, outcome)
+		}
+	}()
 	current, err := engine.current()
 	if err != nil {
 		return err
 	}
-	staged, err := os.MkdirTemp(engine.root, "generation-")
-	if err != nil {
-		return errors.Wrap(err, "create generation")
-	}
-	published := false
+	view := &transactionView{owner: engine, project: project, current: current, active: true}
 	defer func() {
-		if !published {
-			result = errors.Join(result, errors.Wrap(os.RemoveAll(staged), "discard generation"))
+		result = errors.Join(result, view.close())
+		if !published && view.staged != "" {
+			result = errors.Join(result, errors.Wrap(os.RemoveAll(view.staged), "discard generation"))
 		}
 	}()
-	if current != "" {
-		if err = copyTree(ctx, current, staged); err != nil {
-			return err
-		}
-	}
-	conf := engine.conf
-	conf.RootDir = staged
-	backend, err := local.NewEngine(conf)
-	if err != nil {
-		return errors.Wrap(err, "open generation")
-	}
-	view := &transactionView{Engine: backend, project: project, active: true}
 	callbackErr := func() (callbackResult error) {
-		defer func() {
-			view.active = false
-			callbackResult = errors.Join(callbackResult, errors.Wrap(backend.Close(), "close generation"))
-		}()
+		defer func() { callbackResult = errors.Join(callbackResult, view.close()) }()
 		return fn(view)
 	}()
 	if err = errors.Join(callbackErr, view.failure, errors.Wrap(ctx.Err(), "transaction canceled")); err != nil {
 		return err
 	}
+	if view.staged == "" {
+		return nil
+	}
+	staged := view.staged
 	if err = syncTree(ctx, staged); err != nil {
 		return err
 	}
@@ -230,9 +274,10 @@ func (engine *Engine) Transaction(
 		return errors.Wrap(err, "publish generation")
 	}
 	published = true
-	if err = syncDirectory(engine.root); err != nil {
+	if err = engine.syncPublishedDirectory(); err != nil {
 		return errors.Wrap(err, "commit durability uncertain")
 	}
+	durable = true
 	// The lock excludes every reader, so superseded and abandoned generations
 	// may now be removed without invalidating any in-flight view.
 	return engine.collect(filepath.Base(staged))
@@ -255,35 +300,31 @@ func (engine *Engine) collect(keep string) error {
 	return nil
 }
 
-// readView runs fn against the locked current generation without publishing.
-func (engine *Engine) readView(ctx context.Context, fn func(storage.Engine) error) (result error) {
-	lock, err := engine.acquire(ctx)
+// ReadTransaction supplies a stable shared snapshot and rejects all mutations.
+func (engine *Engine) ReadTransaction(
+	ctx context.Context, project, _ string, fn func(storage.Engine) error,
+) error {
+	return engine.readView(ctx, project, fn)
+}
+
+// readView runs fn against a shared current snapshot without staging or publication.
+func (engine *Engine) readView(
+	ctx context.Context, project string, fn func(storage.Engine) error,
+) (result error) {
+	if fn == nil {
+		return errors.New("read transaction callback is required")
+	}
+	lock, err := engine.acquireShared(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() { result = errors.Join(result, errors.Wrap(lock.Close(), "close transaction lock")) }()
+	defer func() { result = errors.Join(result, errors.Wrap(lock.Close(), "close read transaction lock")) }()
 	current, err := engine.current()
 	if err != nil {
 		return err
 	}
-	// An empty root is read through a temporary empty local namespace.
-	temporary := false
-	if current == "" {
-		current, err = os.MkdirTemp(engine.root, "generation-")
-		temporary = true
-	}
-	if err != nil {
-		return errors.Wrap(err, "create empty read view")
-	}
-	if temporary {
-		defer func() { result = errors.Join(result, errors.Wrap(os.RemoveAll(current), "remove empty read view")) }()
-	}
-	conf := engine.conf
-	conf.RootDir = current
-	backend, err := local.NewEngine(conf)
-	if err != nil {
-		return errors.Wrap(err, "open read view")
-	}
-	defer func() { result = errors.Join(result, errors.Wrap(backend.Close(), "close read view")) }()
-	return fn(backend)
+	view := &transactionView{owner: engine, project: project, current: current, active: true, readOnly: true}
+	defer func() { result = errors.Join(result, view.close()) }()
+	result = fn(view)
+	return errors.Join(result, view.failure, errors.Wrap(ctx.Err(), "read transaction canceled"))
 }

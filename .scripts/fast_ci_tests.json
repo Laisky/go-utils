@@ -69,7 +69,20 @@
       "TestTransactionalTurnCommitAcknowledgementLost",
       "TestTransactionalTurnConcurrentInstances",
       "TestTransactionalTurnRecordCompatibility",
-      "TestTransactionalTurnMetadataReadFailure"
+      "TestTransactionalTurnMetadataReadFailure",
+      "TestTransactionalManagementValidatesBeforeBackend",
+      "TestTransactionalSummaryDeadlineAtAdmission",
+      "TestTransactionalPublishedOutputs",
+      "TestTransactionalSummarySnapshotMetadata"
+    ]
+  },
+  {
+    "package": "./agents/memory/storage/transactionlocal",
+    "tests": [
+      "TestTransactionReadOnlyDoesNotStage",
+      "TestTransactionPreservesUntouchedTimestamps",
+      "TestTransactionPublicationOutcome",
+      "TestTransactionRootWritePermissions"
     ]
   }
 ]

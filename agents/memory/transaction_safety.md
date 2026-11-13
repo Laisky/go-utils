@@ -15,7 +15,10 @@ All lifecycle and management operations, including BeforeTurn compaction, use
 the same transaction boundary. Every storage operation error aborts the call,
 including errors historical code treats as best effort. A failed turn publishes
 neither partial events nor an early processed marker. A post-commit lost
-acknowledgement is resolved by retrying the same retained TurnID.
+acknowledgement for AfterTurn is resolved by retrying the same retained TurnID.
+Other operations do not gain exactly-once invocation semantics: inspect the
+classified commit outcome before retrying. Prepared BeforeTurn/summary results
+remain available with post-publication diagnostics.
 
 See [transactional memory](../../docs/memory-transactions.md) and the
 [backend contract](storage/transactionlocal/README.md) for examples, filesystem
@@ -24,8 +27,9 @@ inside a project are unchanged; the backend root layout is explicitly new.
 Quiesce all legacy writers before moving to a separate transactional destination.
 Format compatibility does not permit mixed nontransactional writers.
 
-The adapter serializes its entire root and holds that lock through heuristic
-calls. Set deadlines and bound dataset size. An optimistic revision protocol
+Mutable transactions serialize the root and hold their lock through heuristic
+calls. No-mutation transactions avoid staging; explicit read-only snapshots
+allow concurrent readers. Set deadlines and bound dataset size. An optimistic revision protocol
 that releases the lock around external calls remains a possible future design;
 it is not implemented here. Callbacks must not reenter the backend. External
 service invocations are not made exactly once by a storage transaction.

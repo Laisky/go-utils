@@ -87,3 +87,6 @@ compatibility using local fixtures. It does not impose application transport pol
 The memory transaction contract gate also verifies independent concurrent engines,
 post-commit acknowledgement loss, byte-compatible legacy records, and rollback
 after ignored metadata-read failures using the opt-in local backend.
+The transaction review regressions also cover validation/deadline admission,
+published-result outcome handling, no-op generation avoidance, stable timestamps
+and local root permissions. Full-copy write scaling remains a manual benchmark.

@@ -31,18 +31,50 @@ A failed mutation aborts the transaction even where the historical engine treats
 that mutation as best effort. BeforeTurn, including compaction and recall
 metrics, and every Management operation use the same transaction boundary.
 Calls on independent engine/backend instances coordinate through the backend.
-The local backend serializes the entire destination, a stronger boundary than
-one session. Model-assisted callbacks run inside that boundary and must honor
+The local backend serializes mutations across the entire destination, a stronger
+boundary than one session. A mutable transaction opens its current snapshot
+without copying and stages a private generation only at its first mutation.
+No-mutation calls do not copy, sync or publish a generation. The optional
+`storage.ReadTransactionalEngine` capability provides shared read-only snapshots;
+its views reject mutations. `ListDirWithAbstract` remains a lazy mutable
+transaction because missing abstracts may legitimately be created. Model-assisted callbacks run inside that boundary and must honor
 context deadlines; they must not re-enter the same backend or perform external
 side effects that require storage rollback.
 
-A callback error, panic, or cancellation before commit publishes no changes.
-A crash before publication leaves the previous generation readable. A crash or
-lost acknowledgement after commit may cause an error despite a complete commit;
-retry the same immutable TurnID/input. The next transaction observes the marker
-and does not append again. The existing bounded processed-turn window remains:
-this is not unlimited historical duplicate suppression. Do not reuse a TurnID
-with different input or retry it after it has aged out of that window.
+A callback error, panic, or cancellation observed before publication exposes no
+changes. A crash before publication leaves the previous generation readable.
+Atomicity does not imply that repeating an operation is safe.
+
+Post-publication errors from the local backend carry `storage.CommitError`:
+
+- `CommitOutcomeDurable`: the complete commit is durable; only housekeeping or
+  acknowledgement failed. Do not repeat a non-idempotent operation to recover
+  from this diagnostic.
+- `CommitOutcomeUncertain`: the complete new generation was published, but its
+  durability could not be confirmed. A restart may recover the old or new
+  complete generation. The SDK does not silently replay a callback.
+
+`storage.PublishedCommit(err)` recognizes these outcomes through wrapped errors.
+Absence of a classification (including errors from other providers) does not
+prove rollback. `BeforeTurn` and `ListDirWithAbstract` return their prepared
+output together with a classified post-publication diagnostic, so callers can
+inspect the result and outcome without repeating work just to retrieve output.
+They return no output for pre-publication/ordinary failures. Storage errors
+remain visible and are never silently discarded.
+
+For `AfterTurn`, retry the same immutable TurnID/input after an uncertain result:
+the retained marker suppresses replay if the first attempt committed. The
+existing bounded processed-turn window remains; this is not unlimited historical
+duplicate suppression. Do not reuse a TurnID with different input or retry it
+after it has aged out of that window.
+
+`BeforeTurn` recall metrics count explicit calls, so deliberate repeated calls
+can increment them again. These metrics are operational counts, not durable
+exactly-once receipts. Reconcile unknown outcomes before deciding to retry a
+non-idempotent operation. Consolidation already deduplicates stable insight IDs;
+unchanged-state retries do not add insights or increment its run counter again,
+including after a lost acknowledgement. Changed facts can legitimately create
+new insights. No new operation-ID requirement or record format is introduced.
 
 The transaction contract requires isolated read-your-writes views, durable
 atomic commit and cross-client serialization. Non-idempotent operations inside
@@ -92,7 +124,19 @@ compatibility and concurrent turn/compaction/maintenance. They reuse the strict
 historical recovery oracle, including its corrupt-value negative control.
 The backend tests separately exercise process locking and crash publication.
 
-The local implementation copies a complete generation for each write transaction;
-its storage and latency cost makes it suitable only for bounded local datasets.
+The local implementation copies a complete generation on the first mutation of
+each write transaction. Unchanged files retain permissions and modification times,
+so an unrelated session write does not refresh their Stat/summary timestamps.
+Mutating calls still have a storage and latency cost proportional to the dataset,
+making this implementation suitable only for bounded local datasets.
 It is not a scalable database or a distributed/NFS transaction service. Consult
 the backend documentation for its filesystem assumptions and retained generations.
+
+Initialization rejects group/world-writable or foreign-owned transaction roots,
+and unsafe writable ancestry (trusted sticky directories such as `/tmp` are
+allowed). It does not chmod caller directories. Runtime checks reject replaced
+roots and unsafe lock/control files. This enforcement applies to the new
+transaction backend only; existing local/MCP APIs and caller-selected payload
+permissions are unchanged. See the backend README for trusted-owner and import
+assumptions. Public management input validation runs before backend admission,
+and the ten-second summary deadline covers locking and any lazy staging.

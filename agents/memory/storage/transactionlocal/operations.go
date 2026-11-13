@@ -10,38 +10,22 @@ import (
 	storage "github.com/Laisky/go-utils/v6/agents/memory/storage"
 )
 
-// transactionView restricts callback operations to one project and lifetime.
-// Callbacks use this view synchronously and must not retain it or start goroutines.
-type transactionView struct {
-	storage.Engine
-	project string
-	active  bool
-	failure error
-}
-
-// check rejects operations outside the active callback and project.
-func (view *transactionView) check(project string) error {
-	if !view.active {
-		return errors.New("transaction view is closed")
-	}
-	if project != view.project {
-		return errors.New("transaction view project mismatch")
-	}
-	return nil
-}
-
 // Read applies the local storage operation to the active transaction view.
 func (view *transactionView) Read(ctx context.Context, project, path string, offset, length int64) (string, error) {
 	if err := view.check(project); err != nil {
 		return "", err
 	}
-	return view.Engine.Read(ctx, project, path, offset, length)
+	backend, err := view.storage(ctx, false)
+	if err != nil {
+		return "", err
+	}
+	return backend.Read(ctx, project, path, offset, length)
 }
 
 // Read performs the local storage operation under the shared filesystem lock.
 func (engine *Engine) Read(ctx context.Context, project, path string, offset, length int64) (string, error) {
 	var value string
-	err := engine.readView(ctx, func(backend storage.Engine) (err error) {
+	err := engine.readView(ctx, project, func(backend storage.Engine) (err error) {
 		value, err = backend.Read(ctx, project, path, offset, length)
 		return err
 	})
@@ -56,7 +40,12 @@ func (view *transactionView) Write(
 		view.failure = errors.Join(view.failure, err)
 		return err
 	}
-	err := view.Engine.Write(ctx, project, path, content, mode, offset)
+	backend, err := view.storage(ctx, true)
+	if err != nil {
+		view.failure = errors.Join(view.failure, err)
+		return err
+	}
+	err = backend.Write(ctx, project, path, content, mode, offset)
 	view.failure = errors.Join(view.failure, err)
 	return err
 }
@@ -75,13 +64,17 @@ func (view *transactionView) Stat(ctx context.Context, project, path string) (st
 	if err := view.check(project); err != nil {
 		return storage.FileInfo{}, err
 	}
-	return view.Engine.Stat(ctx, project, path)
+	backend, err := view.storage(ctx, false)
+	if err != nil {
+		return storage.FileInfo{}, err
+	}
+	return backend.Stat(ctx, project, path)
 }
 
 // Stat performs the local storage operation under the shared filesystem lock.
 func (engine *Engine) Stat(ctx context.Context, project, path string) (storage.FileInfo, error) {
 	var value storage.FileInfo
-	err := engine.readView(ctx, func(backend storage.Engine) (err error) {
+	err := engine.readView(ctx, project, func(backend storage.Engine) (err error) {
 		value, err = backend.Stat(ctx, project, path)
 		return err
 	})
@@ -95,7 +88,11 @@ func (view *transactionView) List(
 	if err := view.check(project); err != nil {
 		return nil, false, err
 	}
-	return view.Engine.List(ctx, project, path, depth, limit)
+	backend, err := view.storage(ctx, false)
+	if err != nil {
+		return nil, false, err
+	}
+	return backend.List(ctx, project, path, depth, limit)
 }
 
 // List performs the local storage operation under the shared filesystem lock.
@@ -104,7 +101,7 @@ func (engine *Engine) List(
 ) ([]storage.FileInfo, bool, error) {
 	var value []storage.FileInfo
 	var more bool
-	err := engine.readView(ctx, func(backend storage.Engine) (err error) {
+	err := engine.readView(ctx, project, func(backend storage.Engine) (err error) {
 		value, more, err = backend.List(ctx, project, path, depth, limit)
 		return err
 	})
@@ -118,13 +115,17 @@ func (view *transactionView) Search(
 	if err := view.check(project); err != nil {
 		return nil, err
 	}
-	return view.Engine.Search(ctx, project, query, path, limit)
+	backend, err := view.storage(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	return backend.Search(ctx, project, query, path, limit)
 }
 
 // Search performs the local storage operation under the shared filesystem lock.
 func (engine *Engine) Search(ctx context.Context, project, query, path string, limit int) ([]storage.FileChunk, error) {
 	var value []storage.FileChunk
-	err := engine.readView(ctx, func(backend storage.Engine) (err error) {
+	err := engine.readView(ctx, project, func(backend storage.Engine) (err error) {
 		value, err = backend.Search(ctx, project, query, path, limit)
 		return err
 	})
@@ -137,7 +138,12 @@ func (view *transactionView) Delete(ctx context.Context, project, path string, r
 		view.failure = errors.Join(view.failure, err)
 		return err
 	}
-	err := view.Engine.Delete(ctx, project, path, recursive)
+	backend, err := view.storage(ctx, true)
+	if err != nil {
+		view.failure = errors.Join(view.failure, err)
+		return err
+	}
+	err = backend.Delete(ctx, project, path, recursive)
 	view.failure = errors.Join(view.failure, err)
 	return err
 }

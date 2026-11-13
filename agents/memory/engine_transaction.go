@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Laisky/errors/v2"
 
@@ -41,11 +42,17 @@ func NewTransactionalEngine(backend storageengine.Engine, conf Config) (*Transac
 func (engine *TransactionalEngine) transaction(
 	ctx context.Context, project, sessionID string, fn func(*StandardEngine) error,
 ) error {
+	if strings.TrimSpace(project) == "" {
+		return errors.New("project is required")
+	}
+	if err := validateSessionID(sessionID); err != nil {
+		return errors.Wrap(err, "validate memory transaction session")
+	}
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "start memory transaction")
 	}
 	if err := engine.backend.Transaction(ctx, project, sessionID, func(view storageengine.Engine) error {
-		storage := &transactionMutations{Engine: view}
+		storage := &transactionMutations{view: view}
 		bound := *engine.template
 		bound.storage = storage
 		bound.strictPersistence = true
@@ -63,7 +70,9 @@ func (engine *TransactionalEngine) transaction(
 }
 
 // BeforeTurn prepares model input and commits any compaction and metrics in one
-// transaction, returning no prepared output if the commit fails.
+// transaction. A classified post-publication error returns the prepared output
+// together with that error, so callers need not replay recall solely to retrieve
+// its result. Other failures return no output; see storage.PublishedCommit.
 func (engine *TransactionalEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput) (BeforeTurnOutput, error) {
 	if err := validateBeforeTurnInput(in); err != nil {
 		return BeforeTurnOutput{}, errors.Wrap(err, "validate before-turn input")
@@ -75,6 +84,9 @@ func (engine *TransactionalEngine) BeforeTurn(ctx context.Context, in BeforeTurn
 		return err
 	})
 	if err != nil {
+		if _, published := storageengine.PublishedCommit(err); published {
+			return out, err
+		}
 		return BeforeTurnOutput{}, err
 	}
 	return out, nil
@@ -106,16 +118,27 @@ func (engine *TransactionalEngine) RunConsolidation(ctx context.Context, project
 }
 
 // ListDirWithAbstract reads directory summaries from one consistent transaction.
+// Classified post-publication errors retain the prepared summaries with the
+// diagnostic; callers must inspect the outcome before considering a retry.
 func (engine *TransactionalEngine) ListDirWithAbstract(
 	ctx context.Context, project, sessionID, path string, depth, limit int,
 ) ([]DirectorySummary, error) {
+	root, err := validateSummaryRequest(project, sessionID, path)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, summaryTimeout)
+	defer cancel()
 	var out []DirectorySummary
-	err := engine.transaction(ctx, project, sessionID, func(bound *StandardEngine) error {
+	err = engine.transaction(ctx, project, sessionID, func(bound *StandardEngine) error {
 		var err error
-		out, err = bound.ListDirWithAbstract(ctx, project, sessionID, path, depth, limit)
+		out, err = bound.ListDirWithAbstract(ctx, project, sessionID, root, depth, limit)
 		return err
 	})
 	if err != nil {
+		if _, published := storageengine.PublishedCommit(err); published {
+			return out, err
+		}
 		return nil, err
 	}
 	return out, nil
@@ -124,22 +147,24 @@ func (engine *TransactionalEngine) ListDirWithAbstract(
 // transactionMutations remembers failed storage operations, including best-effort
 // reads and writes whose errors the legacy implementation intentionally suppresses.
 type transactionMutations struct {
-	storageengine.Engine
-	err error
+	view storageengine.Engine
+	err  error
 }
+
+var _ storageengine.Engine = (*transactionMutations)(nil)
 
 // Write forwards a mutation and remembers its first failure for transaction abort.
 func (storage *transactionMutations) Write(
 	ctx context.Context, project, path, content string, mode storageengine.WriteMode, offset int64,
 ) error {
-	err := storage.Engine.Write(ctx, project, path, content, mode, offset)
+	err := storage.view.Write(ctx, project, path, content, mode, offset)
 	storage.remember(err)
 	return err
 }
 
 // Delete forwards a deletion and remembers its first failure for transaction abort.
 func (storage *transactionMutations) Delete(ctx context.Context, project, path string, recursive bool) error {
-	err := storage.Engine.Delete(ctx, project, path, recursive)
+	err := storage.view.Delete(ctx, project, path, recursive)
 	storage.remember(err)
 	return err
 }
@@ -148,14 +173,14 @@ func (storage *transactionMutations) Delete(ctx context.Context, project, path s
 func (storage *transactionMutations) Read(
 	ctx context.Context, project, path string, offset, length int64,
 ) (string, error) {
-	content, err := storage.Engine.Read(ctx, project, path, offset, length)
+	content, err := storage.view.Read(ctx, project, path, offset, length)
 	storage.remember(err)
 	return content, err
 }
 
 // Stat forwards metadata lookup and remembers its first failure for transaction abort.
 func (storage *transactionMutations) Stat(ctx context.Context, project, path string) (storageengine.FileInfo, error) {
-	info, err := storage.Engine.Stat(ctx, project, path)
+	info, err := storage.view.Stat(ctx, project, path)
 	storage.remember(err)
 	return info, err
 }
@@ -164,7 +189,7 @@ func (storage *transactionMutations) Stat(ctx context.Context, project, path str
 func (storage *transactionMutations) List(
 	ctx context.Context, project, path string, depth, limit int,
 ) ([]storageengine.FileInfo, bool, error) {
-	entries, more, err := storage.Engine.List(ctx, project, path, depth, limit)
+	entries, more, err := storage.view.List(ctx, project, path, depth, limit)
 	storage.remember(err)
 	return entries, more, err
 }
@@ -173,7 +198,7 @@ func (storage *transactionMutations) List(
 func (storage *transactionMutations) Search(
 	ctx context.Context, project, query, prefix string, limit int,
 ) ([]storageengine.FileChunk, error) {
-	chunks, err := storage.Engine.Search(ctx, project, query, prefix, limit)
+	chunks, err := storage.view.Search(ctx, project, query, prefix, limit)
 	storage.remember(err)
 	return chunks, err
 }

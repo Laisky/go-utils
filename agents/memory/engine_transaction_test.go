@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -60,10 +61,19 @@ func (view *turnFaultView) Write(ctx context.Context, project, path, body string
 	return nil
 }
 
+// privateTransactionRoot creates a test-owned root with the transaction protocol's
+// private-write permissions, independently of the test runner's inherited umask.
+func privateTransactionRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	require.NoError(t, os.Chmod(root, 0o700))
+	return root
+}
+
 // newTurnBackend creates a durable backend and an already committed scaffold.
 func newTurnBackend(t *testing.T) *transactionlocal.Engine {
 	t.Helper()
-	backend, err := transactionlocal.NewEngine(local.Config{RootDir: t.TempDir()})
+	backend, err := transactionlocal.NewEngine(local.Config{RootDir: privateTransactionRoot(t)})
 	require.NoError(t, err)
 	require.NoError(t, backend.Transaction(context.Background(), recoveryProject, recoverySession, func(view storageengine.Engine) error {
 		seed, err := NewEngine(view, recoveryConfig())
@@ -150,7 +160,7 @@ func TestTransactionalTurnCommitAcknowledgementLost(t *testing.T) {
 func TestTransactionalTurnConcurrentInstances(t *testing.T) {
 	for _, same := range []bool{false, true} {
 		t.Run(fmt.Sprintf("same_%t", same), func(t *testing.T) {
-			root := t.TempDir()
+			root := privateTransactionRoot(t)
 			firstBackend, err := transactionlocal.NewEngine(local.Config{RootDir: root})
 			require.NoError(t, err)
 			secondBackend, err := transactionlocal.NewEngine(local.Config{RootDir: root})

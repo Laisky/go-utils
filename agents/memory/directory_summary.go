@@ -34,18 +34,9 @@ const (
 func (engine *StandardEngine) ListDirWithAbstract(
 	ctx context.Context, project, sessionID, listPath string, depth, limit int,
 ) ([]DirectorySummary, error) {
-	if strings.TrimSpace(project) == "" {
-		return nil, errors.New("project is required")
-	}
-	if err := validateSessionID(sessionID); err != nil {
-		return nil, errors.Wrap(err, "validate summary session")
-	}
-	root := strings.TrimSpace(listPath)
-	if root == "" {
-		root = sessionBasePath(sessionID)
-	}
-	if err := validateSummaryPath(sessionBasePath(sessionID), root); err != nil {
-		return nil, errors.Wrap(err, "validate summary root")
+	root, err := validateSummaryRequest(project, sessionID, listPath)
+	if err != nil {
+		return nil, err
 	}
 	if depth <= 0 {
 		depth = 8
@@ -60,7 +51,7 @@ func (engine *StandardEngine) ListDirWithAbstract(
 	// Include initialization and retries in the actual HTTP-attempt budget. Local
 	// and custom backends remain subject to the bounded logical call loop below.
 	// The root is additional to the caller's child-entry limit, including its I/O.
-	ctx, err := files.WithMCPBudget(ctx, 2*(1+3*(limit+1)), maxSummaryWireBytes)
+	ctx, err = files.WithMCPBudget(ctx, 2*(1+3*(limit+1)), maxSummaryWireBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "set summary MCP budget")
 	}
@@ -88,6 +79,25 @@ func (engine *StandardEngine) ListDirWithAbstract(
 		result = append(result, summary)
 	}
 	return result, nil
+}
+
+// validateSummaryRequest validates the namespace and resolves the canonical
+// summary root without performing storage I/O or changing caller namespace values.
+func validateSummaryRequest(project, sessionID, listPath string) (string, error) {
+	if strings.TrimSpace(project) == "" {
+		return "", errors.New("project is required")
+	}
+	if err := validateSessionID(sessionID); err != nil {
+		return "", errors.Wrap(err, "validate summary session")
+	}
+	root := strings.TrimSpace(listPath)
+	if root == "" {
+		root = sessionBasePath(sessionID)
+	}
+	if err := validateSummaryPath(sessionBasePath(sessionID), root); err != nil {
+		return "", errors.Wrap(err, "validate summary root")
+	}
+	return root, nil
 }
 
 // validateSummaryPath rejects noncanonical or out-of-subtree paths before I/O.

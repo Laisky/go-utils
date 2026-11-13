@@ -18,10 +18,20 @@ import (
 	"github.com/Laisky/go-utils/v6/agents/memory/storage/local"
 )
 
+// privateTestRoot creates a test-owned directory with explicit private permissions.
+// testing.TempDir's numbered child follows the process umask, so it is not
+// necessarily private even though its own generated parent is owner-only.
+func privateTestRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	require.NoError(t, os.Chmod(root, 0o700))
+	return root
+}
+
 // newTestEngine returns an adapter rooted in a private temporary directory.
 func newTestEngine(t *testing.T) *Engine {
 	t.Helper()
-	engine, err := NewEngine(local.Config{RootDir: t.TempDir()})
+	engine, err := NewEngine(local.Config{RootDir: privateTestRoot(t)})
 	require.NoError(t, err)
 	return engine
 }
@@ -205,7 +215,7 @@ func TestTransactionStorageBehavior(t *testing.T) {
 
 // TestTransactionRejectsLegacyRoot prevents accidental use of an existing local destination.
 func TestTransactionRejectsLegacyRoot(t *testing.T) {
-	root := t.TempDir()
+	root := privateTestRoot(t)
 	require.NoError(t, os.Mkdir(filepath.Join(root, "legacy-project"), 0o700))
 	_, err := NewEngine(local.Config{RootDir: root})
 	require.ErrorContains(t, err, "dedicated directory")
@@ -213,7 +223,7 @@ func TestTransactionRejectsLegacyRoot(t *testing.T) {
 
 // TestTransactionInvalidConfigurationAndPointers verifies immediate validation and fail-closed recovery.
 func TestTransactionInvalidConfigurationAndPointers(t *testing.T) {
-	_, err := NewEngine(local.Config{RootDir: t.TempDir(), Limits: local.Limits{MaxReadBytes: -1}})
+	_, err := NewEngine(local.Config{RootDir: privateTestRoot(t), Limits: local.Limits{MaxReadBytes: -1}})
 	require.ErrorContains(t, err, "negative")
 	for _, pointer := range []string{"generation-../../outside", "generation-missing", string(make([]byte, 256))} {
 		engine := newTestEngine(t)

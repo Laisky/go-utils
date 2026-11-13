@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/Laisky/errors/v2"
 )
@@ -23,6 +25,11 @@ func removeIfPresent(path string) error {
 
 // copyTree copies regular files and directories without following symbolic links.
 func copyTree(ctx context.Context, source, target string) error {
+	type directoryTimestamp struct {
+		path string
+		info fs.FileInfo
+	}
+	directories := []directoryTimestamp{}
 	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return errors.Wrap(walkErr, "walk generation")
@@ -34,23 +41,51 @@ func copyTree(ctx context.Context, source, target string) error {
 		if err != nil {
 			return errors.Wrap(err, "resolve generation path")
 		}
-		if relative == "." {
-			return nil
-		}
 		info, err := entry.Info()
 		if err != nil {
 			return errors.Wrap(err, "stat generation entry")
 		}
 		destination := filepath.Join(target, relative)
 		if entry.IsDir() {
-			return errors.Wrap(os.Mkdir(destination, info.Mode().Perm()), "copy generation directory")
+			if relative != "." {
+				if err = os.Mkdir(destination, info.Mode().Perm()); err != nil {
+					return errors.Wrap(err, "copy generation directory")
+				}
+			}
+			directories = append(directories, directoryTimestamp{path: destination, info: info})
+			return nil
 		}
 		if !info.Mode().IsRegular() {
 			return errors.New("generation contains a non-regular file")
 		}
-		return copyFile(ctx, path, destination, info.Mode().Perm())
+		if err = copyFile(ctx, path, destination, info.Mode().Perm()); err != nil {
+			return err
+		}
+		return preserveTimestamp(destination, info)
 	})
-	return errors.Wrap(err, "copy generation")
+	if err != nil {
+		return errors.Wrap(err, "copy generation")
+	}
+	// Restore directories after their children are created. Later caller mutations
+	// update only the directories they actually change, as in the original tree.
+	for i := len(directories) - 1; i >= 0; i-- {
+		if err = os.Chmod(directories[i].path, directories[i].info.Mode().Perm()); err != nil {
+			return errors.Wrap(err, "preserve snapshot directory permissions")
+		}
+		if err = preserveTimestamp(directories[i].path, directories[i].info); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// preserveTimestamp restores the original entry's access and modification times.
+func preserveTimestamp(path string, info fs.FileInfo) error {
+	access := info.ModTime()
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		access = time.Unix(stat.Atim.Sec, stat.Atim.Nsec)
+	}
+	return errors.Wrap(os.Chtimes(path, access, info.ModTime()), "preserve snapshot timestamp")
 }
 
 // copyFile copies a single regular file while checking cancellation per chunk.
@@ -65,6 +100,9 @@ func copyFile(ctx context.Context, source, target string, mode os.FileMode) (res
 		return errors.Wrap(err, "create snapshot file")
 	}
 	defer func() { result = errors.Join(result, errors.Wrap(output.Close(), "close snapshot file")) }()
+	if err = output.Chmod(mode); err != nil {
+		return errors.Wrap(err, "preserve snapshot file permissions")
+	}
 	buffer := make([]byte, 64*1024)
 	for {
 		if err = ctx.Err(); err != nil {
