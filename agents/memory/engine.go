@@ -150,13 +150,15 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 	tokenCount := estimateTokens(items)
 	if in.MaxInputTok > 0 {
 		if float64(tokenCount) >= float64(in.MaxInputTok)*engine.conf.CompactThreshold {
-			if refreshedContext, ok := engine.compactBeforeTurnContext(
+			if refreshedContext, ok, compactErr := engine.compactBeforeTurnContext(
 				ctx,
 				in.Project,
 				in.SessionID,
 				contextEvents,
 				in.MaxInputTok,
-			); ok {
+			); compactErr != nil {
+				return BeforeTurnOutput{}, errors.Wrap(compactErr, "compact transactional context")
+			} else if ok {
 				contextEvents = refreshedContext
 				recentItems = engine.pickRecentContextItems(
 					contextEvents,
@@ -180,6 +182,9 @@ func (engine *StandardEngine) BeforeTurn(ctx context.Context, in BeforeTurnInput
 		metrics.InsightRecallCount += len(insightIDs)
 		metrics.PromptDuplicateDropCount += droppedRecent
 	}); metricsErr != nil {
+		if engine.strictPersistence {
+			return BeforeTurnOutput{}, errors.Wrap(metricsErr, "update transactional recall metrics")
+		}
 		// Metrics must not break the hot path.
 	}
 
@@ -197,7 +202,7 @@ func (engine *StandardEngine) compactBeforeTurnContext(
 	project, sessionID string,
 	contextEvents []LogEvent,
 	maxInputTok int,
-) ([]LogEvent, bool) {
+) ([]LogEvent, bool, error) {
 	if err := engine.compactRuntimeContext(
 		ctx,
 		project,
@@ -205,15 +210,21 @@ func (engine *StandardEngine) compactBeforeTurnContext(
 		contextEvents,
 		maxInputTok,
 	); err != nil {
-		return nil, false
+		if engine.strictPersistence {
+			return nil, false, errors.Wrap(err, "prepare compacted context")
+		}
+		return nil, false, nil
 	}
 
 	refreshedContext, err := engine.loadContextEventsWithFallback(ctx, project, sessionID)
 	if err != nil {
-		return nil, false
+		if engine.strictPersistence {
+			return nil, false, errors.Wrap(err, "prepare compacted context")
+		}
+		return nil, false, nil
 	}
 
-	return refreshedContext, true
+	return refreshedContext, true, nil
 }
 
 // compactRuntimeContext compacts runtime context and writes compact events when context grows too large.
@@ -291,10 +302,15 @@ func (engine *StandardEngine) compactRuntimeContext(
 	}
 
 	meta, loadErr := engine.loadMeta(ctx, project, sessionID)
+	if loadErr != nil && engine.strictPersistence {
+		return errors.Wrap(loadErr, "load transactional compaction metadata")
+	}
 	if loadErr == nil {
 		meta.LastCompactAt = nowRFC3339
 		meta.UpdatedAt = nowRFC3339
-		_ = engine.writeMeta(ctx, project, sessionID, meta)
+		if err := engine.writeMeta(ctx, project, sessionID, meta); err != nil && engine.strictPersistence {
+			return errors.Wrap(err, "write transactional compaction metadata")
+		}
 	}
 
 	return nil

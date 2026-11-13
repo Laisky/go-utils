@@ -133,9 +133,11 @@ type Config struct {
 
 // StandardEngine is a storage-backed implementation of Engine.
 type StandardEngine struct {
-	storage   storageengine.Engine
-	heuristic HeuristicClient
-	conf      Config
+	// strictPersistence makes transactional operations reject best-effort metadata failures.
+	strictPersistence bool
+	storage           storageengine.Engine
+	heuristic         HeuristicClient
+	conf              Config
 }
 
 // HeuristicClient defines model-assisted memory processing for heuristic tasks.
@@ -167,6 +169,9 @@ type HeuristicFactResult struct {
 }
 
 // NewEngine creates a standard memory engine with pluggable storage backend.
+// Its independent writes do not provide crash recovery or concurrent turn
+// isolation. Use NewTransactionalEngine with a capable backend when those
+// guarantees are required; all writers must follow its migration requirements.
 func NewEngine(storage storageengine.Engine, conf Config) (*StandardEngine, error) {
 	return newStandardEngine(storage, conf)
 }

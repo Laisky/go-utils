@@ -65,7 +65,69 @@
       "TestArchiveReadFailureRetainsRaw",
       "TestArchiveFormatRejectsInvalid",
       "TestArchiveFailureDoesNotBlockRetention",
-      "TestMaintenancePartialFailure"
+      "TestMaintenancePartialFailure",
+      {
+        "name": "TestTransactionalTurnCommitAcknowledgementLost",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnConcurrentInstances",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnRecordCompatibility",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnMetadataReadFailure",
+        "goos": [
+          "linux"
+        ]
+      },
+      "TestTransactionalManagementValidatesBeforeBackend",
+      "TestTransactionalSummaryDeadlineAtAdmission",
+      {
+        "name": "TestTransactionalPublishedOutputs",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalSummarySnapshotMetadata",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestBeforeTurnSearchFailureContract",
+        "goos": [
+          "linux"
+        ]
+      }
+    ]
+  },
+  {
+    "package": "./agents/memory/storage/transactionlocal",
+    "tests": [
+      "TestTransactionReadOnlyDoesNotStage",
+      "TestTransactionPreservesUntouchedTimestamps",
+      "TestTransactionPublicationOutcome",
+      "TestTransactionRootWritePermissions",
+      "TestTransactionPreservesUnrelatedPrefixedData",
+      "TestTransactionPreservesCrashLeftovers",
+      "TestTransactionImportedGenerationCompatibility",
+      "TestRootInitializationSyncScope",
+      "TestRetirementUnsealedMetadata",
+      "TestRetirementMissingReferences"
+    ],
+    "goos": [
+      "linux"
     ]
   }
 ]

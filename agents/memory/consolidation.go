@@ -67,16 +67,26 @@ func (engine *StandardEngine) RunConsolidation(ctx context.Context, project, ses
 	}
 
 	watermarks, err := engine.loadWatermarks(ctx, project, sessionID)
+	if err != nil && engine.strictPersistence {
+		return errors.Wrap(err, "load transactional consolidation watermarks")
+	}
 	if err == nil {
 		watermarks.LastConsolidatedAt = now.Format(time.RFC3339)
 		watermarks.LastConsolidatedEvent = rawEvents[len(rawEvents)-1].ID
 		watermarks.InsightCount += len(newInsights)
-		_ = engine.writeWatermarks(ctx, project, sessionID, watermarks)
+		if writeErr := engine.writeWatermarks(
+			ctx, project, sessionID, watermarks,
+		); writeErr != nil && engine.strictPersistence {
+			return errors.Wrap(writeErr, "write transactional consolidation watermarks")
+		}
 	}
 	if metricsErr := engine.mutateMetrics(ctx, project, sessionID, func(metrics *MemoryMetrics) {
 		metrics.ConsolidationRunCount++
 		metrics.ConsolidationLagEvents = len(rawEvents)
 	}); metricsErr != nil {
+		if engine.strictPersistence {
+			return errors.Wrap(metricsErr, "update transactional consolidation metrics")
+		}
 		// Metrics must not break consolidation.
 	}
 

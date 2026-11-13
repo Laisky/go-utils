@@ -201,7 +201,7 @@ Read [AGENTS.md](AGENTS.md) for repository-specific development instructions. Op
 
 ## Further reading
 
-[Package recipes](docs/modules.md) · [API reference](https://pkg.go.dev/github.com/Laisky/go-utils/v6) · [Agent memory manual](docs/manual/agents_memory.md) · [Agent memory architecture](docs/arch/agents_memory_v2.md) · [MCP FileIO reference](docs/ref/mcp_fileio.md) · [Logging guide](docs/manual/logs.md) · [Changelog](CHANGELOG.md)
+[Package recipes](docs/modules.md) · [API reference](https://pkg.go.dev/github.com/Laisky/go-utils/v6) · [Agent memory manual](docs/manual/agents_memory.md) · [Transactional memory](docs/memory-transactions.md) · [Agent memory architecture](docs/arch/agents_memory_v2.md) · [MCP FileIO reference](docs/ref/mcp_fileio.md) · [Logging guide](docs/manual/logs.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
