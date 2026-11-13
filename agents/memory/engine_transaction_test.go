@@ -256,6 +256,8 @@ func TestTransactionalTurnCompactionAndMaintenance(t *testing.T) {
 	go func() { written <- writer.AfterTurn(ctx, recoveryInput("four")) }()
 	select {
 	case <-blocker.entered:
+	case earlyErr := <-written:
+		require.FailNow(t, "turn completed before reaching the heuristic", "early result: %v", earlyErr)
 	case <-ctx.Done():
 		require.FailNow(t, "turn did not reach the heuristic barrier", ctx.Err().Error())
 	}

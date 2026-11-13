@@ -103,6 +103,12 @@
         "goos": [
           "linux"
         ]
+      },
+      {
+        "name": "TestBeforeTurnSearchFailureContract",
+        "goos": [
+          "linux"
+        ]
       }
     ]
   },
@@ -116,7 +122,9 @@
       "TestTransactionPreservesUnrelatedPrefixedData",
       "TestTransactionPreservesCrashLeftovers",
       "TestTransactionImportedGenerationCompatibility",
-      "TestRootInitializationSyncScope"
+      "TestRootInitializationSyncScope",
+      "TestRetirementUnsealedMetadata",
+      "TestRetirementMissingReferences"
     ],
     "goos": [
       "linux"

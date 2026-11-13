@@ -148,3 +148,18 @@ restoring their original permissions and times after private staging. Cleanup
 retires only the validated previous active snapshot: unrelated prefix matches and
 unreferenced crash leftovers are never automatically deleted. Reserve space for
 those leftovers and inspect them only during coordinated operator maintenance.
+
+The local backend now persists versioned private retirement-ownership metadata
+before replacing a snapshot. This allows reopening after a crash or cleanup
+failure leaves an explicitly imported/custom predecessor. It never adopts an
+unrelated prefixed directory from its name, and never garbage-collects leftovers
+during reopening. Publication, previous-removal durability and ownership-record
+removal have separate barriers. Logical memory records and the `current` pointer
+format remain unchanged; this metadata adds no caller operation-ID requirement.
+Upgrade all participating transactionlocal writers together. Earlier revisions
+retain their known failure-state limitation; portable rollback/recovery uses a
+quiescent verified active-generation export, not inferred ownership of siblings.
+See the backend README for sealed-record, partial-write and physical-identity
+backup limits. The legacy `NewEngine` continues best-effort Search on BeforeTurn;
+`NewTransactionalEngine` aborts on a storage Search error and returns no prepared
+input or committed recall metrics.

@@ -107,3 +107,7 @@ after ignored metadata-read failures using the opt-in local backend.
 The transaction review regressions also cover validation/deadline admission,
 published-result outcome handling, no-op generation avoidance, stable timestamps
 and local root permissions. Full-copy write scaling remains a manual benchmark.
+The Linux transaction gate additionally exercises sealed/unsealed retirement
+metadata, missing predecessor/successor recovery states and the legacy versus
+transactional Search-error contract. Subprocess crash and real permission-fault
+campaigns remain in the full local suite rather than expanding the lean gate.

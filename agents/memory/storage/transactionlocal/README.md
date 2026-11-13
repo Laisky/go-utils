@@ -141,3 +141,45 @@ private staging tree, then regains its original mode and timestamps after childr
 are copied. Abort/retirement cleanup may temporarily grant owner access only in
 snapshots proven to be this operation's private stage or its retired predecessor.
 It never follows symlinks or chmods unrelated prefix-matching objects.
+
+## Retirement ownership and interrupted upgrades
+
+Before replacing a published snapshot, the backend writes a sealed version-1
+ownership record in a numeric `pointer-*` control temporary. It binds the prior
+snapshot's name and device/inode identity to its prepared successor. Names use
+base64 JSON byte fields so even historical non-UTF-8 filesystem names survive
+exactly. The record file and its directory entry are synchronized before pointer
+publication. These are private backend ownership records, not logical operation
+IDs or replay/deduplication receipts; project JSON/JSONL and the `current` pointer
+representation are unchanged.
+
+Recovery validates bounded records and existing references while holding the
+shared protocol lock. A matching ownership record can identify an inactive
+imported/custom predecessor without accepting arbitrary `generation-*` siblings.
+Missing previous/next directories are valid interrupted states. Complete unknown
+versions fail closed. Unsealed/interrupted control writes and legacy raw pointer
+temporaries grant no ownership and remain preserved. The reader neither deletes
+recorded leftovers nor replays callbacks. Parsing and memory use are linear in
+the root's entry count, with each typed record bounded to 2 KiB; provision and
+inspect this bounded local dataset accordingly.
+
+On normal retirement the previous snapshot is removed, its directory removal is
+synchronized, and only then is this operation's ownership record removed and that
+removal synchronized. A crash before the first removal barrier therefore keeps
+ownership evidence. A record resurrected after its predecessor was durably
+removed is harmless. Errors retain the complete published outcome classification.
+
+Healthy roots from earlier PR revisions open without data conversion, and the
+unchanged local reader reads active project bytes. Earlier transactionlocal
+binaries do not implement this imported-generation recovery protocol: update all
+writers together rather than relying on mixed-version crash recovery. Their
+normal completed state remains readable, but the known older custom-predecessor
+restart defect is not repaired by rolling back the executable.
+
+An already-stranded pre-fix root has no durable ownership evidence to infer.
+Stop participants, preserve a backup, verify the active `current` generation, and
+export its project records into a separate initialized destination. Do not accept
+or delete arbitrary prefixed siblings to force reopening. For portable backups,
+restore verified active project data through the documented export/import path;
+a byte-copy of internal ownership records to another filesystem can change the
+device/inode identities and is not a portable backend-root migration format.

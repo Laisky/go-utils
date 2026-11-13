@@ -29,6 +29,8 @@ type Engine struct {
 	commitSync func(string) error
 	// retireSnapshot is an internal post-commit cleanup fault seam.
 	retireSnapshot func(string) error
+	// retirementSync is an internal fault seam for post-retirement directory barriers.
+	retirementSync func(string) error
 }
 
 var _ storage.TransactionalEngine = (*Engine)(nil)
@@ -181,8 +183,7 @@ func (engine *Engine) current() (current string, result error) {
 		return "", err
 	}
 	name := string(body)
-	if !strings.HasPrefix(name, "generation-") || filepath.Base(name) != name ||
-		strings.ContainsAny(name, "/\\\x00\r\n") {
+	if !generationName(name) {
 		return "", errors.New("invalid generation pointer")
 	}
 	info, err = root.Lstat(name)
@@ -249,6 +250,10 @@ func (engine *Engine) Transaction(
 	if err = syncDirectory(engine.root); err != nil {
 		return err
 	}
+	receipt, err := engine.prepareRetirement(current, staged)
+	if err != nil {
+		return err
+	}
 	pointer, err := os.CreateTemp(engine.root, "pointer-")
 	if err != nil {
 		return errors.Wrap(err, "create generation pointer")
@@ -272,9 +277,9 @@ func (engine *Engine) Transaction(
 		return errors.Wrap(err, "commit durability uncertain")
 	}
 	durable = true
-	// The lock excludes every reader, so superseded and abandoned generations
-	// may now be removed without invalidating any in-flight view.
-	return engine.collect(current, staged)
+	// The lock excludes readers while the proven predecessor is retired.
+	// Its durable ownership receipt survives every uncertain cleanup boundary.
+	return engine.finishRetirement(current, staged, receipt)
 }
 
 // ReadTransaction supplies a stable shared snapshot and rejects all mutations.

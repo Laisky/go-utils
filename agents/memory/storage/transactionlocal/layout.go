@@ -29,6 +29,12 @@ func temporaryName(name, prefix string) bool {
 	return true
 }
 
+// generationName preserves the existing bounded single-component pointer syntax.
+func generationName(name string) bool {
+	return len(name) <= 255 && strings.HasPrefix(name, "generation-") &&
+		filepath.Base(name) == name && !strings.ContainsAny(name, "/\\\x00\r\n")
+}
+
 // validateLayout rejects mixed roots without adopting arbitrary prefix matches.
 // A validated current pointer explicitly identifies its active generation,
 // including historical/imported names. Unreferenced recognized temporary entries
@@ -52,6 +58,23 @@ func (engine *Engine) validateLayout() (result error) {
 	if err != nil {
 		return errors.Wrap(err, "read transaction layout")
 	}
+	// Validate every candidate before opening any pointer temporary.
+	for _, entry := range entries {
+		if !temporaryName(entry.Name(), "pointer-") {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(engine.root, entry.Name()))
+		if err != nil {
+			return errors.Wrap(err, "stat retirement control entry")
+		}
+		if err = validateControlEntry(info, "retirement control entry", false); err != nil {
+			return err
+		}
+	}
+	proofs, err := engine.retirementProofs(entries)
+	if err != nil {
+		return err
+	}
 	for _, entry := range entries {
 		name := entry.Name()
 		directory := false
@@ -63,7 +86,21 @@ func (engine *Engine) validateLayout() (result error) {
 			directory = true
 		case temporaryName(name, "pointer-"):
 		default:
-			return errors.New("transaction root contains unrelated entries; use a dedicated directory")
+			info, err := os.Lstat(filepath.Join(engine.root, name))
+			if err != nil {
+				return errors.Wrap(err, "stat possible retired generation")
+			}
+			if !info.IsDir() {
+				return errors.New("transaction root contains unrelated entries; use a dedicated directory")
+			}
+			identity, err := directoryIdentity(info)
+			if err != nil {
+				return err
+			}
+			if _, proven := proofs[name][identity]; !proven {
+				return errors.New("transaction root contains unrelated entries; use a dedicated directory")
+			}
+			directory = true
 		}
 		info, err := os.Lstat(filepath.Join(engine.root, name))
 		if err != nil {

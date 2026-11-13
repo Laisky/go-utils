@@ -761,7 +761,8 @@ Compatibility behavior:
     - Exact active facts are loaded from `indexes/active_facts.json` when present.
 3. Load bounded insight recall from `/insights/...`
 4. Search related chunks via storage `Search`
-    - Search retrieval is best-effort; search errors are ignored and request assembly continues.
+    - With `NewEngine`, Search retrieval is best-effort: search errors are ignored and request assembly continues.
+    - With [`NewTransactionalEngine`](../memory-transactions.md), a Search error aborts the transaction. `BeforeTurn` returns an error without prepared input, and none of its mutations, including recall metrics, are committed.
 5. Remove duplicate engine-recalled recent items already present in caller history/current items
 6. Build memory block + caller history + recent context + current input
 7. Estimate token load
