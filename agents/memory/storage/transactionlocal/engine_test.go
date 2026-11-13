@@ -175,7 +175,7 @@ func TestTransactionProcessesAndCrash(t *testing.T) {
 	require.Equal(t, "4", body)
 	entries, err := os.ReadDir(engine.root)
 	require.NoError(t, err)
-	require.Len(t, entries, 3, "only current, lock and live generation survive cleanup")
+	require.Len(t, entries, 4, "current, lock, live generation and unreferenced crash snapshot remain")
 }
 
 // TestTransactionStorageBehavior checks unchanged local content formats and methods.

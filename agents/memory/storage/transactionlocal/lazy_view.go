@@ -102,7 +102,7 @@ func (view *transactionView) close() error {
 		view.backend = nil
 	}
 	if view.empty != "" {
-		result = errors.Join(result, errors.Wrap(os.RemoveAll(view.empty), "remove empty read view"))
+		result = errors.Join(result, errors.Wrap(removeOwnedSnapshot(view.empty), "remove empty read view"))
 		view.empty = ""
 	}
 	return result

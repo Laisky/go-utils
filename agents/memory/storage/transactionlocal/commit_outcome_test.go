@@ -67,3 +67,25 @@ func TestTransactionPublicationOutcome(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "new", body)
 }
+
+// TestTransactionRetirementOutcome retains durable classification when cleanup
+// of the one proven retired snapshot fails, without sweeping arbitrary orphans.
+func TestTransactionRetirementOutcome(t *testing.T) {
+	engine := newTestEngine(t)
+	require.NoError(t, engine.Write(t.Context(), "p", "/value", "old", storage.WriteModeTruncate, 0))
+	prior, err := engine.current()
+	require.NoError(t, err)
+	injected := errors.New("synthetic retired snapshot cleanup failure")
+	calls := 0
+	engine.retireSnapshot = func(path string) error { calls++; require.Equal(t, prior, path); return injected }
+	err = engine.Write(t.Context(), "p", "/value", "new", storage.WriteModeTruncate, 0)
+	require.ErrorIs(t, err, injected)
+	outcome, published := storage.PublishedCommit(err)
+	require.True(t, published)
+	require.Equal(t, storage.CommitOutcomeDurable, outcome)
+	require.Equal(t, 1, calls)
+	require.DirExists(t, prior)
+	value, err := engine.Read(t.Context(), "p", "/value", 0, -1)
+	require.NoError(t, err)
+	require.Equal(t, "new", value)
+}

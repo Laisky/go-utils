@@ -254,7 +254,11 @@ func TestTransactionalTurnCompactionAndMaintenance(t *testing.T) {
 	defer cancel()
 	written := make(chan error, 1)
 	go func() { written <- writer.AfterTurn(ctx, recoveryInput("four")) }()
-	<-blocker.entered
+	select {
+	case <-blocker.entered:
+	case <-ctx.Done():
+		require.FailNow(t, "turn did not reach the heuristic barrier", ctx.Err().Error())
+	}
 	prepared := make(chan error, 1)
 	go func() {
 		_, err := seed.BeforeTurn(ctx, BeforeTurnInput{Project: recoveryProject, SessionID: recoverySession, TurnID: "next", CurrentInput: recoveryInput("next").InputItems, MaxInputTok: 1})

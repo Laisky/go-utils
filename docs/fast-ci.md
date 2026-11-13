@@ -27,6 +27,23 @@ The allowlist must be nonempty and unique, discovery must find every name, and
 every selected test must run and pass exactly once. Any skipped subtest, failure,
 missing package completion, invalid JSON, native command failure or timeout fails
 the gate. Test caching is disabled with `-count=1`; build caching remains enabled.
+Optional `goos` selectors scope a suite or an individual test to its supported
+Go operating systems. Existing test-name strings apply everywhere. For example,
+`{"name": "TestLinuxOnly", "goos": ["linux"]}` selects one test only on Linux;
+a suite-level `"goos": ["linux"]` excludes its entire package elsewhere. Group
+and test selectors intersect. The transactionlocal package and Linux-tagged
+memory transaction tests are selected only on Linux; portable memory tests still
+run on every target.
+
+The runner records the active `go env GOOS`, validates selector names against
+`go tool dist list`, and records the selected suites in its receipt. It validates
+the complete configuration before filtering: malformed or empty selectors,
+unknown operating systems, empty groups and duplicate `(package, test)` entries
+fail even on an excluded platform. At least one test must apply. Every applicable
+name still requires exact discovery and one successful execution; excluded tests
+are not reported as passing or skipped executions. Cross-compilation and source
+discovery do not establish runtime qualification on another operating system.
+
 Raw discovery, Go JSON, native exits and wall times are uploaded for successful
 and failed executions. The five-minute job timeout bounds this essential gate.
 It does not establish full library correctness or production readiness.

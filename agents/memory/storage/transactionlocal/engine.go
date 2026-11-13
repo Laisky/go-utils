@@ -27,6 +27,8 @@ type Engine struct {
 	rootIdentity os.FileInfo
 	// commitSync is an internal filesystem-fault seam; nil uses real directory fsync.
 	commitSync func(string) error
+	// retireSnapshot is an internal post-commit cleanup fault seam.
+	retireSnapshot func(string) error
 }
 
 var _ storage.TransactionalEngine = (*Engine)(nil)
@@ -34,7 +36,7 @@ var _ storage.TransactionalEngine = (*Engine)(nil)
 // NewEngine opens a dedicated transaction root using local storage configuration.
 // The root must be private to cooperating transactionlocal users on a local
 // filesystem supporting flock, atomic rename, and file/directory fsync.
-func NewEngine(conf local.Config) (*Engine, error) {
+func NewEngine(conf local.Config) (engine *Engine, result error) {
 	if strings.TrimSpace(conf.RootDir) == "" {
 		return nil, errors.New("root_dir is required")
 	}
@@ -42,7 +44,13 @@ func NewEngine(conf local.Config) (*Engine, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "resolve root")
 	}
-	if err = os.MkdirAll(root, 0o700); err != nil {
+	created, err := makeRootDirectories(root)
+	defer func() {
+		if result != nil {
+			result = errors.Join(result, removeCreatedDirectories(created))
+		}
+	}()
+	if err != nil {
 		return nil, errors.Wrap(err, "create root")
 	}
 	root, err = filepath.EvalSymlinks(root)
@@ -61,26 +69,12 @@ func NewEngine(conf local.Config) (*Engine, error) {
 	if err = validationBackend.Close(); err != nil {
 		return nil, errors.Wrap(err, "close configuration validation")
 	}
-	engine := &Engine{conf: conf, root: root, rootIdentity: identity}
-	// A dedicated layout avoids accidentally reinterpreting legacy storage.
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, errors.Wrap(err, "read root")
+	engine = &Engine{conf: conf, root: root, rootIdentity: identity}
+	if err = syncCreatedDirectories(created, syncDirectory); err != nil {
+		return nil, err
 	}
-	for _, entry := range entries {
-		if entry.Name() != "lock" && entry.Name() != "current" &&
-			!strings.HasPrefix(entry.Name(), "generation-") && !strings.HasPrefix(entry.Name(), "pointer-") {
-			return nil, errors.New("transaction root contains non-transactional entries; use a dedicated directory")
-		}
-	}
-	// Persist root creation as well as the commit entries below it.
-	for directory := root; ; directory = filepath.Dir(directory) {
-		if err = syncDirectory(directory); err != nil {
-			return nil, err
-		}
-		if filepath.Dir(directory) == directory {
-			break
-		}
+	if err = engine.validateLayout(); err != nil {
+		return nil, err
 	}
 	return engine, nil
 }
@@ -235,7 +229,7 @@ func (engine *Engine) Transaction(
 	defer func() {
 		result = errors.Join(result, view.close())
 		if !published && view.staged != "" {
-			result = errors.Join(result, errors.Wrap(os.RemoveAll(view.staged), "discard generation"))
+			result = errors.Join(result, errors.Wrap(removeOwnedSnapshot(view.staged), "discard generation"))
 		}
 	}()
 	callbackErr := func() (callbackResult error) {
@@ -280,24 +274,7 @@ func (engine *Engine) Transaction(
 	durable = true
 	// The lock excludes every reader, so superseded and abandoned generations
 	// may now be removed without invalidating any in-flight view.
-	return engine.collect(filepath.Base(staged))
-}
-
-// collect removes unreferenced snapshots after a durable commit.
-func (engine *Engine) collect(keep string) error {
-	entries, err := os.ReadDir(engine.root)
-	if err != nil {
-		return errors.Wrap(err, "list obsolete generations")
-	}
-	for _, entry := range entries {
-		if entry.Name() != keep &&
-			(strings.HasPrefix(entry.Name(), "generation-") || strings.HasPrefix(entry.Name(), "pointer-")) {
-			if err = os.RemoveAll(filepath.Join(engine.root, entry.Name())); err != nil {
-				return errors.Wrap(err, "remove obsolete generation")
-			}
-		}
-	}
-	return nil
+	return engine.collect(current, staged)
 }
 
 // ReadTransaction supplies a stable shared snapshot and rejects all mutations.

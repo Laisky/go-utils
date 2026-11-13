@@ -125,23 +125,38 @@ func TestTransactionalSummaryDeadlineAtAdmission(t *testing.T) {
 	require.WithinDuration(t, started.Add(summaryTimeout), deadline, time.Second)
 }
 
-// TestTransactionalSummaryBackendWaitCancellation checks a blocked backend exits
-// on the caller's shorter deadline without entering a storage callback.
+// TestTransactionalSummaryBackendWaitCancellation deterministically cancels a
+// blocked request only after backend admission, without a scheduler-sized timer.
 func TestTransactionalSummaryBackendWaitCancellation(t *testing.T) {
 	backend := &admissionTransactionBackend{Engine: newMemoryStorageMock()}
 	entered := make(chan struct{})
 	backend.enter = func(ctx context.Context) error { close(entered); <-ctx.Done(); return errors.WithStack(ctx.Err()) }
 	engine, err := NewTransactionalEngine(backend, recoveryConfig())
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	guard, stop := context.WithTimeout(t.Context(), 5*time.Second)
+	defer stop()
+	ctx, cancel := context.WithCancel(guard)
 	defer cancel()
-	out, err := engine.ListDirWithAbstract(ctx, "demo", "alice", "", 1, 1)
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.Nil(t, out)
-	require.Equal(t, 1, backend.calls)
+	result := make(chan error, 1)
+	go func() {
+		out, err := engine.ListDirWithAbstract(ctx, "demo", "alice", "", 1, 1)
+		if out != nil {
+			result <- errors.New("canceled request unexpectedly returned summaries")
+			return
+		}
+		result <- err
+	}()
 	select {
 	case <-entered:
-	default:
-		t.Fatal("backend admission was not exercised")
+	case <-guard.Done():
+		require.FailNow(t, "backend admission did not begin", guard.Err().Error())
 	}
+	cancel()
+	select {
+	case err := <-result:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-guard.Done():
+		require.FailNow(t, "canceled backend did not finish", guard.Err().Error())
+	}
+	require.Equal(t, 1, backend.calls)
 }

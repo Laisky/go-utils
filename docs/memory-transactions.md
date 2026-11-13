@@ -140,3 +140,11 @@ transaction backend only; existing local/MCP APIs and caller-selected payload
 permissions are unchanged. See the backend README for trusted-owner and import
 assumptions. Public management input validation runs before backend admission,
 and the ten-second summary deadline covers locking and any lazy staging.
+
+Initialization synchronizes only newly created directories and their necessary
+parent entries; existing roots do not require opening unrelated ancestors for
+fsync. Snapshot copying supports readable/traversable readonly subdirectories by
+restoring their original permissions and times after private staging. Cleanup
+retires only the validated previous active snapshot: unrelated prefix matches and
+unreferenced crash leftovers are never automatically deleted. Reserve space for
+those leftovers and inspect them only during coordinated operator maintenance.

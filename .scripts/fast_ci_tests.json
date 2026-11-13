@@ -66,14 +66,44 @@
       "TestArchiveFormatRejectsInvalid",
       "TestArchiveFailureDoesNotBlockRetention",
       "TestMaintenancePartialFailure",
-      "TestTransactionalTurnCommitAcknowledgementLost",
-      "TestTransactionalTurnConcurrentInstances",
-      "TestTransactionalTurnRecordCompatibility",
-      "TestTransactionalTurnMetadataReadFailure",
+      {
+        "name": "TestTransactionalTurnCommitAcknowledgementLost",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnConcurrentInstances",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnRecordCompatibility",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalTurnMetadataReadFailure",
+        "goos": [
+          "linux"
+        ]
+      },
       "TestTransactionalManagementValidatesBeforeBackend",
       "TestTransactionalSummaryDeadlineAtAdmission",
-      "TestTransactionalPublishedOutputs",
-      "TestTransactionalSummarySnapshotMetadata"
+      {
+        "name": "TestTransactionalPublishedOutputs",
+        "goos": [
+          "linux"
+        ]
+      },
+      {
+        "name": "TestTransactionalSummarySnapshotMetadata",
+        "goos": [
+          "linux"
+        ]
+      }
     ]
   },
   {
@@ -82,7 +112,14 @@
       "TestTransactionReadOnlyDoesNotStage",
       "TestTransactionPreservesUntouchedTimestamps",
       "TestTransactionPublicationOutcome",
-      "TestTransactionRootWritePermissions"
+      "TestTransactionRootWritePermissions",
+      "TestTransactionPreservesUnrelatedPrefixedData",
+      "TestTransactionPreservesCrashLeftovers",
+      "TestTransactionImportedGenerationCompatibility",
+      "TestRootInitializationSyncScope"
+    ],
+    "goos": [
+      "linux"
     ]
   }
 ]

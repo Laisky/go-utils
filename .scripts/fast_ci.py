@@ -53,6 +53,61 @@ def run(command, evidence, label, records, timeout=240):
         record["seconds"] = round(time.perf_counter() - start, 3)
 
 
+def platform_selector(node, supported_goos):
+    """platform_selector validates an optional nonempty list of known Go OS names."""
+    if "goos" not in node:
+        return None
+    values = node["goos"]
+    if (not isinstance(values, list) or not values
+            or not all(isinstance(value, str) and value in supported_goos for value in values)
+            or len(values) != len(set(values))):
+        raise RuntimeError("goos selector must contain unique supported Go OS names")
+    return set(values)
+
+
+def select_suites(suites, goos, supported_goos):
+    """select_suites validates all configuration before selecting applicable tests."""
+    if goos not in supported_goos:
+        raise RuntimeError(f"unsupported target GOOS: {goos}")
+    if not isinstance(suites, list) or not suites:
+        raise RuntimeError("no essential test suites configured")
+    selected, seen = [], set()
+    for suite in suites:
+        if not isinstance(suite, dict) or set(suite) - {"package", "tests", "goos"}:
+            raise RuntimeError("invalid essential test suite")
+        package = suite.get("package")
+        tests = suite.get("tests")
+        if not isinstance(package, str) or not package or package.strip() != package or package.startswith("-"):
+            raise RuntimeError("test suite package must be a nonempty package argument")
+        if not isinstance(tests, list) or not tests:
+            raise RuntimeError("test allowlist must be nonempty")
+        platforms = platform_selector(suite, supported_goos)
+        expected = []
+        for test in tests:
+            test_platforms = None
+            if isinstance(test, str):
+                name = test
+            elif isinstance(test, dict) and not set(test) - {"name", "goos"}:
+                name = test.get("name")
+                test_platforms = platform_selector(test, supported_goos)
+            else:
+                raise RuntimeError("invalid test allowlist entry")
+            if not isinstance(name, str) or not re.fullmatch(r"Test\w+", name):
+                raise RuntimeError("test allowlist must contain top-level Test names")
+            identity = (package, name)
+            if identity in seen:
+                raise RuntimeError(f"duplicate configured test: {package} {name}")
+            seen.add(identity)
+            if ((platforms is None or goos in platforms)
+                    and (test_platforms is None or goos in test_platforms)):
+                expected.append(name)
+        if expected:
+            selected.append({"package": package, "tests": expected})
+    if not selected:
+        raise RuntimeError("no essential tests apply to target GOOS")
+    return selected
+
+
 def main():
     """main validates formatting and selected units, returning a fail-closed status."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -73,12 +128,13 @@ def main():
             if bad.strip():
                 raise RuntimeError(f"gofmt required:\n{bad}")
         suites = json.loads(Path(".scripts/fast_ci_tests.json").read_text(encoding="utf-8"))
-        if not suites:
-            raise RuntimeError("no essential test suites configured")
+        receipt["goos"] = run(["go", "env", "GOOS"], args.evidence, "goos", records).strip()
+        targets = run(["go", "tool", "dist", "list"], args.evidence, "supported-platforms", records)
+        supported_goos = {target.split("/")[0] for target in targets.splitlines() if "/" in target}
+        suites = select_suites(suites, receipt["goos"], supported_goos)
+        receipt["selected_suites"] = suites
         for index, suite in enumerate(suites):
             expected = suite["tests"]
-            if not expected or len(expected) != len(set(expected)) or not all(re.fullmatch(r"Test\w+", n) for n in expected):
-                raise RuntimeError("test allowlist must contain unique top-level Test names")
             pattern = "^(" + "|".join(expected) + ")$"
             discovered = run(["go", "test", "-mod=readonly", "-list", pattern, suite["package"]], args.evidence, f"discover-{index}", records)
             names = {line for line in discovered.splitlines() if re.fullmatch(r"Test\w+", line)}

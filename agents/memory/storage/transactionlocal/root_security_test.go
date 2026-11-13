@@ -125,6 +125,7 @@ func TestTransactionLockTrust(t *testing.T) {
 	for _, kind := range []string{"symlink", "hardlink", "fifo", "writable"} {
 		t.Run(kind, func(t *testing.T) {
 			engine := newTestEngine(t)
+			require.NoError(t, os.Remove(filepath.Join(engine.root, "lock")), "replace the test-owned idle lock with an unsafe fixture")
 			lock := filepath.Join(engine.root, "lock")
 			target := filepath.Join(privateTestRoot(t), "target")
 			require.NoError(t, os.WriteFile(target, []byte("unchanged"), 0o600))

@@ -48,8 +48,15 @@ func copyTree(ctx context.Context, source, target string) error {
 		destination := filepath.Join(target, relative)
 		if entry.IsDir() {
 			if relative != "." {
-				if err = os.Mkdir(destination, info.Mode().Perm()); err != nil {
+				// Staging must permit descendant creation even when the source
+				// directory is readable/traversable but intentionally read-only.
+				// Exact source permissions are restored after all children exist.
+				stagingMode := info.Mode().Perm() | 0o700
+				if err = os.Mkdir(destination, stagingMode); err != nil {
 					return errors.Wrap(err, "copy generation directory")
+				}
+				if err = os.Chmod(destination, stagingMode); err != nil {
+					return errors.Wrap(err, "prepare staging directory permissions")
 				}
 			}
 			directories = append(directories, directoryTimestamp{path: destination, info: info})

@@ -35,8 +35,10 @@ so a failed mutation cannot alter the currently published generation.
 A killed process before pointer publication leaves an unreachable snapshot.
 A killed process after publication leaves the complete new snapshot. Reopening
 uses only the pointer; it never guesses from modification times or falls back to
-an uncommitted snapshot. The next successful commit removes abandoned and
-superseded generations. Post-publication failures carry `storage.CommitError`:
+an uncommitted snapshot. A successful commit retires only the previously active generation explicitly
+selected by the validated `current` pointer. Unreferenced generation/pointer
+leftovers are preserved, even when their identifiers resemble protocol objects;
+a name alone does not establish ownership or authorize recursive deletion. Post-publication failures carry `storage.CommitError`:
 `CommitOutcomeUncertain` means publication occurred but final directory sync
 could not confirm durability; `CommitOutcomeDurable` means only later cleanup
 or acknowledgement failed after durable commit. Inspect `storage.PublishedCommit`
@@ -82,7 +84,11 @@ Each mutating transaction still copies the whole current tree and syncs the
 result; unrelated session history therefore affects write cost. Existing
 snapshot reads and no-op transactions avoid this cost. This trades write
 throughput and temporary disk capacity for an inspectable transaction protocol.
-Provision enough space for two complete snapshots and staging left behind by interrupted attempts. For large workloads, implement
+Provision enough space for two complete snapshots and staging left behind by
+interrupted attempts. Inspect and back up crash leftovers during quiescent
+operator-controlled maintenance; the SDK does not sweep unreferenced prefix
+matches. A mixed root containing names such as `generation-archive` or
+`pointer-backup` is rejected without deleting or chmodding their data. For large workloads, implement
 `storage.TransactionalEngine` using a backend-native serializable transaction
 instead of adopting this adapter.
 
@@ -112,3 +118,26 @@ contract. A migration involving a legacy writer requires the coordinated stop
 above; there is no claim of safe mixed-mode rolling writes. The compatibility
 suite reads committed content through the unchanged local backend and retains
 historical memory fixtures.
+
+## Initialization and readonly metadata
+
+The constructor tracks directories it actually creates and synchronizes only
+those directories and their immediate parents, bottom-up. Existing roots require
+no constructor fsync; their initial directory durability belongs to their creator.
+Opening a valid existing root beneath a traversal-only ancestor works. Creating
+a new root still requires its changed parent directory entry to be synchronized;
+if that filesystem access fails the constructor reports the failure and removes
+only its own newly created empty directories. Existing or concurrently populated
+directories are preserved.
+
+Layout validation holds a shared protocol lock so initialization cannot race a
+writer publishing and retiring generations. The layout accepts historical
+numeric temporary entries and explicitly selected historical/imported generation
+names, with type/ownership validation. Temporary-name recognition is for
+compatibility with recoverable leftovers, never proof that an object is garbage.
+
+A populated readonly directory is copied with temporary owner access in the
+private staging tree, then regains its original mode and timestamps after children
+are copied. Abort/retirement cleanup may temporarily grant owner access only in
+snapshots proven to be this operation's private stage or its retired predecessor.
+It never follows symlinks or chmods unrelated prefix-matching objects.

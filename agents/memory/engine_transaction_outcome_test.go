@@ -32,9 +32,9 @@ func poisonTransactionCleanup(t *testing.T, root string) func() {
 	return restore
 }
 
-// TestTransactionalBeforeTurnPostCommitResult requires a known committed recall
-// to retain its prepared output rather than forcing another metrics increment.
-func TestTransactionalBeforeTurnPostCommitResult(t *testing.T) {
+// TestTransactionalBeforeTurnPreservesUnrelatedData checks that recall does not
+// delete or chmod an unrelated prefix-matching directory introduced after open.
+func TestTransactionalBeforeTurnPreservesUnrelatedData(t *testing.T) {
 	root := privateTransactionRoot(t)
 	backend, err := transactionlocal.NewEngine(local.Config{RootDir: root})
 	require.NoError(t, err)
@@ -44,20 +44,15 @@ func TestTransactionalBeforeTurnPostCommitResult(t *testing.T) {
 	restore := poisonTransactionCleanup(t, root)
 	in := BeforeTurnInput{Project: recoveryProject, SessionID: recoverySession, TurnID: "next", CurrentInput: recoveryInput("one").InputItems}
 	out, err := engine.BeforeTurn(t.Context(), in)
-	require.ErrorContains(t, err, "remove obsolete generation")
-	outcome, published := storageengine.PublishedCommit(err)
-	require.True(t, published)
-	require.Equal(t, storageengine.CommitOutcomeDurable, outcome)
-	reader, readErr := NewEngine(backend, recoveryConfig())
-	require.NoError(t, readErr)
-	first, readErr := reader.loadMetrics(t.Context(), recoveryProject, recoverySession)
-	require.NoError(t, readErr)
-	require.Positive(t, first.RecallCount, "the recall metrics must actually be committed")
-	require.NotEmpty(t, out.InputItems, "known committed BeforeTurn must preserve its prepared result with the diagnostic")
+	require.NoError(t, err)
+	require.NotEmpty(t, out.InputItems)
+	info, err := os.Lstat(filepath.Join(root, "generation-blocked"))
+	require.NoError(t, err)
+	require.Zero(t, info.Mode().Perm(), "unrelated directory permissions are unchanged")
 	restore()
-	// Avoid retrying an acknowledged committed operation; cleanup can be attempted
-	// independently without replaying recall. This does not make arbitrary retries safe.
-	require.NoError(t, backend.Transaction(context.Background(), recoveryProject, recoverySession, func(_ storageengine.Engine) error { return nil }))
+	body, err := os.ReadFile(filepath.Join(root, "generation-blocked", "child"))
+	require.NoError(t, err)
+	require.Equal(t, "synthetic", string(body))
 }
 
 // outcomeBackend simulates a backend that can classify a lost acknowledgement
